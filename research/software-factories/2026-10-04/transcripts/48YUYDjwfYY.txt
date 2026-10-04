@@ -1,0 +1,104 @@
+Stop Rationing Tokens: Let the Harness Pick the Model — Kimchi by Cast AI
+https://www.youtube.com/watch?v=48YUYDjwfYY
+Upload date (YouTube): 2026-10-02
+Original English automatic captions; retrieved 2026-10-04. Not manually corrected.
+
+[00:13] All right, guys. Very nice to meet you all. My name is Laura. I'm the co-founder and president of Castai, who is the inventor of Kimchi, which I'm going to show you in a few seconds. Um the talk is going to be about preparatory models for edge case but use open source for the rest and you're going to see some great result we have with that with the coding agent called
+
+[00:34] Kimchi. I have the pleasure to be here with Zilinas. >> Hey guys, I am Julianas. I am leading engineering for Kimchi coding platform. >> So you have Zilinas who run the entire engineering team for Kimchi. I'm so excited to be here with you. All right, let's go. So um you you may have seen this in the news uh two two piece of
+
+[00:54] information that came up in the last few weeks. The first one is there's a company in India that spent $500 million on anthropic alone in one months which is a kind of a good example of tokens that are completely out of control. The other example is a famous tweet from Uber, the CTO of Uber, who say that in the last four months he actually used
+
+[01:15] the entire budget of anthropic for the entire year. And this is how much the token um the token maxing or the token cost is a thing for the enterprises. And you're going to see how we fix this. Companies responded this by limiting the use of token. You may have heard this
+
+[01:36] many many times with our friends developers and as a developer when you limit the amount of token it feels like this. It's like hey you can use your laptop you have an hour battery and you can only charge once once once a day. That's how it feels to limit the amount of
+
+[01:57] token for a developer. We at Kimchi think this is wrong. Our jobs as manager is to do the opposite is to ensure that we want to make the tokens unlimited and inexpensive. Our job is not to
+
+[02:18] prevent the developer to use coding agent. Our job is to make sure they can use it as much as they want for as long as they want in a completely unlimited fashion. This is why we started Kimchi. At Kimchi, we have 300 developers. Oh, sorry. 300 employees. Twothird of those are developers. The
+
+[02:40] Zeven has run that. And we've been using this coding agent for the last three months. I'm going to show you what we built, how we built it, and the result of it. And then Zilvenat will show you a few more things that make the coding really, really cool. It's coming now.
+
+[03:03] We built an entire token optimization based on this idea. What you see on screen is the true cost of LLM model for the same task. It was made by the famous white paper in a university. And here's what they say. On one side, you see the
+
+[03:23] cost per token. On the other side, you see the cost per task for the same task with the same quality. That is the important thing. Otherwise, you cannot compare Apple with Apple. And here's what is written here. First, they are all different, but also look at Gemini 3 Flash, our friends at Google. What it
+
+[03:45] seems to be a relatively inexpensive model at $3.5 per million token. It's a blended average at the time this study was made, but actually the task to complete with Geminina 3 was 305, sorry, $75. And look at the others. Minimax 2.7 is
+
+[04:05] one of my favorite. The cost per token is 1.5 and the task the t the cost for the task is $148. It means the models are not the same. They don't cost the same, but they also not the same per task. And that's why we built our coding
+
+[04:27] agent. Would it be nice that you have an automated fashion, automated engine, automated harness that will select the right model for the task at the right time based on the outcome of the task. That is what we did with Kimy Coding. That is what Zilmanas did with his team.
+
+[04:48] And here's the results. We've been using it for three months. 2.5 times in the amount of savings we have overloaded for the period. This is a graph of what would have been our cloud bill by day. The purple one on top is what would have
+
+[05:08] been cloud cost over time. The blue line is what we paid. same outcome. But look at this. The number of tokens increased by 1.5 times. Okay, we all experienced that. The cost to code decreased by 1.5 times.
+
+[05:34] This is our job as managers. We provide to our team a coding agent that is essentially unlimited because of that coding agent is growing 3x less 2.5 time less than the gross of token for the task. There's another result the multimodel I
+
+[05:55] showed you before. I'm going to show you the evolution of the selection of the model over time by the harness. And here it looks like you see there is a lot of orange early June and there's a lot of yellow late June. There's a complete shift
+
+[06:16] meaning the harness is selecting a very different model. It happened the 12th of June. And this is what happened the 12th of June. The 3rd of June Kim Kim 2.6 is winning by far the most popular of the harness. 21st of June the one winning is Minimat
+
+[06:37] 3. Us as human probably we can find and understand and test and be comfortable with a new model coming in. Do you think we look at this as human? Absolutely not. But an autonomous harness, an automated coding agent that is obsessed with cost is going to do
+
+[07:00] just that. That is what I mean when I say our responsibility is to think about providing our developers with the right cost per token for the same outcome. It is our responsibility to do it. Zinas is going to tell you a
+
+[07:21] little bit more of how it works because whatever you're going to see it's open source. Go Zas. >> Okay. So one more thing to mention. So Laura mentioned that token maxing is no longer an option for everyone and uh as a manager at the company as most of you guys probably heard the having unlimited
+
+[07:44] amount of tokens to spend is no longer looking to be like a case and uh we had to build this hardness for ourselves. So meaning like we ended up spending too much on cloud code like half a year ago. We saw this uh cloud bill skyrocketing and we started working on our own hardness. behind the scenes it's using like pono SSDK but uh the goal of that is like to take the open source
+
+[08:05] experience still contribute back to open source by providing our own harnesses open source building constructs like ferment which fits into the kimchi theme which is meant for longunning tasks where on average we estimate the human envelope for these tasks is uh typically happening only like every two hours every three hours and etc. So the goal
+
+[08:25] is uh you use Kim to harness you run a firmment process. It asks you a bunch of questions and autonomously runs a coding task for like more than two hours. The goal of that is that because it breaks it into milestones. It knows how to implement it and at the end of the cycle you would get scoring for your output. So you would actually know what's happening. And going back to previously
+
+[08:47] discussed like the amount of models used with uh Kimchi harness the scoring is there to prove you that whatever model we will pick for you you will always have like good enough scoring for the output on the task you're implementing. The way whole Kimchi platform works the goal is like uh we are not just providing you the coding harness. We
+
+[09:08] want to provide you the full software development life cycle solution. So you do a change it runs a build for you. It checks if something broke. If something broke, it will go back, do a change again, rebuild again. And that's uh how this fermentation process looks. If everything is complete, uh there is no extra limitation needs to be done. The changes will be deployed to the staging
+
+[09:29] environment. And you see what what I like with the way explain it is the harness select the model fment is constantly checking the quality of the code and going back meaning there is a a higher order model that is checking that quality and thinking that quality is not good enough please do it again this is
+
+[09:52] what I was saying earlier by it looks at the outcome and it's optimizing the token based on the quality of the outcome. That is what is super cool with FET. >> Yep. And artifact is only considered complete once like the output of the scoring like at least B as a score. And
+
+[10:12] even for that like if you don't like the score you can ask agent to go back fix it up and like it will try to achieve the A as a scoring. The intention of stuffing at the staging is currently by design. We still believe there's like some little human that needs to be in the loop before going to the production. At least at this point we all know that the ultimate f future
+
+[10:33] is to avoid that. You go to production, you look at the metrics, you look at the observability data, the solo metrics you have in your environment. If you're running on Kubernetes, you want to check if the pots are not crashing, if application health checks are passing. So all of these things need to be done before it ship it shipped to production automatically. So this is like one of the things that are coming. So the
+
+[10:54] current limitation we stop at staging but uh we'll go to production and and further on that what we believe is that reading code is not enough anymore. So like uh probably most of you noticed like across this year like uh the more vibe engineering or agentic engineering we do in our coding environments the more code
+
+[11:14] changes we get in our chain sets and it kind of becomes unbearable to read especially as you keep bringing like a little bit of a less technical personnel into your pipelines. So imagine like product manager doing the coding or my dear colleague Laura starting to do some coding and suddenly he comes up with a PR which is like 2,000 lines long and you need to actually review not just the
+
+[11:36] differences but the actual intent which he wanted to achieve and the specifications which he provided to the coding agent. So yeah moving on uh one thing we built more on top of that is the thing we called kimchi teleport. So Kimchi teleport allows you to close your laptop. It spins up sandbox in the remote
+
+[11:57] environment. It's a secure sandbox where you don't need to care about anything. We can do that both on our SAS platform. We can ship it to your on premise deployments if you're like a financial technology company and uh things like that. So we will manage this agent sessions for you. We will make sure they are running. We are accessible both from your laptop, from mobile device if we are running in the background. So it
+
+[12:17] goes back and ties to the story where I mentioned that the human in the loop is only appearing like every two or three hours. So teleport emphasizes that. You run your process, you teleported to the remote environment. The y spins up in the background. You don't need to care about it. We will make sure it's the right size, it's the right security requirements and everything else. And it
+
+[12:38] will keep on running until the task is done or until the human in the loop needs to be involved. Get notifications for some clarification of specs and things like that. >> Guys, I really like this idea. Look at the this this is a screenshot of teleport. I am puzzled that sometimes innovations are always the simplest one.
+
+[13:00] Like this was born out of the idea that one of us was in the plane coding and then Wi-Fi breaks. And what do you do when Wi-Fi breaks? It breaks the coding because it lives inside your thing. No, I think it was not the Wi-Fi. It was the battery that broke, not the Wi-Fi.
+
+[13:20] So you lost. So he That's it. The guy was stopped there. What teleport does it it takes all your environment. It synchronizes with a container that live inside one of the hyperscaler. In our case, it's Google and locally on your laptop. It feels exactly the same. It just doesn't run
+
+[13:41] inside your laptop. It feels like it. It runs somewhere else in your environment in a container in a Kubernetes cluster inside the place at Google that will continue running even if you close your laptop. how simple that is. And yet our favorite tool is
+
+[14:02] this one. I think the the last one I I I looked at it, 62% of our engineers are only using teleport when they are coding now for that problem. They go home, it continues. They're in transit. It continues. They on holiday, they don't look at it anymore. It continues. That's so cool, huh?
+
+[14:23] >> Yep. So very smart to that. So we built another tool called Kimchi studio. If that teleport is something typically individual uses, studio is kind of like a teleport for teams and enterprises. The goal behind the studio is uh that you have as kind of like board on your environment. It again runs in the teleport sandboxes in the secure
+
+[14:44] environment. The thing here is like you're supposed to share your tasks and work in progress and plans which are made by the Kimchi coding harness with open source or proprietary models with your teams. So for example imagine you as an engineer you are like working on a task uh you started implementing asking for a plan the plan can be easily reviewed by your colleagues like by your
+
+[15:04] pe engineer by your product manager or someone else who cares what's happening and this is how you kind of work with your whole team on collaborating on this agentic engineering journey instead of like saying oh I'm going to type this prompt I'm going to try to execute it to the production only later on to learn that the specification and requirements were incorrect the output is not what
+
+[15:25] was actually wanted by the task and things like that. >> And this is yet another thing we built for ourself, we find it so cool, we decided to make it a product. How do you work with your colleague? If what you have is a C is a is a terminal, a CLI, how do you share that with the
+
+[15:46] others? Well, first he has to live somewhere else. So teleport is the base of what we call studio and studio is a very nice way to visualize all the sessions that are running including those that are asking for a review and then someone in the teams can say I take it and I answer the uh I I answer the
+
+[16:09] question that is for review. Then you answer it. It goes back to in progress until the next one goes into review. And you can have many many of those in a team in a pizza team, a team of five to 10 guys. Think about it. Yet yet a very simple innovation that is so essential in how
+
+[16:31] our engineers are coding. They can now share in a very simple way, right? It's a it's a browser. It's graphical. They can share and they can take over the task according to the comban style of what is in review, what is in progress. They can start new ones with backlog. And you know what? If they close the
+
+[16:52] laptop, >> it's continues. >> This is so cool. >> Yep. >> This is really cool. Thank you. >> Yeah, we forgot to show. >> Oh, this is this is the one that we took over, right? That's the one, >> guys. You can see this at our booth if you want to uh to see more of it. We are
+
+[17:13] in U4. It's exactly this way across a few streets. But have a look at it. It's really good. It is open source. Most of it at least the harness is entirely open source. Uh studio and teleport. You need a Google account. It's a little bit more com uh more complicated, but it's a a five minute install. And then you get your teleport setup as many sessions as
+
+[17:35] you want inside your Google account and then you can share with share it with your colleagues with Kimchi Studio. So come see us. We'll be delighted to speak to you. Thank you guys. >> Thank you guys.

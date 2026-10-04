@@ -1,0 +1,78 @@
+Building Self-Improving Agent Software Factories — Suraj Gupta, Warp
+https://www.youtube.com/watch?v=TN3mj92oZ8I
+Upload date (YouTube): 2026-09-27
+Original English automatic captions; retrieved 2026-10-04. Not manually corrected.
+
+[00:12] Um my name is Siraj Gupta. I lead Harness development at Warp. Um in case you haven't heard of Warp before, um we started off by building a state-of-the-art agentic development environment. Um we have about a million active users that use that. Um it was born out of a modern-day terminal. Um and nowadays we're building a um cloud agent platform to enable teams to
+
+[00:33] build software factories. Um today I'm going to talk about um self-improving software factories, which I know might sound kind of buzzy, um but I'm going to break it down and hopefully you can walk out of here with something concrete that you can implement yourselves. Um you've probably heard of both of these terms, self-improvement and software factories, used throughout this
+
+[00:53] conference, but I'm sure you've heard of them independently. Um you've heard about how self-improvement is about agents being able to um improve over time and agents and models um and, you know, phasing out humans from that loop, so that way the the improvement loop can be automatic. Um and I'm sure you've heard about software
+
+[01:14] factories being um the way that like the software development paradigm is shifting from individual coding agents to building out automations that take work from triage up until production. Um but less has been said about how software factories themselves can self-improve over time, so that the the factory can get better,
+
+[01:34] more efficient, faster. Um and I think this is going to become an extremely important part of our jobs as software engineers as we transition from building products to building factories and and maintaining them. Um so let's dive in. Um self-improvement is a pretty broad umbrella, but I'm going to focus on three concrete ways that agents can
+
+[01:54] improve over time, agent factories can improve over time. I'm going to start with um skills, then we'll talk about persistent memory, and then I'll finish off by talking about model routing. Um so skills are a great way to give your agents procedural memory. I don't think I have to kind of spell that out for you. You describe a a procedure to your agent that you expect it to have to do a
+
+[02:15] task over and over. Um for example, let's say you're building a triage agent, which is a pretty common thing you might build in a software factory. Um and you give it a skill on how you want it to go about reproducing issues. Um those skills get stale over time. Um humans give feedback to the agents. Agents learn things in their own um runs and trajectories.
+
+[02:36] Um and the like the skill that you previously gave it becomes dated. So, how do we fix this and let the agent improve over time using that skill? Well, one way to do it is to deploy an outer loop agent. Um and this is what we've done in our own internal software factory that's been really productive. The idea is that your um your inner loop agent is the thing
+
+[02:58] that's actually applying the skill. It's like doing the triage. And then you have this other outer loop agent that is observing your inner loop agent's runs and improving its skill over time by looking for um for mistakes it made or looking at feedback that the human has given it. Um so, I'm going to show an example of that. Um let me swap here. Cool. Um so, this
+
+[03:20] is actually a skill that we've used internally at Warp. We've open-sourced our client repository and it's fully run as as a factory. And so, this is an example of an of a of a skill that's that's backing a triage agent that we have today. The idea is that um you you get an issue that comes in on GitHub, and you want to automatically
+
+[03:41] run an agent to figure out like what sorts of um like it what sort of information did the user not provide that is going to help us figure out if this is something that we should build, an existing issue that we might actually just want to dedupe against or something else. Um and then we have a Sorry, let me just switch over here. And then we have a workflow that
+
+[04:01] actually like runs that that triage um agent. Um this is a pretty simple workflow. It just Every time an an an issue gets submitted on the repo, this um this workflow runs. And then here's the actual outer loop agent, which is about looking at the the work that the triage agent has done and improving it over time. So, the idea is that the
+
+[04:22] agent looks at the decisions that the triage the inner loop triage agent made, and it um collects feedback signals, which might be uh you know, thumbs up or thumbs down on the issues. Um it might be users commenting on the issue. It might be someone from Warp um an employee of Warp commenting on the issue, uh giving the agent feedback on what it did.
+
+[04:42] Um and then ultimately that leads to like some synthesis of of the of that um iteration. And so, we we end up basically updating our inner loop skill with this outer loop agents. Um and that's what leads to this self-improvement loop with skills. What's really nice about this is that um the So, in step four, you'll see we we added
+
+[05:03] the triage skill, and then we open a pull request. So, that means that um all of the improvements to the inner loop skill are going to be tracked through get. So, you get like full observability into like how that skill is transformed over time. And that it also means that um a human is actually going to review those updates to the skill. So, that way, you know, this this outer loop agent doesn't make a mistake and ultimately cause your triage agent to to
+
+[05:24] actually perform worse. Um yeah, so that's that's kind of what what I want to talk about for skills. Um let me talk about persistent memory now. So, I'm going to go back to my deck. Um cool. So, skills are great for remembering procedures, but what about everything else? So, like what what
+
+[05:44] happens when your Sentry agent um looks for an issue and and finds an issue, does some work to like gather context about it, and fixes it, but then now you have you encounter a similar issue in the future. Your century your agent might get lucky and like be able to figure out the same
+
+[06:05] root cause that it did the first time around, but that's not guaranteed. And and even if it does, you're you've probably wasted a lot of tokens re-gathering context on an issue that you've already fixed before. So, that's where something like persistent memory comes in. You can think of this as a fact store scoped to an agent. Your agent runs and similar to the skill improvement loop, you have an outer loop agent that's
+
+[06:26] going to extract facts, learnings, outcomes from your from your inner loop agent. So, that way future runs of the agent can lean on what's already been done in the past. So, I'm going to show an example of this. Come back to the deck here. So, in warp or in Oz rather, like I mentioned, we built out a a cloud agent platform where you can run agents in the cloud. And
+
+[06:48] for all for all these agents, you can attach memory stores to them. Again, a memory a memory store is a collection of facts. In this case, I have a century agent that has collected some memories over time about root cause analysis that it's done in the past. What's cool is like you can actually version this memory, you can update it as a human, create new memories or delete them yourselves,
+
+[07:09] but primarily this this memory creation loop is driven by agents. You can also see where these memories were sourced from. So, I can actually like open up the run here to see Oh, well. I think this my IP address here keeps changing and this my our staging platform is gated to an IP address, but anyways,
+
+[07:29] you should like you can see where those memories were sourced from. So, that way you can be like, oh, like maybe that wasn't actually an important memory or that was kind of like a local maxima that I don't want to include in my memory store. Um and then when your agents continue to run, so in this case I have the sentry agent that's um that's done a bunch of runs after it's created those memories, it actually
+
+[07:49] can lean on those memories in the future um when it's making um when it's triaging new issues. So in this case, you'll notice that um this agent ran, it did a bunch of work to do some root cause analysis, and then it ultimately reported back on which memories it used um uh in this case it it it it was able to use those um five memories that I had in that memory sort to to speed up the work
+
+[08:11] that I did this time around. Um, cool. Uh let me go back to the deck. So, what's cool in Oz is that persistent memory works across all harnesses, so Warp Zone, proprietary harness, plot code, Kodak, it doesn't really matter what you're running on Oz, um memories will automatically be created for you.
+
+[08:32] Um, but you also have the control to to review those memories, version them, delete them, or edit them as you please. Um, all that being fully traceable. Um, cool. That's what I wanted to say about memory. Um, last thing I want to talk about here is model routing. So, um you may be wondering how this plays into self-improvement loops for um factories.
+
+[08:54] Well, first I want to touch on why model routing is important in a factory in the first place. Um, it can become prohibitively expensive to run all of your agents that are doing simple things like triage or fixing simple CI failures with Opus. That's just like going to be really expensive over time, and I'm sure some of you have maybe been burnt by this or have heard stories of of or organizations being burnt by this. Um,
+
+[09:14] so model like choosing which models you use for which tasks that is actually very important um and something that we're we've been working on at work. Um, so in Warp, you can actually use uh our out-of-the-box model routers, we call them our auto models. Um, over like as new models come out, we're all we're always evaluating like what are the best models when it comes to Pareto efficiency. And so, like if you're a new
+
+[09:35] user and you just want to get started, it's much better than like pinning your model to like Opus or or or Haiku, for example. Um let me show you all um that experience in Warp. So, let me go here. Give me 1 sec. Got to drag this over here.
+
+[09:56] So, here I have my Warp desktop um and you can see that um alongside being able to define models um being able to use Warp's auto models is one option, like these models here, but you can also define your own model routed um uh models, which uh basically boil down to like a set of rules that you can give
+
+[10:16] um to us and we will like make decisions about model routing based on those rules. So, here I have an example of a configuration file that I've defined um where I've defined a few different rules about like I want database migrations done with with GLM fire with GLM or I want um you know, uh runbooks and API documentation done with Quen. Um
+
+[10:38] So, this really allows you to like like to define classes of tasks and be able to say, "Okay, I want this this class of task done by this model because that's kind of what you've seen." At this point though, that's kind of more of an art than a science um and so uh what we're working on next is being able to define evals for um customer-facing evals where you can
+
+[10:58] actually define what sorts of things you care about and what knobs you want to turn on these configurations and actually see, "Okay, is is Haiku better than fi- than GLM than Opus in a specific class of issues?" That's like specific to your workflows and not just some like generic benchmark that um that someone posted online.
+
+[11:19] Um let me go back here. Give me a sec. Cool. Cool. Um and yeah, so let me uh I'm in my slideshow.
+
+[11:42] So, here is kind of like a a high-level overview of how this works in Warp today. So, um internally we have our model routing rules, um but then we have like an eval sidecar that's determining um what sorts of tasks are actually better with which models. And we do this with a simple like best-at-k um approach where when you type a prompt, we run a bunch of agents in Oz uh across a
+
+[12:03] different set of models. Um and we found success in like being able to determine, "Oh, like UI tasks are really well done with GLM. Um we don't really need to run those with Opus. It's much more efficient to run those with GLM." Um so, that's how we've been using it, but um sooner enough we're going to be building this into our product so that way our our customers can actually use it in their own workflows. Um
+
+[12:23] Yeah, that's uh that's mostly what I had today. Um we're around in a booth around that side. So, if you're interested in this kind of stuff, come talk to me. I'm always down to talk about this kind of stuff. But yeah, thanks for your time today. That's all I had.
+
+[12:49] >> [music]

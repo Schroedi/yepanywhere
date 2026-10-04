@@ -1,0 +1,100 @@
+Orchestras, Not Factories: How the Fastest Builders Work — Charlie Holtz, Conductor
+https://www.youtube.com/watch?v=TRfzFJCJ7ZE
+Upload date (YouTube): 2026-09-27
+Original English automatic captions; retrieved 2026-10-04. Not manually corrected.
+
+[00:01] [music]
+
+[00:25] >> Hello. I was at a wedding this weekend and it was in New York and there were a bunch of trendy people there and uh I I told I was talking to someone who I'd never met before and uh I told him I was prepping for this presentation and he was like, "Oh, that's cool. Like, what what's the conference about?" And I said it was about AI engineering. And I
+
+[00:46] could just see his eyes glaze over and he started like looking behind me to find the next person to talk to. And I'm it's like so cool to actually be in a room full of people who actually want to hear about this stuff. So, I I I I'm very excited to be here. Um I am the co-founder of Conductor. Um has anyone here used Conductor? Okay, nice. Nice. Okay, cool. So, uh
+
+[01:09] uh for those who don't know, uh Conductor is a desktop app for managing a team of coding agents all at the same time. So, instead of having a bunch of terminal windows for your Cloud Codes, your Code Accesses, or your uh whatever uh coding agent, you have one interface to manage them all. And one of the really cool things about building Conductor has been that I've seen a lot of the best builders up
+
+[01:31] close. I've like watched their workflow, I've seen how they work, I've seen the things they do do and the things that they avoid doing. And so, I thought I would compile a bunch of the principles um that I've seen the best engineers use um and give them to you all. Um so, here's what Conductor looks like. Uh can you can you guys see this? Okay, nice. Okay. So, here's what
+
+[01:52] Conductor looks like. Um and here are my principles for being the fastest builder in your organization. So, let's start with number one, stay near the frontier. Staying near the frontier means you are always trying the latest things, basically the day they come out. Uh it means that when uh uh ultra code comes
+
+[02:14] out, you're trying it. It means that when uh uh slash go comes out, you're giving it a go. Um it's really important to stay near the frontier um for a few reasons. Um if you are doing your own startup, then staying near the frontier means that you will um come up with lots of new ideas for what you should actually be building. Um and this literally happened to us. We were
+
+[02:35] building a totally different app called Chorus. Um but we started using We were such power users of cloud code back in February of last year that we uh started building our whole workflow around cloud code, and we started cloning our repo five times, and then we discovered work trees, and then bit by bit we had built conductor as an internal tool. And we couldn't have figured that out if we uh
+
+[02:56] weren't staying near the frontier. And if you're not doing a startup, you should be the person at your company who always knows what the latest uh the latest workflows are. Um it used to be that you could just kind of like use your social graph and the information that was important about the best workflows to use would trickle down to you. But things just like move way too fast now. You're You're always going to
+
+[03:17] be three to six months behind if you do that. Um so, it's a very important to stay near the frontier. And there's an important word here, near. Um there is a danger if you are at the frontier, um you can you can do what uh I call mid-whip miming, where you're spending all of your time working on your workflow and not doing actual work. And
+
+[03:38] so, internally we've come up uh with a heuristic for this. Um we call it don't beat the market. Don't try and beat the market. Um uh the concept here, like the heuristic you should use when you're you're to decide if you're near the frontier or at the frontier and uh too deep in into the latest trends is you should ask yourself
+
+[03:59] why isn't this workflow the default? So for example when Ralph loops were becoming a big thing you should ask yourself like should I spend a ton of time optimizing my workflow to work with Ralph loops because if Ralph loops work for everyone like if
+
+[04:19] they are the default then you probably should just wait for Anthropic or Open AI or ever to build the workflow into the into the default harness. You can think of this is sort of like an efficient market hypothesis where unless you have like real alpha you shouldn't be optimizing your workflow too much. And what I mean by real alpha
+
+[04:41] is like some kind of information about either your users or your code base that the models might not know about. So an example for us is we it's we're we're a chat app. We have to render really long chats really quickly and performance is is important to us and so we need to spend a lot of time optimizing our react queries to render the chats quickly and we're
+
+[05:02] willing to make sacrifices in other parts of our code base to make that happen. Um So if you have some kind of alpha like some kind of information about the app you're building that the models might not know about then you should put time into the workflow. Otherwise don't don't midwit meme. Don't don't be the person who has an amazing Emacs setup but like doesn't actually get stuff done.
+
+[05:24] Okay three. Create slop free zones. So at Conductor we have this term we call a slop free zone. And a slop free zone is a part of the code base or a part of the app that requires really strict human review. And we're actually I think a little bit unusual in this way. I think a lot of people assume that we are uh pure token
+
+[05:46] maxers and we are like ripping through like 30,000 line PRs, but we're actually not. Um we're actually quite careful with certain parts of our codebase, and then very loose with other parts of our codebase. Um the reason this is important is because if you are not careful about your slot free zones, your your code your codebase can get in a really tricky spot. Um and
+
+[06:06] this actually happened to us. We have We've had to rewrite our whole app like a couple of times because we weren't careful about slot free zones. Um specifically, we have a uh migrations file. And uh in our CI uh any change to migrations file requires the AI uh a human to review it. Um we also assume that anything written
+
+[06:28] in Slack is slot free. It's It's not written by the AI. It's written by a human. All of our docs, um all our cloud MDs, like all our skills, we put a ton of time into making them good. Um and this is also something I've seen with all the the the best builders up close. Like they put an unusual amount of time into the cloud MD or their skill files. Um and I I think like another way
+
+[06:50] that I've thought about this is like if you had a new intern that was joining your company, and you had the opportunity to like whisper something in their ear every time they started working. Like every day, anytime they sat down, you could like whisper something in their ear. You would probably put a lot of thought into like what it is that you're whispering in their ear. And this is what the cloud MD
+
+[07:11] or agent's MD is. It's like information that gets loaded into the agent's context every time they start working. Um and so you probably want to put a lot of thought into into those. Um okay, four. Feed the beast. Uh at Conductor, we have a uh internal tool we call the Conductor Internal Agent. Um
+
+[07:34] and it is uh we also also known as the CIA. And the CIA is basically like the the uh centralized database of everything that's happening in the organization. So, anytime a new Slack message gets sent, the CIA picks it up. The CIA agent will see that a new message sent Slack, it will pick it up, and it will save it to a Postgres uh
+
+[07:56] uh table. Anytime a user has a bug request in Discord, the same thing happens. Anytime we have a meeting, we are recording it, uh and it goes into the CIA. Um we call this feed the beast because you you want to for if your agents to be effective uh in your company, you want them to have as much information and as much context as they can have about the way you guys
+
+[08:17] specifically work. And the best way to do that is by having a centralized place for all of the information to go. Uh I think this this tweet sums it up pretty well. Uh uh It's really effective to just put everything in a database and then give your agent a SQL tool and let it handle uh uh handle the rest.
+
+[08:40] Okay. Next is free-range agents. Give your agents a lot of space to play. Give them Give them a sandbox where they that won't get killed, where they can explore your code base, where they can work on really hard tasks, where they can they know that they're not going to get shut down when you close your laptop lid. Uh Give them
+
+[09:03] Give them opportunities to create more of themselves. Um Give them ways uh to collaborate with other agents and other humans. Um I think what's really in- interesting about free-range agents and like this this concept and why this is important is the models are getting better, and they are able to run for much longer,
+
+[09:23] and there're going to be many more of them. And so, if they are confined to your laptop, then the they're not going to be nearly as effective as uh as if they are free roaming. Um The other thing that's important here is that once you give them a a sandbox to play in that isn't confined to your laptop, there's a bunch of really cool stuff that you can build on top. Um and
+
+[09:45] we have built some of those things into Conductor and I I'll give you a quick glimpse into into some of those cool things. So, this is Conductor. I'm going to make it a bit bigger. Um and this is actually a new version of Conductor that is uh coming out this week and it is
+
+[10:06] centered around collaboration in the cloud. And so, the the the thing I said was you need a a sandbox for agents to play. You need a free-range agent. And so, you'll notice that each workspace has a little cloud icon at the top and I can click it and get information about the sandbox that the agent is running in. Um and what's what's awesome about this
+
+[10:27] is I can close my laptop and the agents are going to keep running. Up up until basically this week, every uh every task in Conductor was built on a get work tree, but now they're in a cloud sandbox. They are free-range agents. But what's also really cool um that you can that we can build on top of uh cloud is collaboration. So, you'll see here, I'll make this even
+
+[10:48] bigger. That's me. And here are a list of the things that I am working on. And you can see that I am in the Conductor org. But if I scroll down, I can see what Cadence is working on. I can see what Lewis is working on. I can see what Tywan is working on and I can I can I can see that I can see Jackson's face pop up there. I can click
+
+[11:09] in and see what he's working on in real time. Um and I think collaboration is the the one one of the most important new concepts uh in these tools that no one is really talking about right now. Um collaboration is important because uh not only as not only it is it true that all great things are built with teams of people. Like they're
+
+[11:30] not built by individuals. They're they're built by teams. Um but also as the models get better, um as we've seen this with the two days of Fable, you can get a lot more ambitious with the kinds of things you're building. And if you're getting more ambitious, you're going to need more people and more agents to work on those things. So, I'm going to go into an uh a workspace that Caden is working on.
+
+[11:51] Uh this one, and I'm going to say um I can review the changes that he's made. Um I'll make this a little smaller, and this looks fine, but I'm just going to say uh can we actually use tabs, not spaces? And
+
+[12:12] Caden should be able to see that message happen in real time, and he can actually chat in the workspace as well. So, we can see here that he's typing. So, I see Caden is typing. Let's see what he says. Seems like he's typing a lot.
+
+[12:37] Okay, maybe he stopped typing. I'll give him a second to take a look at it. But, the point is we can now have collaborative workspaces that are shared in real time with people on our team. Um Okay, he's typing again.
+
+[13:01] Okay, come back. The agents have escaped. All right. So, I'm really excited about this, and we're rolling this out to all conductor users this week. Um I think I think collaboration is going to be one of the most important one of the most important new interface changes this year. Um the other really cool thing about cloud is that um and giving it the
+
+[13:23] agents the free-range sandbox is that we can give the agents APIs to spawn themselves. So, I have here a uh I'll bring up my open claw. Uh this is my open claw called Lord Crandon. And you can see that it has I don't know how how well you can see this text, but it has access to a conductor API. And so,
+
+[13:44] from my phone or from my Telegram or from really or from Slack or wherever I am, I can say, "Hi, can you create a new workspace for me that makes Yeah, makes all the buttons blue." And so, I'll I'll text that to Lord Crandon, and Lord Crandon has access to
+
+[14:05] the conductor API and so can kick off work itself. Um So, let's see what it does here. Okay, so just created the workspace. The agent is on it. And then I can go into my conductor while I'm out and about, but it's still setting up the workspace,
+
+[14:25] and it will do work for me while I am gone. So, I'm pretty excited about all the all the cool things you can build on top of of free range agents. Okay. The final principle that I want to talk about today and the title of this talk is orchestras, not factories.
+
+[14:48] The whole like talk track today is about software factories. And I honestly kind of hate the term. I think it's the wrong way of thinking about these new tools that are emerging. I think like when I think of a factory, I think of automation. And I think of like there's a lot of amazing things
+
+[15:08] about automation and like it makes our lives more efficient, and we can like create more of everything. But I don't want the future to be built around factories. I want the future to I want to feel like a human. I want to like be in the flow. I want to be like in front of an orchestra like waving my baton and we're and like I wave it this way and this this team of agents starts
+
+[15:30] working and then this intermingling of humans and agents starts working as I go here. And I can when I want to I can zoom in on the details, but most of the time I can zoom out. And I don't think the future should be we are like managing swarms of agents and we are like factory line managers like pushing buttons getting the agents to like pump out the next feature. Like we can we can
+
+[15:50] we tried this like 10 years ago with the term feature feature factories and it just doesn't work. Like I want my software to feel human and crafted. I want to feel like a human at the center of it all. And I think because we're all building these tools we actually have a responsibility to make the tools great for humans. I think it's really important to like use the words that
+
+[16:12] make us feel excited and like feel feel capable and feel like we're in the flow and having fun. And so I don't think the future is is is something like this. I don't want to be I don't want to be in in my dark factory. I don't want to be a line manager. I want to feel like this. I want to be in the flow. I want to be
+
+[16:33] having fun. I want to be crafting things. I want to feel like I'm Steve Jobs designing the Mac with a team of amazing humans and AI agents all in the same place. Like I want to feel like I'm in an orchestra. So here are my principles for for being the best builder in your organization. Stay near the frontier. Don't try and
+
+[16:54] beat the market. Create slop free zones. Feed the beast. Free range agents and think about orchestras not factories. Came up with this handy acronym for for remembering it. Stickfo. All right. So thanks thanks a ton for for having me. I'll be around. Feel free to ask questions and I'll see you on the internet.

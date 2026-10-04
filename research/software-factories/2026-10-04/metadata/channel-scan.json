@@ -1,0 +1,307 @@
+{
+  "channel_id": "UCLKPca3kwwd-B59HNr-_lvA",
+  "channel": "AI Engineer - Videos",
+  "retrieved_on": "2026-10-04",
+  "entries": [
+    {
+      "id": "YiFqcu9YA38",
+      "title": "Dashboards Are Dead — Sarah Simionescu, Composio",
+      "duration": 642.0,
+      "url": "https://www.youtube.com/watch?v=YiFqcu9YA38"
+    },
+    {
+      "id": "qflLT3SoVbw",
+      "title": "Stop Fine-Tuning to Fix Retrieval Problems — Anant Srivastava",
+      "duration": 1212.0,
+      "url": "https://www.youtube.com/watch?v=qflLT3SoVbw"
+    },
+    {
+      "id": "TRe1u7dHYiA",
+      "title": "What Makes Open Models Fast in Production — Sujee Maniyam, Nebius",
+      "duration": 1232.0,
+      "url": "https://www.youtube.com/watch?v=TRe1u7dHYiA"
+    },
+    {
+      "id": "bRGyYaE0lxI",
+      "title": "GPU Died. Training Didn't: Self-Healing Training at Scale — Crusoe",
+      "duration": 1014.0,
+      "url": "https://www.youtube.com/watch?v=bRGyYaE0lxI"
+    },
+    {
+      "id": "8aVbXXvJUY4",
+      "title": "An Interaction Is All You Need — Ivan Leo, Google DeepMind",
+      "duration": 1024.0,
+      "url": "https://www.youtube.com/watch?v=8aVbXXvJUY4"
+    },
+    {
+      "id": "oUZEt4EiPbk",
+      "title": "I Built a Personal AI Agent on a Raspberry Pi — Jeremy Adams, Neo4j",
+      "duration": 1210.0,
+      "url": "https://www.youtube.com/watch?v=oUZEt4EiPbk"
+    },
+    {
+      "id": "I2LL_wd89-A",
+      "title": "How VS Code Went from Monthly to Weekly Releases with AI — Harald Kirschner",
+      "duration": 1175.0,
+      "url": "https://www.youtube.com/watch?v=I2LL_wd89-A"
+    },
+    {
+      "id": "rTojoVotlD8",
+      "title": "Your LLM App Returned 200 OK. It Was Still Wrong. — Marina Petzel, Datadog",
+      "duration": 1081.0,
+      "url": "https://www.youtube.com/watch?v=rTojoVotlD8"
+    },
+    {
+      "id": "OE_lLNCNfQo",
+      "title": "YOLO Mode, Safely: MicroVM Sandboxes for Any Agent — Rowan Christmas, Docker",
+      "duration": 695.0,
+      "url": "https://www.youtube.com/watch?v=OE_lLNCNfQo"
+    },
+    {
+      "id": "y-OVWZD4j6U",
+      "title": "The 5 Levels of Self-Driving Production — Eric Schwartz, Traversal",
+      "duration": 1113.0,
+      "url": "https://www.youtube.com/watch?v=y-OVWZD4j6U"
+    },
+    {
+      "id": "FQwTqUmcbRg",
+      "title": "Lessons from Generating 12 Trillion Synthetic Tokens — Bogdan Gaza, DatologyAI",
+      "duration": 1232.0,
+      "url": "https://www.youtube.com/watch?v=FQwTqUmcbRg"
+    },
+    {
+      "id": "HLTa7Vcs4X0",
+      "title": "Why AI Didn't Actually Make You Ship Faster — Gabriel Spencer-Harper, Meticulous",
+      "duration": 675.0,
+      "url": "https://www.youtube.com/watch?v=HLTa7Vcs4X0"
+    },
+    {
+      "id": "5xi_S1f9sDU",
+      "title": "Why 99% Accurate Browser Agents Still Fail — Derek Meegan, Browserbase",
+      "duration": 1009.0,
+      "url": "https://www.youtube.com/watch?v=5xi_S1f9sDU"
+    },
+    {
+      "id": "48YUYDjwfYY",
+      "title": "Stop Rationing Tokens: Let the Harness Pick the Model — Kimchi by Cast AI",
+      "duration": 1088.0,
+      "url": "https://www.youtube.com/watch?v=48YUYDjwfYY"
+    },
+    {
+      "id": "cKhpeEBnT1o",
+      "title": "Your Coding Agent Is 6 Months Out of Date — Jakub Hojsan, Exa",
+      "duration": 743.0,
+      "url": "https://www.youtube.com/watch?v=cKhpeEBnT1o"
+    },
+    {
+      "id": "pAnLpiAG6Es",
+      "title": "MCP Doesn't Suck. Your Agent Does. — Jan Čurn, Apify",
+      "duration": 1124.0,
+      "url": "https://www.youtube.com/watch?v=pAnLpiAG6Es"
+    },
+    {
+      "id": "apyrzaWj0Z4",
+      "title": "Stop Renting Your AI's Memory — Dylan Couzon, Qdrant",
+      "duration": 917.0,
+      "url": "https://www.youtube.com/watch?v=apyrzaWj0Z4"
+    },
+    {
+      "id": "Se8jHLliLXE",
+      "title": "The State of AI in Software Development: Data from 400+ Orgs — Justin Reock, DX",
+      "duration": 1149.0,
+      "url": "https://www.youtube.com/watch?v=Se8jHLliLXE"
+    },
+    {
+      "id": "9cJrbj23fOA",
+      "title": "The Chief AI Officer: Scientist, Architect, Coach — Rania Khalaf, WSO2",
+      "duration": 1342.0,
+      "url": "https://www.youtube.com/watch?v=9cJrbj23fOA"
+    },
+    {
+      "id": "_mi3alkqy4s",
+      "title": "The Death of the Code Review: What the Data Actually Says — Laurie Voss, Arize AI",
+      "duration": 1481.0,
+      "url": "https://www.youtube.com/watch?v=_mi3alkqy4s"
+    },
+    {
+      "id": "UOcHfR3_tys",
+      "title": "Your Agents Are in Solitary Confinement: Why MCP & A2A Aren't Enough — Vlad Luzin, Band",
+      "duration": 1054.0,
+      "url": "https://www.youtube.com/watch?v=UOcHfR3_tys"
+    },
+    {
+      "id": "474j-n1Ltxc",
+      "title": "AI-Generated Code Is Already Competing With Human Code — Daksh Gupta, Greptile",
+      "duration": 761.0,
+      "url": "https://www.youtube.com/watch?v=474j-n1Ltxc"
+    },
+    {
+      "id": "buHC7bQE1X4",
+      "title": "Get Out of the Model's Way — Kevin Hou, Google Antigravity",
+      "duration": 1141.0,
+      "url": "https://www.youtube.com/watch?v=buHC7bQE1X4"
+    },
+    {
+      "id": "tUPPVhBBcoM",
+      "title": "Software Engineering Is Becoming Factory Engineering — Zach Lloyd, Warp",
+      "duration": 1237.0,
+      "url": "https://www.youtube.com/watch?v=tUPPVhBBcoM"
+    },
+    {
+      "id": "9JFGohx4E7U",
+      "title": "GLM-5.2: Open Weights, Near-Frontier Intelligence — Zixuan Li, Z.ai",
+      "duration": 827.0,
+      "url": "https://www.youtube.com/watch?v=9JFGohx4E7U"
+    },
+    {
+      "id": "TRfzFJCJ7ZE",
+      "title": "Orchestras, Not Factories: How the Fastest Builders Work — Charlie Holtz, Conductor",
+      "duration": 1065.0,
+      "url": "https://www.youtube.com/watch?v=TRfzFJCJ7ZE"
+    },
+    {
+      "id": "6MudaeKdBSk",
+      "title": "Scale the Judgment, Not the Model — Andrew Orobator, Reddit",
+      "duration": 1173.0,
+      "url": "https://www.youtube.com/watch?v=6MudaeKdBSk"
+    },
+    {
+      "id": "HvboD89DyQ8",
+      "title": "No, That's Not a Software Factory — Ryan Cooke, WorkOS",
+      "duration": 1140.0,
+      "url": "https://www.youtube.com/watch?v=HvboD89DyQ8"
+    },
+    {
+      "id": "vGCJ7diEtrw",
+      "title": "What It Actually Takes to Build a Software Factory — Tereza Tížková, Factory",
+      "duration": 1369.0,
+      "url": "https://www.youtube.com/watch?v=vGCJ7diEtrw"
+    },
+    {
+      "id": "YIVkERhy8xo",
+      "title": "I Turned Coding Agents Into a Strategy Game — Ido Salomon, AgentCraft",
+      "duration": 890.0,
+      "url": "https://www.youtube.com/watch?v=YIVkERhy8xo"
+    },
+    {
+      "id": "TN3mj92oZ8I",
+      "title": "Building Self-Improving Agent Software Factories — Suraj Gupta, Warp",
+      "duration": 772.0,
+      "url": "https://www.youtube.com/watch?v=TN3mj92oZ8I"
+    },
+    {
+      "id": "oVsEddfhdxc",
+      "title": "We Let Claude Code and Codex Race Human Researchers — Elie Bakouch, Prime Intellect",
+      "duration": 1179.0,
+      "url": "https://www.youtube.com/watch?v=oVsEddfhdxc"
+    },
+    {
+      "id": "OA-Mc60Rboo",
+      "title": "Beating RL With Reflection: GEPA and Optimize Anything — Lakshya A. Agrawal, GEPA",
+      "duration": 1288.0,
+      "url": "https://www.youtube.com/watch?v=OA-Mc60Rboo"
+    },
+    {
+      "id": "x4e5O9zN0TE",
+      "title": "Long-Horizon Agents Need Experiments, Not Just Prompts — Erina Karati",
+      "duration": 1287.0,
+      "url": "https://www.youtube.com/watch?v=x4e5O9zN0TE"
+    },
+    {
+      "id": "XyV6bSMyq-I",
+      "title": "How We Built an Agent That Improves Itself — Zubin Aysola, Weights & Biases",
+      "duration": 1026.0,
+      "url": "https://www.youtube.com/watch?v=XyV6bSMyq-I"
+    },
+    {
+      "id": "vrDvatGtIxs",
+      "title": "Autoresearch Made Our Models 3x Faster — Tejas Bhakta, Morph",
+      "duration": 450.0,
+      "url": "https://www.youtube.com/watch?v=vrDvatGtIxs"
+    },
+    {
+      "id": "hd7TOvmyAxU",
+      "title": "An AI Research Agent That Runs Your Experiments — Tim Sweeney, Weights & Biases",
+      "duration": 1276.0,
+      "url": "https://www.youtube.com/watch?v=hd7TOvmyAxU"
+    },
+    {
+      "id": "7taOQBfjDyE",
+      "title": "The Loop Is the Product — Roland Gavrilescu, Introspection",
+      "duration": 1124.0,
+      "url": "https://www.youtube.com/watch?v=7taOQBfjDyE"
+    },
+    {
+      "id": "LlgiOCmFG_w",
+      "title": "Fixing the PR Bottleneck — Matt Pocock, AIHero",
+      "duration": 1355.0,
+      "url": "https://www.youtube.com/watch?v=LlgiOCmFG_w"
+    },
+    {
+      "id": "2LRIAfng7eA",
+      "title": "Teaching LLMs to Speak Spotify — Yves Raimond & Jacqueline Wood, Spotify",
+      "duration": 1180.0,
+      "url": "https://www.youtube.com/watch?v=2LRIAfng7eA"
+    },
+    {
+      "id": "lIgdnF0s0kQ",
+      "title": "Why LLM Recommenders Will Be AI's Biggest Consumer App — Devansh Tandon, Meta",
+      "duration": 1081.0,
+      "url": "https://www.youtube.com/watch?v=lIgdnF0s0kQ"
+    },
+    {
+      "id": "ACPEpji5NV4",
+      "title": "Distill the LLM, Don't Serve It: Search & Personalization at DoorDash — Raghav Saboo, DoorDash",
+      "duration": 1331.0,
+      "url": "https://www.youtube.com/watch?v=ACPEpji5NV4"
+    },
+    {
+      "id": "jgWY66RaSrQ",
+      "title": "I Gave an AI a Body — Cyrus Clarke, MIT Media Lab",
+      "duration": 1248.0,
+      "url": "https://www.youtube.com/watch?v=jgWY66RaSrQ"
+    },
+    {
+      "id": "2wgPHvW0mG8",
+      "title": "One Operator, Many Drones: Inside Skydio's Autonomy Stack — Suchet Bargoti, Skydio",
+      "duration": 1248.0,
+      "url": "https://www.youtube.com/watch?v=2wgPHvW0mG8"
+    },
+    {
+      "id": "Sjfz1TqxzEs",
+      "title": "Robot Demos Are Easy. Reliability Is Hard — Jason Ma, Dyna Robotics",
+      "duration": 1602.0,
+      "url": "https://www.youtube.com/watch?v=Sjfz1TqxzEs"
+    },
+    {
+      "id": "I_VEh7XSwyc",
+      "title": "Physical AI's Next Bottleneck Is Finding the Right Video — Rafael Levi, Bright Data",
+      "duration": 992.0,
+      "url": "https://www.youtube.com/watch?v=I_VEh7XSwyc"
+    },
+    {
+      "id": "4Gqg0HVe-AY",
+      "title": "World Models Need Causality, Not Pretty Pixels — Christopher Manning, Moonlake AI",
+      "duration": 3096.0,
+      "url": "https://www.youtube.com/watch?v=4Gqg0HVe-AY"
+    },
+    {
+      "id": "jFHteJjRl8A",
+      "title": "Robotics Has Been Stuck for 70 Years — Deepak Pathak, Skild AI",
+      "duration": 1698.0,
+      "url": "https://www.youtube.com/watch?v=jFHteJjRl8A"
+    },
+    {
+      "id": "T72nqdC92PM",
+      "title": "From Scratch to SOTA: Training a 3B State-Space Vision Model — Krishna Prasad Srinivasan, Sarvam",
+      "duration": 1269.0,
+      "url": "https://www.youtube.com/watch?v=T72nqdC92PM"
+    },
+    {
+      "id": "ZZcE0HeO-Hc",
+      "title": "From VLM/VLA's to Embodied Agents — Armen Aghajanyan, Perceptron AI",
+      "duration": 1242.0,
+      "url": "https://www.youtube.com/watch?v=ZZcE0HeO-Hc"
+    }
+  ]
+}

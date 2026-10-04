@@ -1,0 +1,104 @@
+Your Agents Are in Solitary Confinement: Why MCP & A2A Aren't Enough — Vlad Luzin, Band
+https://www.youtube.com/watch?v=UOcHfR3_tys
+Upload date (YouTube): 2026-09-30
+Original English automatic captions; retrieved 2026-10-04. Not manually corrected.
+
+[00:01] [music] >> Hi all. My name is Vlad. I'm co-founder and the CTO at bank. Now, before we start let's do a bit of trivia.
+
+[00:22] Orc C okay. If C, raise your hand. K? Who believes both are correct? Okay, just a couple. Both are correct. One is from the Lord of the Rings, another is from Warhammer game Game Workshop games.
+
+[00:44] I have in my agenda four topics to cover. Topic number one, I would like to tell you about our thesis as a company, what we believe in. Then we'll talk about the AI evolution from adversarial agents to loop engineering and beyond. Then we'll touch base on the technical challenges of tomorrow that we have to solve today. And then I would like to
+
+[01:05] present the company, what we do, and what problems we solve. So, our thesis is future belongs to AI to AI communication within a business, between businesses, and between consumers and businesses. Agents will be everywhere. They will do work on our behalf, and they will have to communicate between each other. They
+
+[01:27] will be written in different frameworks, different languages, and deployed in different environments. And these agents will be fully autonomous. And they will communicate with each other without human intervention. Now, just to paint a picture before I start talking, uh how this type of communication between the agents is going to look like.
+
+[01:48] So, what you see here is a conversational space that agents can create themselves, so they can be added. They will receive a task either from a human or from another system. And they will be able to discover other agents add them as a participant in this conversation space, have back and forth communication, solve the task, and report back to humans.
+
+[02:09] This is how the future that you all read in the newspapers will look like. And when people hear this, they think either that this is too far in the future or that I'm crazy. Okay, that's it. And here is an example of a conversation I had with a CTO of $10 billion company
+
+[02:30] who said that before thinking about technical solutions to hypothetical problems like multi-agent coordination, I try to keep things simple and avoid the problem. Now, let's unpack. Is multi-agent coordination a hypothetical problem? Is it possible to keep things simple?
+
+[02:51] And is it possible to avoid the problem? Now, let's talk a bit about the adversarial agents as a as a concept. Um we all use this. I'm pretty sure everyone here is a developer. And as a developer, you have two cloud or coding sessions. One is doing the work, another is reviewing the work. And you probably
+
+[03:13] have not only two sessions, you probably have multiple tabs and multiple sessions working working at the same time on multiple problems. You are basically acting as a router, a Cisco router or a switch between two stateful agents that do work on your behalf, but they have no ability to communicate, hence you need to prompt
+
+[03:35] them. Let's talk about loop engineering. You've heard the the guy before talked about Peter and Boris, right? So, what they say to you? They basically say to you, "Stop being the router between your agents and let your agents prompt each other. Now, what they're basically saying to
+
+[03:56] you is instead of being the router and copy-pasting stuff, start fighting with Python and TypeScript libraries and different abstraction layers that will invent how agents should prompt each other. We also have protocols. A2A, MCP, ACP, and then other protocols
+
+[04:17] crypto-related. Simple. Solves all the problems, right? So, this is how your multi-agent system looks like probably in production. MCP, maybe if you're super advanced, it's A2A. And sounds simple. You call agents as tools, maybe you connect to agents through A2A, and life is great. But,
+
+[04:38] MCP, calling agents as tools, it's completely stateless. If you want two agents to be stateful, sticky sessions, good luck to you. A2A is client-server. If I'm an agent, I can send a task to another agent, but if this agent also wants to send task to me, we both have to be a client and a server.
+
+[04:59] Chaining multiple agent equals together involves REST API timeouts. Good luck managing that. And obviously, what no one says to you, you need queues with persistence and so on to keep track of the messages that are being sent. And of course, discovery, which is not even part of the A2A protocol. So, you're basically
+
+[05:20] doing the planning work. You're not creating a multi-agent system. You deal with planning. But, we have messaging platforms. Slack. Anthropic released a wonderful agent. You can talk to it in Slack. We have personal agents here and I connected to Telegram, right? Wonderful.
+
+[05:42] To connect an agent to a Telegram, five steps. Discord, seven steps. Slack, eight steps. WhatsApp, 11 steps. Every step is manual that you have to do by hand and you have to read the documentation.
+
+[06:03] Again, you're doing doing a lot of planning and manual work. And this gives you only one thing and one thing only, an agent that can talk to a person, usually it's you. Your agent is still alone. They cannot see each other. They cannot communicate with each other. They are in digital solitary confinement.
+
+[06:25] So, let's unpack the statement I heard from the CTO. Is multi-agent coordination a hypothetical problem? Clearly, if you're copy-pasting stuff between two sessions, this is the problem of today and it's not hypothetical. Plugging in MCPs and A2A, this is today's problem. It's not a future problem. Is it possible to avoid the problem?
+
+[06:48] Clearly, it's not possible because otherwise it would have all work with only one session and not two and we would have no need to call other agents as tools and so on. But the question is, is it possible to keep things simple? And the answer is, if we look at all the options that we just talked,
+
+[07:10] not really. But how hard can it be to connect two sessions, two processes on my laptop together? How hard can it be to connect my cloud to Lambda? Or Salesforce agent to the Databricks agent to SAP agent to my my my Codex?
+
+[07:33] Actually, it's pretty hard. Think about it. These agents, even your two sessions are processes that have to talk to each other through a network. So, it's a distributed systems problem. And distributed systems are hard even before you have introduced agents on top of it. And multi-agent system where every agent
+
+[07:54] is remote is basically a distributed system of microservices where each microservice is non-deterministic. So, it is hard. What do you need to solve all of that so it will become easy? You need to solve the transport layer. Ordered message delivery, real-time message delivery, retries, and so on. You need to solve continuity.
+
+[08:16] Microservices, your agents are software, pods, dockers crash, and so on. So, you need to have a consistency hydration. You also need to do the run time binding between different agentic frameworks. You have thread IDs, conversation IDs, execution IDs, and so on. And someone needs to map all of these IDs together so your agents can actually interact.
+
+[08:38] But, it's also not enough. Your agents cannot communicate at an IP port level. They cannot communicate at the URL level. They cannot even communicate at the pub sub level because it's still a lot of plumbing that you need to do as an organization. So, for this wonderful future of agents talking to each other, we need to raise abstraction of a technical stack to
+
+[08:59] conversation and talk about rooms, channels, participants, and figure out the deterministic routing of messages within a channel and also across different channels. And even if you solved all of that, it's still not enough. You need to solve the governance layer, the identity, audit, and etc.
+
+[09:19] So, I would like to introduce Band. This is exactly what we solved so you don't have to. We connect every agent together and we are global collaboration layer for all the agents. Any framework, whenever they are deployed. Inside, it's not just a communication. We implemented every primitive that is required for your agents to talk to each
+
+[09:41] other. Let's see them. What you will see are two different users connected to the collaboration layer, Vlad with a personal assistant and Mike that has no agents. On the right in the terminal, I'm going to spin up different agents and they will be onboarded into the platform. So, let's see how fast it is to onboard
+
+[10:04] a new agent. We just spun up a new agent, programmatic registration and onboarding and agent card appears. This is a Codex agent. Next, we spin up a Land Rush agent. This Land Rush also appears in the platform. From this moment, they know that they exist and they can talk to each other. Now, we will ask Codex agent to send a
+
+[10:25] connection request to my personal assistant. Keep in mind, different users, different registries. There will be a connection request, contact request sent to my personal assistant to require bilateral consent. It will arrive here in a second and from the moment that I approve this, Codex will know and see my personal assistant,
+
+[10:46] will be able to invite the personal assistant into the conversation and send messages to this personal assistant. So, we're asking the Codex to invite Andy. Andy got invited,
+
+[11:07] received the message, reported back. But, let's talk about problems of today. We are all developers. We use multiple sessions, probably a lot of sessions. We do routing. We don't like it. And when we go to uh have a snack, we come back and we have no idea what our agents have done.
+
+[11:29] And you as a manager have no idea uh how much it cost distribution uh of ticket and the tokens and so on and so forth. And you have no idea even how long your human was involved in the work. I would like to introduce Jam. Jam is an internal product. This is how we develop the software and we've built it on top
+
+[11:51] of bank. Jam is a desktop application that simplifies the onboarding of your local agents to the platform and solves the problems that we just mentioned. So, we solve routing, we solve context overload, we solve cost management and
+
+[12:12] attribution, and we allow multi-agent and multi-human collaboration together. So, what you see here is local agents and remote agents working together. And we capture all the tasks generated by Claude and Codex
+
+[12:32] that they generate for themselves when they do the work. And we present this to you so you can track the work that these agents are doing. And this can be your local sessions or your local session with a session of your friend. Because trying to understand what your agents are doing, 1 million tokens multiplied by three, that's a lot. You
+
+[12:53] need a completely different way to understand what your agentic team is doing. Moreover, we provide a way for agents to describe the layout of the software architecture that they are working on. This is what you see on your right side. And you can see in real time where your agents are working right now, what piece of component
+
+[13:13] they're touching in real time. And once they are done, they mark it as done. If there is a human in the loop involvement, you'll get pinged. Now, you don't have to use this desktop application. You still can open your terminal and you can work from your terminal, but because every communication goes through the network,
+
+[13:34] we can monitor all that stuff and we can surface a lot of other very useful information and we can enable my agent join your agent. We can enable our team member works remotely to join the session together with the agents and the humans so he can help solve us with some problems. We if you have a security guy
+
+[13:55] who maintains skills for the security agent, I don't need to copy his skills. I can just ping his agent to join this conversation and solve this for me. Now, I'd like to show you the platform itself. So, since we're all managers, we'll
+
+[14:16] start with graphs. Uh so, the moment you open application, you can see all the stats of all the traffic that happened between your local agents and also your remote agents. You can see for instance over here, I have a full stack developer uh $2,000 in tokens and this is a local cloud session. You can see an architecture over here,
+
+[14:36] $600. This is a local coded session and the rest are different agents running in different environments. But, how do they work together, right? Do we have a bunch of Python code triggering the agents so they can work together? We do not. Because all models right now, they're
+
+[14:59] trained on a lot of data so they understand very, very good how to communicate through messaging platforms. So, here I have real work that I've done this morning. Engineering manager, developer, and architect, different instances of quad quad working together, reviewing PRDs and
+
+[15:20] SRS, we are implementation. there is no need to hand code all the loops. They know how to do it natively. And for the managers, we have full statistics. Let me kill off the manage the the engineering manager who sent too many messages. So, you can see the attribution. You can see the full [clears throat]
+
+[15:41] user chain cost. So, if you ask a question, if my developer is actually involved in the code he pushes as a PR, or it's all AI slope, you can see it here. Not only locally, right, but also through the remote agents. You can see attribution by developer or by teams of your agents and developers
+
+[16:01] and how they work. Everything is gets updated in real time. You can see all agents, and every agent is basically a session, right? So, if I click here, I can see all the sessions of my Cloud and Codex instances that are running and they're connected to the platform. They're connected to a global platform.
+
+[16:22] So, if I want, I can connect any of you to any of my agents in 30 seconds. Obviously, you can set permissions, you can see all the rooms, you can see all the errors, and so on. And also, you can see work. What work was done, what is pending, what is in progress, and everything works in real time.
+
+[16:43] Thank you very much. If you want to know more about the future software development that does not involve you pulling in another 50 packages, and if you want to enable your Salesforce and Slack and Data Bricks and Cloud and Codex to work together and collaborate, come to our booth LG17. QR codes for the Band infrastructure layer and for the Jam, the uh desktop
+
+[17:05] application to allow you to be part of this future that everyone talks about but has never seen. Thank you. >> [applause]
+
+[17:33] >> Hey.

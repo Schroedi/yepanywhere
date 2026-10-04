@@ -1,0 +1,114 @@
+Scale the Judgment, Not the Model — Andrew Orobator, Reddit
+https://www.youtube.com/watch?v=6MudaeKdBSk
+Upload date (YouTube): 2026-09-27
+Original English automatic captions; retrieved 2026-10-04. Not manually corrected.
+
+[00:01] [music] A friend told me about an engineer at another company who ran a recurring war room just to delete dead experiments. Every two weeks, the team would stop,
+
+[00:23] gather, and clean up flags that everyone agreed should be gone. That's the bestase version of this problem. Someone burning political capital to make maintenance happen by hand. That's the part that I still can't get past. My name is Andrew Robbittor and I'm an
+
+[00:44] Android engineer at Reddit. This is a talk about what's actually stopping us as an industry from scaling that work responsibly. Spin at the gate until green. the engineering primitives behind self-driving code bases. First, what I'm not going to do, I'm not going to stand up here and tell you that
+
+[01:04] AI can write code. You're at the AI engineer world's fair. Half of you are running coding agents right now. So, let's skip the part where I sell you on AI writing code because you laugh me out of the room. For me, my only input is the chat box. I describe it builds. I review. Your mileage may vary. The point
+
+[01:26] was never how the code gets written. It's about whether you ship good software, a product that people can actually trust. And every gate in that system is a human's call. I've watched this everywhere. You've got your own version of it. the war room that I opened with someone burning a
+
+[01:48] week of hackathon freedom on lint cleanup. As an industry, we've built tooling that can change the shape of the work, and we still spend our scarcest resource on work like this by hand. Human creativity, human attention wasted. The job changed and most of us didn't
+
+[02:08] even notice. We're harness engineers now. Our work is the system that helps produce and verify the code, the constraints, the gates, the skills, the verification. Think about how you got good for a second. Mentorship, code review, the
+
+[02:29] water cooler chats, the incident that paged you at 3:00 a.m. You absorbed all of it without noticing, just by being there. Humans absorb judgment implicitly. Agents require judgment explicitly. An agent boots with a blank context window and no memory every session.
+
+[02:51] Every piece of judgment you picked up by osmosis, it has to be made explicit or the agent simply never has it. Quick test. Swap in a smarter model. You get a slightly better answer. Now take away the tests, the gates, the review and the whole thing falls over. So the
+
+[03:12] model was never really the bottleneck. The judgment around the model is the model is raw talent while the judgment is the organization. And this judgment already exists. It lives in scars, in post-mortems, in your most experienced reviewers. it just
+
+[03:35] doesn't scale because it's trapped in one head. So step one is making it accessible to the whole org where one reviewer's taste can guide a thousand changes they'll never touch. Ask experienced engineers to clean up a feature flag and they they're going to think about a whole string of questions
+
+[03:56] first. A flag is never just a flag. Is the rollout frozen? What about the flag right next to it? Which team owns it? That bundle of questions is judgment and it's the most valuable thing in the building. Right now, it's trapped. It surfaces once in a code review, then
+
+[04:17] it's gone, and the next person relearns it the hard way. A skill is institutional judgment made executable. It's that bundle written down so that the agent refires it instead of guessing. A newer engineer can work with 10-year instincts at their elbow. In
+
+[04:38] 1986, Marvin Minsky named this a knowledge line or a kine for short. It's the configuration of mind that solved a problem reused on the next one. So, a skill is a kine for a codebase. And skills aren't documentation. Agents drown in facts. What they lack is
+
+[05:01] which facts matter and which decisions are dangerous. Documentation preserves facts while skills preserve judgment. Skills are judgment that you reuse. But often times work such as feature development or a refactor outlives a
+
+[05:23] single session and the context window wipes clean every time. So you need the other half. A record of the work itself. The plan, the decisions, what you already tried, even the surprises along the way. That's a worklog. A plan is a prediction. A worklog is a
+
+[05:46] record that starts with one. So new session, fresh agent, zero memory. You type one word, continue. It reads the work log and picks up at milestone 7 out of nine. No re-exaining and the work log is the context. This talk is living proof. I built it
+
+[06:06] across a couple of sessions using a worklog. I came back to a half-finish presentation and a fresh agent read the work log and resumed exactly where I had left off. That's the only reason why you're seeing a finished talk and not me apologizing for one. And for my personal side projects, this isn't willpower. A
+
+[06:28] git hook blocks any commit that doesn't update the worklog. This way, the memory keeps itself. Skills encode how to do something. Personas encode whose eyes look at it. I got this from a Carpathy tweet. There's
+
+[06:48] no you when you prompt a model. It doesn't have an opinion to give. So don't ask it for one, ask for a perspective instead. What would be a good group of people to explore XYZ? What would they say? [snorts] On my personal side projects, it's just me. No security team, no designer, no
+
+[07:11] one to bounce ideas off of. So I have the model review my code as a security lead as a UX reacher as a UX researcher as Mchavelli when I want to know something when I want to know how something gets abused. I even built a design panel of opposing philosophies my designs have to survive. Then I read the
+
+[07:32] reports and act on them. Each persona loads a kind of judgment that I don't personally have on demand. Encode a domain's taste once and anyone can borrow eyes that they don't have. The engineer with no designer gets design judgment. The newer engineer gets a security reviewer's instincts. Push it
+
+[07:54] to the whole org and every team can now encode its own taste for its own agents. The judgment that used to live in a handful of heads is suddenly everywhere at once. skills, work logs, personas, judgment out of our heads and into the repo,
+
+[08:17] portable to a machine and to people that don't have it. But the second that this judgment lives in three different places, you've got a governance question. How does one team's judgment reach everyone else? Simpler than it sounds. Every gate that you already trust, whether it's CI or types or lint
+
+[08:39] or the design system, is just institutional judgment pulled out of someone's head and made mechanical. We just never called it that. So, you don't mandate it. You make it legible and you let it spread. All right. So, now your judgment exists. It's encoded and it's governed. Great.
+
+[09:01] But none of it matters if you can't actually trust what the agent did. So what actually separates a tool that helps you write code from one you can trust to run on its own? Verification. Verification is all that stands between you and software that you can trust. Everything before this slide is
+
+[09:23] knowledge. Everything after this slide is trust. And trust is a human's call twice. Once on how it's built, once on the proof that it works. Verification is a ladder. Builds and tests. You've got those screenshot tests
+
+[09:45] with a model reasoning over them can catch contrast and overlap a human a human ski. Then video the feature actually running. than telemetry in production. The more rungs you can run without a human, the more you can hand off. You earn autonomy one rung at a time. And the agent
+
+[10:07] doesn't have to be right the first time. It just has to know when it's wrong and try again. Generate, test, fail, regenerate. Nobody yolos code to prod and neither should your agents. We all check our work. spin at the gate until it comes back
+
+[10:27] green. I do this on my side projects. I give the agent its own QA. It maps the feature, drives the app like a real user, and records itself walking every flow. The agent that wrote the code will always tell you that it works. So, you make it hand back a recording of the
+
+[10:48] thing actually running. Producing that recording forces it to make the thing work. You can't fake a passing run. And the recording is real proof. I watch it today. Down the line, you could have an LLM watch it first and send it back. Fix this. Redo that. But a human still makes
+
+[11:08] the final call to merge. The requirement forces the work. The recording proves it. I got tired of watching old feature flags pile up. So I built an agent for cleaning up stale feature flags. It runs in my local workflow and it doesn't merge any code. The models the easy
+
+[11:30] part. The judgment in front of it is the whole game. Every flag gets scored the way an experienced reviewer would analyze it. How many modules does it touch? Is it multivariant? Does it share a component? Then it checks the experiment data. Is the roll out frozen? Is there a sample ratio mismatch? Is
+
+[11:51] there a variant already rolled out to 100%. Only the safe mechanical cleanups ever reach the model. Before I trusted this workflow, I back tested the scoring against months of cleanup history. Then I ran it live. Seven for seven PRs with green CI. Now it runs daily on my laptop
+
+[12:12] and hands work back for me to review. $1.26 a pull request, a backlog of around 520 flags a year, runs for under $700. If you had engineers working on this by hand, at least $26,000 that you're looking at. This is the work that nobody
+
+[12:34] was ever going to do. I've seen feature flags in the codebase that are three, four years old, and some are even older. The model wrote the code and I wrote the judgment. One hard lesson from my side projects. When you let an agent author the code,
+
+[12:55] your guard rails are your code review. A machine doesn't feel a polite comment. It only respects a hard gate. I built a pre-commit hook so my agents couldn't write to main. Then I asked Codeex, would the hook even stop it? It told me flat out repo hooks are not sufficient protection against me. Its patch tool
+
+[13:17] writes underneath the hook. The agent told me that my gate was worthless. So I moved the gate down to the OS level. Later I asked it to valid I asked it to list the valid reasons to unlock and it quietly slipped emergency recovery into the allow list. A self authorizing exception that nobody asked
+
+[13:38] for. It even admitted it. CODEC said that's the kind of escape hatch that starts as safety and ends as self- authorized nonsense. The pit of success assumes people take the easy path. Agents do not. They will build ladders to climb out of the pit of success. They find every escape hatch
+
+[14:01] that you leave. And if you leave none, they'll invent one. So gate the choke point. Make the bypass operator only. Never hand the agent a reason that it can grant itself. A gate with an escape hatch isn't a gate. Once judgment is verifiable, it's
+
+[14:23] executable. A flag agent, a dependency agent, an accessibility agent. Each one is narrow. Each with its own encoded judgment pointed at a different chore. Remember Minsky from the Kline? That was just a footnote in his in his idea. He called
+
+[14:44] it the society of mind. A swarm of small, simple specialists that compose into something that looks effortless at the top. No master brain anywhere. That's the fleet. specialists, each spinning at its own gate, and a self-driving code base emerges from the swarm.
+
+[15:05] And that flag agent, that's the war room from the opening, turned into a specialist. The work somebody organized a whole meeting around is just one member of this agent society. Every one of them doing the same thing, spinning at the gate until green. Three stages. In the loop, you prompt.
+
+[15:29] On the loop, you orchestrate. You review the outcomes. Off the loop, a trigger fires it. Craw an event. No human has to kick off that first draft, but humans still own the approval and the merge process. The unlock there is a cloud runtime the
+
+[15:50] model vendor may or may not ship for you. Everything that I've shown you, skills, personas, the gates, you wrote it down once, but the codebase doesn't hold still. It moves every single day. A skill written for last month's
+
+[16:10] architecture isn't out of date. It's wrong. And that's worse than nothing because the agents trust it. Encoded judgment rots. If the skills don't move with the code, then the whole thing falls over. So you keep it alive in two ways. When an agent fails, you don't just fix the bug. You run the postmortem
+
+[16:32] and fold the lesson back into the skill so that failure can't happen twice. Failure becomes a constraint. But nobody is hand auditing 300 skills for drift. So, you give the agent a bedtime, a scheduled pass where it reads its own skills, finds the stale ones and
+
+[16:52] the contradictions, and opens up drafts for review. The system sleeps, cleans house, and wakes up sharper, but that's a whole separate talk on its own. A self-driving codebase is a system that keeps its own judgment current in addition to writing code.
+
+[17:13] Everything that I've shown so far fits somewhere along this judgment pipeline. And every mechanism in this talk, skills, personas, work logs, and the gates, the fleet, all of it was doing one job. Managing judgment.
+
+[17:34] Every session, the model wakes up like Drew Barrymore in 51st Dates. Brilliant. and no memory of yesterday. No idea what it's built or what it's even for. The collection of primitives in this talk is the notebook that we hand it. The skills, the work logs, the judgment that
+
+[17:54] let it do real work. We don't ship PRs that pass CI because the model is a genius. They pass because we built a harness that won't let it be wrong. Every gate in it is a human's call. That's harness engineering. Scale the judgment, not the model.
+
+[18:17] So here's what I'm asking you to do. Don't just go write a skill. That's only that's only one implementation. Find the judgment your team always asks the same person about and make it explicit somewhere that an agent can reach it. It could be a persona, a lint check or a commit hook. That's the job.
+
+[18:38] Now less product engineering and more harness engineering and the method demonstrates itself. The flag agent produces PRs that pass CI. This talk resumed from a worklog. We started here. Humans absorb judgment implicitly while agents require it
+
+[18:59] explicitly. Self-driving code bases will exist the moment we get that judgment out of our heads and into the codebase. Then we point the agents at the gate and let them spin until it's green. Thank you.
+
+[19:31] >> [music]

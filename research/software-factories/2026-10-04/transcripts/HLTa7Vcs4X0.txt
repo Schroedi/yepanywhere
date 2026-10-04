@@ -1,0 +1,68 @@
+Why AI Didn't Actually Make You Ship Faster — Gabriel Spencer-Harper, Meticulous
+https://www.youtube.com/watch?v=HLTa7Vcs4X0
+Upload date (YouTube): 2026-10-02
+Original English automatic captions; retrieved 2026-10-04. Not manually corrected.
+
+[00:01] [music] Hello everyone. Hi. Um, my name is Gabe. I'm one of the co-founders and CEO of Meticulus. Um, I'll just wait one more minute for people to come in and then we
+
+[00:22] can and then we can get started. Um so in today's demo or talk I'll talk about verification of code. Um I'll spend one minute introducing meticulous and then one minute giving some background context on the company and then sort of eight minutes giving a demo and technical technical overview. Um so if
+
+[00:45] you have exhaustive verification then you can ship code at the speed that your agents write it. If you don't, then someone somewhere at your organization is spending time verifying code and that is now your new bottleneck and you're forced into a position where you're trading off velocity against bugs and
+
+[01:08] user experience. So I'll give um super quick context on Meticulus. So, Meticulus gives you exhaustive or near exhaustive verification of your front-end codebase with zero developer effort. Um, it's deployed across the entire engine organization at all of these companies
+
+[01:29] like Discord, Whiz, Dropbox, Notion, 11 Labs, Launch Darkly, and many, many other great companies. So, if an engineer touches front-end code at one of these companies, they use Meticulus every every day. However, before we get into the product and talk more about verification, um, let's just cover the current sort of state of the world. So,
+
+[01:52] AI writes code faster than humans can review it. And review and verification is now the new bottleneck. The other state of the world is that assertionbased testing alone isn't enough. So no matter how hard a human or
+
+[02:12] an agent tries to define the correct behavior of software a priority upfront in assertions the space of possible regressions is too vast to exhaustively cover. And so a good clarifying question is if an engineer in your organization
+
+[02:34] uh AI generated this pull request, would you feel comfortable hitting the the merge merge and ship button? And in most organizations, the answer is no. You would want to go and do the hard work of checking out all the different feature flags, all the different roles, permissions, settings, configurations,
+
+[02:54] and the various different edge cases in order to understand the exhaustive impact of this of this change and see if you can spot any issues. So there are three sort of like downstream consequences of that current state. The first one is bugs or regressions uh which have a a business impact. The
+
+[03:15] second one is engine organizations will spend doubledigit percentages of their time maintaining end to-end test suites. So across manual validation, review, uh debugging flakes or updating or maintaining the test suite, um all spend a lot of time maintaining
+
+[03:36] maintaining maintaining tests. And then the third like problem or downstream downstream consequence of of the state of the world is that um if you if you can get exhaustive verification then you can program in a new and different way. So all of a sudden you can bump all your dependencies, you can do sweeping
+
+[03:57] refactors, you can make any AI generated change with complete complete confidence. So then the question becomes um that sounds great. How do you how do you get exhaustive verification? What does it look like and how do you how do you get there? Um so I'll now give you a demo of how how meticulous meticulous
+
+[04:18] works. So, we give you uh give me one second to set this up. Great. Um, so we give you one line of
+
+[04:38] JavaScript to inject onto nonproduction environments. So that's localhost, QA, dev, staging. That JavaScript instruments the web browser and records thousands or tens of thousands of flows or workflows. So someone clicking the login button, clicking the settings panel, clicking the analytics panel. And then when you open a pull request on
+
+[05:00] your CI runner, you spin up your web application on localhost 3000 and Meticulus takes a subset of those recorded workflows and it replays them. So it dispatches each event one by one. And as it dispatches those events, so click the login button, click the senses panel, click the analytics panel, it takes a screenshot at each atomic moment
+
+[05:22] throughout time. And so it generates a sequence of screenshots for every workflow, one before your code change and one after your code change. It then diffs those two sequences together to show you what would be different about your application if you were to merge that code in before before you do. So in this example,
+
+[05:43] there's two changes here. One is someone's changed the name and the second is they've introduced an error to a to a drop down. And so when you open a pull request, Meticulus posts a comment typically within a few minutes. And when the developer clicks into this comment, the Wi-Fi is slow, so I'm just going to switch tabs. But when a developer clicks
+
+[06:04] into this comment, Meticulus will not tell you whether or not there's a bug. What it will show you is a set of diffs that show you what's different about the application if you were to merge that code in. And so each diff has a before state and an after state. And so by reviewing the diff, you can determine
+
+[06:25] whether that change is expected or unexpected. So here's the name change on light mode. Here's the name change on dark mode. And then this is a manifestation of that logical logical error. So typically when you write an assertionbased test, you um use your business context and judgment to
+
+[06:45] encapsulate the correct behavior of software up front and and encapsulate that into your assertion based test. In meticulous, we just show you what's different and you exercise your judgment at review time or or or an agent agent does. Um give me one second to switch this back.
+
+[07:12] Cool. Um, so there are sort of three technologies that are really important for helping build a mental model of the tool and how it works, how it works and why it works. So the first one is that everything is mocked out. So um at record time we record all the network requests and responses and then at
+
+[07:32] replay time we stub those in and we perform that mocking for two reasons. One is to make the test item potent. So you can run them a thousand times in a row and get the same results each and every time. And the second reason is it means that every test is isolated from every other test which eliminates the risk of race conditions and allows you to paralyze the test horizontally and
+
+[07:54] get get the results in it in a few minutes. The second key technology is that you get radically less or orders of magnitude less flakes with meticulous than any other tool including cypus or playright. And the reason why is we augment the browser from the scheduling engine layer up to be fully deterministic. So when browsers were
+
+[08:15] first designed determinism was not a design goal. And so there's many different sources of randomness. For instance, an animation spinner depends upon the clock speed of the CPU of the machine rendering the browser or the interle between set timeout and set interval. And so we handle all of that randomness and uh make the browser deterministic or near deterministic so
+
+[08:37] that you have radically radically less flakes. And then the third technology which is the most um important one for grocking like why this works is if you want this to be exhaustive it has to cover every feature plan combination every permission every role every config every possible branching through the
+
+[08:57] application. So how do you how do you do that? So one technique that we use is that for every session or flow that we record, we replay it once against main branch or master branch and we monitor what lines of code get executed and then we build a map or an index that maps each individual workflow to lines lines of code executed and choose a subset of
+
+[09:19] workflows that maximizes code coverage across your application. And typically uh give me one second. Typically I would say that code coverage in our opinionated view is a terrible metric for every tool in the world apart from meticulous and the reason why is you could write a cypress test or playright test that covers 100% of your codebase
+
+[09:41] but only makes a single assertion and so code covered is not the same as code tested but with meticulous it actually is approximately the same because we do this really unusual and radical thing which is we're taking a screenshot at every possible moment throughout a flow. So if there's a 412 set flow and there's
+
+[10:02] a single pixel diff, meticulous meticulous will will will flag it. And so you can start to see how all these technologies layer together. Um you only get exhausted verification because of this code coverage algorithm. That algorithm only really works because you take a screenshot at every possible moment. If you take a screenshot every
+
+[10:22] possible moment, you're taking on the order of tens, hundreds of millions of screenshots. And so, traditionally, you would just drown in noise or drown in flakiness. And so, you have to solve flakiness at the root level. Um, which is which is what we what we what we do by by augmenting augmenting the browser. Um, these are some nice things that our
+
+[10:42] customers customers have said about us. Um, and that concludes today's talk. If you're interested in finding out more then come to booth LG6 and thank you so much for listening. [applause]
+
+[11:12] >> [music]
