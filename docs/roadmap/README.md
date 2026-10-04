@@ -120,9 +120,9 @@ the viewer/download gap remain the next mobile release work.
   testers, with its opt-in page verified. iOS build 1 shows Ready to Test after
   completing encryption compliance with France excluded from availability.
   October 4 fixes Android's UI-initiated public TLS login failure: 0.1.1
-  (1001) is built and upload-signed, with Main/public-relay and isolated
-  production-R8 Release login acceptance on a physical Pixel. Upload to the
-  internal track remains pending; the active 0.1.0 release lacks this fix.
+  (1001) is published and available to internal testers, with Main/public-relay
+  and isolated production-R8 Release login acceptance on a physical Pixel.
+  Login retesting of the updated Google Play-signed install remains open.
   French classification/filing is deferred before enabling that market; iOS
   tester enrollment and production iOS push remain open. Release CI automation
   follows the proven local path. See [mobile store preparation](../distribution/mobile/README.md).
