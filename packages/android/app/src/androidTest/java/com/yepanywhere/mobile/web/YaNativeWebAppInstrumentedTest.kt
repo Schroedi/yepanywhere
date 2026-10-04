@@ -8,10 +8,13 @@ import android.view.inputmethod.InputMethodManager
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.espresso.intent.Intents
+import androidx.test.espresso.intent.matcher.IntentMatchers.hasAction
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
+import com.yepanywhere.mobile.MainActivity
 import com.yepanywhere.mobile.R
 import com.yepanywhere.mobile.YepAnywhereApplication
 import com.yepanywhere.mobile.connection.YaConnectionPhase
@@ -48,6 +51,10 @@ class YaNativeWebAppInstrumentedTest {
         val uploadBytes = args.getString("yaProbeUploadBytes")?.toInt() ?: 1024 * 1024
         require(uploadBytes in 1..(100 * 1024 * 1024))
         assumeTrue("Disposable probe arguments absent in config-free CI", ws != null && username != null && password != null)
+        val device = UiDevice.getInstance(instrumentation)
+        val testNetwork = args.getString("yaProbeNetworkLifecycle") == "true"
+        val wifiEnabled = testNetwork && device.executeShellCommand("settings get global wifi_on").trim() == "1"
+        val dataEnabled = testNetwork && device.executeShellCommand("settings get global mobile_data").trim() == "1"
         val application = instrumentation.targetContext.applicationContext as YepAnywhereApplication
         val runtime = application.nativeRuntime
         val previous = runBlocking { runtime.pairedServers.selectedProfileId.first() }
@@ -60,11 +67,22 @@ class YaNativeWebAppInstrumentedTest {
                     if (relayWs == null) YaServerRoute.direct(checkNotNull(ws)) else YaServerRoute.relay(relayWs, checkNotNull(username)))
             }
         } }
+        val secondProfile = args.getString("yaProbeSecondUsername")?.let { secondUsername ->
+            runBlocking { withTimeout(15_000) {
+                runtime.pairing.pair("Second host", secondUsername, checkNotNull(password), YaServerRoute.relay(checkNotNull(relayWs), secondUsername))
+            } }
+        }
         val manager = runtime.connectionManager(profile.id)
         val sibling = runBlocking { manager.acquire() }
-        val intent = Intent(application, WebClientActivity::class.java).putExtra(WebClientActivity.PROFILE_ID, profile.id)
-        val scenario = ActivityScenario.launch<WebClientActivity>(intent)
+        val preferences = application.getSharedPreferences("native-tabs", android.content.Context.MODE_PRIVATE)
+        val previousTabs = preferences.getString("state", null)
+        preferences.edit().remove("state").commit()
+        runBlocking { runtime.pairedServers.select(profile.id) }
+        val intent = Intent(application, MainActivity::class.java).setAction(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+        val scenario = ActivityScenario.launch<MainActivity>(intent)
         val http = OkHttpClient()
+        Intents.init()
+        Intents.intending(hasAction(Intent.ACTION_VIEW)).respondWith(android.app.Instrumentation.ActivityResult(android.app.Activity.RESULT_CANCELED, null))
         try {
             await(scenario, "document.body.textContent.includes('preview-project')")
             assertEquals("\"/projects\"", evaluate(scenario, "location.pathname"))
@@ -170,10 +188,111 @@ class YaNativeWebAppInstrumentedTest {
             await(scenario, "document.querySelector('.attachment-list')?.textContent.includes('native-upload.bin') === true && !document.querySelector('.attachment-list')?.textContent.includes('%')", 120)
             scenario.onActivity { activity -> android.util.Log.i("YaNativeWebProof", "uploadBytes=$uploadBytes typingMaxMs=$latency metrics=${activity.nativeTransportDiagnostics()}") }
 
+            device.pressBack() // Hide the keyboard before opening native chrome.
+            evaluate(scenario, "window.warmDocument = {identity: Math.random()}; window.warmComposerNode = document.querySelector('textarea[data-composer-input]'); window.warmComposer = window.warmComposerNode.value; window.warmScrollNode = document.querySelector('.message-list').parentElement; window.warmScrollTarget = (window.warmScrollNode.scrollHeight - window.warmScrollNode.clientHeight) / 2; window.warmScrollNode.scrollTop = window.warmScrollTarget; true")
+            await(scenario, "window.warmScrollTarget > 0 && Math.abs(window.warmScrollNode.scrollTop - window.warmScrollTarget) < 1")
+            val scrollPosition = evaluate(scenario, "window.warmScrollNode.scrollTop").toDouble()
+            val identity = evaluate(scenario, "JSON.stringify([performance.timeOrigin, window.warmDocument.identity])")
+            device.findObject(By.desc("Tabs, 1 open")).click()
+            assertTrue(device.wait(Until.hasObject(By.text("Tabs")), 5_000))
+            captureTabs(device, application, "native-tabs.png")
+            device.pressBack()
+            assertEquals(identity, evaluate(scenario, "JSON.stringify([performance.timeOrigin, window.warmDocument.identity])"))
             scenario.moveToState(Lifecycle.State.CREATED)
             assertEquals(200, runBlocking { sibling.request("GET", "/version").status })
             scenario.moveToState(Lifecycle.State.RESUMED)
             await(scenario, "document.body.textContent.includes('Preview message 50')")
+            assertEquals(identity, evaluate(scenario, "JSON.stringify([performance.timeOrigin, window.warmDocument.identity])"))
+            assertEquals("true", evaluate(scenario, "document.querySelector('textarea[data-composer-input]') === window.warmComposerNode && window.warmComposerNode.value === window.warmComposer"))
+            assertEquals(scrollPosition, evaluate(scenario, "window.warmScrollNode.scrollTop").toDouble(), 1.0)
+            // Exercise the real launcher path, not just a lifecycle test shim.
+            if (testNetwork) {
+                device.executeShellCommand("svc wifi disable")
+                device.executeShellCommand("svc data disable")
+                await(scenario, "navigator.onLine === false && !!document.querySelector('[data-connection-status]')")
+            }
+            device.pressHome()
+            application.startActivity(Intent(application, MainActivity::class.java).setAction(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            await(scenario, "document.visibilityState === 'visible'")
+            assertEquals(identity, evaluate(scenario, "JSON.stringify([performance.timeOrigin, window.warmDocument.identity])"))
+            assertEquals("true", evaluate(scenario, "document.querySelector('textarea[data-composer-input]') === window.warmComposerNode && window.warmComposerNode.value === window.warmComposer"))
+            assertEquals(scrollPosition, evaluate(scenario, "window.warmScrollNode.scrollTop").toDouble(), 1.0)
+            if (testNetwork) {
+                assertEquals("true", evaluate(scenario, "document.body.textContent.includes('Preview message 50')"))
+                if (wifiEnabled) device.executeShellCommand("svc wifi enable")
+                if (dataEnabled) device.executeShellCommand("svc data enable")
+                await(scenario, "navigator.onLine === true && !document.querySelector('[data-connection-status]')")
+            }
+            http.newCall(Request.Builder().url("$base/__probe/append").post(ByteArray(0).toRequestBody()).build()).execute().use { assertTrue(it.isSuccessful) }
+            await(scenario, "document.body.textContent.includes('Live preview response 54') && !document.querySelector('[data-connection-status]')")
+            scenario.onActivity { it.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE }
+            await(scenario, "innerWidth > innerHeight")
+            assertEquals(identity, evaluate(scenario, "JSON.stringify([performance.timeOrigin, window.warmDocument.identity])"))
+            assertSafeAreasAppliedOnce(scenario)
+            device.waitForIdle()
+            assertTrue(device.takeScreenshot(File(application.getExternalFilesDir(null), "native-tabs-landscape.png")))
+            scenario.onActivity { it.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT }
+            await(scenario, "innerWidth < innerHeight")
+            assertEquals(identity, evaluate(scenario, "JSON.stringify([performance.timeOrigin, window.warmDocument.identity])"))
+            // Plus creates a distinct same-host tab. Returning restores navigation.
+            device.findObject(By.desc("New tab")).click()
+            device.wait(Until.findObject(By.res("android", "text1").text("WebView probe")), 5_000).click()
+            await(scenario, "location.pathname === '/projects' && document.body.textContent.includes('preview-project')")
+            assertTrue(device.hasObject(By.desc("Tabs, 2 open")))
+            device.findObject(By.desc("Tabs, 2 open")).click()
+            device.wait(Until.findObject(By.desc("Switch to tab: WebView probe, /projects/$projectId/sessions/android-preview-session")), 5_000).click()
+            await(scenario, "location.pathname.endsWith('/sessions/android-preview-session') && document.body.textContent.includes('Preview message 50')")
+            evaluate(scenario, """
+                (() => { const link = document.createElement('a'); link.id = 'native-tab-link';
+                  link.href = '/projects?nativeTabProbe=1'; link.target = '_blank'; link.textContent = 'Native internal link';
+                  link.style.cssText = 'position:fixed;top:80px;left:20px;z-index:99999;background:#222;color:white;padding:16px';
+                  document.body.appendChild(link); return true; })()
+            """.trimIndent())
+            val beforeLink = evaluate(scenario, "performance.timeOrigin")
+            device.wait(Until.findObject(By.text("Native internal link")), 5_000).longClick()
+            device.wait(Until.findObject(By.text("Open in new tab")), 5_000).click()
+            assertTrue(device.wait(Until.hasObject(By.desc("Tabs, 3 open")), 5_000))
+            assertEquals(beforeLink, evaluate(scenario, "performance.timeOrigin"))
+            device.wait(Until.findObject(By.text("Native internal link")), 5_000).click()
+            await(scenario, "location.pathname === '/projects' && location.search === '?nativeTabProbe=1'")
+            assertTrue(device.wait(Until.hasObject(By.desc("Tabs, 4 open")), 5_000))
+            device.findObject(By.desc("Tabs, 4 open")).click()
+            captureTabs(device, application, "native-tabs.png")
+            device.wait(Until.findObject(By.desc("Switch to tab: WebView probe, /projects/$projectId/sessions/android-preview-session")), 5_000).click()
+            await(scenario, "location.pathname.endsWith('/sessions/android-preview-session') && document.body.textContent.includes('Preview message 50')")
+            // External new-window URLs are handed to Android, never an app tab.
+            evaluate(scenario, """
+                (() => { const link = document.createElement('a'); link.href = 'https://example.com/ya-native-external';
+                  link.target = '_blank'; link.textContent = 'Native external link';
+                  link.style.cssText = 'position:fixed;top:80px;left:20px;z-index:99999;background:#222;color:white;padding:16px';
+                  document.body.appendChild(link); return true; })()
+            """.trimIndent())
+            val externalIdentity = evaluate(scenario, "performance.timeOrigin")
+            device.wait(Until.findObject(By.text("Native external link")), 5_000).click()
+            val externalDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
+            while (Intents.getIntents().none { it.action == Intent.ACTION_VIEW && it.dataString == "https://example.com/ya-native-external" } && System.nanoTime() < externalDeadline) Thread.sleep(50)
+            assertTrue(Intents.getIntents().any { it.action == Intent.ACTION_VIEW && it.dataString == "https://example.com/ya-native-external" })
+            assertEquals(externalIdentity, evaluate(scenario, "performance.timeOrigin"))
+            assertTrue(device.hasObject(By.desc("Tabs, 4 open")))
+            if (secondProfile != null) {
+                device.findObject(By.desc("New tab")).click()
+                device.wait(Until.findObject(By.res("android", "text1").text("Second host")), 5_000).click()
+                await(scenario, "document.body.textContent.includes('preview-project')")
+                scenario.onActivity { assertEquals(secondProfile.id, it.nativeTransportDiagnostics()?.getString("profileId")) }
+                device.findObject(By.desc("Tabs, 5 open")).click()
+                captureTabs(device, application, "native-tabs-hosts.png")
+                device.wait(Until.findObject(By.desc("Switch to tab: WebView probe, /projects/$projectId/sessions/android-preview-session")), 5_000).click()
+                await(scenario, "document.body.textContent.includes('Preview message 50')")
+                scenario.onActivity { assertEquals(profile.id, it.nativeTransportDiagnostics()?.getString("profileId")) }
+                // Closing the second host removes metadata and releases only its consumer.
+                device.findObject(By.desc("Tabs, 5 open")).click()
+                device.wait(Until.findObject(By.desc("Close tab: Second host")), 5_000).click()
+                assertTrue(device.wait(Until.gone(By.desc("Close tab: Second host")), 5_000))
+                assertTrue(device.wait(Until.hasObject(By.text("Tabs")), 5_000))
+                device.waitForIdle()
+                device.pressBack()
+                assertTrue(device.wait(Until.hasObject(By.desc("Tabs, 4 open")), 5_000))
+            }
             scenario.recreate()
             await(scenario, "location.pathname.endsWith('/sessions/android-preview-session') && document.body.textContent.includes('Preview message 50')")
             assertSafeAreasAppliedOnce(scenario)
@@ -181,25 +300,38 @@ class YaNativeWebAppInstrumentedTest {
             evaluate(scenario, "if (!document.querySelector('.sidebar-switch-host')) document.querySelector('.sidebar-toggle')?.click(); true")
             await(scenario, "!!document.querySelector('.sidebar-switch-host')")
             evaluate(scenario, "document.querySelector('.sidebar-switch-host').click(); true")
-            val device = UiDevice.getInstance(instrumentation)
             assertTrue("Switch Host did not open native management", device.wait(Until.hasObject(By.text("Servers")), 5_000))
             assertTrue(device.wait(Until.hasObject(By.text("WebView probe")), 5_000))
             scenario.close()
             assertEquals(200, runBlocking { sibling.request("GET", "/version").status })
         } finally {
+            if (testNetwork) {
+                device.executeShellCommand("svc wifi ${if (wifiEnabled) "enable" else "disable"}")
+                device.executeShellCommand("svc data ${if (dataEnabled) "enable" else "disable"}")
+            }
             scenario.close()
+            Intents.release()
+            preferences.edit().apply { if (previousTabs == null) remove("state") else putString("state", previousTabs) }.commit()
             http.connectionPool.evictAll()
             http.dispatcher.executorService.shutdown()
             runBlocking {
                 sibling.releaseAndAwait()
                 withTimeout(5_000) { manager.state.first { it.phase == YaConnectionPhase.IDLE } }
                 runtime.pairedServers.forget(profile.id)
+                secondProfile?.let { runtime.pairedServers.forget(it.id) }
                 if (previous != null && runtime.pairedServers.snapshot(previous) != null) runtime.pairedServers.select(previous)
             }
         }
     }
 
-    private fun assertSafeAreasAppliedOnce(scenario: ActivityScenario<WebClientActivity>) {
+    private fun captureTabs(device: UiDevice, app: YepAnywhereApplication, name: String) {
+        assertTrue(device.wait(Until.hasObject(By.text("Tabs")), 5_000))
+        assertTrue(device.wait(Until.hasObject(By.descStartsWith("Switch to tab:")), 5_000))
+        device.waitForIdle()
+        assertTrue(device.takeScreenshot(File(app.getExternalFilesDir(null), name)))
+    }
+
+    private fun assertSafeAreasAppliedOnce(scenario: ActivityScenario<out WebClientActivity>) {
         val insets = evaluate(scenario, """
             (() => {
               const probe = document.createElement('div');
@@ -213,7 +345,7 @@ class YaNativeWebAppInstrumentedTest {
         assertEquals("Native system-bar padding must not reach CSS again", "[0,0,0,0]", insets)
     }
 
-    private fun awaitInputReady(scenario: ActivityScenario<WebClientActivity>) {
+    private fun awaitInputReady(scenario: ActivityScenario<out WebClientActivity>) {
         // Use the existing 30 s document-readiness budget. This is a setup
         // condition, never a delay or a larger per-key acknowledgement budget.
         val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30)
@@ -247,7 +379,7 @@ class YaNativeWebAppInstrumentedTest {
 
     // Initial direct 1 MiB emulator proof completed in 9.1 s; 30 s gives ~3x
     // that full-run maximum for ordinary document readiness on this testbed.
-    private fun await(scenario: ActivityScenario<WebClientActivity>, script: String, timeoutSeconds: Long = 30) {
+    private fun await(scenario: ActivityScenario<out WebClientActivity>, script: String, timeoutSeconds: Long = 30) {
         val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds)
         var actual = ""
         while (System.nanoTime() < deadline) {
@@ -255,7 +387,7 @@ class YaNativeWebAppInstrumentedTest {
             // departing renderer. Wait for the replacement native handshake.
             var ready = false
             scenario.onActivity { activity ->
-                ready = activity.nativeTransportDiagnostics() != null && activity.findViewById<WebView>(R.id.web_client).progress == 100
+                ready = activity.nativeTransportDiagnostics() != null && activity.findViewById<WebView>(R.id.web_client)?.progress == 100
             }
             if (!ready) { Thread.sleep(100); continue }
             actual = evaluate(scenario, script)
@@ -266,7 +398,7 @@ class YaNativeWebAppInstrumentedTest {
         throw AssertionError("Expected $script; got $actual; page=$body")
     }
 
-    private fun evaluate(scenario: ActivityScenario<WebClientActivity>, script: String): String {
+    private fun evaluate(scenario: ActivityScenario<out WebClientActivity>, script: String): String {
         val result = AtomicReference<String>()
         val done = CountDownLatch(1)
         scenario.onActivity { activity ->

@@ -205,7 +205,12 @@ projects, sessions, transcripts, input and settings. Android owns native login,
 reauthentication, host selection, protected SRP/resume credentials, transport,
 reconnect and notifications. Saved-host selection enters the web app directly;
 Switch Host returns to native management. Management observes connection state
-without retaining dashboard subscriptions.
+without retaining dashboard subscriptions. The approved
+[Android tabs and warm-resume work](../tactical/146-android-tabs-and-warm-resume.md)
+adds a native top toolbar and internal-only tabs while preserving the selected
+WebView through ordinary multitasking. Implementation and Pixel acceptance are
+complete: direct/two-host relay, public-relay radio loss, launcher resume,
+rotation, tab/link routing and typing during 100 MiB upload are verified.
 
 The initial mobile release uses server-owner login. Native limited-user login
 is explicitly deferred (2026-10-01). Android and the iOS native-login/transport

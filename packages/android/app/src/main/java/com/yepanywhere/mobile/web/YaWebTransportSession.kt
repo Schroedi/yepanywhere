@@ -94,13 +94,13 @@ class YaWebTransportSession(
     }
 
     suspend fun uploadChunk(payload: ByteArray) {
-        check(!closed)
         require(payload.size in 25..(24 + 65536))
         val bytes = ByteBuffer.wrap(payload)
         val localId = UUID(bytes.long, bytes.long).toString()
         val offset = bytes.long
         val chunk = ByteArray(bytes.remaining()).also(bytes::get)
         try {
+            check(!closed) { "Native page is suspended" }
             lease.sendUploadChunk(checkNotNull(uploadIds[localId]) { "Upload is no longer active" }, offset, chunk)
         } catch (error: CancellationException) { throw error
         } catch (error: Throwable) {

@@ -18,7 +18,10 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import org.json.JSONObject
 
 /** Installed only on the bundled app-assets origin, with a document-owned lease. */
@@ -31,7 +34,17 @@ class YaNativeTransportHost private constructor(
 ) : Closeable {
     private var document: Document? = null
     private var destroyed = false
-    fun diagnostics(): JSONObject? = document?.metrics?.snapshot()
+    private data class Foreground(val active: Boolean, val generation: Int)
+    private val foreground = MutableStateFlow(Foreground(true, 0))
+    @Volatile private var foregroundGeneration = 0
+    fun setForeground(value: Boolean) {
+        if (foreground.value.active == value) return
+        foregroundGeneration += 1
+        foreground.value = Foreground(value, foregroundGeneration)
+        if (!value) document?.suspendSession()
+    }
+    fun diagnostics(): JSONObject? = document?.metrics?.snapshot()?.put("profileId", profileId)
+        ?.put("foreground", foreground.value.active)?.put("sessionActive", document?.session != null)
 
     fun onDocumentChanged() { document?.close(); document = null }
 
@@ -91,29 +104,67 @@ class YaNativeTransportHost private constructor(
         @Volatile var closed = false
         @Volatile var receiving = false
         private val lifecycleLock = Any()
+        private var sessionGeneration = 0
+
+        fun suspendSession() {
+            synchronized(lifecycleLock) {
+                sessionGeneration += 1
+                session?.close()
+                session = null
+                if (!closed) emit(JSONObject().put("type", "state").put("phase", "SUSPENDED"))
+            }
+        }
+
+        private suspend fun observeForeground() {
+            foreground.collectLatest { lifecycle ->
+                val active = lifecycle.active
+                if (!active) {
+                    emit(JSONObject().put("type", "state").put("phase", "SUSPENDED"))
+                    return@collectLatest
+                }
+                val manager = runtime.connectionManager(profileId)
+                val lease = manager.acquire()
+                val generation = synchronized(lifecycleLock) { ++sessionGeneration }
+                val acquired = YaWebTransportSession(handle, lease, scope, { value ->
+                    synchronized(lifecycleLock) { if (!closed && generation == sessionGeneration) emit(value) }
+                }, metrics::cancelled) { view.post { if (!closed) switchHost() } }
+                try {
+                    synchronized(lifecycleLock) {
+                        if (closed || !foreground.value.active) { acquired.close(); return@collectLatest }
+                        session = acquired
+                    }
+                    // Even an already-connected sibling source needs a lifecycle
+                    // edge so this document's streams reattach to its new lease.
+                    emit(JSONObject().put("type", "state").put("phase", "CONNECTING"))
+                    manager.state.collect { state ->
+                        synchronized(lifecycleLock) {
+                            if (generation == sessionGeneration && foreground.value.active) {
+                                emit(JSONObject().put("type", "state").put("phase", state.phase.name)
+                                    .put("retryAttempt", state.retryAttempt)
+                                    .put("error", state.errorMessage ?: JSONObject.NULL))
+                            }
+                        }
+                    }
+                } finally {
+                    synchronized(lifecycleLock) {
+                        if (session === acquired) { session = null; sessionGeneration += 1 }
+                        acquired.close()
+                    }
+                }
+            }
+        }
 
         fun start() {
             scope.launch {
                 try {
                     val snapshot = checkNotNull(runtime.pairedServers.snapshot(profileId))
-                    val manager = runtime.connectionManager(profileId)
-                    val lease = manager.acquire()
-                    val acquired = YaWebTransportSession(handle, lease, scope, ::emit, metrics::cancelled) {
-                        view.post { if (!closed) switchHost() }
-                    }
-                    synchronized(lifecycleLock) {
-                        if (closed) { acquired.close(); return@launch }
-                        session = acquired
-                    }
                     postText(JSONObject().put("type", "hello").put("protocol", 1).put("handle", handle)
                         .put("profileId", profileId).put("label", snapshot.profile.label)
                         .put("binary", binary).toString())
                     scope.launch {
-                        manager.state.collect { state ->
-                            emit(JSONObject().put("type", "state").put("phase", state.phase.name)
-                                .put("retryAttempt", state.retryAttempt)
-                                .put("error", state.errorMessage ?: JSONObject.NULL))
-                        }
+                        try { observeForeground() }
+                        catch (error: kotlinx.coroutines.CancellationException) { throw error }
+                        catch (_: Throwable) { fail() }
                     }
                     var id = 1
                     for (bytes in outbound) {
@@ -135,7 +186,14 @@ class YaNativeTransportHost private constructor(
                                 metrics.mainThread(System.nanoTime() - drainStarted)
                                 metrics.frame(frame.size)
                             }
-                            withTimeout(30_000) { checkNotNull(acknowledgement).await() }
+                            while (!checkNotNull(acknowledgement).isCompleted) {
+                                // No periodic wakeups while the document is hidden.
+                                foreground.first { it.active }
+                                val generation = foregroundGeneration
+                                if (withTimeoutOrNull(30_000) { checkNotNull(acknowledgement).await(); true } == true) break
+                                // A stopped WebView can defer local delivery.
+                                check(!foreground.value.active || generation != foregroundGeneration) { "Native frame acknowledgement timed out" }
+                            }
                             metrics.credit(System.nanoTime() - creditStarted)
                             offset += chunk.size
                         }
@@ -177,9 +235,25 @@ class YaNativeTransportHost private constructor(
             scope.launch {
                 try {
                     if (complete != null) {
-                        val active = checkNotNull(session)
-                        if (complete.kind == NativeTransportFrames.UPLOAD) active.uploadChunk(complete.data)
-                        else active.dispatch(JSONObject(complete.data.toString(Charsets.UTF_8)))
+                        if (complete.kind == NativeTransportFrames.UPLOAD) {
+                            // Still credit queued chunks after foreground release.
+                            // SUSPENDED rejects the corresponding JS upload.
+                            val active = session
+                            if (active != null && foreground.value.active) {
+                                try { active.uploadChunk(complete.data) }
+                                catch (_: kotlinx.coroutines.CancellationException) { /* Foreground lease released. */ }
+                            }
+                        } else {
+                            val command = JSONObject(complete.data.toString(Charsets.UTF_8))
+                            synchronized(lifecycleLock) {
+                                require(command.getString("handle") == handle)
+                                val active = session
+                                if (active != null && foreground.value.active) active.dispatch(command)
+                                else if (command.optString("method") != "cancel") emit(JSONObject()
+                                    .put("type", "reply").put("id", command.getString("id"))
+                                    .put("error", "Native page is suspended"))
+                            }
+                        }
                     }
                     receiving = false
                     postText("ack:$handle:${frame.id}:${frame.offset + frame.data.size}")

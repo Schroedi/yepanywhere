@@ -94,9 +94,14 @@ export class NativeSourceTransport implements SourceTransport, Connection {
     this.bridge.onEvent = (message) => {
       if (message.type === "state") {
         const phase = String(message.phase);
+        if (phase === "SUSPENDED") {
+          this.bridge.rejectPending(new ConnectionReconnectingError());
+        }
         this.setPhase(
           navigator.onLine === false &&
-            !["REAUTHENTICATION_REQUIRED", "REVOKED"].includes(phase)
+            !["REAUTHENTICATION_REQUIRED", "REVOKED", "SUSPENDED"].includes(
+              phase,
+            )
             ? "OFFLINE"
             : phase,
         );
@@ -141,7 +146,12 @@ export class NativeSourceTransport implements SourceTransport, Connection {
   }
 
   private canRecover(): boolean {
-    return !this.disposed && !this.bridgeClosed && !this.authenticationRequired;
+    return (
+      !this.disposed &&
+      !this.bridgeClosed &&
+      !this.authenticationRequired &&
+      this.phase !== "SUSPENDED"
+    );
   }
 
   private recoverIfNeeded(networkRestored = false): void {

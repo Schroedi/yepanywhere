@@ -69,4 +69,21 @@
     <string name="push_completed">An agent has finished working.</string>
     <string name="push_failed">An agent stopped with an error.</string>
     <string name="push_test_message">Notifications are working. Tap to open your server.</string>
+    <string name="native_tab_projects">Projects</string>
+    <string name="native_tabs">Tabs</string>
+    <plurals name="native_tabs_count">
+        <item quantity="one">Tabs, %1$d open</item>
+        <item quantity="other">Tabs, %1$d open</item>
+    </plurals>
+    <string name="native_tabs_done">Done</string>
+    <string name="native_tab_new">New tab</string>
+    <string name="native_tab_add_host">Add host</string>
+    <string name="native_tab_open">Open in new tab</string>
+    <string name="native_tab_opened">Opened in new tab</string>
+    <string name="native_tab_limit">Close a tab before opening another (maximum %1$d)</string>
+    <string name="native_tab_unavailable_host">Unavailable host</string>
+    <string name="native_tab_host_label">%1$s%2$s</string>
+    <string name="native_tab_select">Switch to tab: %1$s, %2$s</string>
+    <string name="native_tab_close">Close tab: %1$s</string>
+    <string name="native_switch_host">Switch host</string>
 </resources>

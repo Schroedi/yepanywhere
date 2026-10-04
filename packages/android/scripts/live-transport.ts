@@ -161,6 +161,9 @@ try {
         yaProbeWsUrl: fixture.endpoint,
         yaProbeUsername: username,
         yaProbePassword: "native-fixture-password",
+        ...(process.env.YA_NATIVE_NETWORK_LIFECYCLE === "1"
+          ? { yaProbeNetworkLifecycle: "true" }
+          : {}),
         ...(push && beta
           ? { yaNativePushLive: "true", yaProbeSecondWsUrl: beta.endpoint }
           : {}),

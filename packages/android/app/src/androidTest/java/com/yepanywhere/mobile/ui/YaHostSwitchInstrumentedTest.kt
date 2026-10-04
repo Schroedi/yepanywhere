@@ -9,6 +9,7 @@ import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
 import androidx.test.runner.lifecycle.Stage
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiObject2
+import androidx.test.uiautomator.Direction
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
 import com.yepanywhere.mobile.MainActivity
@@ -60,14 +61,25 @@ class YaHostSwitchInstrumentedTest {
             }
         }
         val device = UiDevice.getInstance(instrumentation)
+        val preferences = app.getSharedPreferences("native-tabs", android.content.Context.MODE_PRIVATE)
+        val previousTabs = preferences.getString("state", null)
+        preferences.edit().remove("state").commit()
         val main = ActivityScenario.launch<MainActivity>(Intent(app, MainActivity::class.java).putExtra(MainActivity.SHOW_HOSTS, true))
         try {
+            var documentIdentity: String? = null
             repeat(2) { attempt ->
-                assertTrue(device.wait(Until.hasObject(By.text("Host switch probe")), 5_000))
-                // This run owns its profile but preserves any pre-existing phone profiles.
+                // Scroll the owned card fully into view. A clipped LazyColumn
+                // card must never fall back to another saved host's Open button.
                 hostCard(device).findObject(By.text("Open full app")).click()
-                waitFor { evaluate("document.body.textContent.includes('preview-project')") == "true" }
+                try { waitFor { evaluate("document.body.textContent.includes('preview-project')") == "true" } }
+                catch (error: Throwable) {
+                    var diagnostics = ""
+                    main.onActivity { diagnostics = it.nativeTransportDiagnostics().toString() }
+                    throw AssertionError("manager=${manager.state.value}; native=$diagnostics", error)
+                }
                 runBlocking { withTimeout(10_000) { manager.state.first { it.phase == YaConnectionPhase.CONNECTED } } }
+                val identity = evaluate("performance.timeOrigin")
+                if (documentIdentity == null) documentIdentity = identity else assertEquals(documentIdentity, identity)
                 if (attempt == 1) {
                     control("resume-hold?enabled=true")
                     control("disconnect")
@@ -90,6 +102,8 @@ class YaHostSwitchInstrumentedTest {
             }
             hostCard(device).findObject(By.text("Open full app")).click()
             waitFor { evaluate("document.body.textContent.includes('preview-project')") == "true" }
+            // The retained page is visible before transport finishes resuming.
+            runBlocking { withTimeout(10_000) { manager.state.first { it.phase == YaConnectionPhase.CONNECTED } } }
             assertEquals(YaConnectionPhase.CONNECTED, manager.state.value.phase)
         } finally {
             control("resume-hold?enabled=false")
@@ -97,6 +111,7 @@ class YaHostSwitchInstrumentedTest {
                 ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(Stage.RESUMED).filterIsInstance<WebClientActivity>().forEach { it.finish() }
             }
             main.close()
+            preferences.edit().apply { if (previousTabs == null) remove("state") else putString("state", previousTabs) }.commit()
             runBlocking {
                 withTimeout(10_000) { manager.state.first { it.phase == YaConnectionPhase.IDLE } }
                 runtime.pairedServers.forget(profile.id)
@@ -108,26 +123,37 @@ class YaHostSwitchInstrumentedTest {
     }
 
     private fun hostCard(device: UiDevice): UiObject2 {
-        var node: UiObject2? = device.findObject(By.text("Host switch probe"))
-        while (node != null) {
-            if (node.hasObject(By.text("Open full app"))) return node
-            node = node.parent
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
+        while (System.nanoTime() < deadline) {
+            val label = device.findObject(By.text("Host switch probe"))
+            var node = label?.parent
+            while (node != null) {
+                val buttons = node.findObjects(By.text("Open full app"))
+                if (buttons.size == 1 && buttons.single().visibleBounds.top >= checkNotNull(label).visibleBounds.bottom) return node
+                node = node.parent
+            }
+            val list = device.findObject(By.scrollable(true))
+            if (list != null) list.scroll(Direction.DOWN, 0.4f)
+            else Thread.sleep(50)
         }
-        error("Fixture host card is unavailable")
+        error("Owned fixture host card is unavailable")
     }
 
     private fun waitFor(condition: () -> Boolean) {
         val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
         while (System.nanoTime() < deadline) { if (condition()) return; Thread.sleep(50) }
-        error("Host switch condition did not settle")
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        UiDevice.getInstance(instrumentation).takeScreenshot(File(instrumentation.targetContext.getExternalFilesDir(null), "host-switch-failure.png"))
+        error("Host switch condition did not settle: " + evaluate("JSON.stringify({url:location.href, body:document.body.innerText.slice(0,1500), native:typeof window.yaNativeTransport})"))
     }
     private fun evaluate(script: String): String {
         val result = AtomicReference("false")
         val done = CountDownLatch(1)
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             val activity = ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(Stage.RESUMED).filterIsInstance<WebClientActivity>().singleOrNull()
-            if (activity == null) done.countDown()
-            else activity.findViewById<WebView>(R.id.web_client).evaluateJavascript(script) { result.set(it); done.countDown() }
+            val view = activity?.findViewById<WebView>(R.id.web_client)
+            if (view == null) done.countDown()
+            else view.evaluateJavascript(script) { result.set(it); done.countDown() }
         }
         assertTrue("WebView callback timed out", done.await(5, TimeUnit.SECONDS))
         return result.get()

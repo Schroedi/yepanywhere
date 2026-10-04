@@ -132,6 +132,18 @@ export class NativeTransportBridge {
   private queuedMessages = 0;
   private nextId = 1;
   private closed = false;
+  private ackTimer: ReturnType<typeof setTimeout> | undefined;
+  private readonly visibility = () => this.armAckTimeout();
+  private armAckTimeout(): void {
+    clearTimeout(this.ackTimer);
+    this.ackTimer = undefined;
+    if (!this.ack || document.hidden) return;
+    this.ackTimer = setTimeout(
+      () =>
+        this.ack?.reject(new Error("Native frame acknowledgement timed out")),
+      30_000,
+    );
+  }
   private ack: {
     value: string;
     resolve: () => void;
@@ -150,6 +162,7 @@ export class NativeTransportBridge {
       () => this.close(new Error("Native source handshake timed out")),
       15_000,
     );
+    document.addEventListener("visibilitychange", this.visibility);
     channel.onmessage = ({ data }) => {
       try {
         this.receive(data);
@@ -210,6 +223,10 @@ export class NativeTransportBridge {
     });
   }
 
+  rejectPending(error: Error): void {
+    for (const pending of [...this.pending.values()]) pending.reject(error);
+  }
+
   cancelRequest(id: string): void {
     this.pending.get(id)?.reject(new DOMException("Aborted", "AbortError"));
     void this.sendCommand("cancel", { id }).catch(() => {});
@@ -262,21 +279,18 @@ export class NativeTransportBridge {
             chunk,
           );
           await new Promise<void>((resolve, reject) => {
-            const timer = setTimeout(
-              () => reject(new Error("Native frame acknowledgement timed out")),
-              30_000,
-            );
             this.ack = {
               value: `ack:${descriptor.handle}:${id}:${offset + chunk.length}`,
               resolve: () => {
-                clearTimeout(timer);
+                clearTimeout(this.ackTimer);
                 resolve();
               },
               reject: (error) => {
-                clearTimeout(timer);
+                clearTimeout(this.ackTimer);
                 reject(error);
               },
             };
+            this.armAckTimeout();
             try {
               this.channel.postMessage(
                 descriptor.binary
@@ -365,6 +379,8 @@ export class NativeTransportBridge {
       }
     }
     this.closed = true;
+    document.removeEventListener("visibilitychange", this.visibility);
+    clearTimeout(this.ackTimer);
     clearTimeout(this.helloTimer);
     this.rejectReady(error);
     this.ack?.reject(error);

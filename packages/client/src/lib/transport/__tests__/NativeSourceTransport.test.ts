@@ -21,6 +21,68 @@ afterEach(() => {
 });
 
 describe("native source transport", () => {
+  it("does not expire frame credit while the WebView is hidden", async () => {
+    const { host, transport } = await setup();
+    vi.useFakeTimers();
+    const hidden = vi.spyOn(document, "hidden", "get").mockReturnValue(false);
+    const original = host.channel.postMessage;
+    let frame: string | ArrayBuffer | undefined;
+    host.channel.postMessage = (value) => {
+      frame = value;
+    };
+    const send = transport.bridge.send(
+      1,
+      new TextEncoder().encode(
+        JSON.stringify({
+          handle: "document-one",
+          method: "cancel",
+          id: "one",
+          params: { id: "none" },
+        }),
+      ),
+    );
+    await vi.advanceTimersByTimeAsync(1);
+    hidden.mockReturnValue(true);
+    document.dispatchEvent(new Event("visibilitychange"));
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(host.channel.onmessage).not.toBeNull();
+    hidden.mockReturnValue(false);
+    document.dispatchEvent(new Event("visibilitychange"));
+    host.channel.postMessage = original;
+    if (frame === undefined) throw new Error("No frame was sent");
+    original(frame);
+    await send;
+    expect(transport.status.getSnapshot().state).toBe("ready");
+  });
+
+  it("suspends demand without closing the document bridge and resumes in place", async () => {
+    const { host, transport } = await setup();
+    const descriptor = transport.bridge.descriptor;
+    let complete!: (value: unknown) => void;
+    host.handler = () =>
+      new Promise((resolve) => {
+        complete = resolve;
+      });
+    const request = transport.fetch("/projects");
+    const failed = expect(request).rejects.toThrow();
+    await vi.waitFor(() => expect(host.commands).toHaveLength(1));
+    await host.emit({ type: "state", phase: "SUSPENDED" });
+    await failed;
+    expect(transport.status.getSnapshot().state).toBe("disconnected");
+    window.dispatchEvent(new Event("online"));
+    window.dispatchEvent(new Event("focus"));
+    await expect(transport.reconnect()).rejects.toThrow();
+    expect(host.commands).toHaveLength(1);
+    complete({ status: 200, body: { stale: true } });
+    await host.emit({ type: "state", phase: "CONNECTING" });
+    await host.emit({ type: "state", phase: "CONNECTED" });
+    expect(transport.bridge.descriptor).toBe(descriptor);
+    host.handler = () => ({ status: 200, body: { recovered: true } });
+    await expect(transport.fetch("/projects")).resolves.toEqual({
+      recovered: true,
+    });
+  });
+
   it("recovers an exhausted cold connection on online and coalesces input signals", async () => {
     const { host, transport } = await setup();
     let finish!: () => void;

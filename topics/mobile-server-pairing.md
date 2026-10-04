@@ -39,11 +39,12 @@ sign-in, including separate relay-server and SRP-user identities, is explicitly
 deferred by the maintainer on 2026-10-01. Existing web limited-user support
 remains available; this is a mobile release-scope decision.
 
-A launcher opens the selected saved server in the bundled web UI. Without a
-saved server it shows native pairing. Switching hosts opens native management;
-selecting or successfully authenticating a host opens a fresh WebView document
-for that profile. Host selection never modifies another host's credentials, and
-web code does not maintain a second paired-host catalog.
+Android's launcher returns to the selected native tab in the bundled web UI.
+Without a saved server it shows native pairing. Switching hosts opens native
+management; ordinary selection focuses an existing tab for that profile or
+creates one. Explicit New tab may duplicate a profile. Host selection never
+modifies another host's credentials, and web code does not maintain a second
+paired-host catalog.
 
 Switch Host disconnects the foreground consumer without signing out the saved
 server. Returning to management during resume must not turn a temporarily absent
@@ -340,12 +341,12 @@ unreachable server. A rejected or expired resume keeps the non-secret profile
 visible and offers full SRP reauthentication. Selection opens the complete web
 app, with all ordinary session/settings actions using the borrowed native source.
 
-The management Activity does not acquire summary/activity leases. The bundled
-WebView owns its document lease; navigation, backgrounding and destruction
-release it. A native file chooser retains that foreground user work, and
-returning from ordinary backgrounding reloads the saved route with a fresh
-handle. Final-owner release stops the socket and retry work. This does not
-start or emulate the separately reviewed foreground activity service.
+Native management does not acquire summary/activity leases. The bundled
+WebView's document capability outlives its foreground transport lease:
+backgrounding and host management release transport demand, and foregrounding
+reacquires it without replacing the document. Document navigation/destruction
+retires both. Final-owner release stops the socket and retry work. This does
+not start or emulate the separately reviewed foreground activity service.
 
 Password-bearing App Links are parsed by Android into transient visible UI
 state, cleared from the Intent, and never forwarded as web URLs/fragments.
@@ -441,9 +442,10 @@ host at a time. Native supplies document-scoped opaque source handles for its
 paired-profile catalog; every request, subscription, upload, and cancellation
 is scoped to one handle. WebView "Switch Host" selects or opens another native
 source and changes the client source runtime. It does not enter the browser
-login/profile flow. Opening native host management closes the old WebView consumer; selecting a
-profile creates a new document-scoped lease. Unrelated native demand remains
-untouched, including a sibling lease on the same source.
+login/profile flow. Opening native host management suspends the old WebView
+consumer; returning to that tab resumes the same document, while selecting a
+cold tab creates its own profile-bound document capability. Unrelated native
+demand remains untouched, including a sibling lease on the same source.
 
 This is a logical-consumer boundary, not a new server session or authentication
 layer. Compose, a foreground service, and the WebView may make concurrent
@@ -543,12 +545,46 @@ uploads; they never resume midway on a replacement connection. A late queued
 chunk fails only its upload; ordinary upload/network failure must not close the
 local document bridge or replace the page with a native failure screen.
 
-Document replacement, Activity destruction, renderer loss and non-file-chooser
-backgrounding release the WebView lease. Returning from background reloads the
-current web route and resumes natively; local draft storage remains the normal
-web draft owner. Activity recreation preserves the native app route path
-without saving credential-bearing queries or fragments. A platform file chooser
-retains its active consumer.
+Document replacement, Activity destruction, renderer loss and backgrounding
+release the WebView lease. Ordinary Android background/foreground transitions,
+including a platform file chooser, retain the selected WebView, document handle,
+JavaScript heap, DOM, draft and scroll state. They resume transport independently;
+pending requests/uploads fail cleanly and existing streams recover. Frame credit
+waits must not expire solely because the WebView is stopped. Inactive consumers
+must not maintain source subscriptions or retries. Local draft storage remains
+the web draft owner.
+
+### Android native tabs and launcher lifetime
+
+One launcher Activity owns host management and native tabs. Reopening from the
+launcher or recents must not navigate to Projects, show a login sheet, or reload
+a healthy retained document. Orientation/window-size changes preserve it too.
+Android may kill the process or renderer: this fallback restores the selected
+profile and safe route with a fresh document, not a promised JavaScript snapshot.
+Persistent tab records contain identity, profile and route paths; they exclude
+credential-bearing queries/fragments and credentials. Forgotten profiles lose
+their tabs.
+
+A permanent 48dp native toolbar below system/cutout insets shows the host, a
+one-tap tab-count picker, and New tab. Picker rows show host, page, selection and
+close controls. Merely opening or dismissing the picker preserves the WebView.
+New tab chooses a saved host directly or opens native pairing. Ordinary host
+selection reuses an existing tab; explicit new tabs may share a profile while
+retaining independent navigation. The toolbar is an explicitly approved
+2026-10-04 default-visible mobile affordance.
+
+Only the selected tab retains a live WebView. Switching away saves in-memory
+navigation history and destroys that tab's document and transport lease; switching
+back reconstructs it lazily. Background-open tabs have metadata only. There are
+at most 32 tabs, with an explicit close-first message at the limit.
+
+Long-pressing an internal YA link offers Open in new tab in the background.
+User-initiated new-window internal links open a foreground native tab. Exact
+bundled-origin navigation alone qualifies as internal; external HTTPS links
+open the system browser, and unsupported schemes remain blocked. A temporary
+new-window URL resolver never receives a native bridge. Each tab's document
+capability is bound to its original native profile and cannot be rebound to
+another host by changing selection.
 
 ## Bundled client offline entry and refresh
 

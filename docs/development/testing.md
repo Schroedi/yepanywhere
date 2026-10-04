@@ -42,6 +42,11 @@ relay check: it registers a uniquely named disposable server, starts native
 pairing from Android's Main dispatcher, then verifies the bundled WebView,
 streaming, upload and sequential typing. The runner removes its port forwards
 and server afterward. Set `ANDROID_SERIAL` when more than one device is attached.
+The WebView probe also checks native tabs, internal/external links, warm launcher
+resume, draft/scroll identity, rotation and cold route restoration. Add
+`YA_NATIVE_NETWORK_LIFECYCLE=1` on an authorized phone to disable both Wi-Fi and
+mobile data during warm resume; the probe restores each radio's original state
+in teardown. Its tab records and selected profile are restored after the run.
 These instrumentation probes preserve extra shared test APIs; separately verify
 the actual Release login form before uploading a store bundle. A background
 instrumentation caller or plaintext fixture cannot prove UI-initiated TLS login.
