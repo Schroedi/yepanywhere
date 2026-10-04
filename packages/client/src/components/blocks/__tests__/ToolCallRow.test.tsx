@@ -15,6 +15,10 @@ import { setStableToolPreviewRenderingPreference } from "../../../hooks/useStabl
 import { I18nProvider } from "../../../i18n";
 import { extractMarkdownSnippetsFromSelection } from "../../../lib/markdownSelectionCopy";
 import { UI_KEYS } from "../../../lib/storageKeys";
+import {
+  clearToolOutputPreview,
+  setToolOutputPreview,
+} from "../../../lib/toolOutputPreviews";
 import globStyles from "../../renderers/tools/GlobRenderer.module.css";
 import grepStyles from "../../renderers/tools/GrepRenderer.module.css";
 import {
@@ -585,6 +589,34 @@ describe("ToolCallRow", () => {
     const preview = container.querySelector(".tool-row-collapsed-preview");
     expect(preview).not.toBeNull();
     expect(preview?.textContent).toContain("partial");
+  });
+
+  it("shows a server live output preview on a pending Bash row only", () => {
+    const row = (status: "pending" | "complete") => (
+      <ToolCallRow
+        id="tool-claude-bash"
+        toolName="Bash"
+        toolInput={{ command: "./publish.sh" }}
+        status={status}
+        toolResult={
+          status === "complete"
+            ? { content: "final output", isError: false }
+            : undefined
+        }
+        sessionProvider="claude"
+      />
+    );
+    const { container, rerender } = render(row("pending"));
+    expect(container.querySelector(".tool-row-collapsed-preview")).toBeNull();
+
+    act(() => setToolOutputPreview("tool-claude-bash", "stage 1 done\n"));
+    expect(
+      container.querySelector(".tool-row-collapsed-preview")?.textContent,
+    ).toContain("stage 1 done");
+
+    rerender(row("complete"));
+    expect(container.textContent).not.toContain("stage 1 done");
+    clearToolOutputPreview("tool-claude-bash");
   });
 
   it("shows pending Edit targets as title-backed clickable summaries", () => {

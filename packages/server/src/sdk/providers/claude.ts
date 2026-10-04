@@ -66,6 +66,10 @@ import {
 import { ClaudeProviderRetentionTracker } from "./claude-retention.js";
 import { ClaudeSteerBackgroundController } from "./claude-steer-background.js";
 import {
+  claudeToolOutputTmpRoots,
+  withClaudeToolOutputPreviews,
+} from "./claude-tool-output-preview.js";
+import {
   checkRemotePath,
   createRemoteSpawn,
   getRemoteHome,
@@ -2406,9 +2410,16 @@ export class ClaudeProvider implements AgentProvider {
         steerBackgroundController.observe(message);
       },
     });
+    // A remote executor's task output files live on the remote host.
+    const previewedIterator = options.executor
+      ? wrappedIterator
+      : withClaudeToolOutputPreviews(wrappedIterator, {
+          cwd: effectiveCwd,
+          tmpRoots: claudeToolOutputTmpRoots(claudeEnv),
+        });
     const iterator = agentctlSessionEnvBridge
-      ? withCleanup(wrappedIterator, () => agentctlSessionEnvBridge.cleanup())
-      : wrappedIterator;
+      ? withCleanup(previewedIterator, () => agentctlSessionEnvBridge.cleanup())
+      : previewedIterator;
     const isCapturedProcessAlive =
       USE_SPAWN_WRAPPER && !options.executor
         ? () =>

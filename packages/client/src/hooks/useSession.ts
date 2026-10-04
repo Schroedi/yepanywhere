@@ -59,6 +59,11 @@ import {
 import { useSessionStream } from "./useSessionStream";
 import { stripQueuedTurnMarkers } from "../lib/queuedTurnMarkers";
 import {
+  clearCompletedToolOutputPreviews,
+  setToolOutputPreview,
+  TOOL_OUTPUT_PREVIEW_MESSAGE_TYPE,
+} from "../lib/toolOutputPreviews";
+import {
   type SessionWatchChangeEvent,
   useSessionWatchStream,
 } from "./useSessionWatchStream";
@@ -1991,6 +1996,18 @@ export function useSession(
             return; // Event was handled, don't process as regular message
           }
         }
+
+        // Live output of a running tool call: shown on its pending row only.
+        if (msgType === TOOL_OUTPUT_PREVIEW_MESSAGE_TYPE) {
+          if (
+            typeof sdkMessage.tool_use_id === "string" &&
+            typeof sdkMessage.content === "string"
+          ) {
+            setToolOutputPreview(sdkMessage.tool_use_id, sdkMessage.content);
+          }
+          return;
+        }
+        if (msgType === "user") clearCompletedToolOutputPreviews(sdkMessage);
 
         // Predicted next-user-prompt suggestion: store and don't add to message list
         if (msgType === "prompt_suggestion") {

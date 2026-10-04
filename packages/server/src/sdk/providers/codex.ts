@@ -76,6 +76,10 @@ import {
 import { logSDKMessage } from "../messageLogger.js";
 import { MessageQueue } from "../messageQueue.js";
 import { stripYaControlPlaneCredentials } from "./env-filter.js";
+import {
+  type LiveToolOutput,
+  renderLiveToolOutput,
+} from "./live-tool-output.js";
 import type {
   ProviderActivitySnapshot,
   ProviderCommandResult,
@@ -698,11 +702,7 @@ interface CodexLiveEventState {
 export const CODEX_LIVE_TOOL_OUTPUT_HEAD_CHARS = 32 * 1024;
 export const CODEX_LIVE_TOOL_OUTPUT_TAIL_CHARS = 32 * 1024;
 
-export interface CodexLiveToolOutput {
-  head: string;
-  tail: string;
-  omittedChars: number;
-}
+export type CodexLiveToolOutput = LiveToolOutput;
 
 export function appendCodexLiveToolOutput(
   output: CodexLiveToolOutput | undefined,
@@ -723,11 +723,6 @@ export function appendCodexLiveToolOutput(
     tail = tail.slice(-CODEX_LIVE_TOOL_OUTPUT_TAIL_CHARS);
   }
   return { head, tail, omittedChars };
-}
-
-export function renderCodexLiveToolOutput(output: CodexLiveToolOutput): string {
-  if (output.omittedChars === 0) return `${output.head}${output.tail}`;
-  return `${output.head}\n… ${output.omittedChars} characters omitted from the live preview; the completed result shows the full output …\n${output.tail}`;
 }
 
 interface CodexFailureTraceEvent {
@@ -6654,7 +6649,7 @@ export class CodexProvider implements AgentProvider {
       delta,
     );
     liveEventState.streamingToolOutputByItemKey.set(key, output);
-    const content = renderCodexLiveToolOutput(output);
+    const content = renderLiveToolOutput(output);
 
     const message = withCodexTimestamp({
       type: "user",

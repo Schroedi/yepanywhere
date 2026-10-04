@@ -229,7 +229,10 @@ equality is graded by whether the live item has a durable counterpart:
   quadratic bytes through provider replay, fan-out, and relay. Codex live
   command/file-change output keeps its first and last 32 Ki characters with an
   inline `… N characters omitted from the live preview …` marker; the completed
-  item carries the full output and settles the row.
+  item carries the full output and settles the row. Claude Bash previews,
+  tailed from the CLI's output file, keep the first 2 KiB and last 8 KiB the
+  same way and stay outside the transcript
+  ([claude](claude.md#contracts)).
 - **Streaming snapshots are rate-limited at the provider boundary.** Every
   `_isStreaming` message with an id (assistant text and reasoning, tool
   output, from any provider) passes through one coalescer before YA buffers,
