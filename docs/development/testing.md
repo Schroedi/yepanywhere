@@ -66,6 +66,10 @@ accessibility. CI compiles its initial APKs before starting the emulator to
 avoid competing with launcher startup. The UI probes can close that exact
 system-owned Pixel Launcher dialog once per test, on emulators only, and retain
 its evidence. They never dismiss YA ANRs or relax input-readiness/latency gates.
+Link probes resolve the accessible name from either WebView text or content
+description, then perform real taps/long presses. Hosted run `37223303403`
+exposed the external anchor only as a content description; the external VIEW
+intent, unchanged document identity and tab count remain required assertions.
 
 Captured provider regressions run offline in the normal server suite:
 `pnpm --dir packages/server exec vitest run test/captured-provider.test.ts`.

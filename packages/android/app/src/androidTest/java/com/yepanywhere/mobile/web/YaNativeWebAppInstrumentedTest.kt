@@ -12,7 +12,9 @@ import androidx.test.espresso.intent.Intents
 import androidx.test.espresso.intent.matcher.IntentMatchers.hasAction
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
+import androidx.test.uiautomator.Condition
 import androidx.test.uiautomator.UiDevice
+import androidx.test.uiautomator.UiObject2
 import androidx.test.uiautomator.Until
 import com.yepanywhere.mobile.MainActivity
 import com.yepanywhere.mobile.R
@@ -253,11 +255,11 @@ class YaNativeWebAppInstrumentedTest {
                   document.body.appendChild(link); return true; })()
             """.trimIndent())
             val beforeLink = evaluate(scenario, "performance.timeOrigin")
-            device.wait(Until.findObject(By.text("Native internal link")), 5_000).longClick()
+            awaitWebLink(device, "Native internal link").longClick()
             device.wait(Until.findObject(By.text("Open in new tab")), 5_000).click()
             assertTrue(device.wait(Until.hasObject(By.desc("Tabs, 3 open")), 5_000))
             assertEquals(beforeLink, evaluate(scenario, "performance.timeOrigin"))
-            device.wait(Until.findObject(By.text("Native internal link")), 5_000).click()
+            awaitWebLink(device, "Native internal link").click()
             await(scenario, "location.pathname === '/projects' && location.search === '?nativeTabProbe=1'")
             assertTrue(device.wait(Until.hasObject(By.desc("Tabs, 4 open")), 5_000))
             device.findObject(By.desc("Tabs, 4 open")).click()
@@ -268,11 +270,12 @@ class YaNativeWebAppInstrumentedTest {
             evaluate(scenario, """
                 (() => { const link = document.createElement('a'); link.href = 'https://example.com/ya-native-external';
                   link.target = '_blank'; link.textContent = 'Native external link';
+                  link.setAttribute('aria-label', 'Native external link');
                   link.style.cssText = 'position:fixed;top:80px;left:20px;z-index:99999;background:#222;color:white;padding:16px';
                   document.body.appendChild(link); return true; })()
             """.trimIndent())
             val externalIdentity = evaluate(scenario, "performance.timeOrigin")
-            device.wait(Until.findObject(By.text("Native external link")), 5_000).click()
+            awaitWebLink(device, "Native external link").click()
             val externalDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
             while (Intents.getIntents().none { it.action == Intent.ACTION_VIEW && it.dataString == "https://example.com/ya-native-external" } && System.nanoTime() < externalDeadline) Thread.sleep(50)
             assertTrue(Intents.getIntents().any { it.action == Intent.ACTION_VIEW && it.dataString == "https://example.com/ya-native-external" })
@@ -331,6 +334,16 @@ class YaNativeWebAppInstrumentedTest {
                 if (previous != null && runtime.pairedServers.snapshot(previous) != null) runtime.pairedServers.select(previous)
             }
         }
+    }
+
+    private fun awaitWebLink(device: UiDevice, name: String): UiObject2 {
+        // Run 37223303403 exposed a visible link as content-desc with empty
+        // text. WebView can also expose its name on a text child. Preserve the
+        // existing 5 s budget and real user gesture for either representation.
+        return checkNotNull(device.wait(Condition<UiDevice, UiObject2?> { current ->
+            current.findObject(By.pkg("com.yepanywhere.mobile").desc(name))
+                ?: current.findObject(By.pkg("com.yepanywhere.mobile").text(name))
+        }, 5_000)) { "Web link is absent from accessibility: $name" }
     }
 
     private fun captureTabs(device: UiDevice, app: YepAnywhereApplication, name: String) {
