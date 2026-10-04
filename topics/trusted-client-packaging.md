@@ -89,6 +89,39 @@ normal explicit SRP and its own browser-scoped resume session. The baseline
 does not mint or hand off a child credential. Native installation and
 push-management secrets remain app-private and are not web credentials.
 
+## Android Internal CI Delivery
+
+Android CI builds a bundled Release AAB in its verification job. Once enabled,
+only successful main runs with both build and instrumentation gates passing
+may sign that exact artifact with the existing upload key and publish it to
+the existing Play internal testing track. Push, nightly and manual main runs
+share this gate; pull requests and forks cannot publish. The hosted-latest
+flavor is verified separately and is not the uploaded package.
+
+CI codes are `10000 + run_number * 100 + run_attempt`; attempts must remain
+below 100. These monotonically advance for new workflow runs without a source
+version bump. The human version is `0.1.2-ci.<run>.<attempt>`. Local fixed-version
+builds retain their checked-in version. After CI delivery starts, local manual
+uploads must explicitly choose a code above the current Play release.
+
+Publishing uses short-lived GitHub OIDC credentials for a dedicated Play
+publisher; this is a deployment principal, separate from YA owner/user/device
+principals and application transport credentials. The Google grant is limited
+to this app's testing releases. Production and tester membership are not
+modified. The workflow retains a signed AAB and receipt with source SHA,
+version, bundle SHA-256, internal track and publication result.
+
+A scheduled repeat of the already published source is skipped. An older version
+cannot replace a newer internal release. A mismatching uploaded bundle, unknown
+track, failed test, rejected API validation or failed commit stops publication;
+there is no fallback to a different track or an uninstallable draft. Main runs
+are serialized without cancelling an in-progress publication. Failed builds
+leave the preceding available internal release in place.
+
+Setup and activation state are in [mobile store preparation](../docs/distribution/mobile/README.md#android-ci-internal-delivery).
+The prepared pipeline is not live until federation, Play permissions and the
+explicit publishing variable are configured and a hosted publication passes.
+
 ## Selected iOS Packaging Direction
 
 The iOS shell bundles the same full React application in the signed app and

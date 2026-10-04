@@ -438,3 +438,5 @@
 - machine-control-desktop-delegation - Native Mac caller and live session provenance for resumable MC admission.
 
 - [relay-streamed-responses](topics/media-rendering-and-routing.md#relay-transfer-size) - Raw, flow-controlled relay file bodies; downloads to disk via the service worker; viewer media next.
+
+- android-internal-delivery - Verified AAB delivery to Play internal testing.

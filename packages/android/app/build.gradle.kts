@@ -73,8 +73,11 @@ android {
         applicationId = "com.yepanywhere.mobile"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1002
-        versionName = "0.1.2"
+        versionCode = providers.gradleProperty("yaVersionCode").orNull?.let {
+            require(it.toIntOrNull() in 1..2100000000) { "Invalid yaVersionCode" }
+            it.toInt()
+        } ?: 1002
+        versionName = providers.gradleProperty("yaVersionName").orNull ?: "0.1.2"
         ndk {
             // Keep the app's established modern Android ABI set and prevent
             // JNA's AAR from reintroducing obsolete armeabi/MIPS binaries.

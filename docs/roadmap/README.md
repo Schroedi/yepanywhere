@@ -111,8 +111,11 @@ the viewer/download gap remain the next mobile release work.
   now passes full packaged startup on Linux, macOS and Windows across all four
   Node versions and the pinned Bun runtime, including clean npm installations.
 - [Android CI](../../.github/workflows/android-app-ci.yml) tests and builds
-  application artifacts but does not publish them to Google Play. Android
-  implementation exists; neither native mobile app is publicly published.
+  application artifacts, including a bundled Release AAB. A dependent internal
+  publishing job is prepared with automatic versioning, exact-artifact signing
+  and stale-run protection. It remains disabled pending dedicated Google OIDC
+  federation and app-scoped Play testing permissions; no automated upload is
+  claimed yet. Android implementation exists; neither native mobile app is publicly published.
 - Both mobile store records have saved initial metadata. Local uploads now
   use platform-managed final signing: Android's upload-signed AAB passes Play
   internal-release validation, and Xcode uploaded the first iOS archive to
@@ -122,10 +125,12 @@ the viewer/download gap remain the next mobile release work.
   October 4 fixes Android's UI-initiated public TLS login failure: 0.1.1
   (1001) is published and available to internal testers, with Main/public-relay
   and isolated production-R8 Release login acceptance on a physical Pixel.
-  Login retesting of the updated Google Play-signed install remains open.
+  Android 0.1.2 (1002) is now available to internal testers with host-switch
+  resume and WebView inset fixes; the Play password association is verified.
+  Retesting the updated Google Play-signed install remains open.
   French classification/filing is deferred before enabling that market; iOS
-  tester enrollment and production iOS push remain open. Release CI automation
-  follows the proven local path. See [mobile store preparation](../distribution/mobile/README.md).
+  tester enrollment and production iOS push remain open. Android release CI activation
+  follows the proven local path; iOS release automation remains open. See [mobile store preparation](../distribution/mobile/README.md).
 - Native app CI now runs on relevant platform, shared mobile-core and packaging
   changes rather than ordinary web/server edits. Daily Android/iOS acceptance
   and the existing desktop nightly retain full shared-source coverage; manual

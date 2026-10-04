@@ -48,7 +48,12 @@ Google Play shows **Available to internal testers** with 1001 as the latest
 release. Physical acceptance covers Main-initiated public TLS relay login,
 the bundled WebView, and a separate isolated package built with production
 Release shrinking rules. The earlier background/plaintext probes missed this.
-The updated Google Play-signed installation still needs a login retest.
+Android 0.1.2 / version code 1002 is also available to internal testers. It
+fixes stale sign-in state after interrupted resume/host switching and duplicate
+WebView system-bar insets. The Play signing certificate is now associated with
+website passwords; Google Digital Asset Links verifies the association. These
+fixes passed isolated-host physical-device regressions and browser checks.
+Acceptance on the tester's updated Play installation remains open.
 iOS 0.1.0 / build 1 uploaded through Xcode's TestFlight Internal Only flow and
 now shows **Ready to Test** after saving the encryption questionnaire with
 France excluded. iOS tester enrollment remains open.
@@ -66,8 +71,8 @@ be active.
 ### Local upload path
 
 The maintainer selected platform-managed distribution signing on October 3.
-Initial uploads are local; release CI automation is a later step, while existing
-CI continues to verify the apps. Keep upload preparation separate from public
+Initial uploads are local; the CI delivery path below is prepared and remains
+disabled until Google publishing access is configured. Keep upload preparation separate from public
 rollout and use a clean, committed source snapshot.
 
 For Android, build the bundled Release AAB with the existing native/core and
@@ -124,8 +129,8 @@ pipeline for this path. See [Apple's cloud signing guidance](https://developer.a
 
 Prepare signed production-channel artifacts with matching application IDs,
 increasing build numbers, bundled Firebase configuration and reviewed export
-compliance. The existing CI verifies apps but does not upload signed mobile
-artifacts. Production APNs configuration is separate from the proven sandbox
+compliance. Android CI can sign and publish after the one-time setup below. iOS CI
+still verifies without uploading signed mobile artifacts. Production APNs configuration is separate from the proven sandbox
 key; Debug delivery cannot prove TestFlight delivery.
 
 Before broader distribution, finish real screenshots, privacy/data-safety
@@ -134,6 +139,49 @@ ratings, review access to an owned sample server, pricing and availability.
 Do not mark encryption absent merely because transport uses standard crypto:
 the shared Rust core uses SRP and libsodium outside OS-only TLS. Resolve the
 applicable declaration/documentation before distributing a build.
+
+### Android CI internal delivery
+
+The existing [Android workflow](../../../.github/workflows/android-app-ci.yml)
+now produces a bundled Release AAB and has a publication job depending on both
+build/lint/unit checks and WebView instrumentation. Publication is opt-in through
+`ANDROID_PLAY_PUBLISH_ENABLED=true`; it is currently disabled pending Google
+Cloud federation and Play permissions. The October 4 release above was a local
+upload, not proof of the automated path.
+
+The main-only GitHub `android-internal` environment holds the existing upload
+key as `ANDROID_UPLOAD_KEYSTORE_BASE64`, `ANDROID_UPLOAD_STORE_PASSWORD` and
+`ANDROID_UPLOAD_KEY_PASSWORD`. The signing step checks its public certificate
+fingerprint before signing. The repository secret `ANDROID_GOOGLE_SERVICES_JSON`
+restores the same Firebase build configuration before the verified main build;
+PR builds remain credential-free. No app-signing key is exported from Google.
+
+To finish the one-time setup:
+
+1. Create a dedicated Google service account with no general project roles.
+   Enable the Android Publisher and IAM Credentials APIs in its project.
+2. Configure GitHub OIDC Workload Identity Federation, restricting admission to
+   the immutable repository/owner IDs, `refs/heads/main`, the Android workflow
+   path on main, and the `android-internal` environment subject. Grant only
+   `roles/iam.workloadIdentityUser` on this service account to that identity.
+   Do not create a long-lived service-account JSON key.
+3. In Play Users and permissions, give that account access only to
+   `com.yepanywhere.mobile`: view app information and release to testing tracks.
+   Do not grant production releases, account administration, financial data,
+   subscriptions, or tester-list management.
+4. Set GitHub environment variables `ANDROID_PLAY_WIF_PROVIDER` and
+   `ANDROID_PLAY_SERVICE_ACCOUNT` to the provisioned identities. Set the repository
+   variable `ANDROID_PLAY_PUBLISH_ENABLED=true` only after these are ready.
+5. Dispatch Android App CI on main and verify a `published` receipt plus
+   **Available to internal testers** in Play. An upload or draft alone is not
+   successful delivery. A draft-app/API restriction must be resolved explicitly;
+   the script never silently downgrades to a draft or chooses another track.
+
+See [Google's Play API setup](https://developers.google.com/android-publisher/getting_started)
+and [Google's GitHub authentication action](https://github.com/google-github-actions/auth#workload-identity-federation-through-a-service-account).
+Account IDs and concrete provisioning commands belong in private dotfiles.
+The [packaging contract](../../../topics/trusted-client-packaging.md#android-internal-ci-delivery)
+owns versioning, stale-run protection and audience boundaries.
 
 ### Apple encryption declaration
 
