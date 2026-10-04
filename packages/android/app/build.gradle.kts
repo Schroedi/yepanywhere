@@ -73,8 +73,8 @@ android {
         applicationId = "com.yepanywhere.mobile"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1001
-        versionName = "0.1.1"
+        versionCode = 1002
+        versionName = "0.1.2"
         ndk {
             // Keep the app's established modern Android ABI set and prevent
             // JNA's AAR from reintroducing obsolete armeabi/MIPS binaries.
