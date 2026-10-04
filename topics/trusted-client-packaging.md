@@ -119,9 +119,10 @@ are serialized without cancelling an in-progress publication. Failed builds
 leave the preceding available internal release in place.
 
 Setup and activation state are in [mobile store preparation](../docs/distribution/mobile/README.md#android-ci-internal-delivery).
-Federation and Play permissions are configured. The prepared pipeline is not
-live until Android Publisher API activation, the explicit publishing variable,
-and a successful hosted publication complete acceptance.
+Federation, Play permissions, API activation and the explicit publishing
+variable are configured. A successful hosted publication is still required
+to complete acceptance; the first enabled run correctly withheld publication
+after its typing probe failed.
 
 ## Selected iOS Packaging Direction
 

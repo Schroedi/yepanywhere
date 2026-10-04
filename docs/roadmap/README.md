@@ -115,8 +115,11 @@ the viewer/download gap remain the next mobile release work.
   publishing job is prepared with automatic versioning, exact-artifact signing
   and stale-run protection. Dedicated Google OIDC federation and app-scoped
   Play testing permissions are configured, and hosted Android CI passed.
-  Publishing remains disabled pending Publisher API terms/activation and the
-  first end-to-end release; no automated upload is claimed yet. Android implementation exists; neither native mobile app is publicly published.
+  Publisher API activation and the publishing opt-in are now enabled. The
+  first enabled run correctly withheld publication after a typing-probe
+  failure; its input setup is corrected and hosted acceptance remains open.
+  No automated upload is claimed yet. Neither native mobile app is publicly
+  published.
 - Both mobile store records have saved initial metadata. Local uploads now
   use platform-managed final signing: Android's upload-signed AAB passes Play
   internal-release validation, and Xcode uploaded the first iOS archive to

@@ -45,6 +45,10 @@ and server afterward. Set `ANDROID_SERIAL` when more than one device is attached
 These instrumentation probes preserve extra shared test APIs; separately verify
 the actual Release login form before uploading a store bundle. A background
 instrumentation caller or plaintext fixture cannot prove UI-initiated TLS login.
+The typing probe taps the WebView editor through Android accessibility and
+requires window focus, an active input connection and stable viewport before
+injecting sequential hardware keys. Input-readiness failure must fail setup,
+including on emulators; it must never continue into a partial typing sample.
 
 Captured provider regressions run offline in the normal server suite:
 `pnpm --dir packages/server exec vitest run test/captured-provider.test.ts`.

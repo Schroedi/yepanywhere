@@ -71,9 +71,9 @@ be active.
 ### Local upload path
 
 The maintainer selected platform-managed distribution signing on October 3.
-Initial uploads are local; the CI delivery path below is prepared and remains
-disabled until Google publishing access is configured. Keep upload preparation separate from public
-rollout and use a clean, committed source snapshot.
+Initial uploads were local; the CI delivery path below is now enabled, with
+first-publication acceptance still pending. Keep upload preparation separate
+from public rollout and use a clean, committed source snapshot.
 
 For Android, build the bundled Release AAB with the existing native/core and
 frontend preparation. Sign the bundle with a dedicated upload key, then let
@@ -147,10 +147,13 @@ now produces a bundled Release AAB and has a publication job depending on both
 build/lint/unit checks and WebView instrumentation. Publication is opt-in through
 `ANDROID_PLAY_PUBLISH_ENABLED=true`. The dedicated, keyless Google identity,
 main/workflow/environment-restricted federation, app-only testing grant and
-GitHub configuration are provisioned. Publishing remains disabled pending
-Android Publisher API activation and its terms acceptance, followed by the
-first hosted publication. The October 4 release above was a local upload,
-not proof of the automated path.
+GitHub configuration are provisioned. The Android Publisher API is enabled
+and the publishing variable is active. First-publication acceptance remains
+pending: [run 37200938972](https://github.com/kzahel/yepanywhere/actions/runs/37200938972)
+caught incomplete typing in the emulator probe and correctly skipped publishing.
+The probe now requires actual Android editor activation and input readiness;
+a complete passing hosted run must verify the external delivery boundary.
+The October 4 release above was a local upload, not proof of this path.
 
 [Hosted CI run 37198873999](https://github.com/kzahel/yepanywhere/actions/runs/37198873999)
 passed both build verification and WebView instrumentation at the pipeline
@@ -163,7 +166,7 @@ fingerprint before signing. The repository secret `ANDROID_GOOGLE_SERVICES_JSON`
 restores the same Firebase build configuration before the verified main build;
 PR builds remain credential-free. No app-signing key is exported from Google.
 
-One-time setup and remaining activation:
+One-time setup and acceptance procedure:
 
 1. Create a dedicated Google service account with no general project roles.
    Enable the Android Publisher and IAM Credentials APIs in its project.

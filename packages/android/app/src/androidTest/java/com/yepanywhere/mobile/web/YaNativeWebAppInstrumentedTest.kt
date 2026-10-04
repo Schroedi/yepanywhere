@@ -93,11 +93,17 @@ class YaNativeWebAppInstrumentedTest {
             // Establish the real editor/input connection before starting upload.
             // Hardware key injection must not race keyboard creation and viewport
             // resizing; the subsequent frame gate still includes upload work.
-            scenario.onActivity { activity -> activity.findViewById<WebView>(R.id.web_client).requestFocus() }
             evaluate(scenario, """
                 (() => { const composer = document.querySelector('textarea[data-composer-input]');
-                  composer.blur(); composer.setAttribute('autocapitalize', 'off'); composer.focus(); return true; })();
+                  composer.setAttribute('autocapitalize', 'off'); return true; })();
             """.trimIndent())
+            // DOM focus alone does not establish Android's input connection.
+            // Run 37200938972 injected 29 characters but only the final 21
+            // reached the editor after the old readiness fallback proceeded.
+            val composer = UiDevice.getInstance(instrumentation).wait(
+                Until.findObject(By.clazz("android.widget.EditText")), 30_000)
+            assertTrue("Composer is absent from Android accessibility", composer != null)
+            checkNotNull(composer).click()
             awaitInputReady(scenario)
             assertSafeAreasAppliedOnce(scenario)
 
@@ -220,7 +226,7 @@ class YaNativeWebAppInstrumentedTest {
             var acceptingText = false
             scenario.onActivity { activity ->
                 val view = activity.findViewById<WebView>(R.id.web_client)
-                focused = view.hasFocus()
+                focused = view.hasWindowFocus() && view.hasFocus()
                 acceptingText = activity.getSystemService(InputMethodManager::class.java).isAcceptingText
                 if (focused && acceptingText) size = Pair(view.width, view.height)
             }
@@ -230,13 +236,6 @@ class YaNativeWebAppInstrumentedTest {
             lastSize = size
             if (stableSamples >= 3) return
             Thread.sleep(100)
-        }
-        // CI's emulator intermittently never settles this gate. It only makes
-        // the latency sample fair, and there the latency budget is relaxed
-        // while key delivery stays strict, so proceed and say what was missing.
-        if (isEmulator()) {
-            android.util.Log.w("YaNativeWebProof", "Input readiness unsettled after 30 s: $observed")
-            return
         }
         throw AssertionError("Composer input connection and viewport did not become ready: $observed")
     }
