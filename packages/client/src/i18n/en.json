@@ -4543,6 +4543,9 @@
   "routerQuotaCheckedMinutes": "checked {minutes} min ago",
   "routerQuotaCheckedHours": "checked {hours} h ago",
   "routerQuotaCheckedOn": "checked {date}",
+  "routerQuotaUsedMinutes": "from a request {minutes} min ago",
+  "routerQuotaUsedHours": "from a request {hours} h ago",
+  "routerQuotaUsedOn": "from a request {date}",
   "routerQuotaRefreshFailed": "last refresh failed",
   "routerQuotaNotObserved": "no quota observed",
   "routerQuotaObservedTitle": "Quota observed {time}. Remaining quota is confirmed at launch."

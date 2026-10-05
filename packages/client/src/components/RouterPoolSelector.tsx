@@ -272,23 +272,28 @@ const OBSERVATION_AGE_QUIET_MS = 10 * 60 * 1000;
  * How long ago the quota was observed, or null when recent enough to leave
  * unsaid. AAR's own `freshness` flag turns stale after two minutes because it
  * gates automatic admission; that threshold says nothing useful to a person.
+ * An observation AAR took from a proxied response's rate-limit headers is
+ * worded as coming from a request, since no check was run.
  */
 export function observationAge(
   t: Translate,
   observedAt: string,
   now = Date.now(),
+  source: "probe" | "inference" = "probe",
 ): string | null {
   const age = now - Date.parse(observedAt);
   if (!Number.isFinite(age) || age < OBSERVATION_AGE_QUIET_MS) return null;
+  const inference = source === "inference";
   if (age < 60 * 60 * 1000)
-    return t("routerQuotaCheckedMinutes", {
-      minutes: Math.round(age / 60000),
-    });
+    return t(
+      inference ? "routerQuotaUsedMinutes" : "routerQuotaCheckedMinutes",
+      { minutes: Math.round(age / 60000) },
+    );
   if (age < 24 * 60 * 60 * 1000)
-    return t("routerQuotaCheckedHours", {
+    return t(inference ? "routerQuotaUsedHours" : "routerQuotaCheckedHours", {
       hours: Math.round(age / 3600000),
     });
-  return t("routerQuotaCheckedOn", {
+  return t(inference ? "routerQuotaUsedOn" : "routerQuotaCheckedOn", {
     date: new Date(observedAt).toLocaleDateString(undefined, {
       month: "short",
       day: "numeric",
@@ -307,7 +312,12 @@ function AccountQuota({ account }: { account: OverviewAccount }) {
       </span>
     );
   const age = account.quota
-    ? observationAge(t, account.quota.observedAt)
+    ? observationAge(
+        t,
+        account.quota.observedAt,
+        Date.now(),
+        account.quota.source ?? "probe",
+      )
     : null;
   return (
     <span

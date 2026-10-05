@@ -71,7 +71,13 @@ const state: AgentAuthRouterOverview = {
     ],
     catalogAt: "2026-10-03T08:00:00Z",
     attemptedAt: "2026-10-03T08:00:00Z",
-    quota: i === 3 ? null : { observedAt: "2026-10-03T08:00:00Z" },
+    // account-2 was last observed from a proxied response, not a probe.
+    quota:
+      i === 3
+        ? null
+        : i === 1
+          ? { observedAt: "2026-10-03T08:00:00Z", source: "inference" }
+          : { observedAt: "2026-10-03T08:00:00Z" },
     windows:
       i === 3
         ? []

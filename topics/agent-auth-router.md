@@ -401,10 +401,15 @@ reason (disabled in AAR, no model chosen, model not offered, effort
 unsupported), and otherwise compatible accounts note cached auth rejection,
 cooldown or exhausted quota without being disabled, because AAR decides at
 launch. Each account row also shows every cached quota window as a short
-line (window, remaining percent, reset time or date), when it was checked
+line (window, remaining percent, reset time or date), when it was observed
 once that is ten minutes or more ago, a note when AAR's last refresh of the
 account failed, or "no quota observed"; AAR's two-minute `freshness` flag is
 not shown, since it gates automatic admission rather than informing a person.
+An AAR advertising `quota-inference-headers-v1` records quota from the
+rate-limit headers of every successful proxied response and marks the
+snapshot `quota.source: "inference"`; YA words that age as "from a request"
+rather than "checked". Routers without the capability omit `source`, which
+YA reads as a probe. Nothing in YA polls or refreshes quota on discovery.
 The row's dot is green when
 selectable, amber when selectable with a note, grey when not selectable. A
 pool row adds the best remaining percent among its compatible accounts,

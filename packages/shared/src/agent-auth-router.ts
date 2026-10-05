@@ -63,7 +63,8 @@ export interface AgentAuthRouterOverview {
     error: string | null;
     blocked?: "auth-unavailable" | "cooldown";
     cooldownUntil?: string;
-    quota: { observedAt: string } | null;
+    /** `source` is absent from routers without quota-inference-headers-v1. */
+    quota: { observedAt: string; source?: "probe" | "inference" } | null;
     windows: {
       bucket: string;
       windowMinutes: number | null;

@@ -464,6 +464,7 @@ it("shows every cached quota window per account and the best remaining per pool"
   data.accounts[1]!.freshness = "stale";
   data.accounts[1]!.quota = {
     observedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+    source: "inference",
   };
   data.accounts[1]!.error = "Quota refresh unavailable";
   render(
@@ -492,7 +493,7 @@ it("shows every cached quota window per account and the best remaining per pool"
   const metas = dropdown("routerAccount").getAllByTestId("meta");
   expect(metas.map((m) => m.textContent)).toEqual([
     "routerQuotaLinerouterQuotaLinerouterQuotaLine",
-    "routerQuotaLinerouterQuotaLinerouterQuotaCheckedMinutesrouterQuotaRefreshFailed",
+    "routerQuotaLinerouterQuotaLinerouterQuotaUsedMinutesrouterQuotaRefreshFailed",
   ]);
   expect(metas[0]!.firstElementChild!.getAttribute("title")).toBe(
     "routerQuotaObservedTitle",
@@ -517,6 +518,17 @@ it("states the observation age only once it is at least ten minutes old", () => 
     /^routerQuotaCheckedOn:(Oct 3|3 Oct)$/,
   );
   expect(observationAge(t, "garbage", now)).toBeNull();
+  // Header-derived observations are worded as a request, not a check.
+  expect(observationAge(t, ago(9 * 60 * 1000), now, "inference")).toBeNull();
+  expect(observationAge(t, ago(30 * 60 * 1000), now, "inference")).toBe(
+    "routerQuotaUsedMinutes:30",
+  );
+  expect(observationAge(t, ago(5 * 60 * 60 * 1000), now, "inference")).toBe(
+    "routerQuotaUsedHours:5",
+  );
+  expect(
+    observationAge(t, ago(3 * 24 * 60 * 60 * 1000), now, "inference"),
+  ).toMatch(/^routerQuotaUsedOn:/);
 });
 it("formats resets within a day as a time and later ones with the date", () => {
   const now = Date.parse("2026-10-05T10:00:00Z");

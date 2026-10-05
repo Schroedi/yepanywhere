@@ -112,7 +112,10 @@ cannot promise an account is free at launch. Follow-up the same day: account
 rows show every cached quota window (5h and weekly, remaining percent, reset),
 the observation age once it is ten minutes old (AAR's two-minute `freshness`
 flag reads "stale" almost always and is not shown), a failed-refresh note, or
-"no quota observed"; dots encode selectable, selectable with
+"no quota observed"; AAR now records quota from the rate-limit headers of
+every proxied response (`quota-inference-headers-v1`, `quota.source`), so a
+recently used account reads "from a request N min ago" instead of hours-old
+probe data; dots encode selectable, selectable with
 a note, or unselectable; pool rows add the best remaining percent among
 compatible accounts. The browser fixture gained a Manual pool so this is
 captured at desktop and phone widths. Per-account eligibility from AAR itself
