@@ -189,6 +189,14 @@ interface FileViewerProps {
   diffMode?: GitFileDiffMode;
   /** Page-level controls hosted in the header's leading slot. */
   headerLeading?: ReactNode;
+  /** Carries the body scroll offset across a reload of the page. */
+  scrollMemory?: FileViewerScrollMemory;
+}
+
+export interface FileViewerScrollMemory {
+  /** Offset to restore once content renders, in place of the line target. */
+  initialTop?: number;
+  save(top: number): void;
 }
 
 export type FileViewerMode = "full" | "range";
@@ -609,6 +617,7 @@ export const FileViewer = memo(function FileViewer({
   initialPresentation,
   diffMode,
   headerLeading,
+  scrollMemory,
 }: FileViewerProps) {
   const { t } = useI18n();
   const quoteTextBlock = useQuoteReply();
@@ -1338,9 +1347,28 @@ export const FileViewer = memo(function FileViewer({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [fullscreen]);
 
+  // A reload returns to the reader's offset once, after the content it was
+  // measured against has rendered; until then the line target stays unused.
+  const pendingScrollTop = useRef(scrollMemory?.initialTop);
+  const scrollContentKey = highlightRenderKey ?? fileData;
+  useEffect(() => {
+    const top = pendingScrollTop.current;
+    const viewerBody = fileViewerBodyRef.current;
+    if (top === undefined || !scrollContentKey || !viewerBody) return;
+    const frame = requestAnimationFrame(() => {
+      pendingScrollTop.current = undefined;
+      viewerBody.scrollTop = top;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [scrollContentKey]);
+
   // Scroll to highlighted line when it's rendered
   useEffect(() => {
-    if (effectiveLineNumber === undefined || !highlightRenderKey) {
+    if (
+      effectiveLineNumber === undefined ||
+      !highlightRenderKey ||
+      pendingScrollTop.current !== undefined
+    ) {
       return;
     }
     const highlightedLine =
@@ -1577,6 +1605,22 @@ export const FileViewer = memo(function FileViewer({
       [showsHtmlPreview, htmlFindSource, showsText, findBody],
     ),
   );
+  useEffect(() => {
+    if (!scrollMemory || !findBody) return;
+    let frame = 0;
+    const onScroll = () => {
+      if (frame || pendingScrollTop.current !== undefined) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        scrollMemory.save(findBody.scrollTop);
+      });
+    };
+    findBody.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      findBody.removeEventListener("scroll", onScroll);
+      cancelAnimationFrame(frame);
+    };
+  }, [scrollMemory, findBody]);
 
   // Render loading state
   if (
