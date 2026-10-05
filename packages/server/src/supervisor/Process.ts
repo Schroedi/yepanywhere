@@ -1034,6 +1034,16 @@ export class Process {
   private static readonly BUCKET_SWAP_INTERVAL_MS = 15_000;
 
   /**
+   * Replay position of each buffered message, assigned once when first
+   * buffered, so a resubscribing client can skip what it already received.
+   * Every buffered message is emitted synchronously after being buffered, so
+   * a subscriber that has received a live message has received every message
+   * buffered at or before `lastReplaySeq` at that moment.
+   */
+  private readonly replaySeqs = new WeakMap<SDKMessage, number>();
+  private lastReplaySeq = 0;
+
+  /**
    * User echoes accepted for in-turn steering remain replayable through the
    * provider turn. A steer can wait behind a long-running tool for longer than
    * the ordinary replay buckets, while its durable row does not exist yet.
@@ -2488,7 +2498,7 @@ export class Process {
         isSynthetic: true,
       };
       await persist?.(message);
-      this.currentBucket.push(message as SDKMessage);
+      this.bufferForReplay(message as SDKMessage);
       this.emit({ type: "message", message: message as SDKMessage });
       return message;
     } finally {
@@ -2986,6 +2996,25 @@ export class Process {
     return [...expiredSteerEchoes, ...buffered];
   }
 
+  /** Buffer a message for replay, keeping any replay position it already has. */
+  private bufferForReplay(message: SDKMessage): void {
+    if (!this.replaySeqs.has(message)) {
+      this.lastReplaySeq += 1;
+      this.replaySeqs.set(message, this.lastReplaySeq);
+    }
+    this.currentBucket.push(message);
+  }
+
+  /** Replay position of a `getMessageHistory()` entry, if it was buffered. */
+  getReplaySeq(message: SDKMessage): number | undefined {
+    return this.replaySeqs.get(message);
+  }
+
+  /** Replay position of the most recently buffered message (0 before any). */
+  getReplayCursor(): number {
+    return this.lastReplaySeq;
+  }
+
   /**
    * Get accumulated streaming text for catch-up when clients connect mid-stream.
    * Returns the message ID and accumulated text, or null if not streaming.
@@ -3199,7 +3228,7 @@ export class Process {
       isMeta: false,
       isSynthetic: true,
     } as unknown as SDKMessage);
-    this.currentBucket.push(synthetic);
+    this.bufferForReplay(synthetic);
     this.emit({ type: "message", message: synthetic });
     const durable = toDurableRecapMessage(synthetic, "ya-synthetic");
     if (!durable) {
@@ -3475,7 +3504,7 @@ export class Process {
       message: { role: "user", content: this.buildUserMessageContent(message) },
     } as SDKMessage);
 
-    this.currentBucket.push(sdkMessage);
+    this.bufferForReplay(sdkMessage);
     this.emit({ type: "message", message: sdkMessage });
     if (
       !isHiddenInjectedMessage(message) &&
@@ -3746,7 +3775,7 @@ export class Process {
         this.currentBucket.some((m) => m.uuid && m.uuid === sdkMessage.uuid) ||
         this.previousBucket.some((m) => m.uuid && m.uuid === sdkMessage.uuid);
       if (!isDuplicate) {
-        this.currentBucket.push(sdkMessage);
+        this.bufferForReplay(sdkMessage);
       }
     }
 
@@ -4277,7 +4306,7 @@ export class Process {
     );
     for (const [uuid, message] of this.activeSteerEchoes) {
       if (!bufferedUuids.has(uuid)) {
-        this.currentBucket.push(message);
+        this.bufferForReplay(message);
       }
     }
     this.activeSteerEchoes.clear();
@@ -5040,7 +5069,7 @@ export class Process {
             this.previousBucket.some((m) => m.uuid === message.uuid));
         if (shouldEmitMessage(message) && message.type !== "stream_event") {
           if (!isDuplicateUserEcho) {
-            this.currentBucket.push(message);
+            this.bufferForReplay(message);
           }
         }
 
