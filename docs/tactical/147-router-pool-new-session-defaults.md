@@ -110,7 +110,9 @@ account; "Disabled in AAR", "Doesn't offer {model}" and "Doesn't support
 exhausted quota are advisory notes from the last check because cached quota
 cannot promise an account is free at launch. Follow-up the same day: account
 rows show every cached quota window (5h and weekly, remaining percent, reset),
-a stale note, or "no quota observed"; dots encode selectable, selectable with
+the observation age once it is ten minutes old (AAR's two-minute `freshness`
+flag reads "stale" almost always and is not shown), a failed-refresh note, or
+"no quota observed"; dots encode selectable, selectable with
 a note, or unselectable; pool rows add the best remaining percent among
 compatible accounts. The browser fixture gained a Manual pool so this is
 captured at desktop and phone widths. Per-account eligibility from AAR itself

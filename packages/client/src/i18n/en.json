@@ -4540,7 +4540,10 @@
   "routerQuotaLine": "{window} {percent}% left · {reset}",
   "routerQuotaLineNoReset": "{window} {percent}% left",
   "routerQuotaLineUnknown": "{window} unknown",
-  "routerQuotaStale": "stale",
+  "routerQuotaCheckedMinutes": "checked {minutes} min ago",
+  "routerQuotaCheckedHours": "checked {hours} h ago",
+  "routerQuotaCheckedOn": "checked {date}",
+  "routerQuotaRefreshFailed": "last refresh failed",
   "routerQuotaNotObserved": "no quota observed",
   "routerQuotaObservedTitle": "Quota observed {time}. Remaining quota is confirmed at launch."
 }

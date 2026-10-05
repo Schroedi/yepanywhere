@@ -14,6 +14,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import {
   RouterPoolSelector,
   formatReset,
+  observationAge,
   routerAccountIssue,
   routerPoolMembers,
   routedModels,
@@ -453,13 +454,18 @@ it("shows every cached quota window per account and the best remaining per pool"
     quotaWindow("seven_day", 12),
     quotaWindow("seven_day_sonnet", 0, "sonnet"),
   ];
-  data.accounts[0]!.quota = { observedAt: "2026-10-05T10:00:00Z" };
+  // Observed just now: recent enough that no age is shown.
+  data.accounts[0]!.quota = { observedAt: new Date().toISOString() };
   data.accounts[0]!.freshness = "fresh";
   data.accounts[1]!.windows = [
     quotaWindow("five_hour", 40),
     quotaWindow("seven_day", 90),
   ];
   data.accounts[1]!.freshness = "stale";
+  data.accounts[1]!.quota = {
+    observedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+  };
+  data.accounts[1]!.error = "Quota refresh unavailable";
   render(
     <RouterPoolSelector
       data={data}
@@ -486,11 +492,31 @@ it("shows every cached quota window per account and the best remaining per pool"
   const metas = dropdown("routerAccount").getAllByTestId("meta");
   expect(metas.map((m) => m.textContent)).toEqual([
     "routerQuotaLinerouterQuotaLinerouterQuotaLine",
-    "routerQuotaLinerouterQuotaLinerouterQuotaStale",
+    "routerQuotaLinerouterQuotaLinerouterQuotaCheckedMinutesrouterQuotaRefreshFailed",
   ]);
   expect(metas[0]!.firstElementChild!.getAttribute("title")).toBe(
     "routerQuotaObservedTitle",
   );
+});
+it("states the observation age only once it is at least ten minutes old", () => {
+  const t = ((key: string, params?: Record<string, unknown>) =>
+    params ? `${key}:${Object.values(params).join(",")}` : key) as Parameters<
+    typeof observationAge
+  >[0];
+  const now = Date.parse("2026-10-05T10:00:00Z");
+  const ago = (ms: number) => new Date(now - ms).toISOString();
+  expect(observationAge(t, ago(9 * 60 * 1000), now)).toBeNull();
+  expect(observationAge(t, ago(10 * 60 * 1000), now)).toBe(
+    "routerQuotaCheckedMinutes:10",
+  );
+  expect(observationAge(t, ago(3 * 60 * 60 * 1000), now)).toBe(
+    "routerQuotaCheckedHours:3",
+  );
+  // Month and day order follow the runtime locale.
+  expect(observationAge(t, ago(2 * 24 * 60 * 60 * 1000), now)).toMatch(
+    /^routerQuotaCheckedOn:(Oct 3|3 Oct)$/,
+  );
+  expect(observationAge(t, "garbage", now)).toBeNull();
 });
 it("formats resets within a day as a time and later ones with the date", () => {
   const now = Date.parse("2026-10-05T10:00:00Z");

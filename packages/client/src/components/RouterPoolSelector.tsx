@@ -266,6 +266,36 @@ function remainingTone(percent: number | null): string {
   return "";
 }
 
+const OBSERVATION_AGE_QUIET_MS = 10 * 60 * 1000;
+
+/**
+ * How long ago the quota was observed, or null when recent enough to leave
+ * unsaid. AAR's own `freshness` flag turns stale after two minutes because it
+ * gates automatic admission; that threshold says nothing useful to a person.
+ */
+export function observationAge(
+  t: Translate,
+  observedAt: string,
+  now = Date.now(),
+): string | null {
+  const age = now - Date.parse(observedAt);
+  if (!Number.isFinite(age) || age < OBSERVATION_AGE_QUIET_MS) return null;
+  if (age < 60 * 60 * 1000)
+    return t("routerQuotaCheckedMinutes", {
+      minutes: Math.round(age / 60000),
+    });
+  if (age < 24 * 60 * 60 * 1000)
+    return t("routerQuotaCheckedHours", {
+      hours: Math.round(age / 3600000),
+    });
+  return t("routerQuotaCheckedOn", {
+    date: new Date(observedAt).toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+    }),
+  });
+}
+
 /** Every cached quota window for the account, one short line each. */
 function AccountQuota({ account }: { account: OverviewAccount }) {
   const { t } = useI18n();
@@ -276,7 +306,9 @@ function AccountQuota({ account }: { account: OverviewAccount }) {
         {t("routerQuotaNotObserved")}
       </span>
     );
-  const stale = account.freshness !== "fresh";
+  const age = account.quota
+    ? observationAge(t, account.quota.observedAt)
+    : null;
   return (
     <span
       className={styles.quota}
@@ -304,8 +336,11 @@ function AccountQuota({ account }: { account: OverviewAccount }) {
                 })}
         </span>
       ))}
-      {stale && (
-        <span className={styles.quotaUnknown}>{t("routerQuotaStale")}</span>
+      {age && <span className={styles.quotaUnknown}>{age}</span>}
+      {account.error && (
+        <span className={styles.quotaWarning}>
+          {t("routerQuotaRefreshFailed")}
+        </span>
       )}
     </span>
   );

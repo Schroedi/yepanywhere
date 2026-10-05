@@ -154,9 +154,9 @@ test("pool overview, editor and policy selection retain typing under 48-account 
   // Every pool account is listed with its reason, both cached windows and
   // the observation state; only catalog facts disable a row.
   await expect(accountPanel.getByRole("button")).toHaveText([
-    /Account 1.*Quota exhausted when last checked.*5h 0% left.*Week 45% left/,
-    /Account 2.*5h 68% left.*Week 45% left.*stale/,
-    /Account 3.*Disabled in AAR.*5h 68% left.*Week 45% left/,
+    /Account 1.*Quota exhausted when last checked.*5h 0% left.*Week 45% left.*checked Oct 3/,
+    /Account 2.*5h 68% left.*Week 45% left.*checked Oct 3.*last refresh failed/,
+    /Account 3.*Disabled in AAR.*5h 68% left.*Week 45% left.*checked Oct 3/,
     /Account 4.*no quota observed/,
   ]);
   await expect(
