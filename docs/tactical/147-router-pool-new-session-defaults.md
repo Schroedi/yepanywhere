@@ -35,12 +35,12 @@ Maintainer requests:
   `FilterDropdown`, and Pool and Account shared one grid cell (fixed by item 1).
 - `routerSelection` is plain component state, cleared on provider change and
   never persisted.
-- Pools with no account compatible with the current model and thinking are
-  disabled without a reason. With a pool selected the model list still contains
-  direct-only models; picking one empties the compatible members and disables
-  Start, with only a generic "selection unavailable" line under the pool.
-- Manual pools auto-select the single compatible account and hide the Account
-  control; with several, incompatible accounts are omitted entirely.
+- Pools with no account compatible with the current model and thinking were
+  disabled without a reason, and Manual pools hid the Account control for a
+  single compatible account and omitted incompatible accounts (fixed by item
+  2). With a pool selected the model list still contains direct-only models;
+  picking one empties the compatible members and disables Start, with only a
+  generic "selection unavailable" line under the pool.
 - Under a pool, effort and thinking mode are not resolved against supported
   options (`effectiveEffortLevel` / `effectiveThinkingMode`).
 - `newSessionDefaults` is server-persisted (`ServerSettingsService`) and
@@ -101,12 +101,16 @@ Pools no account can serve stay disabled without a reason; reasons are item 2.
 
 ### 2 — Show every pool and account with its reason
 
-Keep unselectable entries visible with a reason: "No account offers
-<model>", "1 of 3 accounts offer <model>", "Doesn't offer <model>", "Doesn't
-support <thinking>", "Disabled in AAR", auth-blocked or cooling down, exhausted
-quota. Most reasons can be derived from the overview YA already receives
-(catalogs, `blocked`, `cooldownUntil`, `windows`). Cached quota cannot promise
-an account is free at launch.
+Done 2026-10-05, derived entirely from the overview YA already receives.
+Pools: "{n} of {total} accounts offer {model}", or when none can, "No enabled
+accounts", "Choose a model first", "No account offers {model}" or "No account
+supports {effort} effort". Manual pools with more than one account list every
+account; "Disabled in AAR", "Doesn't offer {model}" and "Doesn't support
+{effort} effort" disable the entry, while auth rejection, cooldown and
+exhausted quota are advisory notes from the last check because cached quota
+cannot promise an account is free at launch. The browser fixture only has a
+round-robin pool, so the account reasons are unit-tested (`routerAccountIssue`).
+Per-account eligibility from AAR itself (open question 8) is not used.
 
 ### 3 — Warn on model or thinking conflicts
 

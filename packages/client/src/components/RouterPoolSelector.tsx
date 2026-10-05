@@ -3,6 +3,7 @@ import {
   routerModelSupportsThinking,
   type AgentAuthRouterOverview,
   type AgentAuthRouterPoolPolicy,
+  type EffortLevel,
   type ModelInfo,
   type ThinkingOption,
 } from "@yep-anywhere/shared";
@@ -22,6 +23,17 @@ const POLICY_KEYS = {
   "round-robin": "routerPoolRoundRobin",
   "most-remaining": "routerPoolMostRemaining",
 } as const satisfies Record<AgentAuthRouterPoolPolicy, string>;
+
+const EFFORT_KEYS = {
+  low: "effortLevelLowLabel",
+  medium: "effortLevelMediumLabel",
+  high: "effortLevelHighLabel",
+  xhigh: "effortLevelExtraHighLabel",
+  max: "effortLevelMaxLabel",
+} as const satisfies Record<EffortLevel, string>;
+
+type OverviewAccount = AgentAuthRouterOverview["accounts"][number];
+type Translate = ReturnType<typeof useI18n>["t"];
 
 export function routedModels(
   data: AgentAuthRouterOverview | null,
@@ -66,6 +78,22 @@ export function routedModels(
   return [...result.values()];
 }
 
+/** Every overview account the pool names for this provider, enabled or not. */
+export function routerPoolAccounts(
+  data: AgentAuthRouterOverview | null,
+  poolId: string,
+  provider: string | null,
+): OverviewAccount[] {
+  const pool = data?.pools.find(
+    (p) => p.id === poolId && p.provider === provider,
+  );
+  return (
+    data?.accounts.filter(
+      (a) => a.provider === provider && pool?.accountIds.includes(a.id),
+    ) ?? []
+  );
+}
+
 export function routerPoolMembers(
   data: AgentAuthRouterOverview | null,
   poolId: string,
@@ -73,24 +101,108 @@ export function routerPoolMembers(
   model: string | null,
   thinking: ThinkingOption,
 ) {
-  const pool = data?.pools.find(
-    (p) => p.id === poolId && p.provider === provider,
-  );
   const concreteModel = resolveRouterModel(
     model,
     routedModels(data, provider, poolId),
   );
-  return (
-    data?.accounts.filter(
-      (a) =>
-        a.enabled &&
-        pool?.accountIds.includes(a.id) &&
-        routerModelSupportsThinking(
-          a.models.find((m) => m.id === concreteModel),
-          thinking,
-        ),
-    ) ?? []
+  return routerPoolAccounts(data, poolId, provider).filter(
+    (a) =>
+      a.enabled &&
+      routerModelSupportsThinking(
+        a.models.find((m) => m.id === concreteModel),
+        thinking,
+      ),
   );
+}
+
+export interface RouterAccountIssue {
+  /** A blocking issue makes the account unselectable; advice does not. */
+  blocking: boolean;
+  text: string;
+}
+
+function effortLabel(t: Translate, thinking: ThinkingOption): string {
+  const effort = thinking.replace(/^on:/, "") as EffortLevel;
+  return EFFORT_KEYS[effort] ? t(EFFORT_KEYS[effort]) : effort;
+}
+
+function quotaExhausted(
+  account: OverviewAccount,
+  concreteModel: string | undefined,
+): boolean {
+  return account.windows.some(
+    (w) =>
+      w.remainingPercent === 0 &&
+      (w.scope === "all" ||
+        (w.scope !== "unknown" && !!concreteModel?.includes(w.scope))),
+  );
+}
+
+/**
+ * Why an account cannot, or may not, serve the selection, derived only from
+ * the overview YA already holds. Cached quota and auth states are advice:
+ * AAR decides at launch, so they never make an account unselectable here.
+ */
+export function routerAccountIssue(
+  t: Translate,
+  account: OverviewAccount,
+  model: string | null,
+  modelLabel: string,
+  concreteModel: string | undefined,
+  thinking: ThinkingOption,
+): RouterAccountIssue | null {
+  if (!account.enabled)
+    return { blocking: true, text: t("routerReasonDisabled") };
+  if (!model) return { blocking: true, text: t("routerReasonChooseModel") };
+  const catalogModel = account.models.find((m) => m.id === concreteModel);
+  if (!catalogModel)
+    return {
+      blocking: true,
+      text: t("routerReasonModelUnavailable", { model: modelLabel }),
+    };
+  if (!routerModelSupportsThinking(catalogModel, thinking))
+    return {
+      blocking: true,
+      text: t("routerReasonEffortUnsupported", {
+        effort: effortLabel(t, thinking),
+      }),
+    };
+  if (account.blocked === "auth-unavailable")
+    return { blocking: false, text: t("routerReasonAuthBlocked") };
+  if (account.blocked === "cooldown")
+    return {
+      blocking: false,
+      text: account.cooldownUntil
+        ? t("routerReasonCooldownUntil", {
+            time: new Date(account.cooldownUntil).toLocaleTimeString(),
+          })
+        : t("routerReasonCooldown"),
+    };
+  if (quotaExhausted(account, concreteModel))
+    return { blocking: false, text: t("routerReasonExhausted") };
+  return null;
+}
+
+/** Why no account in the pool can serve the selection. */
+function poolReason(
+  t: Translate,
+  accounts: OverviewAccount[],
+  model: string | null,
+  modelLabel: string,
+  concreteModel: string | undefined,
+  thinking: ThinkingOption,
+): string {
+  const enabled = accounts.filter((a) => a.enabled);
+  if (!enabled.length) return t("routerReasonNoEnabledAccounts");
+  if (!model) return t("routerReasonChooseModel");
+  const offering = enabled.filter((a) =>
+    a.models.some((m) => m.id === concreteModel),
+  );
+  if (!offering.length)
+    return t("routerReasonNoAccountOffers", { model: modelLabel });
+  return t("routerReasonNoAccountSupportsEffort", {
+    effort: effortLabel(t, thinking),
+  });
 }
 
 export function RouterPoolSelector({
@@ -130,20 +242,49 @@ export function RouterPoolSelector({
   const unavailable = !!value && (!pool || !members.length);
   const poolLabel = t("routerPool");
   const accountLabel = t("routerAccount");
+  const describePool = (poolId: string) => {
+    const accounts = routerPoolAccounts(data, poolId, provider);
+    const poolModels = routedModels(data, provider, poolId);
+    const concreteModel = resolveRouterModel(model, poolModels);
+    const modelLabel =
+      poolModels.find((m) => m.id === concreteModel)?.name ?? model ?? "";
+    return { accounts, concreteModel, modelLabel };
+  };
+  const poolAccounts = pool ? describePool(pool.id) : null;
   const chooseAccount =
-    pool?.policy === "manual" && members.length > 1 ? (
+    pool?.policy === "manual" &&
+    poolAccounts &&
+    poolAccounts.accounts.length > 1 ? (
       <div className={`new-session-helper-section ${styles.section}`}>
         <h3>{accountLabel}</h3>
         <FilterDropdown<string>
           label={accountLabel}
-          options={members.map((a, index) => ({
-            value: a.id,
-            label:
-              a.displayName || t("routerAccountNumber", { number: index + 1 }),
-            icon: <span className={`${styles.dot} ${styles.account}`} />,
-            disabled,
-          }))}
-          selected={value?.accountId ? [value.accountId] : []}
+          options={poolAccounts.accounts.map((a, index) => {
+            const issue = routerAccountIssue(
+              t,
+              a,
+              model,
+              poolAccounts.modelLabel,
+              poolAccounts.concreteModel,
+              thinking,
+            );
+            return {
+              value: a.id,
+              label:
+                a.displayName ||
+                t("routerAccountNumber", { number: index + 1 }),
+              description: issue?.text,
+              icon: <span className={`${styles.dot} ${styles.account}`} />,
+              disabled: disabled || !!issue?.blocking,
+            };
+          })}
+          selected={
+            value?.accountId
+              ? [value.accountId]
+              : members.length === 1 && members[0]
+                ? [members[0].id]
+                : []
+          }
           onChange={([accountId]) => {
             if (!disabled && value && accountId !== undefined)
               onChange({ ...value, accountId });
@@ -183,6 +324,9 @@ export function RouterPoolSelector({
                 ]
               : []),
             ...pools.map((p) => {
+              const { accounts, concreteModel, modelLabel } = describePool(
+                p.id,
+              );
               const compatible = routerPoolMembers(
                 data,
                 p.id,
@@ -195,10 +339,20 @@ export function RouterPoolSelector({
                 label: p.name,
                 description: [
                   t(POLICY_KEYS[p.policy]),
-                  t("routerPoolCompatibleAccounts", {
-                    count: compatible,
-                    total: p.accountIds.length,
-                  }),
+                  compatible
+                    ? t("routerPoolCompatibleAccounts", {
+                        count: compatible,
+                        total: p.accountIds.length,
+                        model: modelLabel,
+                      })
+                    : poolReason(
+                        t,
+                        accounts,
+                        model,
+                        modelLabel,
+                        concreteModel,
+                        thinking,
+                      ),
                 ].join(" · "),
                 icon: <span className={`${styles.dot} ${styles.pool}`} />,
                 disabled: disabled || compatible === 0,

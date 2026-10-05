@@ -124,7 +124,7 @@ test("pool overview, editor and policy selection retain typing under 48-account 
   const poolPanel = page.getByRole("dialog", { name: "Filter by Pool" });
   await expect(poolPanel.getByRole("button")).toHaveText([
     /^Direct provider login/,
-    /^Personal Codex.*Round robin · 15 of 16 accounts offer the selected model/,
+    /^Personal Codex.*Round robin · 15 of 16 accounts offer Fixture model/,
   ]);
   await recordUiCapture(page, "router-unified-selection-open-1000", {
     width: 1000,

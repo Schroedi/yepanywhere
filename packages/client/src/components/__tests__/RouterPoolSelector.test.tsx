@@ -12,6 +12,7 @@ import type { AgentAuthRouterOverview } from "@yep-anywhere/shared";
 import { afterEach, expect, it, vi } from "vitest";
 import {
   RouterPoolSelector,
+  routerAccountIssue,
   routerPoolMembers,
   routedModels,
 } from "../RouterPoolSelector";
@@ -154,7 +155,7 @@ it("lists Direct first and every pool with its policy and compatible count, disa
   expect(options.map((o) => o.title)).toEqual([
     "routerDirectDescription",
     "routerPoolMostRemaining · routerPoolCompatibleAccounts",
-    "routerPoolRoundRobin · routerPoolCompatibleAccounts",
+    "routerPoolRoundRobin · routerReasonNoAccountOffers",
   ]);
   expect(options.map((o) => (o as HTMLButtonElement).disabled)).toEqual([
     false,
@@ -210,7 +211,16 @@ it("keeps an unavailable selection and offers manual account choice only for mul
   });
   data.accounts[1]!.enabled = false;
   view.rerender(<RouterPoolSelector {...props} />);
-  expect(screen.queryByTestId("filter-routerAccount")).toBeNull();
+  const accounts = dropdown("routerAccount").getAllByRole("button");
+  expect(
+    accounts.map((o) => [o.title, (o as HTMLButtonElement).disabled]),
+  ).toEqual([
+    ["", false],
+    ["routerReasonDisabled", true],
+  ]);
+  expect(
+    dropdown("routerAccount").getByTestId("filter-selected").textContent,
+  ).toBe("a");
   view.rerender(
     <RouterPoolSelector {...props} data={{ ...data, pools: [] }} />,
   );
@@ -307,4 +317,110 @@ it("does not discover without the overall feature and hides data immediately on 
   view.rerender(<Discovery />);
   expect(screen.queryByText("Work")).toBeNull();
   await screen.findByText("error");
+});
+it("derives account reasons from the overview, blocking only on catalog facts", () => {
+  const t = ((key: string, params?: Record<string, unknown>) =>
+    params ? `${key}:${Object.values(params).join(",")}` : key) as Parameters<
+    typeof routerAccountIssue
+  >[0];
+  const account = overview().accounts[0]!;
+  const issue = (
+    patch: Partial<typeof account>,
+    model: string | null = "opus",
+    thinking: "on:high" | "on:max" | "auto" = "on:high",
+  ) =>
+    routerAccountIssue(
+      t,
+      { ...account, ...patch },
+      model,
+      "Opus",
+      "claude-opus-4-8",
+      thinking,
+    );
+  expect(issue({})).toBeNull();
+  expect(issue({ enabled: false })).toEqual({
+    blocking: true,
+    text: "routerReasonDisabled",
+  });
+  expect(issue({}, null)).toEqual({
+    blocking: true,
+    text: "routerReasonChooseModel",
+  });
+  expect(issue({ models: [] })).toEqual({
+    blocking: true,
+    text: "routerReasonModelUnavailable:Opus",
+  });
+  expect(issue({}, "opus", "on:max")).toEqual({
+    blocking: true,
+    text: "routerReasonEffortUnsupported:effortLevelMaxLabel",
+  });
+  expect(issue({ blocked: "auth-unavailable" })).toEqual({
+    blocking: false,
+    text: "routerReasonAuthBlocked",
+  });
+  expect(issue({ blocked: "cooldown" })).toEqual({
+    blocking: false,
+    text: "routerReasonCooldown",
+  });
+  expect(
+    issue({
+      windows: [
+        {
+          bucket: "claude:weekly-sonnet",
+          windowMinutes: 10080,
+          usedPercent: 100,
+          remainingPercent: 0,
+          resetsAt: null,
+          scope: "sonnet",
+        },
+      ],
+    }),
+  ).toBeNull();
+  expect(
+    issue({
+      windows: [
+        {
+          bucket: "claude:five-hour",
+          windowMinutes: 300,
+          usedPercent: 100,
+          remainingPercent: 0,
+          resetsAt: null,
+          scope: "all",
+        },
+      ],
+    }),
+  ).toEqual({ blocking: false, text: "routerReasonExhausted" });
+});
+it("explains a pool no account can serve", () => {
+  const data = overview(),
+    change = vi.fn();
+  const props = {
+    data,
+    provider: "claude",
+    model: "opus",
+    thinking: "on:max" as const,
+    value: null,
+    onChange: change,
+    sourceKey: "local",
+    busy: false,
+    error: false,
+    retry: vi.fn(),
+    disabled: false,
+  };
+  const view = render(<RouterPoolSelector {...props} />);
+  const workOption = () =>
+    dropdown("routerPool").getByRole("button", { name: "Work" });
+  expect(workOption().title).toBe(
+    "routerPoolMostRemaining · routerReasonNoAccountSupportsEffort",
+  );
+  expect(workOption()).toHaveProperty("disabled", true);
+  view.rerender(<RouterPoolSelector {...props} model={null} />);
+  expect(workOption().title).toBe(
+    "routerPoolMostRemaining · routerReasonChooseModel",
+  );
+  for (const a of data.accounts) a.enabled = false;
+  view.rerender(<RouterPoolSelector {...props} />);
+  expect(workOption().title).toBe(
+    "routerPoolMostRemaining · routerReasonNoEnabledAccounts",
+  );
 });

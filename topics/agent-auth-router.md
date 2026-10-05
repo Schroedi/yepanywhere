@@ -393,10 +393,17 @@ uses compatible granted members and the router's configured policy. It is laid
 out like the other New Session options: a Pool dropdown listing Direct first and
 then every granted pool for the provider, each with its policy and how many of
 its accounts offer the selected model; a pool no account can serve is listed
-but cannot be chosen. Multi-account Manual pools add a separate Router account
-dropdown. Discovery progress, discovery failure with Retry, and an unavailable
-selection appear as a status line under the Pool control. Model family
-aliases resolve to a concrete catalog model before allocation. An unavailable
+with the reason (no enabled accounts, no model chosen, no account offers the
+model, or no account supports the effort) but cannot be chosen. Manual pools
+with more than one account add a separate Router account dropdown listing
+every account: those that cannot run the selection are disabled with the
+reason (disabled in AAR, no model chosen, model not offered, effort
+unsupported), and otherwise compatible accounts note cached auth rejection,
+cooldown or exhausted quota without being disabled, because AAR decides at
+launch. All reasons derive from the overview YA already holds; no extra
+router call is made. Discovery progress, discovery failure with Retry, and an
+unavailable selection appear as a status line under the Pool control. Model
+family aliases resolve to a concrete catalog model before allocation. An unavailable
 selection remains selected and cannot silently fall back to direct login.
 Explicit thinking travels through allocation, persistence, native launch and
 resume. Native adapters use the pinned account's model metadata, including

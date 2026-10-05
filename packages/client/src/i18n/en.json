@@ -4515,7 +4515,18 @@
   "routerRetry": "Retry",
   "routerSelectionUnavailable": "This pool cannot run the selected model and thinking level.",
   "routerDirectDescription": "Use this server’s own provider login.",
-  "routerPoolCompatibleAccounts": "{count} of {total} accounts offer the selected model",
-  "routerPoolCaption": "Route this session through an Agent Auth Router pool, or use the provider login directly. Pools that cannot run the selected model and thinking level are listed but cannot be chosen.",
-  "routerAccountCaption": "Manual pools pin the session to the account you choose here."
+  "routerPoolCompatibleAccounts": "{count} of {total} accounts offer {model}",
+  "routerPoolCaption": "Route this session through an Agent Auth Router pool, or use the provider login directly. Pools that cannot run the selected model and thinking level are listed with the reason but cannot be chosen.",
+  "routerAccountCaption": "Manual pools pin the session to the account you choose here. Accounts that cannot run the selection show why; quota and access notes come from the last check and are confirmed at launch.",
+  "routerReasonDisabled": "Disabled in AAR",
+  "routerReasonChooseModel": "Choose a model first",
+  "routerReasonNoEnabledAccounts": "No enabled accounts",
+  "routerReasonNoAccountOffers": "No account offers {model}",
+  "routerReasonNoAccountSupportsEffort": "No account supports {effort} effort",
+  "routerReasonModelUnavailable": "Doesn’t offer {model}",
+  "routerReasonEffortUnsupported": "Doesn’t support {effort} effort",
+  "routerReasonAuthBlocked": "Provider rejected access when last checked",
+  "routerReasonCooldown": "Cooling down when last checked",
+  "routerReasonCooldownUntil": "Cooling down until {time}",
+  "routerReasonExhausted": "Quota exhausted when last checked"
 }
