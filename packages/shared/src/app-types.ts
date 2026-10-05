@@ -680,6 +680,9 @@ export interface AppSessionSummary {
   /** Public, immutable account pin. Never contains transport credentials. */
   routerBinding?: {
     poolId?: string;
+    /** Labels captured from AAR; identity stays the ids. Absent on older pins. */
+    poolName?: string;
+    accountDisplayName?: string;
     policy?: "manual" | "round-robin" | "most-remaining";
     reason?: string;
     observedAt?: string;

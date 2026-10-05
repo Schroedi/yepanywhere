@@ -116,6 +116,7 @@ import { ProviderBadge } from "../components/ProviderBadge";
 import { QuestionAnswerPanel } from "../components/QuestionAnswerPanel";
 import { RecentSessionsDropdown } from "../components/RecentSessionsDropdown";
 import { RestartSessionModal } from "../components/RestartSessionModal";
+import { routerBindingChip } from "../components/RouterPoolSelector";
 import { SessionHeartbeatModal } from "../components/SessionHeartbeatModal";
 import { SessionMenu } from "../components/SessionMenu";
 import { SessionPublicShareControls } from "../components/SessionPublicShareControls";
@@ -6132,23 +6133,27 @@ function SessionPageContent({
                       serverHasCapability(
                         versionInfo,
                         SERVER_CAPABILITIES.agentAuthRouter.name,
-                      ) && (
-                        <span
-                          className={sessionHeaderStyles.routerAccount}
-                          title={
-                            session.routerBinding.reason ??
-                            t("routerPinnedAccount", {
-                              account: session.routerBinding.accountId,
-                            })
-                          }
-                        >
-                          {t("routerPinnedAccount", {
-                            account: session.routerBinding.accountId,
-                          })}
-                          {session.routerBinding.policy &&
-                            ` · ${t(session.routerBinding.policy === "most-remaining" ? "routerPoolMostRemaining" : session.routerBinding.policy === "round-robin" ? "routerPoolRoundRobin" : "routerPoolManual")}`}
-                        </span>
-                      )}
+                      ) &&
+                      (() => {
+                        const chip = routerBindingChip(
+                          t,
+                          session.routerBinding,
+                        );
+                        return (
+                          <button
+                            type="button"
+                            className={sessionHeaderStyles.routerAccount}
+                            title={chip.tooltip}
+                            aria-label={chip.tooltip}
+                            onClick={() => {
+                              setModelPanelInitialTab("info");
+                              setShowModelSwitchModal(true);
+                            }}
+                          >
+                            {chip.label}
+                          </button>
+                        );
+                      })()}
                     {currentGoal && (
                       <GoalFlag
                         objective={currentGoal}
@@ -6509,6 +6514,7 @@ function SessionPageContent({
                   approvalPolicy={session.approvalPolicy}
                   sandboxPolicy={session.sandboxPolicy}
                   createdAt={session.createdAt}
+                  routerBinding={session.routerBinding}
                   sessionStreamConnected={sessionUpdatesConnected}
                   lastSessionEventAt={lastStreamActivityAt}
                 />

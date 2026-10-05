@@ -3,6 +3,7 @@ import {
   routerModelSupportsThinking,
   type AgentAuthRouterOverview,
   type AgentAuthRouterPoolPolicy,
+  type AppSessionSummary,
   type EffortLevel,
   type ModelInfo,
   type ThinkingOption,
@@ -18,7 +19,7 @@ import styles from "./RouterPoolSelector.module.css";
 
 const DIRECT = "";
 
-const POLICY_KEYS = {
+export const ROUTER_POLICY_KEYS = {
   manual: "routerPoolManual",
   "round-robin": "routerPoolRoundRobin",
   "most-remaining": "routerPoolMostRemaining",
@@ -45,6 +46,36 @@ const WINDOW_SHORT_KEYS = {
 type OverviewAccount = AgentAuthRouterOverview["accounts"][number];
 type QuotaWindow = OverviewAccount["windows"][number];
 type Translate = ReturnType<typeof useI18n>["t"];
+export type RouterBinding = NonNullable<AppSessionSummary["routerBinding"]>;
+
+/**
+ * Compact session-header label for a pin: the saved pool and account names,
+ * never the raw account id. Pins saved before names were kept fall back to
+ * the policy.
+ */
+export function routerBindingChip(
+  t: Translate,
+  binding: RouterBinding,
+): { label: string; tooltip: string } {
+  const policy = binding.policy && t(ROUTER_POLICY_KEYS[binding.policy]);
+  const names = [binding.poolName, binding.accountDisplayName].filter(Boolean);
+  return {
+    label: names.join(" · ") || policy || t("routerChipFallback"),
+    tooltip: [
+      t("routerChipTooltipTitle"),
+      binding.poolName &&
+        t("routerChipTooltipPool", { pool: binding.poolName }),
+      t("routerChipTooltipAccount", {
+        account: binding.accountDisplayName ?? binding.accountId,
+      }),
+      policy && t("routerChipTooltipPolicy", { policy }),
+      binding.reason,
+      t("routerChipTooltipOpen"),
+    ]
+      .filter(Boolean)
+      .join("\n"),
+  };
+}
 
 export function routedModels(
   data: AgentAuthRouterOverview | null,
@@ -503,7 +534,7 @@ export function RouterPoolSelector({
                 value: p.id,
                 label: p.name,
                 description: [
-                  t(POLICY_KEYS[p.policy]),
+                  t(ROUTER_POLICY_KEYS[p.policy]),
                   compatible.length
                     ? t("routerPoolCompatibleAccounts", {
                         count: compatible.length,

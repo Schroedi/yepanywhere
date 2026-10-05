@@ -50,6 +50,8 @@ export interface ForkOrdinalClaim {
 export interface SessionMetadata {
   routerBinding?: {
     poolId?: string;
+    poolName?: string;
+    accountDisplayName?: string;
     policy?: "manual" | "round-robin" | "most-remaining";
     reason?: string;
     observedAt?: string;

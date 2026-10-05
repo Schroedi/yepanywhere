@@ -13,6 +13,7 @@ import { useI18n } from "../i18n";
 import { getProviderRuntimeReasonLabel } from "../lib/providerRuntimeStatus";
 import type { SessionStatus } from "../types";
 import styles from "./ProcessInfoModal.module.css";
+import { ROUTER_POLICY_KEYS, type RouterBinding } from "./RouterPoolSelector";
 import { Modal } from "./ui/Modal";
 
 interface ProcessInfo {
@@ -52,6 +53,7 @@ interface ProcessInfoBodyProps {
   approvalPolicy?: string;
   sandboxPolicy?: SessionSandboxPolicy;
   createdAt?: string;
+  routerBinding?: RouterBinding;
   /** Whether the session-specific SSE stream is connected */
   sessionStreamConnected: boolean;
   /** Timestamp of last SSE activity for this session */
@@ -221,6 +223,7 @@ export function ProcessInfoBody({
   approvalPolicy,
   sandboxPolicy,
   createdAt,
+  routerBinding,
   sessionStreamConnected,
   lastSessionEventAt,
 }: ProcessInfoBodyProps) {
@@ -364,6 +367,56 @@ export function ProcessInfoBody({
           mono
         />
       </Section>
+
+      {routerBinding && (
+        <Section title={t("processInfoSectionRouter")}>
+          <InfoRow
+            label={t("processInfoLabelRouterPool")}
+            value={routerBinding.poolName}
+          />
+          <InfoRow
+            label={t("processInfoLabelRouterPoolId")}
+            value={routerBinding.poolId}
+            mono
+          />
+          <InfoRow
+            label={t("processInfoLabelRouterAccount")}
+            value={routerBinding.accountDisplayName}
+          />
+          <InfoRow
+            label={t("processInfoLabelRouterAccountId")}
+            value={routerBinding.accountId}
+            mono
+          />
+          <InfoRow
+            label={t("processInfoLabelRouterPolicy")}
+            value={
+              routerBinding.policy &&
+              t(ROUTER_POLICY_KEYS[routerBinding.policy])
+            }
+          />
+          <InfoRow
+            label={t("processInfoLabelRouterReason")}
+            value={routerBinding.reason}
+          />
+          <InfoRow
+            label={t("processInfoLabelRouterObserved")}
+            value={
+              routerBinding.observedAt && formatTime(routerBinding.observedAt)
+            }
+          />
+          <InfoRow
+            label={t("processInfoLabelRouterBindingId")}
+            value={routerBinding.id}
+            mono
+          />
+          <InfoRow
+            label={t("processInfoLabelRouterId")}
+            value={routerBinding.routerId}
+            mono
+          />
+        </Section>
+      )}
 
       {providerRuntimeStatus && (
         <Section title={t("processInfoSectionProviderRuntime")}>

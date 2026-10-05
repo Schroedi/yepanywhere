@@ -51,8 +51,8 @@ Maintainer requests:
   sandboxing and providers other than Claude or Codex.
 - Project queue launches reject any router selection (`routerQueueUnsupported`);
   templates send no router fields; fixed launches refuse router selection.
-- The session page shows the binding with `routerBinding.accountId`, not the
-  account display name or pool name.
+- The session page showed the binding with `routerBinding.accountId`, not the
+  account display name or pool name (item 9 fixes this).
 
 ### API flow
 
@@ -167,8 +167,27 @@ the pool" alongside the router's reason.
 
 ### 9 — Show the pool and account on the session page
 
-Display the account name and pool name, with policy and reason, instead of the
-raw account id.
+Done 2026-10-05. The pin saves AAR's account display name and pool name as
+labels (`accountDisplayName`, `poolName`; identity stays the ids) so they
+survive AAR outages and removed accounts. The header shows a compact
+"pool · account" chip, never the raw id, hidden below 700px; its tooltip
+lists pool, account, policy and reason, and a click opens Session Info,
+which has a Router section with names and ids. A resume refreshes a renamed
+account label and backfills a missing pool name. The unavailable-account
+error names the saved account. Pins saved earlier show the policy until a
+resume backfills them.
+
+Follow-up, not started: an explicit account switch or "use Direct" action
+in that Session Info section, reusing `RouterPoolSelector`, which the resume
+error could open. Plan 143 defers it until cross-account continuation is
+verified. Research on 2026-10-05 found that Codex replays org-bound
+`encrypted_content` reasoning and compaction items, which another
+organization rejects with `invalid_encrypted_content`. Codex therefore needs
+those items stripped, plus an explicit `modelProvider` on resume. Claude
+Opus 5.5 signatures are not documented as account-bound, but Sonnet 5.5
+thinking is silently dropped on another account. Fable 5.1, Opus 5.5 and
+Sonnet 5.5 apply a conversation-prefix check for accounts created on or
+after 2026-08-31. Prove each direction live before building it.
 
 ### 10 — Resolve model aliases on the server
 

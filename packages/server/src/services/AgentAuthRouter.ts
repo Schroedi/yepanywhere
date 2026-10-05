@@ -59,6 +59,7 @@ interface Info {
   capabilities: string[];
 }
 export interface RouterAccount {
+  displayName?: string;
   directAccountAccess?: boolean;
   id: string;
   provider: "claude" | "codex";
@@ -138,6 +139,16 @@ function rejectionReason(
     /* Generic message below. */
   }
   return undefined;
+}
+/**
+ * Account and pool names are display labels the session keeps after AAR is
+ * down or the account is gone, so recovery can name what to re-enable.
+ */
+function routerLabel(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: strip them
+  const label = value.replace(/[\u0000-\u001f\u007f]/g, "").trim();
+  return label ? label.slice(0, 80) : undefined;
 }
 /** No fetch fallback: control traffic can only use the verified Unix socket. */
 export async function routerRequest<T>(
@@ -506,6 +517,23 @@ export class AgentAuthRouter {
       return result;
     });
   }
+  /** Best effort: a missing label never blocks a launch. */
+  private async poolLabel(
+    c: Connection,
+    poolId: string,
+  ): Promise<string | undefined> {
+    try {
+      const { pools } = await routerRequest<AgentAuthRouterOverview>(
+        c.socketPath,
+        "/v1/overview",
+        c.token,
+        {},
+      );
+      return routerLabel(pools.find((p) => p.id === poolId)?.name);
+    } catch {
+      return undefined;
+    }
+  }
   private readonly discoveryJobs = new Map<
     string,
     Promise<AgentAuthRouterOverview>
@@ -675,17 +703,31 @@ export class AgentAuthRouter {
         "/v1/accounts",
         c.token,
       );
+      const accountName = (id: string | undefined) =>
+        routerLabel(accounts.find((a) => a.id === id)?.displayName);
       if (
         selectedId &&
         !accounts.some(
           (a) => a.id === selectedId && a.provider === provider && a.enabled,
         )
-      )
+      ) {
+        const pinned = existing?.accountDisplayName;
         throw new RouterUnavailable(
           409,
-          "The pinned router account is disabled, removed, or no longer granted. Re-enable the same account in AAR and retry, or start a new session with an available account. This session's pin will not change.",
+          `The pinned router account${pinned ? ` (${pinned})` : ""} is disabled, removed, or no longer granted. Re-enable the same account in AAR and retry, or start a new session with an available account. This session's pin will not change.`,
           "account-unavailable",
         );
+      }
+      // A rename in AAR reaches the saved label whenever the pin resumes.
+      const currentName = existing && accountName(existing.accountId);
+      if (
+        existing &&
+        currentName &&
+        currentName !== existing.accountDisplayName
+      )
+        await this.metadata.updateMetadata(sessionId, {
+          routerBinding: { ...existing, accountDisplayName: currentName },
+        });
       const requestedThinking: ThinkingOption =
         settings?.thinking?.type === "disabled"
           ? "off"
@@ -720,7 +762,9 @@ export class AgentAuthRouter {
             id: allocation.id,
             routerId: c.routerId,
             accountId: accountId ?? "",
-            ...(poolId ? { poolId, policy } : {}),
+            ...(poolId
+              ? { poolId, policy }
+              : { accountDisplayName: accountName(accountId) }),
             provider,
           },
         });
@@ -757,7 +801,8 @@ export class AgentAuthRouter {
             tokenHash: hash(allocation.token),
           },
         );
-        if (allocation.poolId) {
+        const pinnedPoolId = allocation.poolId;
+        if (pinnedPoolId) {
           if (
             !selected.accountId ||
             (allocation.accountId &&
@@ -780,8 +825,12 @@ export class AgentAuthRouter {
               id: allocation.id,
               routerId: c.routerId,
               accountId: selected.accountId,
+              accountDisplayName:
+                accountName(selected.accountId) ?? existing?.accountDisplayName,
               provider,
-              poolId: allocation.poolId,
+              poolId: pinnedPoolId,
+              poolName:
+                existing?.poolName ?? (await this.poolLabel(c, pinnedPoolId)),
               policy: selected.policy,
               reason: selected.reason,
               observedAt: selected.observedAt,

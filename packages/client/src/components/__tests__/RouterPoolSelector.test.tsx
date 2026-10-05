@@ -16,6 +16,7 @@ import {
   formatReset,
   observationAge,
   routerAccountIssue,
+  routerBindingChip,
   routerPoolMembers,
   routedModels,
   tightestRemaining,
@@ -534,4 +535,40 @@ it("formats resets within a day as a time and later ones with the date", () => {
   const now = Date.parse("2026-10-05T10:00:00Z");
   expect(formatReset("2026-10-05T14:15:00Z", now)).not.toMatch(/Oct/);
   expect(formatReset("2026-10-08T12:00:00Z", now)).toMatch(/Oct/);
+});
+it("labels a session pin by saved names and never shows the account id", () => {
+  const t = ((key: string, params?: Record<string, unknown>) =>
+    params ? `${key}:${Object.values(params).join(",")}` : key) as Parameters<
+    typeof routerBindingChip
+  >[0];
+  const pin = {
+    id: "binding",
+    routerId: "router",
+    accountId: "b9e7a2a3-d2a2-40b7-b000-000000000000",
+    provider: "claude" as const,
+    poolId: "pool",
+    policy: "round-robin" as const,
+    reason: "Round robin among eligible accounts",
+  };
+  const named = routerBindingChip(t, {
+    ...pin,
+    poolName: "work-claude",
+    accountDisplayName: "Alice",
+  });
+  expect(named.label).toBe("work-claude · Alice");
+  expect(named.tooltip.split("\n")).toEqual([
+    "routerChipTooltipTitle",
+    "routerChipTooltipPool:work-claude",
+    "routerChipTooltipAccount:Alice",
+    "routerChipTooltipPolicy:routerPoolRoundRobin",
+    "Round robin among eligible accounts",
+    "routerChipTooltipOpen",
+  ]);
+  // Pins saved before names were kept: the id stays in the tooltip only.
+  const legacy = routerBindingChip(t, pin);
+  expect(legacy.label).toBe("routerPoolRoundRobin");
+  expect(legacy.tooltip).toContain(pin.accountId);
+  expect(routerBindingChip(t, { ...pin, policy: undefined }).label).toBe(
+    "routerChipFallback",
+  );
 });

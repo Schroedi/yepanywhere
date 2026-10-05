@@ -39,7 +39,9 @@ async function fixture(
     failCommit = false,
     failCancel = false,
     rejectPrepare: string | false = false,
-    enabled = true;
+    enabled = true,
+    accountName: string | undefined,
+    poolName: string | undefined;
   const server = http.createServer(async (req, res) => {
     const chunks = [];
     for await (const chunk of req) chunks.push(chunk);
@@ -92,7 +94,9 @@ async function fixture(
       return res.end(
         JSON.stringify({
           accounts: [],
-          pools: [],
+          pools: poolName
+            ? [{ id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", name: poolName }]
+            : [],
           observedAt: "2026-10-03T08:00:00Z",
           quotaFreshSeconds: 120,
         }),
@@ -123,7 +127,13 @@ async function fixture(
           },
         ],
         accounts: [
-          { id: "account", provider: "codex", enabled, renewal: "manual" },
+          {
+            id: "account",
+            provider: "codex",
+            enabled,
+            renewal: "manual",
+            ...(accountName ? { displayName: accountName } : {}),
+          },
         ],
       }),
     );
@@ -162,6 +172,10 @@ async function fixture(
     },
     disableAccount: () => {
       enabled = false;
+    },
+    name: (account: string, pool?: string) => {
+      accountName = account;
+      poolName = pool;
     },
     revoke: () => {
       revoked = true;
@@ -603,6 +617,36 @@ describe.skipIf(process.platform === "win32")("pool launch recovery", () => {
     await expect(
       restarted.launch("pooled", "codex", "fixture-model"),
     ).rejects.toThrow("cancelled");
+  });
+  it("keeps account and pool labels for recovery while the pin stays the ids", async () => {
+    const f = await fixture(true);
+    await f.connector.connect(f.socketPath);
+    f.name("Work\u0007 Claude", "work-claude");
+    const pool = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
+    await f.connector.launch(
+      "named",
+      "codex",
+      "fixture-model",
+      undefined,
+      pool,
+    );
+    expect(f.metadata.getMetadata("named")?.routerBinding).toMatchObject({
+      accountId: "account",
+      accountDisplayName: "Work Claude",
+      poolId: pool,
+      poolName: "work-claude",
+    });
+    f.name("Renamed", "ignored-after-first-save");
+    await f.connector.launch("named", "codex", "fixture-model");
+    expect(f.metadata.getMetadata("named")?.routerBinding).toMatchObject({
+      accountId: "account",
+      accountDisplayName: "Renamed",
+      poolName: "work-claude",
+    });
+    f.disableAccount();
+    await expect(
+      f.connector.launch("named", "codex", "fixture-model"),
+    ).rejects.toThrow("pinned router account (Renamed) is disabled");
   });
   it("cancels a rejected fresh pool allocation and retries cleanup durably", async () => {
     const f = await fixture(true);

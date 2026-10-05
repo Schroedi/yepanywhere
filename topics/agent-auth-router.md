@@ -99,8 +99,16 @@ Settings → Providers offers **Pools and usage** when the YA server advertises
 and a Manual, Round robin or Most remaining default. Manage pools and grants in AAR. YA lists
 only pools granted to its integration. Older AAR versions retain their scoped
 editor; this fallback grants no global administration authority. In New Session, choose a pool, catalog model
-and policy; Manual also requires an explicit account. The session header displays
-the chosen account and policy. Pool selection is only for new owner sessions;
+and policy; Manual also requires an explicit account. The session header shows a
+compact chip with the pin's saved pool and account names, never the raw account
+id; it falls back to the policy for pins saved without names and is hidden on
+narrow screens. Its tooltip lists pool, account, policy and reason, and it opens
+Session Info, whose Router section lists the names with the pool, account,
+binding and router ids. The pin keeps AAR's names as display labels captured at
+launch, so an AAR outage or removed account still shows which account to restore;
+a resume refreshes a renamed account and backfills a missing pool name, and the
+unavailable-account error names the saved account. Identity remains the ids.
+Pool selection is only for new owner sessions;
 continuation, remote executors, limited users and sandboxes cannot change a pin.
 
 The overview shows each account's windows, usage bars, remaining percentages,
