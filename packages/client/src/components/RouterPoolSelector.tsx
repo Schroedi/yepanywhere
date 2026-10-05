@@ -2,16 +2,26 @@ import {
   resolveRouterModel,
   routerModelSupportsThinking,
   type AgentAuthRouterOverview,
+  type AgentAuthRouterPoolPolicy,
   type ModelInfo,
   type ThinkingOption,
 } from "@yep-anywhere/shared";
 import { useI18n } from "../i18n";
+import { FilterDropdown } from "./FilterDropdown";
 export interface RouterSelection {
   sourceKey: string;
   poolId: string;
   accountId: string;
 }
 import styles from "./RouterPoolSelector.module.css";
+
+const DIRECT = "";
+
+const POLICY_KEYS = {
+  manual: "routerPoolManual",
+  "round-robin": "routerPoolRoundRobin",
+  "most-remaining": "routerPoolMostRemaining",
+} as const satisfies Record<AgentAuthRouterPoolPolicy, string>;
 
 export function routedModels(
   data: AgentAuthRouterOverview | null,
@@ -95,6 +105,7 @@ export function RouterPoolSelector({
   error,
   retry,
   disabled,
+  showCaption = false,
 }: {
   data: AgentAuthRouterOverview | null;
   provider: string;
@@ -107,6 +118,7 @@ export function RouterPoolSelector({
   error: boolean;
   retry: () => void;
   disabled: boolean;
+  showCaption?: boolean;
 }) {
   const { t } = useI18n();
   if (!data && !value && !error) return null;
@@ -116,75 +128,118 @@ export function RouterPoolSelector({
     : [];
   const pool = pools.find((p) => p.id === value?.poolId);
   const unavailable = !!value && (!pool || !members.length);
+  const poolLabel = t("routerPool");
+  const accountLabel = t("routerAccount");
+  const chooseAccount =
+    pool?.policy === "manual" && members.length > 1 ? (
+      <div className={`new-session-helper-section ${styles.section}`}>
+        <h3>{accountLabel}</h3>
+        <FilterDropdown<string>
+          label={accountLabel}
+          options={members.map((a, index) => ({
+            value: a.id,
+            label:
+              a.displayName || t("routerAccountNumber", { number: index + 1 }),
+            icon: <span className={`${styles.dot} ${styles.account}`} />,
+            disabled,
+          }))}
+          selected={value?.accountId ? [value.accountId] : []}
+          onChange={([accountId]) => {
+            if (!disabled && value && accountId !== undefined)
+              onChange({ ...value, accountId });
+          }}
+          multiSelect={false}
+          placeholder={t("routerPoolChooseAccount")}
+          fullWidth
+          triggerClassName={styles.leftAlignedTrigger}
+        />
+        {showCaption && (
+          <p className={styles.caption}>{t("routerAccountCaption")}</p>
+        )}
+      </div>
+    ) : null;
   return (
-    <div className={styles.control}>
-      <label>
-        {t("routerPool")}
-        <select
-          aria-label={t("routerPool")}
-          value={value?.poolId ?? ""}
-          disabled={disabled}
-          onChange={(event) => {
-            const selected = pools.find((p) => p.id === event.target.value);
+    <>
+      <div className={`new-session-helper-section ${styles.section}`}>
+        <h3>{poolLabel}</h3>
+        <FilterDropdown<string>
+          label={poolLabel}
+          options={[
+            {
+              value: DIRECT,
+              label: t("routerDirect"),
+              description: t("routerDirectDescription"),
+              icon: <span className={`${styles.dot} ${styles.direct}`} />,
+              disabled,
+            },
+            ...(value?.poolId && !pool
+              ? [
+                  {
+                    value: value.poolId,
+                    label: t("routerPoolUnavailable"),
+                    icon: <span className={`${styles.dot} ${styles.pool}`} />,
+                    disabled: true,
+                  },
+                ]
+              : []),
+            ...pools.map((p) => {
+              const compatible = routerPoolMembers(
+                data,
+                p.id,
+                provider,
+                model,
+                thinking,
+              ).length;
+              return {
+                value: p.id,
+                label: p.name,
+                description: [
+                  t(POLICY_KEYS[p.policy]),
+                  t("routerPoolCompatibleAccounts", {
+                    count: compatible,
+                    total: p.accountIds.length,
+                  }),
+                ].join(" · "),
+                icon: <span className={`${styles.dot} ${styles.pool}`} />,
+                disabled: disabled || compatible === 0,
+              };
+            }),
+          ]}
+          selected={[value?.poolId ?? DIRECT]}
+          onChange={([poolId]) => {
+            if (disabled || poolId === undefined) return;
+            const selected = pools.find((p) => p.id === poolId);
             onChange(
               selected
                 ? { sourceKey, poolId: selected.id, accountId: "" }
                 : null,
             );
           }}
-        >
-          <option value="">{t("routerDirect")}</option>
-          {value?.poolId && !pool && (
-            <option value={value.poolId} disabled>
-              {t("routerPoolUnavailable")}
-            </option>
-          )}
-          {pools.map((p) => (
-            <option
-              key={p.id}
-              value={p.id}
-              disabled={
-                !routerPoolMembers(data, p.id, provider, model, thinking).length
-              }
-            >
-              {p.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      {pool?.policy === "manual" && members.length > 1 && (
-        <label>
-          {t("routerAccount")}
-          <select
-            aria-label={t("routerAccount")}
-            value={value?.accountId ?? ""}
-            disabled={disabled}
-            onChange={(event) =>
-              value && onChange({ ...value, accountId: event.target.value })
-            }
-          >
-            <option value="">{t("routerPoolChooseAccount")}</option>
-            {members.map((a, index) => (
-              <option key={a.id} value={a.id}>
-                {a.displayName ||
-                  t("routerAccountNumber", { number: index + 1 })}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
-      {error ? (
-        <span role="alert">
-          {t("routerDiscoveryFailed")}{" "}
-          <button type="button" onClick={retry}>
-            {t("routerRetry")}
-          </button>
-        </span>
-      ) : unavailable ? (
-        <span role="status">{t("routerSelectionUnavailable")}</span>
-      ) : busy ? (
-        <span role="status">{t("routerChecking")}</span>
-      ) : null}
-    </div>
+          multiSelect={false}
+          fullWidth
+          triggerClassName={styles.leftAlignedTrigger}
+        />
+        {error ? (
+          <div className={styles.status} role="alert">
+            <span>{t("routerDiscoveryFailed")}</span>
+            <button type="button" className={styles.retry} onClick={retry}>
+              {t("routerRetry")}
+            </button>
+          </div>
+        ) : unavailable ? (
+          <div className={`${styles.status} ${styles.warning}`} role="status">
+            <span>{t("routerSelectionUnavailable")}</span>
+          </div>
+        ) : busy ? (
+          <div className={styles.status} role="status">
+            <span>{t("routerChecking")}</span>
+          </div>
+        ) : null}
+        {showCaption && (
+          <p className={styles.caption}>{t("routerPoolCaption")}</p>
+        )}
+      </div>
+      {chooseAccount}
+    </>
   );
 }

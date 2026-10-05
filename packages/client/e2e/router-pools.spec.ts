@@ -115,13 +115,30 @@ test("pool overview, editor and policy selection retain typing under 48-account 
     name: "New session",
     exact: true,
   });
-  await selector
-    .getByRole("combobox", { name: "Pool", exact: true })
-    .selectOption("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+  const poolTrigger = selector.getByRole("button", {
+    name: "Filter by Pool",
+    exact: true,
+  });
+  await expect(poolTrigger).toContainText("Direct provider login");
+  await poolTrigger.click();
+  const poolPanel = page.getByRole("dialog", { name: "Filter by Pool" });
+  await expect(poolPanel.getByRole("button")).toHaveText([
+    /^Direct provider login/,
+    /^Personal Codex.*Round robin · 15 of 16 accounts offer the selected model/,
+  ]);
+  await recordUiCapture(page, "router-unified-selection-open-1000", {
+    width: 1000,
+    height: 600,
+  });
+  await poolPanel.getByRole("button", { name: /^Personal Codex/ }).click();
+  await expect(poolPanel).toHaveCount(0);
+  await expect(poolTrigger).toContainText("Personal Codex");
   await expect(selector.getByLabel("Selected route")).toContainText(
     '"poolId":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"',
   );
-  await expect(selector.getByRole("combobox")).toHaveCount(1);
+  await expect(
+    selector.getByRole("button", { name: "Filter by Router account" }),
+  ).toHaveCount(0);
   const prompt = selector.getByRole("textbox", { name: "Prompt" });
   await prompt.evaluate((element) => {
     const field = element as HTMLTextAreaElement;

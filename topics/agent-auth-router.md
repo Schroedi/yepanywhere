@@ -389,7 +389,13 @@ additional feature bit or legacy launch UI is introduced. The plan is
 [AAR unified selection](https://github.com/kzahel/agent-auth-router/blob/main/docs/unified-session-selection.md).
 
 The ordinary provider/model/thinking controls remain visible. One Pool selector
-uses compatible granted members and the router's configured policy. Model family
+uses compatible granted members and the router's configured policy. It is laid
+out like the other New Session options: a Pool dropdown listing Direct first and
+then every granted pool for the provider, each with its policy and how many of
+its accounts offer the selected model; a pool no account can serve is listed
+but cannot be chosen. Multi-account Manual pools add a separate Router account
+dropdown. Discovery progress, discovery failure with Retry, and an unavailable
+selection appear as a status line under the Pool control. Model family
 aliases resolve to a concrete catalog model before allocation. An unavailable
 selection remains selected and cannot silently fall back to direct login.
 Explicit thinking travels through allocation, persistence, native launch and

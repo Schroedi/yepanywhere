@@ -4513,5 +4513,9 @@
   "routerAccountNumber": "Account {number}",
   "routerDiscoveryFailed": "Router unavailable. Start AAR and retry.",
   "routerRetry": "Retry",
-  "routerSelectionUnavailable": "This pool cannot run the selected model and thinking level."
+  "routerSelectionUnavailable": "This pool cannot run the selected model and thinking level.",
+  "routerDirectDescription": "Use this server’s own provider login.",
+  "routerPoolCompatibleAccounts": "{count} of {total} accounts offer the selected model",
+  "routerPoolCaption": "Route this session through an Agent Auth Router pool, or use the provider login directly. Pools that cannot run the selected model and thinking level are listed but cannot be chosen.",
+  "routerAccountCaption": "Manual pools pin the session to the account you choose here."
 }

@@ -5014,6 +5014,7 @@ export function NewSessionForm({
                 }
                 onChange={setRouterSelection}
                 disabled={isStarting}
+                showCaption={showOptionCaptions}
               />
             )}
           {permissionSection}

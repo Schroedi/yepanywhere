@@ -6,6 +6,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import type { AgentAuthRouterOverview } from "@yep-anywhere/shared";
 import { afterEach, expect, it, vi } from "vitest";
@@ -23,6 +24,42 @@ vi.mock("../../lib/clientSummaryStore", () => ({
   useClientSummarySourceKey: () => fixture.source,
 }));
 vi.mock("../../i18n", () => ({ useI18n: () => ({ t: (key: string) => key }) }));
+vi.mock("../FilterDropdown", () => ({
+  FilterDropdown: ({
+    label,
+    options,
+    selected,
+    onChange,
+  }: {
+    label: string;
+    options: Array<{
+      value: string;
+      label: string;
+      description?: string;
+      disabled?: boolean;
+    }>;
+    selected: string[];
+    onChange: (selected: string[]) => void;
+  }) => (
+    <div data-testid={`filter-${label}`}>
+      <span data-testid="filter-selected">{selected[0] ?? ""}</span>
+      {options.map((option) => (
+        <button
+          type="button"
+          key={option.value}
+          disabled={option.disabled}
+          title={option.description}
+          onClick={() => onChange([option.value])}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  ),
+}));
+function dropdown(label: string) {
+  return within(screen.getByTestId(`filter-${label}`));
+}
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
@@ -82,6 +119,61 @@ it("resolves a family alias once and only includes accounts supporting its concr
     "claude-opus-4-7",
   ]);
 });
+it("lists Direct first and every pool with its policy and compatible count, disabling pools no account can serve", () => {
+  const data = overview(),
+    change = vi.fn();
+  data.pools.push({
+    ...data.pools[0]!,
+    id: "spare",
+    name: "Spare",
+    policy: "round-robin",
+    accountIds: ["b"],
+  });
+  data.accounts[1]!.models = [];
+  render(
+    <RouterPoolSelector
+      data={data}
+      provider="claude"
+      model="opus"
+      thinking="on:high"
+      value={null}
+      onChange={change}
+      sourceKey="local"
+      busy={false}
+      error={false}
+      retry={vi.fn()}
+      disabled={false}
+    />,
+  );
+  const options = dropdown("routerPool").getAllByRole("button");
+  expect(options.map((o) => o.textContent)).toEqual([
+    "routerDirect",
+    "Work",
+    "Spare",
+  ]);
+  expect(options.map((o) => o.title)).toEqual([
+    "routerDirectDescription",
+    "routerPoolMostRemaining · routerPoolCompatibleAccounts",
+    "routerPoolRoundRobin · routerPoolCompatibleAccounts",
+  ]);
+  expect(options.map((o) => (o as HTMLButtonElement).disabled)).toEqual([
+    false,
+    false,
+    true,
+  ]);
+  expect(
+    dropdown("routerPool").getByTestId("filter-selected").textContent,
+  ).toBe("");
+  expect(screen.queryByRole("status")).toBeNull();
+  fireEvent.click(options[1]!);
+  expect(change).toHaveBeenLastCalledWith({
+    sourceKey: "local",
+    poolId: "work",
+    accountId: "",
+  });
+  fireEvent.click(options[0]!);
+  expect(change).toHaveBeenLastCalledWith(null);
+});
 it("keeps an unavailable selection and offers manual account choice only for multiple compatible members", () => {
   const data = overview(),
     change = vi.fn();
@@ -99,23 +191,69 @@ it("keeps an unavailable selection and offers manual account choice only for mul
     disabled: false,
   };
   const view = render(<RouterPoolSelector {...props} />);
-  expect(screen.getAllByRole("combobox")).toHaveLength(1);
+  expect(
+    dropdown("routerPool").getByTestId("filter-selected").textContent,
+  ).toBe("work");
+  expect(screen.queryByTestId("filter-routerAccount")).toBeNull();
   data.pools[0]!.policy = "manual";
   view.rerender(<RouterPoolSelector {...props} />);
-  expect(screen.getAllByRole("combobox")).toHaveLength(2);
+  expect(
+    dropdown("routerAccount")
+      .getAllByRole("button")
+      .map((o) => o.textContent),
+  ).toEqual(["routerAccountNumber", "routerAccountNumber"]);
+  fireEvent.click(dropdown("routerAccount").getAllByRole("button")[1]!);
+  expect(change).toHaveBeenLastCalledWith({
+    sourceKey: "local",
+    poolId: "work",
+    accountId: "b",
+  });
   data.accounts[1]!.enabled = false;
   view.rerender(<RouterPoolSelector {...props} />);
-  expect(screen.getAllByRole("combobox")).toHaveLength(1);
+  expect(screen.queryByTestId("filter-routerAccount")).toBeNull();
   view.rerender(
     <RouterPoolSelector {...props} data={{ ...data, pools: [] }} />,
   );
-  expect((screen.getByLabelText("routerPool") as HTMLSelectElement).value).toBe(
-    "work",
-  );
+  expect(
+    dropdown("routerPool").getByTestId("filter-selected").textContent,
+  ).toBe("work");
+  expect(
+    dropdown("routerPool").getByRole("button", {
+      name: "routerPoolUnavailable",
+    }),
+  ).toHaveProperty("disabled", true);
   expect(screen.getByRole("status").textContent).toBe(
     "routerSelectionUnavailable",
   );
-  expect(change).not.toHaveBeenCalled();
+  expect(change).toHaveBeenCalledTimes(1);
+});
+it("shows discovery failure with Retry, and progress while checking", () => {
+  const retry = vi.fn();
+  const props = {
+    data: null,
+    provider: "claude",
+    model: "opus",
+    thinking: "on:high" as const,
+    value: null,
+    onChange: vi.fn(),
+    sourceKey: "local",
+    busy: true,
+    error: true,
+    retry,
+    disabled: false,
+  };
+  const view = render(<RouterPoolSelector {...props} />);
+  expect(screen.getByRole("alert").textContent).toContain(
+    "routerDiscoveryFailed",
+  );
+  fireEvent.click(screen.getByRole("button", { name: "routerRetry" }));
+  expect(retry).toHaveBeenCalledTimes(1);
+  view.rerender(
+    <RouterPoolSelector {...props} error={false} data={overview()} />,
+  );
+  expect(screen.getByRole("status").textContent).toBe("routerChecking");
+  view.rerender(<RouterPoolSelector {...props} error={false} busy={false} />);
+  expect(view.container.textContent).toBe("");
 });
 function Discovery({
   provider = "claude",

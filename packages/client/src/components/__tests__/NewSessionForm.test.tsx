@@ -1536,11 +1536,11 @@ describe("NewSessionForm", () => {
     fireEvent.click(screen.getByRole("button", { name: "Claude" }));
     openAdvancedOptions();
     fireEvent.click(screen.getAllByRole("button", { name: "Opus 4.8" })[0]!);
-    fireEvent.change(await screen.findByLabelText("routerPool"), {
-      target: { value: "work" },
-    });
+    await screen.findByTestId("filter-routerPool");
+    fireEvent.click(dropdownOption("routerPool", "Work"));
+    expect(selectedDropdownValue("routerPool")).toBe("work");
     expect(screen.queryByLabelText("routerModel")).toBeNull();
-    expect(screen.queryByLabelText("routerAccount")).toBeNull();
+    expect(screen.queryByTestId("filter-routerAccount")).toBeNull();
     fireEvent.change(screen.getByPlaceholderText("newSessionPlaceholder"), {
       target: { value: "hello" },
     });
