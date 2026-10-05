@@ -400,9 +400,16 @@ every account: those that cannot run the selection are disabled with the
 reason (disabled in AAR, no model chosen, model not offered, effort
 unsupported), and otherwise compatible accounts note cached auth rejection,
 cooldown or exhausted quota without being disabled, because AAR decides at
-launch. All reasons derive from the overview YA already holds; no extra
-router call is made. Discovery progress, discovery failure with Retry, and an
-unavailable selection appear as a status line under the Pool control. Model
+launch. Each account row also shows every cached quota window as a short
+line (window, remaining percent, reset time or date), a stale note when the
+observation is not fresh, or "no quota observed"; the row's dot is green when
+selectable, amber when selectable with a note, grey when not selectable. A
+pool row adds the best remaining percent among its compatible accounts,
+measured in the tightest window that bounds the selected model. These are
+the last observation, not a promise; AAR confirms quota at launch. All of it
+derives from the overview YA already holds; no extra router call is made.
+Discovery progress, discovery failure with Retry, and an unavailable
+selection appear as a status line under the Pool control. Model
 family aliases resolve to a concrete catalog model before allocation. An unavailable
 selection remains selected and cannot silently fall back to direct login.
 Explicit thinking travels through allocation, persistence, native launch and

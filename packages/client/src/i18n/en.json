@@ -4528,5 +4528,19 @@
   "routerReasonAuthBlocked": "Provider rejected access when last checked",
   "routerReasonCooldown": "Cooling down when last checked",
   "routerReasonCooldownUntil": "Cooling down until {time}",
-  "routerReasonExhausted": "Quota exhausted when last checked"
+  "routerReasonExhausted": "Quota exhausted when last checked",
+  "routerPoolBestRemaining": "best {percent}% left",
+  "routerWindowShortFiveHour": "5h",
+  "routerWindowShortWeekly": "Week",
+  "routerWindowShortWeeklyOpus": "Week · Opus",
+  "routerWindowShortWeeklySonnet": "Week · Sonnet",
+  "routerWindowShortWeeklyApps": "Week · Apps",
+  "routerWindowShortHours": "{hours}h",
+  "routerWindowShortDays": "{days}d",
+  "routerQuotaLine": "{window} {percent}% left · {reset}",
+  "routerQuotaLineNoReset": "{window} {percent}% left",
+  "routerQuotaLineUnknown": "{window} unknown",
+  "routerQuotaStale": "stale",
+  "routerQuotaNotObserved": "no quota observed",
+  "routerQuotaObservedTitle": "Quota observed {time}. Remaining quota is confirmed at launch."
 }

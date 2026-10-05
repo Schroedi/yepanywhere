@@ -32,7 +32,18 @@ const EFFORT_KEYS = {
   max: "effortLevelMaxLabel",
 } as const satisfies Record<EffortLevel, string>;
 
+const WINDOW_SHORT_KEYS = {
+  five_hour: "routerWindowShortFiveHour",
+  seven_day: "routerWindowShortWeekly",
+  seven_day_opus: "routerWindowShortWeeklyOpus",
+  seven_day_sonnet: "routerWindowShortWeeklySonnet",
+  seven_day_oauth_apps: "routerWindowShortWeeklyApps",
+  "codex:primary": "routerWindowShortFiveHour",
+  "codex:secondary": "routerWindowShortWeekly",
+} as const;
+
 type OverviewAccount = AgentAuthRouterOverview["accounts"][number];
+type QuotaWindow = OverviewAccount["windows"][number];
 type Translate = ReturnType<typeof useI18n>["t"];
 
 export function routedModels(
@@ -126,16 +137,34 @@ function effortLabel(t: Translate, thinking: ThinkingOption): string {
   return EFFORT_KEYS[effort] ? t(EFFORT_KEYS[effort]) : effort;
 }
 
+/** Windows that bound the selected model: provider-wide or the model's family. */
+function windowApplies(w: QuotaWindow, concreteModel: string | undefined) {
+  return (
+    w.scope === "all" ||
+    (w.scope !== "unknown" && !!concreteModel?.includes(w.scope))
+  );
+}
+
 function quotaExhausted(
   account: OverviewAccount,
   concreteModel: string | undefined,
 ): boolean {
-  return account.windows.some(
-    (w) =>
-      w.remainingPercent === 0 &&
-      (w.scope === "all" ||
-        (w.scope !== "unknown" && !!concreteModel?.includes(w.scope))),
+  return (account.windows ?? []).some(
+    (w) => w.remainingPercent === 0 && windowApplies(w, concreteModel),
   );
+}
+
+/** Lowest remaining percent among the windows that bound the model. */
+export function tightestRemaining(
+  account: OverviewAccount,
+  concreteModel: string | undefined,
+): number | null {
+  const percents = (account.windows ?? [])
+    .filter(
+      (w) => w.remainingPercent !== null && windowApplies(w, concreteModel),
+    )
+    .map((w) => w.remainingPercent as number);
+  return percents.length ? Math.min(...percents) : null;
 }
 
 /**
@@ -205,6 +234,83 @@ function poolReason(
   });
 }
 
+function windowShortLabel(t: Translate, w: QuotaWindow): string {
+  const key = WINDOW_SHORT_KEYS[w.bucket as keyof typeof WINDOW_SHORT_KEYS];
+  if (key) return t(key);
+  if (w.windowMinutes === null) return w.bucket;
+  return w.windowMinutes < 1440
+    ? t("routerWindowShortHours", {
+        hours: Math.max(1, Math.round(w.windowMinutes / 60)),
+      })
+    : t("routerWindowShortDays", {
+        days: Math.max(1, Math.round(w.windowMinutes / 1440)),
+      });
+}
+
+/** A time of day for resets within a day; month and day beyond that. */
+export function formatReset(resetsAt: string, now = Date.now()): string {
+  const at = new Date(resetsAt);
+  const withinDay = Math.abs(at.getTime() - now) < 24 * 60 * 60 * 1000;
+  return at.toLocaleString(
+    undefined,
+    withinDay
+      ? { hour: "numeric", minute: "2-digit" }
+      : { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" },
+  );
+}
+
+function remainingTone(percent: number | null): string {
+  if (percent === null) return styles.quotaUnknown ?? "";
+  if (percent <= 0) return styles.quotaDanger ?? "";
+  if (percent < 25) return styles.quotaWarning ?? "";
+  return "";
+}
+
+/** Every cached quota window for the account, one short line each. */
+function AccountQuota({ account }: { account: OverviewAccount }) {
+  const { t } = useI18n();
+  const windows = account.windows ?? [];
+  if (!account.quota && !windows.length)
+    return (
+      <span className={`${styles.quota} ${styles.quotaUnknown}`}>
+        {t("routerQuotaNotObserved")}
+      </span>
+    );
+  const stale = account.freshness !== "fresh";
+  return (
+    <span
+      className={styles.quota}
+      title={
+        account.quota
+          ? t("routerQuotaObservedTitle", {
+              time: new Date(account.quota.observedAt).toLocaleString(),
+            })
+          : undefined
+      }
+    >
+      {windows.map((w) => (
+        <span key={w.bucket} className={remainingTone(w.remainingPercent)}>
+          {w.remainingPercent === null
+            ? t("routerQuotaLineUnknown", { window: windowShortLabel(t, w) })
+            : w.resetsAt
+              ? t("routerQuotaLine", {
+                  window: windowShortLabel(t, w),
+                  percent: Math.round(w.remainingPercent),
+                  reset: formatReset(w.resetsAt),
+                })
+              : t("routerQuotaLineNoReset", {
+                  window: windowShortLabel(t, w),
+                  percent: Math.round(w.remainingPercent),
+                })}
+        </span>
+      ))}
+      {stale && (
+        <span className={styles.quotaUnknown}>{t("routerQuotaStale")}</span>
+      )}
+    </span>
+  );
+}
+
 export function RouterPoolSelector({
   data,
   provider,
@@ -242,6 +348,14 @@ export function RouterPoolSelector({
   const unavailable = !!value && (!pool || !members.length);
   const poolLabel = t("routerPool");
   const accountLabel = t("routerAccount");
+  const tones = {
+    ready: styles.ready,
+    advice: styles.advice,
+    blocked: styles.blocked,
+  };
+  const dot = (tone: keyof typeof tones) => (
+    <span className={`${styles.dot} ${tones[tone]}`} />
+  );
   const describePool = (poolId: string) => {
     const accounts = routerPoolAccounts(data, poolId, provider);
     const poolModels = routedModels(data, provider, poolId);
@@ -274,7 +388,10 @@ export function RouterPoolSelector({
                 a.displayName ||
                 t("routerAccountNumber", { number: index + 1 }),
               description: issue?.text,
-              icon: <span className={`${styles.dot} ${styles.account}`} />,
+              icon: dot(
+                issue ? (issue.blocking ? "blocked" : "advice") : "ready",
+              ),
+              meta: <AccountQuota account={a} />,
               disabled: disabled || !!issue?.blocking,
             };
           })}
@@ -310,7 +427,7 @@ export function RouterPoolSelector({
               value: DIRECT,
               label: t("routerDirect"),
               description: t("routerDirectDescription"),
-              icon: <span className={`${styles.dot} ${styles.direct}`} />,
+              icon: dot("ready"),
               disabled,
             },
             ...(value?.poolId && !pool
@@ -318,7 +435,7 @@ export function RouterPoolSelector({
                   {
                     value: value.poolId,
                     label: t("routerPoolUnavailable"),
-                    icon: <span className={`${styles.dot} ${styles.pool}`} />,
+                    icon: dot("blocked"),
                     disabled: true,
                   },
                 ]
@@ -333,15 +450,18 @@ export function RouterPoolSelector({
                 provider,
                 model,
                 thinking,
-              ).length;
+              );
+              const best = compatible
+                .map((a) => tightestRemaining(a, concreteModel))
+                .filter((r): r is number => r !== null);
               return {
                 value: p.id,
                 label: p.name,
                 description: [
                   t(POLICY_KEYS[p.policy]),
-                  compatible
+                  compatible.length
                     ? t("routerPoolCompatibleAccounts", {
-                        count: compatible,
+                        count: compatible.length,
                         total: p.accountIds.length,
                         model: modelLabel,
                       })
@@ -353,9 +473,16 @@ export function RouterPoolSelector({
                         concreteModel,
                         thinking,
                       ),
+                  ...(best.length
+                    ? [
+                        t("routerPoolBestRemaining", {
+                          percent: Math.round(Math.max(...best)),
+                        }),
+                      ]
+                    : []),
                 ].join(" · "),
-                icon: <span className={`${styles.dot} ${styles.pool}`} />,
-                disabled: disabled || compatible === 0,
+                icon: dot(compatible.length ? "ready" : "blocked"),
+                disabled: disabled || compatible.length === 0,
               };
             }),
           ]}

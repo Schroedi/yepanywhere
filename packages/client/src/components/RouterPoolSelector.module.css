@@ -13,16 +13,42 @@
   flex-shrink: 0;
 }
 
-.direct {
+/* Dot tone is the row's state: selectable, selectable with a cached-quota
+   or access note, or unselectable. */
+.ready {
   background: var(--success-color);
 }
 
-.pool {
-  background: var(--info-color, #3b82f6);
+.advice {
+  background: var(--warning-color);
 }
 
-.account {
+.blocked {
   background: var(--text-dimmed);
+}
+
+.quota {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  font-size: var(--font-size-xs);
+  line-height: 1.3;
+  color: var(--text-muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.quotaWarning {
+  color: var(--warning-color);
+}
+
+.quotaDanger {
+  color: var(--error-color, var(--warning-color));
+}
+
+.quotaUnknown {
+  color: var(--text-dimmed);
 }
 
 .status {

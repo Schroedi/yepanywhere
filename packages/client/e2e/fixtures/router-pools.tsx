@@ -42,6 +42,15 @@ const state: AgentAuthRouterOverview = {
       revision: 1,
       bindings: [{ accountId: "account-1", count: 3 }],
     },
+    {
+      id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+      name: "Hand-picked Codex",
+      provider: "codex",
+      accountIds: ["account-1", "account-2", "account-3", "account-4"],
+      policy: "manual",
+      revision: 1,
+      bindings: [],
+    },
   ],
   accounts: Array.from({ length: 48 }, (_, i) => ({
     id: `account-${i + 1}`,

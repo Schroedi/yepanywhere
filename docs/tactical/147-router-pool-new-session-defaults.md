@@ -108,9 +108,13 @@ supports {effort} effort". Manual pools with more than one account list every
 account; "Disabled in AAR", "Doesn't offer {model}" and "Doesn't support
 {effort} effort" disable the entry, while auth rejection, cooldown and
 exhausted quota are advisory notes from the last check because cached quota
-cannot promise an account is free at launch. The browser fixture only has a
-round-robin pool, so the account reasons are unit-tested (`routerAccountIssue`).
-Per-account eligibility from AAR itself (open question 8) is not used.
+cannot promise an account is free at launch. Follow-up the same day: account
+rows show every cached quota window (5h and weekly, remaining percent, reset),
+a stale note, or "no quota observed"; dots encode selectable, selectable with
+a note, or unselectable; pool rows add the best remaining percent among
+compatible accounts. The browser fixture gained a Manual pool so this is
+captured at desktop and phone widths. Per-account eligibility from AAR itself
+(open question 8) is not used.
 
 ### 3 — Warn on model or thinking conflicts
 

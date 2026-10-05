@@ -9,12 +9,15 @@ import {
   within,
 } from "@testing-library/react";
 import type { AgentAuthRouterOverview } from "@yep-anywhere/shared";
+import type { ReactNode } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 import {
   RouterPoolSelector,
+  formatReset,
   routerAccountIssue,
   routerPoolMembers,
   routedModels,
+  tightestRemaining,
 } from "../RouterPoolSelector";
 import { useRouterDiscovery } from "../../hooks/useRouterDiscovery";
 const fixture = vi.hoisted(() => ({ source: "local", selection: vi.fn() }));
@@ -38,6 +41,7 @@ vi.mock("../FilterDropdown", () => ({
       label: string;
       description?: string;
       disabled?: boolean;
+      meta?: ReactNode;
     }>;
     selected: string[];
     onChange: (selected: string[]) => void;
@@ -53,6 +57,7 @@ vi.mock("../FilterDropdown", () => ({
           onClick={() => onChange([option.value])}
         >
           {option.label}
+          {option.meta && <span data-testid="meta">{option.meta}</span>}
         </button>
       ))}
     </div>
@@ -202,7 +207,10 @@ it("keeps an unavailable selection and offers manual account choice only for mul
     dropdown("routerAccount")
       .getAllByRole("button")
       .map((o) => o.textContent),
-  ).toEqual(["routerAccountNumber", "routerAccountNumber"]);
+  ).toEqual([
+    "routerAccountNumberrouterQuotaNotObserved",
+    "routerAccountNumberrouterQuotaNotObserved",
+  ]);
   fireEvent.click(dropdown("routerAccount").getAllByRole("button")[1]!);
   expect(change).toHaveBeenLastCalledWith({
     sourceKey: "local",
@@ -423,4 +431,69 @@ it("explains a pool no account can serve", () => {
   expect(workOption().title).toBe(
     "routerPoolMostRemaining · routerReasonNoEnabledAccounts",
   );
+});
+const quotaWindow = (
+  bucket: string,
+  remainingPercent: number | null,
+  scope: "all" | "opus" | "sonnet" | "unknown" = "all",
+  resetsAt: string | null = "2026-10-05T14:15:00Z",
+) => ({
+  bucket,
+  windowMinutes: bucket === "five_hour" ? 300 : 10080,
+  usedPercent: remainingPercent === null ? null : 100 - remainingPercent,
+  remainingPercent,
+  resetsAt,
+  scope,
+});
+it("shows every cached quota window per account and the best remaining per pool", () => {
+  const data = overview();
+  data.pools[0]!.policy = "manual";
+  data.accounts[0]!.windows = [
+    quotaWindow("five_hour", 68),
+    quotaWindow("seven_day", 12),
+    quotaWindow("seven_day_sonnet", 0, "sonnet"),
+  ];
+  data.accounts[0]!.quota = { observedAt: "2026-10-05T10:00:00Z" };
+  data.accounts[0]!.freshness = "fresh";
+  data.accounts[1]!.windows = [
+    quotaWindow("five_hour", 40),
+    quotaWindow("seven_day", 90),
+  ];
+  data.accounts[1]!.freshness = "stale";
+  render(
+    <RouterPoolSelector
+      data={data}
+      provider="claude"
+      model="opus"
+      thinking="on:high"
+      value={{ sourceKey: "local", poolId: "work", accountId: "" }}
+      onChange={vi.fn()}
+      sourceKey="local"
+      busy={false}
+      error={false}
+      retry={vi.fn()}
+      disabled={false}
+    />,
+  );
+  // Opus is bounded by the 5h and weekly windows, not the Sonnet one.
+  expect(tightestRemaining(data.accounts[0]!, "claude-opus-4-8")).toBe(12);
+  expect(tightestRemaining(data.accounts[1]!, "claude-opus-4-8")).toBe(40);
+  expect(
+    dropdown("routerPool").getByRole("button", { name: "Work" }).title,
+  ).toBe(
+    "routerPoolManual · routerPoolCompatibleAccounts · routerPoolBestRemaining",
+  );
+  const metas = dropdown("routerAccount").getAllByTestId("meta");
+  expect(metas.map((m) => m.textContent)).toEqual([
+    "routerQuotaLinerouterQuotaLinerouterQuotaLine",
+    "routerQuotaLinerouterQuotaLinerouterQuotaStale",
+  ]);
+  expect(metas[0]!.firstElementChild!.getAttribute("title")).toBe(
+    "routerQuotaObservedTitle",
+  );
+});
+it("formats resets within a day as a time and later ones with the date", () => {
+  const now = Date.parse("2026-10-05T10:00:00Z");
+  expect(formatReset("2026-10-05T14:15:00Z", now)).not.toMatch(/Oct/);
+  expect(formatReset("2026-10-08T12:00:00Z", now)).toMatch(/Oct/);
 });
