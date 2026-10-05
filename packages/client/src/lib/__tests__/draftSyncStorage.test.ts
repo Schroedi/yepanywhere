@@ -976,6 +976,75 @@ describe("local-first snapshot synchronization", () => {
     expect(s.get().payload.fields.text).toBe("about hav");
     expect(mine.saved.raw).toBe(raw("about hav"));
   });
+  it("lets a change notice wait for the typing debounce", async () => {
+    const s = server(),
+      c = client(s);
+    c.start();
+    await c.refresh();
+    const reads = () =>
+      s.fetch.mock.calls.filter(([path]) => path === "/drafts/read").length;
+    localStorage.setItem(key, raw("abc"));
+    c.edit(key, raw("abc"));
+    // A sibling tab saved the same shared text.
+    s.remote("abc");
+    await c.refresh();
+    await vi.advanceTimersByTimeAsync(100);
+    expect(reads()).toBe(0);
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(reads()).toBe(1);
+  });
+  it("never restores a typed prefix from a read older than the sent draft", async () => {
+    const s = server(),
+      typing = client(s),
+      sibling = client(s);
+    const deliver = (to: DraftSyncClient, storageKey: string) =>
+      (to as unknown as { storage: (event: StorageEvent) => void }).storage(
+        new StorageEvent("storage", {
+          key: storageKey,
+          newValue: localStorage.getItem(storageKey),
+        }),
+      );
+    const type = (text: string) => {
+      localStorage.setItem(key, text);
+      typing.edit(key, text);
+      deliver(sibling, key);
+    };
+    const prefix = "the quick brown fox jumps over";
+    const sent = `${prefix} the lazy dog again`;
+    type(raw(prefix));
+    const mine = typing.register(key)!;
+    const theirs = sibling.register(key)!;
+    await typing.sync(mine);
+    // A busy background tab reads while the server still holds the prefix
+    // and handles the response only after the send has been cleared.
+    let releaseRead!: () => void;
+    const readHeld = new Promise<void>((resolve) => {
+      releaseRead = resolve;
+    });
+    const respond = s.fetch.getMockImplementation()!;
+    s.fetch.mockImplementationOnce(async (path, init) => {
+      const response = await respond(path, init);
+      await readHeld;
+      return response;
+    });
+    const staleSync = sibling.sync(theirs);
+    await vi.waitFor(() =>
+      expect(s.fetch.mock.calls.at(-1)?.[0]).toBe("/drafts/read"),
+    );
+    type(JSON.stringify({ version: 1, text: sent, pendingSendAt: Date.now() }));
+    await typing.confirm(key);
+    localStorage.removeItem(key);
+    typing.edit(key, null);
+    deliver(sibling, key);
+    deliver(sibling, metadataKey(key));
+    expect(s.get().payload).toEqual(EMPTY_DRAFT);
+    releaseRead();
+    await staleSync;
+    expect(localStorage.getItem(key)).toBeNull();
+    expect(theirs.saved.raw).toBeNull();
+    expect(theirs.remote).toBeUndefined();
+    expect(s.get().payload).toEqual(EMPTY_DRAFT);
+  });
   it("retries a failed browser write when the notice's retry is chosen", async () => {
     const s = server(),
       c = client(s);

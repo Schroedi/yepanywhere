@@ -33,7 +33,11 @@ the current editor text stays in memory and a storage failure is shown when the
 sync service is active. Keep that page open until storage works again.
 
 Background writes use a three-second quiet debounce and ten-second maximum
-wait during connected editing. Reconnect, window focus and foregrounding refresh
+wait during connected editing. A server change notice does not cut a pending
+debounce short: that save reads the server anyway. Preempting it turned each
+tab's save into the other tab's immediate save, so two tabs on one draft
+alternated writes on every keystroke (observed 2026-10-05: 682 accepted writes
+in an hour on one session draft). Reconnect, window focus and foregrounding refresh
 metadata. There is one source/account coordinator, with serialized saves per
 slot, coalesced refreshes and a bounded ten-second change long-poll. Stops abort
 requests and dispose listeners/timers. Session badges use paginated metadata;
@@ -104,7 +108,11 @@ build stored as a pending sibling merge is discarded on load.
 The tabs also share one acknowledged base, which never moves back: a tab
 reconciles against the newest base any sibling stored (by server sequence), a
 keystroke never rewrites sync metadata, and a Web Lock per slot serializes
-reconciliation across tabs where the browser provides one. Otherwise a tab
+reconciliation across tabs where the browser provides one. A server read older
+than that base (by server sequence) is discarded unmerged. Otherwise a slow
+tab's read of a prefix typed before a send, merged after the send was cleared,
+came back as another device's edit and refilled the sending tab's composer
+through shared storage (observed 2026-10-05). Otherwise a tab
 still holding an older base saw a sibling's save of the same text as a
 three-way conflict. Builds before the review UI then merged it unattended
 when no text field held focus, sending the first line twice as "server text,

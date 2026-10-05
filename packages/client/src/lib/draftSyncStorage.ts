@@ -743,6 +743,12 @@ export class DraftSyncClient {
       if (e.saved.submitted) return;
       e.remote = undefined;
       this.adoptSharedBase(e);
+      // A read answered before a newer acknowledged revision (this tab's or a
+      // sibling's) holds text the draft has already moved past, such as the
+      // prefix typed before a send that has since been cleared. Merged against
+      // that newer base, it would come back as another device's edit. The
+      // next change notification or edit reads again.
+      if (read.snapshot.sequence < (e.saved.base?.sequence ?? -1)) return;
       const local = payload(e.address, e.saved.raw);
       if (
         e.saved.base?.revision &&
@@ -1204,7 +1210,10 @@ export class DraftSyncClient {
           const e =
             this.entries.get(key) ??
             (observed(key) ? this.register(key) : null);
-          if (e && e.saved.base?.revision !== item.revision)
+          // A pending save reads the server anyway. Preempting its debounce
+          // made each tab's save a change notice that sent the other tab's
+          // save at once, so two tabs alternated writes on every keystroke.
+          if (e && !e.timer && e.saved.base?.revision !== item.revision)
             this.schedule(e, 0);
         }
         after = result.next ?? "";
