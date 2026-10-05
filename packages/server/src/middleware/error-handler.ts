@@ -34,7 +34,8 @@ function redactRequestPath(path: string): string {
 export function structuredErrorHandler(error: Error, c: Context): Response {
   // A router refusal is recoverable session feedback, not a YA login failure
   // or an unexpected server fault. Messages are generated locally, never
-  // copied from provider responses or socket/filesystem errors.
+  // copied from provider responses or socket/filesystem errors; at most they
+  // quote a short plain-text 4xx reason from the verified router socket.
   if (error instanceof RouterUnavailable) {
     return c.json({ error: error.message }, 409);
   }

@@ -38,7 +38,7 @@ async function fixture(
     revoked = false,
     failCommit = false,
     failCancel = false,
-    rejectPrepare = false,
+    rejectPrepare: string | false = false,
     enabled = true;
   const server = http.createServer(async (req, res) => {
     const chunks = [];
@@ -70,9 +70,9 @@ async function fixture(
       res.statusCode = 401;
       return res.end("{}");
     }
-    if (req.url === "/v1/pools/prepare" && rejectPrepare) {
+    if (req.url === "/v1/pools/prepare" && rejectPrepare !== false) {
       res.statusCode = 409;
-      return res.end("{}");
+      return res.end(JSON.stringify({ error: rejectPrepare }));
     }
     if (req.url === "/v1/pools/prepare")
       return res.end(
@@ -149,8 +149,10 @@ async function fixture(
     identity: () => {
       routerId = "replacement";
     },
-    rejectPoolPrepare: () => {
-      rejectPrepare = true;
+    rejectPoolPrepare: (
+      reason = "no eligible pool account; refresh usage or choose Manual",
+    ) => {
+      rejectPrepare = reason;
     },
     loseCommit: () => {
       failCommit = true;
@@ -616,7 +618,9 @@ describe.skipIf(process.platform === "win32")("pool launch recovery", () => {
         "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
         "round-robin",
       ),
-    ).rejects.toThrow();
+    ).rejects.toThrow(
+      "Router rejected the operation (no eligible pool account; refresh usage or choose Manual).",
+    );
     const restarted = new AgentAuthRouter(f.root, f.metadata);
     await expect(
       restarted.launch("rejected", "codex", "fixture-model"),
@@ -629,6 +633,31 @@ describe.skipIf(process.platform === "win32")("pool launch recovery", () => {
     expect(
       f.requests.filter((r) => r.path === "/v1/pools/prepare"),
     ).toHaveLength(1);
+  });
+  it("keeps unusual router refusal text out of session errors", async () => {
+    for (const reason of [
+      "token sk-ant-oat01-SECRET",
+      "see /Users/someone/.agent-auth-router",
+      "<b>markup</b>",
+      "x".repeat(161),
+    ]) {
+      const f = await fixture(true);
+      await f.connector.connect(f.socketPath);
+      f.rejectPoolPrepare(reason);
+      const error = await f.connector
+        .launch(
+          "rejected",
+          "codex",
+          "fixture-model",
+          undefined,
+          "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          "round-robin",
+        )
+        .catch((e: Error) => e);
+      expect((error as Error).message).toMatch(
+        /^Router rejected the operation\. /,
+      );
+    }
   });
   it("gates old AAR before new operations and serves the owner-only pool API", async () => {
     const old = await fixture();

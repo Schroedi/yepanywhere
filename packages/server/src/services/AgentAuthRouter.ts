@@ -117,6 +117,28 @@ function routerOffline() {
     "unavailable",
   );
 }
+/**
+ * Only 4xx policy refusals are the router's own decisions; 5xx bodies may
+ * describe upstream failures and stay generic. Accepted reasons are short
+ * plain text, so they cannot carry tokens, paths or markup.
+ */
+function rejectionReason(
+  status: number | undefined,
+  body: Buffer,
+): string | undefined {
+  if (!status || status < 400 || status >= 500) return undefined;
+  try {
+    const { error } = JSON.parse(body.toString()) as { error?: unknown };
+    if (
+      typeof error === "string" &&
+      /^[A-Za-z][A-Za-z ,;:'()-]{0,159}$/.test(error)
+    )
+      return error;
+  } catch {
+    /* Generic message below. */
+  }
+  return undefined;
+}
 /** No fetch fallback: control traffic can only use the verified Unix socket. */
 export async function routerRequest<T>(
   socketPath: string,
@@ -148,16 +170,21 @@ export async function routerRequest<T>(
         });
         response.on("error", () => reject(routerOffline()));
         response.on("end", () => {
-          if (response.statusCode !== 200)
+          if (response.statusCode !== 200) {
+            const reason = rejectionReason(
+              response.statusCode,
+              Buffer.concat(chunks),
+            );
             return reject(
               new RouterUnavailable(
                 response.statusCode ?? 503,
                 response.statusCode === 401
                   ? "Router connection revoked. Finish disconnecting in Settings → Providers, then reconnect for new sessions. Existing sessions cannot adopt a new pairing."
-                  : "Router rejected the operation. Check the pinned account and model in Settings → Providers, then retry. No account was substituted.",
+                  : `Router rejected the operation${reason ? ` (${reason})` : ""}. Check the pinned account and model in Settings → Providers, then retry. No account was substituted.`,
                 response.statusCode === 401 ? "revoked" : "operation-rejected",
               ),
             );
+          }
           try {
             resolveResult(JSON.parse(Buffer.concat(chunks).toString()) as T);
           } catch {
