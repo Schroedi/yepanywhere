@@ -42,6 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.contentType
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
@@ -62,6 +63,7 @@ fun YaHostManagementScreen(
     onEnablePush: (String) -> Unit = {},
 ) {
     val state by viewModel.state.collectAsState()
+    val uriHandler = LocalUriHandler.current
     var showAddServer by rememberSaveable { mutableStateOf(false) }
     var confirmForgetProfileId by rememberSaveable { mutableStateOf<String?>(null) }
 
@@ -182,7 +184,11 @@ fun YaHostManagementScreen(
                         }
                     }
                 },
-
+                actions = {
+                    TextButton(onClick = { uriHandler.openUri("https://graehlarts.com/privacy.html#yepanywhere") }) {
+                        Text(stringResource(R.string.privacy_policy))
+                    }
+                },
             )
         },
     ) { contentPadding ->

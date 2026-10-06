@@ -27,7 +27,10 @@ The graphic is branding, not a simulated app screenshot. Capture actual native
 apps against owned sample hosts for store screenshots; do not resize unrelated
 browser screenshots or expose real projects, credentials or notification tokens.
 Use the console's current accepted device sizes, including iPad for the
-universal iOS app. Real screenshot capture remains a later listing task.
+universal iOS app. The October 5 Android captures in
+[`android-screenshots/`](android-screenshots/) show the actual native app on an
+owned phone connected to the isolated synthetic reviewer server. iOS screenshots
+remain open.
 See [Google's preview asset requirements](https://support.google.com/googleplay/android-developer/answer/9866151)
 and [Apple's screenshot specifications](https://developer.apple.com/help/app-store-connect/reference/screenshot-specifications/).
 
@@ -57,8 +60,42 @@ Acceptance on the tester's updated Play installation remains open.
 iOS 0.1.0 / build 1 uploaded through Xcode's TestFlight Internal Only flow and
 now shows **Ready to Test** after saving the encryption questionnaire with
 France excluded. iOS tester enrollment remains open.
-Google Play category and contact settings remain open; Developer Tools is saved
-on Apple. Console links and account-specific inventory live in private dotfiles.
+Google Play's Tools category and public support contact are saved; Developer
+Tools is saved on Apple. Console links and account-specific inventory live in
+private dotfiles.
+
+### Android public setup, October 5–6
+
+Google Play's 11 app-setup tasks are complete as saved changes: privacy URL,
+no-ads/government/financial/health declarations, adult target audience, reviewer
+access instructions, content ratings, Data safety, category/contact and listing.
+The dedicated reviewer Linux VM uses the normal encrypted SRP relay login,
+fictional projects and a canned provider. The English listing is saved with
+both actual Android screenshots; the
+feature graphic is labeled as AI-assisted. Native Android authentication, sample
+history and persisted mock replies pass. Its container has no personal mounts
+or provider credentials; guest firewall, resource bounds, restart and cold boot
+acceptance pass. The reusable image and isolation contract are in
+[`docker/reviewer/`](../../../docker/reviewer/). Exact inventory, credentials,
+recovery and deployment journals remain private.
+
+The content-rating draft conservatively discloses unrestricted public share
+links and produces adult ratings, including Extreme Violence descriptors in
+some regions. The maintainer's content-policy decision remains open before
+public submission. Data safety includes startup notification identifiers and
+optional content/activity on the developer-owned evaluation server, with a
+deletion-request link. Server user creation is disclosed as username/password
+account support; the updated policy explains server-owner and broker/demo
+deletion requests. The publisher's [Yep Anywhere privacy policy](https://graehlarts.com/privacy.html#yepanywhere)
+and [account/data deletion instructions](https://graehlarts.com/privacy.html#yepanywhere-data-deletion)
+are live as of October 6. Play's privacy URL and both deletion URLs are saved
+with those public links. The public contact is `graehlarts@gmail.com`.
+
+Public release preparation remains in progress: integrate the local changes,
+build the new pre-login
+Android privacy link from committed source, and prepare countries and the
+reviewed open-testing release. Saving setup changes does not publish an open
+beta.
 
 A full public listing is not the first internal-testing prerequisite.
 [Google permits internal testing before completing app setup](https://support.google.com/googleplay/android-developer/answer/9845334).

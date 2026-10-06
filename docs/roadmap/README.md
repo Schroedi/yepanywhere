@@ -1,6 +1,6 @@
 # Roadmap
 
-Last updated: 2026-10-04.
+Last updated: 2026-10-05.
 
 This is Yep Anywhere's canonical product-priority overview. Keep initiative
 status, the next action, and major blockers here; keep implementation steps in
@@ -139,6 +139,16 @@ the viewer/download gap remain the next mobile release work.
   tester enrollment and production iOS push remain open. Android internal
   release delivery is available on explicit request; iOS release automation
   remains open. See [mobile store preparation](../distribution/mobile/README.md).
+  October 5 public Android setup saves category/contact, app-access instructions
+  and all 11 app-setup tasks, including content ratings and Data safety.
+  An isolated synthetic reviewer VM passes
+  native relay authentication, sample history, mock replies, restart and network
+  isolation checks. The listing now includes actual Android screenshots.
+  The publisher's [privacy and deletion policy](https://graehlarts.com/privacy.html#yepanywhere)
+  is live on October 6, with all three Play URLs saved against it.
+  The conservative adult rating awaits the maintainer's content-policy decision;
+  source integration, a signed privacy-link build
+  and a reviewed open-testing release remain prerequisites.
 - Native app CI now runs on relevant platform, shared mobile-core and packaging
   changes rather than ordinary web/server edits. Daily Android/iOS acceptance
   and the existing desktop nightly retain full shared-source coverage; manual
