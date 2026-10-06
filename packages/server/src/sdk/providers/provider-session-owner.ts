@@ -90,6 +90,7 @@ export interface ProviderSessionReadyMetadata {
   providerRetention: ProviderRetentionSnapshot;
   capabilities: {
     publishAgentSelfSelection?: boolean;
+    publishAgentSessionViews?: boolean;
     probeLiveness: boolean;
     getProviderActivity: boolean;
     getProviderRetention: boolean;
@@ -262,6 +263,7 @@ export class ProviderSessionOwner {
       providerRetention: this.providerRetention,
       capabilities: {
         publishAgentSelfSelection: Boolean(session.publishAgentSelfSelection),
+        publishAgentSessionViews: Boolean(session.publishAgentSessionViews),
         probeLiveness: Boolean(session.probeLiveness),
         getProviderActivity: Boolean(session.getProviderActivity),
         getProviderRetention: Boolean(session.getProviderRetention),
@@ -879,6 +881,10 @@ export class ProviderSessionOwner {
       case "publishAgentSelfSelection":
         return await session.publishAgentSelfSelection?.(
           args[0] as import("../../agent-tools/protocol.js").AgentSelfSelection,
+        );
+      case "publishAgentSessionViews":
+        return await session.publishAgentSessionViews?.(
+          args[0] as import("@yep-anywhere/shared").SessionClientView[],
         );
       case "drainQueue":
         return session.queue.drain();

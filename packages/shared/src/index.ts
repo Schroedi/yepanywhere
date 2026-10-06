@@ -1169,6 +1169,18 @@ export {
   isPublicSessionShareResponse,
 } from "./public-shares.js";
 export {
+  SESSION_VIEW_KINDS,
+  SESSION_VIEW_LIMITS,
+  isSessionClientView,
+  parseSessionViewPublication,
+} from "./session-view.js";
+export type {
+  SessionClientView,
+  SessionViewKind,
+  SessionViewPublication,
+  SessionViewViewer,
+} from "./session-view.js";
+export {
   findHtmlRootAssetReferences,
   PUBLIC_SHARE_MEDIA_ASSET_EXTENSIONS,
   resolveHtmlRootAssetPath,

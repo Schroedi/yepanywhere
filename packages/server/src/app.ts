@@ -259,6 +259,8 @@ import { createSessionDoneRoutes } from "./routes/session-done.js";
 import { createSessionIndexRoutes } from "./routes/session-index.js";
 import { createSessionTerminateRoutes } from "./routes/session-terminate.js";
 import { createContextBreakdownRoutes } from "./routes/context-breakdown.js";
+import { createSessionViewRoutes } from "./routes/session-view.js";
+import { agentSelfEnabled } from "./sdk/providers/agent-self.js";
 import { createSessionsRoutes } from "./routes/sessions.js";
 import { createSessionWakeRoutes } from "./routes/session-wake.js";
 import { createSettingsRoutes } from "./routes/settings.js";
@@ -2350,6 +2352,7 @@ export function createApp(options: AppOptions): AppResult {
     createVersionRoutes({
       getLatestVersion: options.getLatestVersion,
       installedMachineControlAvailable: supportsInstalledMachineControl(),
+      agentSessionViewAvailable: agentSelfEnabled(),
       agentAuthRouterAvailable:
         process.platform !== "win32" && Boolean(options.sessionMetadataService),
       getExperimentalConversationAvailable: () =>
@@ -2686,6 +2689,11 @@ export function createApp(options: AppOptions): AppResult {
     }),
   );
   app.route("/api/sessions", createContextBreakdownRoutes({ supervisor }));
+  if (agentSelfEnabled())
+    app.route(
+      "/api/sessions",
+      createSessionViewRoutes({ sessionViews: supervisor.sessionViews }),
+    );
   app.route(
     "/api",
     createToolResultMediaRoutes({

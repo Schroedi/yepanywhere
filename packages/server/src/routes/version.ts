@@ -652,6 +652,8 @@ export interface VersionRouteOptions {
   providerHostControlAvailable?: boolean;
   /** Installed MC readiness route is mounted on this supported host. */
   installedMachineControlAvailable?: boolean;
+  /** Agent self inspection is enabled, so tabs' session views are collected. */
+  agentSessionViewAvailable?: boolean;
   agentAuthRouterAvailable?: boolean;
   /** Whether the operator enabled experimental live worktree monitoring. */
   isLiveWorktreeMonitoringEnabled?: () => boolean;
@@ -717,6 +719,8 @@ export function getServerCapabilities(options?: VersionRouteOptions): string[] {
   }
   if (options?.installedMachineControlAvailable)
     capabilities.push(SERVER_CAPABILITIES.installedMachineControl.name);
+  if (options?.agentSessionViewAvailable)
+    capabilities.push(SERVER_CAPABILITIES.agentSessionView.name);
   capabilities.push(SERVER_CAPABILITIES.claudeGatewayServices.name);
   if (options?.getExperimentalConversationAvailable?.())
     capabilities.push(SERVER_CAPABILITIES.experimentalConversation.name);

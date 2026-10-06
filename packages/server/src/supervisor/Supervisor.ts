@@ -60,6 +60,7 @@ import {
 import { CacheMissBillingMonitor } from "../services/CacheMissBillingMonitor.js";
 import type { DirtyFileEditorService } from "../services/DirtyFileEditorService.js";
 import type { SessionQueuePersistenceService } from "../services/SessionQueuePersistenceService.js";
+import { SessionViewRegistry } from "../services/SessionViewRegistry.js";
 import type {
   AgentProvider,
   ProviderForkBoundary,
@@ -694,6 +695,10 @@ export class Supervisor {
   >();
   private processes: Map<string, Process> = new Map();
   private sessionToProcess: Map<string, string> = new Map(); // sessionId -> processId
+  /** Browser tabs' views of each session, forwarded to its live provider owner. */
+  readonly sessionViews = new SessionViewRegistry((sessionId, views) =>
+    this.getProcessForSession(sessionId)?.publishAgentSessionViews(views),
+  );
   private terminalProviderStatuses = createLruMap<
     string,
     Extract<Exclude<ProviderRuntimeStatus, null>, { kind: "terminal" }>
@@ -1512,6 +1517,7 @@ export class Supervisor {
       },
       setMaxThinkingTokensFn: setMaxThinkingTokens,
       publishAgentSelfSelectionFn: result.publishAgentSelfSelection,
+      publishAgentSessionViewsFn: result.publishAgentSessionViews,
       setEffortFn: setEffort,
       effortUpdatesActiveTurn: result.effortUpdatesActiveTurn,
       setServiceTierFn: result.setServiceTier,
@@ -2319,6 +2325,7 @@ export class Supervisor {
       },
       setMaxThinkingTokensFn: setMaxThinkingTokens,
       publishAgentSelfSelectionFn: result.publishAgentSelfSelection,
+      publishAgentSessionViewsFn: result.publishAgentSessionViews,
       setEffortFn: setEffort,
       effortUpdatesActiveTurn: result.effortUpdatesActiveTurn,
       setServiceTierFn: result.setServiceTier,
@@ -2614,6 +2621,7 @@ export class Supervisor {
         },
         setMaxThinkingTokensFn: setMaxThinkingTokens,
         publishAgentSelfSelectionFn: result.publishAgentSelfSelection,
+        publishAgentSessionViewsFn: result.publishAgentSessionViews,
         setEffortFn: setEffort,
         effortUpdatesActiveTurn: result.effortUpdatesActiveTurn,
         setServiceTierFn: result.setServiceTier,
@@ -2938,6 +2946,7 @@ export class Supervisor {
         },
         setMaxThinkingTokensFn: setMaxThinkingTokens,
         publishAgentSelfSelectionFn: result.publishAgentSelfSelection,
+        publishAgentSessionViewsFn: result.publishAgentSessionViews,
         setEffortFn: setEffort,
         effortUpdatesActiveTurn: result.effortUpdatesActiveTurn,
         setServiceTierFn: result.setServiceTier,
@@ -5851,6 +5860,9 @@ export class Supervisor {
           this.recapPausedSessionIds.add(event.newSessionId);
         }
         this.sessionToProcess.set(event.newSessionId, process.id);
+        process.publishAgentSessionViews(
+          this.sessionViews.views(event.newSessionId),
+        );
         try {
           this.issueSessionRemapObserver?.(
             event.oldSessionId,
@@ -6035,6 +6047,9 @@ export class Supervisor {
     this.processes.set(process.id, process);
     this.sessionToProcess.set(process.sessionId, process.id);
     this.everOwnedSessions.add(process.sessionId);
+    process.publishAgentSessionViews(
+      this.sessionViews.views(process.sessionId),
+    );
     this.sessionDone.recoverPendingDone(process);
     this.onProcessInventoryChanged?.();
 

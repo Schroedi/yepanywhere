@@ -24,6 +24,8 @@ interface SessionViewerBase {
   label: string;
   briefLabel?: string;
   closeAction?: SessionViewerCloseAction;
+  /** Set when the session's own output opened it; absent means a user gesture. */
+  openedBy?: "session";
 }
 
 export interface PanelViewerRegistration extends SessionViewerBase {
@@ -56,6 +58,8 @@ export type SessionViewerRegistration =
   | (SessionViewerBase & {
       kind: "vhost";
       url: string;
+      /** The loopback URL the agent printed, before vhost rewriting. */
+      sourceUrl?: string;
       onClose?: never;
       artifactToken?: string;
     })

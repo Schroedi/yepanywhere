@@ -732,6 +732,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "process-service-tier-change",
     introducedIn: "0.9.4",
   },
+  agentSessionView: {
+    id: 119,
+    direction: "server",
+    name: "agent-session-view",
+    introducedIn: "0.9.4",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [

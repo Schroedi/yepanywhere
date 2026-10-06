@@ -262,6 +262,9 @@ export interface StartSessionResult {
   publishAgentSelfSelection?: (
     selection: import("../agent-tools/protocol.js").AgentSelfSelection,
   ) => void | Promise<void>;
+  publishAgentSessionViews?: (
+    views: readonly import("@yep-anywhere/shared").SessionClientView[],
+  ) => void | Promise<void>;
   iterator: AsyncIterableIterator<SDKMessage>;
   queue: AgentMessageQueue;
   /**

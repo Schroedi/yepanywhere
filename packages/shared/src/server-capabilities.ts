@@ -37,6 +37,11 @@ export const OPTIONAL_SERVER_CAPABILITY_BIT_ALLOCATIONS = {
     index: CAPABILITY_ID_ALLOCATIONS.agentAuthRouter.id,
     introducedIn: "0.9.4",
   },
+  agentSessionView: {
+    name: "agent-session-view",
+    index: CAPABILITY_ID_ALLOCATIONS.agentSessionView.id,
+    introducedIn: "0.9.4",
+  },
   installedMachineControl: {
     name: "installed-machine-control",
     index: CAPABILITY_ID_ALLOCATIONS.installedMachineControl.id,
@@ -254,6 +259,34 @@ export interface ServerCapabilityDefinition {
 }
 
 export const SERVER_CAPABILITIES = {
+  agentSessionView: {
+    id: CAPABILITY_ID_ALLOCATIONS.agentSessionView.id,
+    name: "agent-session-view",
+    kind: "permanent",
+    area: "sessions",
+    introducedIn: "0.9.4",
+    advertisement: {
+      kind: "optional-bit",
+      index: CAPABILITY_ID_ALLOCATIONS.agentSessionView.id,
+    },
+    description:
+      "Accepts each tab's report of the app, artifact or file it shows beside a session, so `ya-agent view` can tell the session's agent what the user has open.",
+    clientFallback:
+      "Publish nothing; the agent's `ya-agent view` stays unavailable or reports no clients.",
+    serverContract: {
+      routeModules: ["packages/server/src/routes/session-view.ts"],
+      routes: [
+        "PUT /api/sessions/:sessionId/view",
+        "DELETE /api/sessions/:sessionId/view/:clientId",
+      ],
+      requestFields: ["clientId", "device", "focused", "viewers"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "Advertised only while the operator enables agent self inspection, so clients publish nowhere it is not collected.",
+    },
+  },
   agentAuthRouterMostRemaining: {
     id: CAPABILITY_ID_ALLOCATIONS.agentAuthRouterMostRemaining.id,
     name: "agent-auth-router-most-remaining",

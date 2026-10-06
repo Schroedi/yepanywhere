@@ -1484,6 +1484,22 @@ export const api = {
       body: JSON.stringify(config),
     }),
 
+  /** Gated by the agent-session-view capability. */
+  publishSessionView: (
+    sessionId: string,
+    publication: import("@yep-anywhere/shared").SessionViewPublication,
+  ) =>
+    fetchJSON<{ ok: true }>(`/sessions/${encodeURIComponent(sessionId)}/view`, {
+      method: "PUT",
+      body: JSON.stringify(publication),
+    }),
+
+  departSessionView: (sessionId: string, clientId: string) =>
+    fetchJSON<{ ok: true }>(
+      `/sessions/${encodeURIComponent(sessionId)}/view/${encodeURIComponent(clientId)}`,
+      { method: "DELETE" },
+    ),
+
   getSessionContextBreakdown: (sessionId: string) =>
     fetchJSON<{ breakdown: ContextBreakdown | null }>(
       `/sessions/${encodeURIComponent(sessionId)}/context-breakdown`,

@@ -48,6 +48,7 @@ interface HostResponse<T> {
 
 interface WorkerCapabilities {
   publishAgentSelfSelection?: boolean;
+  publishAgentSessionViews?: boolean;
   probeLiveness: boolean;
   getProviderActivity: boolean;
   getProviderRetention: boolean;
@@ -1368,6 +1369,12 @@ class HostedAgentSession {
         ? {
             publishAgentSelfSelection: (selection) =>
               this.rpc<void>("publishAgentSelfSelection", [selection]),
+          }
+        : {}),
+      ...(capabilities.publishAgentSessionViews
+        ? {
+            publishAgentSessionViews: (views) =>
+              this.rpc<void>("publishAgentSessionViews", [views]),
           }
         : {}),
       publishAgentctlSessionId: async (sessionId, browserDebugEnvironment) => {

@@ -83,6 +83,7 @@ import {
   SessionAppAction,
 } from "../components/SessionRightPane";
 import { useSessionRightPane } from "../hooks/useSessionRightPane";
+import { useSessionViewPublication } from "../hooks/useSessionViewPublication";
 import { useSessionThinkingSelection } from "../hooks/useSessionThinkingSelection";
 import { ProjectAppViewer } from "../components/ProjectAppViewer";
 import type { VoiceInputButtonRef } from "../components/VoiceInputButton";
@@ -596,7 +597,12 @@ function SessionPageContent({
   const [projectAppOpen, setProjectAppOpen] = useState(!!navState.projectApp);
   // Full view hides the session and sidebar behind the app until Back.
   const [projectAppFull, setProjectAppFull] = useState(false);
+  // Which side last opened it, for the agent's view report.
+  const [projectAppOpenedBy, setProjectAppOpenedBy] = useState<
+    "session" | "user"
+  >("user");
   const projectAppPress = useLongPress(() => {
+    setProjectAppOpenedBy("user");
     setProjectAppOpen(true);
     setProjectAppFull(true);
   });
@@ -782,7 +788,10 @@ function SessionPageContent({
     projectId,
     projectServiceSupported,
     processState === "in-turn" || processState === "waiting-input",
-    () => setProjectAppOpen(true),
+    () => {
+      setProjectAppOpenedBy("session");
+      setProjectAppOpen(true);
+    },
   );
   const projectAppEnabled =
     projectServiceSupported && (!!projectAppTarget || projectDeclaresApp);
@@ -802,6 +811,17 @@ function SessionPageContent({
     !isDomLingerParked && !loading,
     sessionId,
     { projectId, fetchAppLinks: canUseBearerGrants },
+  );
+  useSessionViewPublication(
+    sessionId,
+    !isDomLingerParked && !loading,
+    projectAppEnabled && projectAppOpen
+      ? {
+          target: projectAppTarget,
+          full: projectAppFull,
+          openedBy: projectAppOpenedBy,
+        }
+      : null,
   );
   useEffect(() => {
     if (rightPane.paneViewer?.id) setProjectAppOpen(false);
@@ -5874,6 +5894,7 @@ function SessionPageContent({
                   {...projectAppPress.handlers}
                   onClick={projectAppPress.click(() => {
                     setProjectAppFull(false);
+                    setProjectAppOpenedBy("user");
                     setProjectAppOpen((value) => !value);
                   })}
                 >

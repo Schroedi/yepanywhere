@@ -17,6 +17,16 @@ none has the file-vhost routes. Without the new bit, replacement stays hidden
 and file addresses remain administrator-only. ID 105 retains its original
 meaning. Standing maintainer compatibility authorization applies.
 
+`agent-session-view` (permanent ID 119, explicit optional bit) owns
+`PUT /api/sessions/:sessionId/view` and
+`DELETE /api/sessions/:sessionId/view/:clientId`, through which a tab reports
+what it shows beside a session for `ya-agent view`. It is advertised only
+while `YEP_AGENT_SELF` is enabled. The 2026-10-06 optional release review
+checked v0.9.0, v0.9.1 and v0.9.2; none has the routes. Without the bit,
+clients report nothing and make no request. No existing capability changes
+meaning. Standing maintainer compatibility authorization applies. See
+[view inspection](agent-self.md#view-inspection).
+
 ## Most remaining router policy
 
 `agent-auth-router-most-remaining` (permanent optional ID 117) adds negotiated

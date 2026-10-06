@@ -341,6 +341,10 @@ export interface AgentSession {
   publishAgentSelfSelection?: (
     selection: import("../../agent-tools/protocol.js").AgentSelfSelection,
   ) => void | Promise<void>;
+  /** Replace the per-client views served to the agent by `ya-agent view`. */
+  publishAgentSessionViews?: (
+    views: readonly import("@yep-anywhere/shared").SessionClientView[],
+  ) => void | Promise<void>;
   /** Async iterator yielding SDK messages */
   iterator: AsyncIterableIterator<SDKMessage>;
   /** Message queue for sending messages to the agent */

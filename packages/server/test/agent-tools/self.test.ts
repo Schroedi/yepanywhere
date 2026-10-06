@@ -31,13 +31,19 @@ async function leaseFor(id: string) {
     model: "alias",
     effort: "low",
   });
-  const lease = await createAgentSelfLease((launchId) =>
-    state.snapshot(launchId),
-  );
+  const lease = await createAgentSelfLease({
+    self: (launchId) => state.snapshot(launchId),
+    view: () => state.viewSnapshot(),
+  });
   leases.push(lease);
   return { lease, state };
 }
-async function command(lease: AgentSelfLease, sessionId: string, extra = {}) {
+async function command(
+  lease: AgentSelfLease,
+  sessionId: string,
+  extra = {},
+  args = "self --json",
+) {
   const env = {
     ...process.env,
     ...lease.environment,
@@ -48,8 +54,8 @@ async function command(lease: AgentSelfLease, sessionId: string, extra = {}) {
   return await run(
     process.platform === "win32" ? "cmd.exe" : "sh",
     process.platform === "win32"
-      ? ["/d", "/s", "/c", "ya-agent self --json"]
-      : ["-c", "ya-agent self --json"],
+      ? ["/d", "/s", "/c", `ya-agent ${args}`]
+      : ["-c", `ya-agent ${args}`],
     { env, timeout: 10000 },
   );
 }
@@ -176,6 +182,109 @@ describe("ya-agent self real command/service", () => {
     expect(existsSync(directory)).toBe(false);
   });
 
+  it("reports each tab's view separately and selects the most recently focused", async () => {
+    const { lease, state } = await leaseFor("viewed-session");
+    expect(
+      JSON.parse(
+        (await command(lease, "viewed-session", {}, "view --json")).stdout,
+      ),
+    ).toMatchObject({
+      sessionId: "viewed-session",
+      selectedClientId: null,
+      selection: "none",
+      clients: [],
+    });
+    const app = {
+      kind: "app",
+      label: "review",
+      target: "http://localhost:19432/",
+      url: "https://review.example.test/",
+      openedBy: "session",
+      state: "open",
+      placement: "right-pane",
+    } as const;
+    state.publishViews([
+      {
+        clientId: "phone-tab",
+        device: "Android",
+        focused: false,
+        viewers: [],
+        publishedAt: "2026-10-06T10:00:02.000Z",
+        focusedAt: "2026-10-06T10:00:00.000Z",
+      },
+      {
+        clientId: "desk-tab",
+        device: "Linux",
+        focused: true,
+        viewers: [app],
+        publishedAt: "2026-10-06T10:00:01.000Z",
+        focusedAt: "2026-10-06T10:00:01.000Z",
+      },
+    ]);
+    const report = JSON.parse(
+      (await command(lease, "viewed-session", {}, "view --json")).stdout,
+    );
+    expect(report).toMatchObject({
+      selectedClientId: "desk-tab",
+      selection: "most-recently-focused",
+      clients: [
+        { clientId: "desk-tab", viewers: [app] },
+        { clientId: "phone-tab", viewers: [] },
+      ],
+    });
+    const human = (await command(lease, "viewed-session", {}, "view")).stdout;
+    expect(human).toContain('app "review": http://localhost:19432/');
+    expect(human).toContain("opened by session");
+    expect(human).not.toContain("phone-tab");
+    expect(human).toContain("1 other tab(s)");
+    const all = (await command(lease, "viewed-session", {}, "view --all"))
+      .stdout;
+    expect(all).toContain("Client phone-tab (Android): last focused");
+    expect(all).toContain("Transcript only");
+    await expect(
+      command(lease, "viewed-session", {}, "view --verbose"),
+    ).rejects.toMatchObject({ code: 2 });
+  });
+
+  it("forwards supervisor views through the owning-session proxy", async () => {
+    let environment: Record<string, string> | undefined;
+    let report: unknown;
+    const session = await startAgentSelfSession(
+      "claude",
+      { cwd: ".", agentSelf: true, resumeSessionId: "proxied-session" },
+      async (options) => {
+        environment = options.agentEnvironment;
+        return {
+          queue: new MessageQueue(),
+          abort() {},
+          iterator: (async function* () {})(),
+        };
+      },
+    );
+    await session.publishAgentSessionViews?.([
+      {
+        clientId: "only-tab",
+        device: "Mac",
+        focused: true,
+        viewers: [],
+        publishedAt: "2026-10-06T10:00:00.000Z",
+        focusedAt: "2026-10-06T10:00:00.000Z",
+      },
+    ]);
+    try {
+      const response = await fetch(`${environment?.AGENT_YA_API_URL}/v1/view`, {
+        headers: { Authorization: `Bearer ${environment?.AGENT_YA_API_TOKEN}` },
+      });
+      report = await response.json();
+    } finally {
+      await session.abort();
+    }
+    expect(report).toMatchObject({
+      sessionId: "proxied-session",
+      selectedClientId: "only-tab",
+    });
+  });
+
   it("reports provider default separately from unknown evidence", () => {
     const state = new AgentSelfState("codex", {
       cwd: ".",
@@ -194,12 +303,16 @@ describe("ya-agent self real command/service", () => {
   });
 
   it("rejects an unbound session and exposes no other API", async () => {
-    const lease = await createAgentSelfLease(() => null);
-    leases.push(lease);
-    await expect(command(lease, "early")).rejects.toMatchObject({
-      code: 5,
-      stdout: expect.stringContaining("session-not-ready"),
+    const lease = await createAgentSelfLease({
+      self: () => null,
+      view: () => null,
     });
+    leases.push(lease);
+    for (const args of ["self --json", "view --json"])
+      await expect(command(lease, "early", {}, args)).rejects.toMatchObject({
+        code: 5,
+        stdout: expect.stringContaining("session-not-ready"),
+      });
     const response = await fetch(
       `${lease.environment.AGENT_YA_API_URL}/api/settings`,
       {

@@ -916,6 +916,10 @@ export interface ProcessConstructorOptions extends ProcessOptions {
   publishAgentSelfSelectionFn?: (
     selection: import("../agent-tools/protocol.js").AgentSelfSelection,
   ) => void | Promise<void>;
+  /** Replace the per-client views the optional owning-session projection serves. */
+  publishAgentSessionViewsFn?: (
+    views: readonly import("@yep-anywhere/shared").SessionClientView[],
+  ) => void | Promise<void>;
   /** Whether effort changes can be published into an active provider turn. */
   effortUpdatesActiveTurn?: boolean;
   /** Function to interrupt current turn gracefully (SDK 0.2.7+) */
@@ -1123,6 +1127,7 @@ export class Process {
   private setServiceTierFn: ((serviceTier?: string) => Promise<void>) | null;
   /** Publish selected/pending settings to the optional owning-session projection. */
   private publishAgentSelfSelectionFn: ProcessConstructorOptions["publishAgentSelfSelectionFn"];
+  private publishAgentSessionViewsFn: ProcessConstructorOptions["publishAgentSessionViewsFn"];
   private effortUpdatesActiveTurn: boolean;
 
   /** Function to interrupt current turn gracefully (SDK 0.2.7+) */
@@ -1308,6 +1313,7 @@ export class Process {
     this.setEffortFn = options.setEffortFn ?? null;
     this.setServiceTierFn = options.setServiceTierFn ?? null;
     this.publishAgentSelfSelectionFn = options.publishAgentSelfSelectionFn;
+    this.publishAgentSessionViewsFn = options.publishAgentSessionViewsFn;
     this.effortUpdatesActiveTurn = options.effortUpdatesActiveTurn === true;
     this.interruptFn = options.interruptFn ?? null;
     this.steerFn = options.steerFn ?? null;
@@ -5836,6 +5842,30 @@ export class Process {
       // In real implementation with MessageQueue, this happens automatically
       // For mock SDK, we just transition back to running
       this.transitionToInTurnForWake("user-message");
+    }
+  }
+
+  /**
+   * Hand the session's current client views to the provider owner. A failed
+   * hand-off leaves the agent the previous views until the next publication.
+   */
+  publishAgentSessionViews(
+    views: readonly import("@yep-anywhere/shared").SessionClientView[],
+  ): void {
+    if (!this.publishAgentSessionViewsFn) return;
+    const fail = (error: unknown) =>
+      getLogger().debug(
+        {
+          event: "agent_session_views_publish_failed",
+          sessionId: this._sessionId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        "Agent session view publication failed",
+      );
+    try {
+      void Promise.resolve(this.publishAgentSessionViewsFn(views)).catch(fail);
+    } catch (error) {
+      fail(error);
     }
   }
 

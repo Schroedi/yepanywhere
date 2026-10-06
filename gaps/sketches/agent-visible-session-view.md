@@ -9,20 +9,25 @@ own last printout.
 [Project app entry points](project-app-entry-points.md) names the manual-switch
 case. An [MCP App view](mcp-apps-host.md) would add more such state.
 
-A crux comes before any transport: the server does not have this state. Pane
-contents and the Appearance setting are browser-local, and several clients may
-show the same session differently. To report anything, clients must first
-publish their view, for example `{viewer kind, target (vhost app, artifact
-grant, project file, MCP App view), opened-by: session|user, client id, last
-focus time}`. The report then names which client it describes, by default the
-one most recently focused on this session. It must not merge clients into one
-fictitious view.
+**Status (2026-10-06): the pull read through the shell is implemented.**
+Tabs publish their views, the server forwards them to the provider owner, and
+`ya-agent view` reports them per tab with a default selection; the contract is
+[agent self § View inspection](../../topics/agent-self.md#view-inspection).
+It reaches only launches that `ya-agent self` reaches (local Claude variants
+and bypass-permission Codex, with `YEP_AGENT_SELF`). What remains below is
+the non-shell adapters, an MCP App view kind, and the push notice.
+
+The crux was that the server does not have this state: pane contents and the
+Appearance setting are browser-local, and several clients may show the same
+session differently. Clients now publish `{kind, label, target, url,
+openedBy, state, placement}` per viewer with a per-tab id and focus time, and
+the report never merges clients. An MCP App view would be a new `kind`.
 
 **Pull before push.** The read belongs in one service API, per the
 [agent command runtime](../../topics/agent-command-runtime.sketches.md#decision-summary)
-layering. Its first consumer is a `ya-agent` read beside the existing
+layering. Its first consumer, now built, is `ya-agent view` beside
 `ya-agent self` ([agent self](../../topics/agent-self.md)), which reaches any
-provider that has a shell. Other adapters call the same API:
+eligible provider that has a shell. Other adapters would call the same API:
 
 - **MCP server.** This is the generic answer to "can Codex see it via MCP".
   YA would inject a per-session server, for example

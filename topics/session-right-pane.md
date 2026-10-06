@@ -28,6 +28,9 @@ See also:
   dispatch and isolated origins for loopback HTTP apps.
 - [`settings-ui-placement.md`](settings-ui-placement.md) — Appearance
   category; browser-local persistence.
+- [`agent-self.md`](agent-self.md#view-inspection) — with agent self
+  inspection enabled, each tab reports the pane's viewer so the session's
+  agent can read it with `ya-agent view`.
 
 ## Product
 
