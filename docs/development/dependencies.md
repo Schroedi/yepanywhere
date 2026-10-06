@@ -55,6 +55,23 @@ to 3.2.2 within its declared range, above the 3.2.1 patch floor for
 and [prototype-named headers](https://github.com/advisories/GHSA-x8mw-p69m-v3mx).
 Unrelated resolutions and advisory exclusions remain unchanged.
 
+The 2026-10-06 CI audit repair moves three transitive edges within their
+parents' declared ranges: the MCP SDK's `express -> proxy-addr` to 2.0.8
+([IPv4-mapped IP spoofing](https://github.com/advisories/GHSA-jqcg-44mw-7w3h)),
+`postcss -> source-map-js` to 1.2.2
+([event-loop denial of service](https://github.com/advisories/GHSA-68fv-2mgg-jv7q)),
+and the relay's `pino-pretty -> fast-copy` to 4.1.2
+([stack exhaustion](https://github.com/advisories/GHSA-jggr-w7fw-pc2j)).
+`pnpm -r update --depth=Infinity` also re-resolved unrelated jsdom CSS
+dependencies, so these were moved with temporary exact overrides that were
+then removed. [KaTeX's prototype-pollution gadget](https://github.com/advisories/GHSA-238p-pmpm-9mq7)
+is patched only in 0.18.2, outside mermaid's `^0.16.47` range (12.1.0 too),
+so the scoped `"mermaid>katex": "^0.18.6"` override shares the 0.18 copy the
+client and server already use. Mermaid calls only `renderToString` with
+`throwOnError`, `displayMode` and `output`, untouched by the 0.17 and 0.18
+breaking changes. Drop the override when mermaid declares a patched KaTeX.
+No new advisory exclusions are added.
+
 ### Install-script allowlist
 
 Dependency install scripts (preinstall/install/postinstall) are blocked by
