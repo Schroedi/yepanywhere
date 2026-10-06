@@ -39,6 +39,24 @@ provider that has a shell. Other adapters call the same API:
   It needs no config injection, network listener or MCP lockdown exception,
   but it reaches only Codex.
 
+The same read reaches the other providers through their own native hooks:
+
+- **Claude.** The Agent SDK in this tree (0.3.283) offers an in-process MCP
+  server through `createSdkMcpServer`. This is the Claude counterpart of Codex
+  dynamic tools: no listener, no credential, and the tools appear as
+  `mcp__ya__*`. Sandboxed launches set `mcpServers: {}` and disallow `mcp__*`
+  (`packages/server/src/sdk/providers/claude.ts`). Allowing YA's in-process
+  server through that lockdown is a deliberate exception that needs its own
+  decision. It is not network-reachable, but it is still a new tool authority.
+- **pi.** YA already loads a bundled extension into every pi session
+  (`packages/server/src/sdk/providers/pi-yep-anywhere-extension.mjs`).
+  `pi.registerTool()` there can expose the read. pi has no MCP by design, so
+  this extension and the shell command are its only adapters.
+- **ACP agents (Gemini, Grok).** Session creation takes `mcpServers`, and YA
+  passes `[]` (`packages/server/src/sdk/providers/acp/client.ts`). Passing the
+  per-session YA MCP server gives the read to every ACP agent at once.
+- **Any harness with a shell.** The `ya-agent` command, with no adapter.
+
 A push variant notifies the agent only when the user, not the session, changes
 the view. The notice is appended before the next user turn and is never an
 injected turn per switch. It must pass the cost and placement review in
