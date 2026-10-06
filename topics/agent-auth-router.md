@@ -213,6 +213,15 @@ configuration files. Routed Claude spawn diagnostics omit arguments and stderr
 because SDK flag settings can contain the inference token. Control responses,
 REST payloads and public runtime metadata do not include tokens.
 
+Routed Claude sets `ENABLE_TOOL_SEARCH=true`. Claude Code otherwise disables
+tool search for any non-Anthropic `ANTHROPIC_BASE_URL` and sends every tool
+definition in full. AAR forwards the request body and `anthropic-*` headers, and
+a live pool session on 2026-10-06 deferred and loaded MCP tools through it.
+claude.ai connectors never load in routed sessions: the flag settings set
+`disableClaudeAiConnectors`, and Claude Code also skips them whenever the routed
+auth token takes precedence over the claude.ai login. User-scope MCP servers in
+the native `~/.claude.json` do load.
+
 The private Unix socket is the owner bootstrap boundary. Its directory/socket
 must be private, owned by the YA user and not symlinks. AAR control is separate
 from loopback inference, with distinct credential namespaces. New control

@@ -545,6 +545,7 @@ it("native transport overrides carry no token in Codex arguments or ambient muta
     ANTHROPIC_AUTH_TOKEN: route.token,
     ANTHROPIC_API_KEY: "",
     CLAUDE_CODE_OAUTH_TOKEN: "",
+    ENABLE_TOOL_SEARCH: "true",
   });
 });
 
