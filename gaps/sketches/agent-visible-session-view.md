@@ -98,6 +98,24 @@ travels as turn text, it reaches every provider, including launches with no
 `ya-agent` grant or shell. That makes the gesture useful without the pull
 read.
 
+**Shrink the notice when the agent already pulls.** The service can observe
+that a session reads its view: a `/v1/view` request under that session's
+grant now, an MCP or dynamic-tool read later. Recording a last-read time per
+grant costs no timer. When reads show the agent is attending to the view
+channel, the notice can carry less:
+
+- **Toolbar mode:** send nothing. The agent pulls when the user's words point
+  at the view, and the per-switch push existed only for agents that would
+  not.
+- **One-time gesture:** keep a short pointer, such as "the user pointed at
+  the open viewer; `ya-agent view` has it", in place of the full viewer
+  record. The gesture says the user wants attention now, and a habit of past
+  reads does not prove the agent will read before its next answer.
+
+Without that evidence, or for a provider with no pull adapter, the notice
+stays complete. This is a heuristic about cost. It never makes the pull read
+a precondition for the gesture working.
+
 **Out of scope here:** publishing YA's own viewers as `ui://` MCP App
 resources so that ChatGPT or Codex Desktop could embed them. That direction
 reverses the host and the server and has no current consumer.
