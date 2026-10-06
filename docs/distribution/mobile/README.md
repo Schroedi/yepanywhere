@@ -67,7 +67,7 @@ private dotfiles.
 ### Android public setup, October 5–6
 
 Google Play's 11 app-setup tasks are complete as saved changes: privacy URL,
-no-ads/government/financial/health declarations, adult target audience, reviewer
+no-ads/government/financial/health declarations, target audience, reviewer
 access instructions, content ratings, Data safety, category/contact and listing.
 The dedicated reviewer Linux VM uses the normal encrypted SRP relay login,
 fictional projects and a canned provider. The English listing is saved with
@@ -79,10 +79,10 @@ acceptance pass. The reusable image and isolation contract are in
 [`docker/reviewer/`](../../../docker/reviewer/). Exact inventory, credentials,
 recovery and deployment journals remain private.
 
-The content-rating draft conservatively discloses unrestricted public share
-links and produces adult ratings, including Extreme Violence descriptors in
-some regions. The maintainer's content-policy decision remains open before
-public submission. Data safety includes startup notification identifiers and
+The maintainer reviewed and saved an all-ages content rating on October 6.
+Preserve those answers; the earlier adult-content interpretation incorrectly
+treated arbitrary user content as supplied graphic content. Data safety includes
+startup notification identifiers and
 optional content/activity on the developer-owned evaluation server, with a
 deletion-request link. Server user creation is disclosed as username/password
 account support; the updated policy explains server-owner and broker/demo
@@ -91,11 +91,19 @@ and [account/data deletion instructions](https://graehlarts.com/privacy.html#yep
 are live as of October 6. Play's privacy URL and both deletion URLs are saved
 with those public links. The public contact is `graehlarts@gmail.com`.
 
-Public release preparation remains in progress: integrate the local changes,
-build the new pre-login
-Android privacy link from committed source, and prepare countries and the
-reviewed open-testing release. Saving setup changes does not publish an open
-beta.
+The beta source is committed and integrated with current main at `7ea72be0c`.
+Open testing has unlimited enrollment, 177 selected countries/regions with
+France excluded, and `graehlarts@gmail.com` for feedback. Advertising ID use is
+declared absent, matching the native app and merged manifest. Open beta 1 is
+saved as **Ready to release** with signed code `57901` / `0.1.2-ci.479.1`, English
+notes, and the native pre-login privacy link. The candidate comes from the
+passing build/lint/inspection gate in
+[Android CI 37416431327](https://github.com/kzahel/yepanywhere/actions/runs/37416431327).
+Its WebView instrumentation and Play quick checks remain in progress. Publishing
+overview has the release and setup changes ready for review; none has been sent.
+The separate intended-audience declaration remains 18 and older, pending the
+maintainer's choice, without changing the saved all-ages content rating.
+Saving setup changes does not publish an open beta.
 
 A full public listing is not the first internal-testing prerequisite.
 [Google permits internal testing before completing app setup](https://support.google.com/googleplay/android-developer/answer/9845334).

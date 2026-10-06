@@ -146,9 +146,14 @@ the viewer/download gap remain the next mobile release work.
   isolation checks. The listing now includes actual Android screenshots.
   The publisher's [privacy and deletion policy](https://graehlarts.com/privacy.html#yepanywhere)
   is live on October 6, with all three Play URLs saved against it.
-  The conservative adult rating awaits the maintainer's content-policy decision;
-  source integration, a signed privacy-link build
-  and a reviewed open-testing release remain prerequisites.
+  The maintainer saved an all-ages content rating on October 6; preserve it.
+  Source integration is complete. Open testing has unlimited enrollment and
+  177 countries/regions with France excluded. Signed code 57901 with the privacy
+  link is saved as Ready to release for Open beta 1. Android build/lint/inspection
+  pass; WebView instrumentation and Play quick checks remain in progress. The
+  release and listing are ready to send for review, without a submission yet.
+  The separate intended-audience declaration remains 18 and older pending the
+  maintainer's choice; it does not change the saved all-ages content rating.
 - Native app CI now runs on relevant platform, shared mobile-core and packaging
   changes rather than ordinary web/server edits. Daily Android/iOS acceptance
   and the existing desktop nightly retain full shared-source coverage; manual
