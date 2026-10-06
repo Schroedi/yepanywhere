@@ -72,6 +72,11 @@ its error in place of the frame while the row keeps its static result.
   the right pane when Appearance → Session right pane is on, a covering modal
   otherwise. Minimize and close behave as for any panel.
 
+While hosting is on, Conversation view treats a call with a view as
+conversation content rather than routine activity, so a finished turn does
+not fold its button into the hidden-activity summary. With the setting off,
+such calls fold like any other tool call.
+
 **Expand** and **Show in transcript** switch modes, and so does a view's
 `ui/request-display-mode` for `inline` or `fullscreen`; any other mode
 answers with the current one. Switching modes remounts the view, which loads
@@ -191,6 +196,13 @@ standing compatibility approval covers this gate.
 - `packages/server/test/sessions/normalization.test.ts` — replayed `_mcpApp`.
 - `packages/client/src/lib/__tests__/mcpAppBridge.test.ts` — handshake order,
   origin checks, and request routing.
+- `packages/client/e2e/mcp-app-view.spec.ts` — a real browser through the
+  served proxy document and policy, with the session, settings, version and
+  view route mocked: the view receives input and result in an opaque origin, a
+  writing tool call waits for **Allow once**, a view message fills the draft
+  and its model context reaches the route, composer typing stays within
+  100 ms per keystroke while the view is live, and **Expand** moves the view
+  to the panel. Desktop and phone captures are recorded.
 
 On 2026-10-06 a throwaway probe drove codex-cli 0.160.1's app-server with a
 stdio MCP server: the server received the declared extension in its client
@@ -198,5 +210,5 @@ capabilities, and status listing, resource read and an app-only tool call all
 answered as this route expects. A Chromium harness ran the real proxy
 document and bridge: the view initialized, received input and result, called a
 tool, ran at origin `null` with storage blocked, could not reach its parent,
-and had `connect-src 'none'` enforced. No browser test yet drives the full
-path from a live Codex session.
+and had `connect-src 'none'` enforced. No test drives a live Codex session
+through the route.

@@ -1,18 +1,13 @@
-import {
-  type McpAppDisplayMode,
-  type McpAppToolCall,
-  SERVER_CAPABILITIES,
-  serverHasCapability,
-} from "@yep-anywhere/shared";
+import type { McpAppDisplayMode, McpAppToolCall } from "@yep-anywhere/shared";
 import type {
   ToolCallItem,
   ToolResultData,
 } from "@yep-anywhere/shared/transcript/items";
-import { useCallback, useContext, useState } from "react";
+import { useCallback, useContext, useMemo, useRef, useState } from "react";
 import { ComposerInsertContext } from "../contexts/ComposerInsertContext";
 import { useOptionalSessionMetadata } from "../contexts/SessionMetadataContext";
 import { useCurrentSourceRuntime } from "../contexts/SourceRuntimeContext";
-import { useServerSettings } from "../hooks/useServerSettings";
+import { useMcpAppViewsEnabled } from "../hooks/useMcpAppViewsEnabled";
 import { useRetainedVersionInfo } from "../hooks/useVersion";
 import { useI18n } from "../i18n";
 import { artifactAudience, artifactOrigin } from "../lib/artifactPreview";
@@ -46,9 +41,11 @@ export function McpAppToolCard({
   const metadata = useOptionalSessionMetadata();
   const runtime = useCurrentSourceRuntime();
   const version = useRetainedVersionInfo(runtime.sourceKey);
-  const { settings } = useServerSettings();
+  const enabled = useMcpAppViewsEnabled();
   const insertIntoComposer = useContext(ComposerInsertContext);
   const [mode, setMode] = useState<CardMode>("closed");
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
   const close = useCallback(() => setMode("closed"), []);
   const requestDisplayMode = useCallback(
     (requested: string): McpAppDisplayMode => {
@@ -56,17 +53,11 @@ export function McpAppToolCard({
         setMode(requested);
         return requested;
       }
-      return mode === "closed" ? mcpApp.displayMode : mode;
+      const current = modeRef.current;
+      return current === "closed" ? mcpApp.displayMode : current;
     },
-    [mode, mcpApp.displayMode],
+    [mcpApp.displayMode],
   );
-
-  if (
-    !metadata ||
-    settings?.mcpAppViews !== true ||
-    !serverHasCapability(version, SERVER_CAPABILITIES.mcpAppViews.name)
-  )
-    return null;
   const config = version?.artifactViewer;
   const proxyOrigin = config
     ? artifactOrigin(
@@ -75,6 +66,53 @@ export function McpAppToolCard({
         window.location.href,
       )
     : undefined;
+  // The input only seeds a view when it loads; a later identity change must
+  // not rebuild the element the panel holds.
+  const toolInputRef = useRef(toolInput);
+  toolInputRef.current = toolInput;
+  const resultContent = toolResult?.content;
+  const resultIsError = toolResult?.isError === true;
+  const projectId = metadata?.projectId;
+  const sessionId = metadata?.sessionId;
+  // The managed panel re-presents whenever its content element changes, so
+  // the element changes only when something the view uses does.
+  const view = useCallback(
+    (displayMode: McpAppDisplayMode) =>
+      projectId && sessionId && proxyOrigin ? (
+        <McpAppView
+          call={mcpApp}
+          callId={callId}
+          projectId={projectId}
+          sessionId={sessionId}
+          proxyOrigin={proxyOrigin}
+          toolInput={toolInputRef.current}
+          toolResult={
+            resultContent === undefined
+              ? undefined
+              : { content: resultContent, isError: resultIsError }
+          }
+          status={status}
+          displayMode={displayMode}
+          onRequestDisplayMode={requestDisplayMode}
+          insertIntoComposer={insertIntoComposer}
+        />
+      ) : null,
+    [
+      mcpApp,
+      callId,
+      projectId,
+      sessionId,
+      proxyOrigin,
+      resultContent,
+      resultIsError,
+      status,
+      requestDisplayMode,
+      insertIntoComposer,
+    ],
+  );
+  const panelView = useMemo(() => view("fullscreen"), [view]);
+
+  if (!metadata || !enabled) return null;
   if (!proxyOrigin)
     return <p className={styles.note}>{t("mcpAppViewNeedsArtifactOrigin")}</p>;
 
@@ -82,24 +120,9 @@ export function McpAppToolCard({
     server: mcpApp.server,
     tool: mcpApp.tool,
   });
-  const view = (displayMode: McpAppDisplayMode) => (
-    <McpAppView
-      call={mcpApp}
-      callId={callId}
-      projectId={metadata.projectId}
-      sessionId={metadata.sessionId}
-      proxyOrigin={proxyOrigin}
-      toolInput={toolInput}
-      toolResult={toolResult}
-      status={status}
-      displayMode={displayMode}
-      onRequestDisplayMode={requestDisplayMode}
-      insertIntoComposer={insertIntoComposer}
-    />
-  );
 
   return (
-    <div className={styles.card}>
+    <div className={styles.card} data-mcp-app-card={callId}>
       <div className={styles.actions}>
         {mode === "closed" ? (
           <button
@@ -137,7 +160,7 @@ export function McpAppToolCard({
           label={label}
           onClose={close}
         >
-          {view("fullscreen")}
+          {panelView}
         </SessionManagedPanel>
       )}
     </div>

@@ -61,5 +61,6 @@ through `mcpAppRequest` on the provider session.
 - **Dedicated view origins.** `_meta.ui.domain` asks for a stable origin per
   view (OAuth callbacks, CORS allowlists). Every view now shares the artifact
   origin's proxy, with an opaque child origin.
-- **Browser coverage.** No end-to-end test drives a live Codex session through
-  the card, proxy and bridge.
+- **Live-session coverage.** The browser spec mocks the session route; no
+  test drives a live Codex app-server and MCP server through the card, route,
+  proxy and bridge together.

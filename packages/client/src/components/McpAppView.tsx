@@ -117,13 +117,23 @@ export function McpAppView({
   const [approval, setApproval] = useState<PendingApproval | null>(null);
   const allowAllRef = useRef(false);
   const frameRef = useRef<HTMLIFrameElement>(null);
-  const bridgeRef = useRef<McpAppBridge | null>(null);
+  const [bridge, setBridge] = useState<McpAppBridge | null>(null);
+  // Read when the bridge is built or a handler runs; a change alone does not
+  // rebuild the bridge, which would reload the view.
   const latest = useRef({
     displayMode,
     onRequestDisplayMode,
     insertIntoComposer,
+    toolInput,
+    theme,
   });
-  latest.current = { displayMode, onRequestDisplayMode, insertIntoComposer };
+  latest.current = {
+    displayMode,
+    onRequestDisplayMode,
+    insertIntoComposer,
+    toolInput,
+    theme,
+  };
 
   const request = useCallback(
     (body: McpAppHostRequest) =>
@@ -172,16 +182,16 @@ export function McpAppView({
           },
         }),
       );
-    const bridge = new McpAppBridge({
+    const created = new McpAppBridge({
       frame: () => frameRef.current?.contentWindow,
       proxyOrigin,
       html: view.html,
       csp: view.csp,
       hostVersion: HOST_VERSION,
-      toolInput,
+      toolInput: latest.current.toolInput,
       hostContext: {
         toolInfo: { id: callId, tool: { name: call.tool, inputSchema: {} } },
-        theme,
+        theme: latest.current.theme,
         displayMode: latest.current.displayMode,
         availableDisplayModes: ["inline", "fullscreen"],
         platform: window.matchMedia?.("(pointer: coarse)").matches
@@ -249,20 +259,17 @@ export function McpAppView({
         },
       },
     });
-    bridgeRef.current = bridge;
-    const listener = (event: MessageEvent) => bridge.handleMessage(event);
+    setBridge(created);
+    const listener = (event: MessageEvent) => created.handleMessage(event);
     window.addEventListener("message", listener);
     return () => {
       window.removeEventListener("message", listener);
-      void bridge.teardown("closed");
-      bridgeRef.current = null;
+      void created.teardown("closed");
+      setBridge(null);
     };
-    // The bridge is per loaded view; later context arrives through updates.
-    // biome-ignore lint/correctness/useExhaustiveDependencies: see above
   }, [view, proxyOrigin, request, call.server, call.tool, callId]);
 
   useEffect(() => {
-    const bridge = bridgeRef.current;
     if (!bridge) return;
     if (toolResult && status !== "pending") {
       bridge.setToolResult(
@@ -271,11 +278,11 @@ export function McpAppView({
     } else if (status === "aborted" || status === "incomplete") {
       bridge.setCancelled(status);
     }
-  }, [view, toolResult, status]);
+  }, [bridge, toolResult, status]);
 
   useEffect(() => {
-    bridgeRef.current?.setHostContext({ theme });
-  }, [theme]);
+    bridge?.setHostContext({ theme });
+  }, [bridge, theme]);
 
   if (state.kind === "loading")
     return (
