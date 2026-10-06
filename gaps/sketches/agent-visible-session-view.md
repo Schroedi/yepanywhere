@@ -69,6 +69,30 @@ injected turn per switch. It must pass the cost and placement review in
 view's `ui/update-model-context` is the same class of fact and should share
 this channel.
 
+**Push only on user request.** Most sessions have no workflow that wants view
+changes in context, so an always-on push would charge every session an
+injection cost for value few of them get. Two user-activated forms avoid that,
+and either one tells YA the user expects the notice to be worth its tokens:
+
+- **One-time gesture.** One uniform glyph, the same on every viewer, means
+  "tell the agent I am looking at this". It belongs in the shared
+  window-action group (`ViewerWindowActions`) that app, artifact, file and
+  panel viewers already carry, so it reads the same everywhere. Pressing it
+  queues one notice describing that viewer, in the `ya-agent view` viewer
+  shape, and nothing follows from later switches.
+- **Session toolbar option.** A per-session toggle sends a notice for every
+  viewer the user opens or switches to while it is on. Viewers the session
+  opened itself are excluded, since the agent already knows about them.
+
+Both are configurable and off by default
+([vanilla defaults](../../topics/vanilla-defaults.md)). Neither starts a turn:
+a notice rides on the next user turn, and repeated switches before that turn
+collapse into the latest view. The composer should show that a notice is
+pending, so the user can see and drop it before sending. Because the notice
+travels as turn text, it reaches every provider, including launches with no
+`ya-agent` grant or shell. That makes the gesture useful without the pull
+read.
+
 **Out of scope here:** publishing YA's own viewers as `ui://` MCP App
 resources so that ChatGPT or Codex Desktop could embed them. That direction
 reverses the host and the server and has no current consumer.
