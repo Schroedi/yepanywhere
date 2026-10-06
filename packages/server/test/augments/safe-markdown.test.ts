@@ -963,3 +963,64 @@ describe("renderSafeMarkdown — URLs in fixed-font contexts", () => {
     expect(html).toContain("const x = 1;");
   });
 });
+
+describe("renderSafeMarkdown — document anchors", () => {
+  const asDocument = { documentAnchors: {} };
+
+  it("links explicit targets and headings under the user-content prefix", () => {
+    const html = renderSafeMarkdown(
+      `| row | evidence |
+| --- | --- |
+| <a id="row-f"></a>F | [see](#evidence-for-f) |
+
+## Evidence for \`f\`
+
+Back to [the row](#row-f).
+`,
+      asDocument,
+    );
+
+    expect(html).toContain('<a id="user-content-row-f"></a>');
+    expect(html).toContain('<h2 id="user-content-evidence-for-f">');
+    expect(html).toContain('<a href="#user-content-evidence-for-f">see</a>');
+    expect(html).toContain('<a href="#user-content-row-f">the row</a>');
+  });
+
+  it("numbers duplicate headings and continues preceding slugs", () => {
+    const html = renderSafeMarkdown("# Notes\n\n# Notes\n\n# Notes-1\n", {
+      documentAnchors: { precedingHeadingSlugs: ["notes"] },
+    });
+
+    expect(html).toContain('<h1 id="user-content-notes-1">');
+    expect(html).toContain('<h1 id="user-content-notes-2">');
+    expect(html).toContain('<h1 id="user-content-notes-1-1">');
+  });
+
+  it("prefixes hostile ids, legacy names and raw HTML fragment links", () => {
+    const html = renderSafeMarkdown(
+      `<a id="root"></a><a name="old"></a><h3 id="app">App</h3>
+
+<a href="#root">raw</a> and <a id="has space" href="#">empty</a>
+`,
+      asDocument,
+    );
+
+    expect(html).toContain('<a id="user-content-root"></a>');
+    expect(html).toContain('<a id="user-content-old"></a>');
+    expect(html).toContain('<h3 id="user-content-app">');
+    expect(html).toContain('<a href="#user-content-root">raw</a>');
+    expect(html).toContain('<a href="#">empty</a>');
+    expect(html).not.toMatch(/\sid="(?:root|app|has space)"/);
+    expect(html).not.toContain("name=");
+  });
+
+  it("keeps message fragments free of ids", () => {
+    const html = renderSafeMarkdown(
+      '<a id="row-f"></a>\n\n## Heading\n\n[back](#row-f)\n',
+    );
+
+    expect(html).not.toContain("id=");
+    expect(html).not.toContain('href="#');
+    expect(html).toContain("back");
+  });
+});

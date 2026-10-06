@@ -18,7 +18,10 @@ import {
   linkifyProjectPaths,
   resolveShapedPaths,
 } from "./project-path-links.js";
-import type { SafeMarkdownRenderOptions } from "./safe-markdown.js";
+import {
+  collectMarkdownHeadingSlugs,
+  type SafeMarkdownRenderOptions,
+} from "./safe-markdown.js";
 
 /**
  * Default configuration for the AugmentGenerator.
@@ -111,6 +114,7 @@ function markdownCacheKey(
     options?.inlineLocalImages ?? false,
     options?.quartoMarkdown ?? false,
     options?.siteRelativeReferences ?? false,
+    options?.documentAnchors ?? null,
     projectLinks?.projectId ?? null,
     projectLinks?.projectPath ?? null,
     projectLinks?.pathDiscovery ?? "resolve",
@@ -214,13 +218,29 @@ async function renderMarkdownToHtmlUncached(
   // Combine all blocks
   const allBlocks = [...completedBlocks, ...finalBlocks];
 
-  // Render each block and concatenate HTML
+  // Render each block and concatenate HTML. A document's blocks continue each
+  // other's heading slugs, so ids match a single render.
+  const documentAnchors = renderOptions?.documentAnchors;
+  const precedingHeadingSlugs = [
+    ...(documentAnchors?.precedingHeadingSlugs ?? []),
+  ];
   const htmlParts: string[] = [];
   for (let i = 0; i < allBlocks.length; i++) {
     const block = allBlocks[i];
     if (!block) continue;
-    const augment = await generator.processBlock(block, i, renderOptions);
+    const blockOptions = documentAnchors
+      ? {
+          ...renderOptions,
+          documentAnchors: {
+            precedingHeadingSlugs: [...precedingHeadingSlugs],
+          },
+        }
+      : renderOptions;
+    const augment = await generator.processBlock(block, i, blockOptions);
     htmlParts.push(augment.html);
+    if (documentAnchors) {
+      precedingHeadingSlugs.push(...collectMarkdownHeadingSlugs(block.content));
+    }
   }
 
   const html = htmlParts.join("\n");

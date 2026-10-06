@@ -106,6 +106,19 @@ These run unconditionally and are not user-configurable:
   unsafe URLs, active embeds, and disallowed elements remain blocked. Assistant
   Markdown, tool-result Markdown, file previews, and persisted reloads use the
   same boundary.
+- **In-page document links** — a Markdown file preview is rendered as a whole
+  document (`documentAnchors` in `safe-markdown.ts`), so `[x](#name)` reaches
+  an author's `<a id="name">` or legacy `<a name="name">`, or a heading by its
+  GitHub-style slug (`x`, then `x-1`, `x-2` for repeats). Every kept id and
+  fragment href carries the `user-content-` prefix, applied in one place by the
+  document sanitizer, so a document's `root` cannot collide with or clobber the
+  page's own elements. Ranged previews and block-wise renders continue earlier
+  parts' heading slugs, so ids match a single render. The standalone rendered
+  document follows these links natively; `FileViewer` intercepts an unmodified
+  click and scrolls its own body, leaving the app URL and the parked viewer's
+  scroll ownership alone. Message Markdown keeps no ids: many messages share
+  one page and their ids would collide. The fragment of a cross-file
+  `other.md#name` link is not yet followed.
 - **Explicit rendered Markdown file links** — document previews show link color
   and an underline before hover, including links whose labels use inline code.
   Ordinary unlinked code keeps its surrounding text color and code background.
