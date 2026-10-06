@@ -150,10 +150,12 @@ the viewer/download gap remain the next mobile release work.
   Source integration is complete. Open testing has unlimited enrollment and
   177 countries/regions with France excluded. Signed code 57901 with the privacy
   link is saved as Ready to release for Open beta 1. Android build/lint/inspection
-  pass; WebView instrumentation and Play quick checks remain in progress. The
-  release and listing are ready to send for review, without a submission yet.
-  The separate intended-audience declaration remains 18 and older pending the
-  maintainer's choice; it does not change the saved all-ages content rating.
+  and WebView instrumentation pass. Play quick checks were last observed in
+  progress; no review submission has been made. The maintainer requested a
+  child audience. That declaration remains unsaved at the required child-data
+  certification, pending adult-controlled sharing and child data/API/SDK
+  verification under Play Families requirements. The saved intended audience
+  remains 18 and older; the all-ages content rating is unchanged.
 - Native app CI now runs on relevant platform, shared mobile-core and packaging
   changes rather than ordinary web/server edits. Daily Android/iOS acceptance
   and the existing desktop nightly retain full shared-source coverage; manual

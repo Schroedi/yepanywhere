@@ -99,10 +99,20 @@ saved as **Ready to release** with signed code `57901` / `0.1.2-ci.479.1`, Engli
 notes, and the native pre-login privacy link. The candidate comes from the
 passing build/lint/inspection gate in
 [Android CI 37416431327](https://github.com/kzahel/yepanywhere/actions/runs/37416431327).
-Its WebView instrumentation and Play quick checks remain in progress. Publishing
-overview has the release and setup changes ready for review; none has been sent.
-The separate intended-audience declaration remains 18 and older, pending the
-maintainer's choice, without changing the saved all-ages content rating.
+WebView instrumentation also passed for that source. Publishing overview has
+the release and setup changes saved; none has been sent for review. Play quick
+checks were last observed in progress.
+
+The maintainer requested children in the intended audience on October 6.
+Selecting all six age groups reaches a required certification of compliance
+with laws relating to children. That edit remains **unsaved**: the current
+Android candidate has no separate adult verification or child controls
+for public sharing, and child data/API/SDK handling still needs verification.
+[Play Families requirements](https://support.google.com/googleplay/android-developer/answer/9893335?hl=en)
+require adult-managed social features and adult action before children can
+exchange personal information. The existing saved intended audience remains
+18 and older until a supported child-audience declaration can be completed.
+The maintainer's saved all-ages content rating remains unchanged.
 Saving setup changes does not publish an open beta.
 
 A full public listing is not the first internal-testing prerequisite.
