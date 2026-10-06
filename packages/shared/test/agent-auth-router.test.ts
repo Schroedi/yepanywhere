@@ -30,14 +30,12 @@ describe("agent-auth-router CLI model contract", () => {
     expect(account.cliModelsAt).toBeTruthy();
     const rows = sanitizeRouterCliModels(account.cliModels);
     expect(rows).toEqual(account.cliModels);
-    expect(rows?.map((row) => [row.value, row.resolvedModel ?? null])).toEqual(
-      [
-        ["default", "claude-opus-fixture-2"],
-        ["sonnet", "claude-sonnet-fixture-2"],
-        ["haiku", "claude-haiku-fixture-1"],
-        ["opusplan", null],
-      ],
-    );
+    expect(rows?.map((row) => [row.value, row.resolvedModel ?? null])).toEqual([
+      ["default", "claude-opus-fixture-2"],
+      ["sonnet", "claude-sonnet-fixture-2"],
+      ["haiku", "claude-haiku-fixture-1"],
+      ["opusplan", null],
+    ]);
   });
 
   it("bounds and type-checks rows regardless of the router", () => {

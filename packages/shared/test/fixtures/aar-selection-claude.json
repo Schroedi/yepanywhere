@@ -1,9 +1,5 @@
 {
-  "supportedPolicies": [
-    "manual",
-    "round-robin",
-    "most-remaining"
-  ],
+  "supportedPolicies": ["manual", "round-robin", "most-remaining"],
   "admissionRefresh": true,
   "canManagePools": false,
   "observedAt": "<timestamp>",
@@ -13,9 +9,7 @@
       "id": "00000000-0000-4000-8000-000000000001",
       "name": "Work",
       "provider": "claude",
-      "accountIds": [
-        "work"
-      ],
+      "accountIds": ["work"],
       "policy": "round-robin",
       "revision": 1,
       "bindings": [
@@ -118,13 +112,7 @@
           "supportsAdaptiveThinking": true,
           "supportsFastMode": true,
           "supportsAutoMode": true,
-          "supportedEffortLevels": [
-            "low",
-            "medium",
-            "high",
-            "xhigh",
-            "max"
-          ]
+          "supportedEffortLevels": ["low", "medium", "high", "xhigh", "max"]
         },
         {
           "value": "sonnet",
@@ -133,12 +121,7 @@
           "resolvedModel": "claude-sonnet-fixture-2",
           "supportsEffort": true,
           "supportsAdaptiveThinking": true,
-          "supportedEffortLevels": [
-            "low",
-            "medium",
-            "high",
-            "max"
-          ]
+          "supportedEffortLevels": ["low", "medium", "high", "max"]
         },
         {
           "value": "haiku",
