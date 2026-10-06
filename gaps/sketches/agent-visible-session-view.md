@@ -75,7 +75,12 @@ injection cost for value few of them get. Two user-activated forms avoid that,
 and either one tells YA the user expects the notice to be worth its tokens:
 
 - **One-time gesture.** One uniform glyph, the same on every viewer, means
-  "tell the agent I am looking at this". It belongs in the shared
+  "tell the agent I am looking at this". An eye icon is the candidate; the
+  session toolbar toggle would reuse it, in a toggled state. YA already uses
+  an eye to show or hide content, for the thinking toggle and the
+  commit-files pane (`CommitFilesPane`). So the glyph needs a distinguishing
+  mark, such as an eye with an outgoing arrow or with the agent badge, and a
+  tooltip that names the agent. It belongs in the shared
   window-action group (`ViewerWindowActions`) that app, artifact, file and
   panel viewers already carry, so it reads the same everywhere. Pressing it
   queues one notice describing that viewer, in the `ya-agent view` viewer
