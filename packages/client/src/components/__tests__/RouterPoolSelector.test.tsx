@@ -127,6 +127,26 @@ it("resolves a family alias once and only includes accounts supporting its concr
     "claude-opus-4-7",
   ]);
 });
+it("resolves an alias to the target the members' CLIs report, not the newest family member", () => {
+  const data = overview();
+  data.accounts[1]!.models = [{ ...model, id: "claude-opus-4-7" }];
+  for (const account of data.accounts)
+    account.cliModels = [
+      { id: "opus", name: "Opus", resolvedModel: "claude-opus-4-7[1m]" },
+    ];
+  expect(
+    routerPoolMembers(data, "work", "claude", "opus", "on:high").map(
+      (a) => a.id,
+    ),
+  ).toEqual(["b"]);
+  data.accounts[0]!.cliModels = [
+    { id: "opus", name: "Opus", resolvedModel: "claude-opus-4-8" },
+  ];
+  expect(
+    routerPoolMembers(data, "work", "claude", "opus", "on:high"),
+    "members disagree",
+  ).toEqual([]);
+});
 it("lists Direct first and every pool with its policy and compatible count, disabling pools no account can serve", () => {
   const data = overview(),
     change = vi.fn();

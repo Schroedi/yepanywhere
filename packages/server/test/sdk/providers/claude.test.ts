@@ -277,6 +277,127 @@ describe("ClaudeProvider model list", () => {
     });
   });
 
+  describe("refresh and provenance", () => {
+    const row = (id: string) => ({ id, name: id });
+    const authenticated = (provider: ClaudeProvider) =>
+      vi.spyOn(provider, "getAuthStatus").mockResolvedValue({
+        installed: true,
+        authenticated: true,
+        enabled: true,
+      });
+    const probe = (provider: ClaudeProvider) =>
+      vi.spyOn(
+        provider as unknown as { probeModels(): Promise<unknown[]> },
+        "probeModels",
+      );
+    const ids = async (
+      provider: ClaudeProvider,
+      options?: { forceRefresh?: boolean },
+    ) => (await provider.getAvailableModels(options)).map((model) => model.id);
+
+    it("labels the built-in list as a fallback when signed out", async () => {
+      const provider = new ClaudeProvider();
+      vi.spyOn(provider, "getAuthStatus").mockResolvedValue({
+        installed: true,
+        authenticated: false,
+        enabled: false,
+      });
+
+      expect(await ids(provider)).toContain("default");
+      expect(provider.getModelCatalogStatus()).toMatchObject({
+        source: "fallback",
+        error: "Claude is not signed in",
+      });
+    });
+
+    it("caches a live probe, re-probes on force and after an hour", async () => {
+      vi.useFakeTimers({ now: Date.parse("2026-10-06T10:00:00Z") });
+      try {
+        const provider = new ClaudeProvider();
+        authenticated(provider);
+        const probeModels = probe(provider)
+          .mockResolvedValueOnce([row("first")])
+          .mockResolvedValueOnce([row("forced")])
+          .mockResolvedValueOnce([row("expired")]);
+
+        expect(await ids(provider)).toContain("first");
+        expect(provider.getModelCatalogStatus()).toEqual({
+          source: "live",
+          fetchedAt: "2026-10-06T10:00:00.000Z",
+        });
+        expect(await ids(provider)).toContain("first");
+        expect(probeModels).toHaveBeenCalledTimes(1);
+
+        vi.setSystemTime(Date.parse("2026-10-06T10:05:00Z"));
+        expect(await ids(provider, { forceRefresh: true })).toContain("forced");
+        expect(provider.getModelCatalogStatus()?.fetchedAt).toBe(
+          "2026-10-06T10:05:00.000Z",
+        );
+
+        vi.setSystemTime(Date.parse("2026-10-06T11:04:00Z"));
+        expect(await ids(provider)).toContain("forced");
+        vi.setSystemTime(Date.parse("2026-10-06T11:06:00Z"));
+        expect(await ids(provider)).toContain("expired");
+        expect(probeModels).toHaveBeenCalledTimes(3);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("does not let an older probe overwrite a forced refresh", async () => {
+      const provider = new ClaudeProvider();
+      authenticated(provider);
+      let finishOld: (models: unknown[]) => void = () => {};
+      const probeModels = probe(provider)
+        .mockReturnValueOnce(
+          new Promise((resolve) => {
+            finishOld = resolve;
+          }),
+        )
+        .mockResolvedValueOnce([row("new")]);
+
+      const old = ids(provider);
+      await vi.waitFor(() => expect(probeModels).toHaveBeenCalledTimes(1));
+      expect(await ids(provider, { forceRefresh: true })).toContain("new");
+      finishOld([row("old")]);
+      expect(await old).toContain("old");
+
+      expect(await ids(provider)).toContain("new");
+      expect(await ids(provider)).not.toContain("old");
+    });
+
+    it("keeps the last live list when a refresh fails", async () => {
+      const provider = new ClaudeProvider();
+      authenticated(provider);
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      probe(provider)
+        .mockResolvedValueOnce([row("live")])
+        .mockRejectedValueOnce(new Error("probe timed out"));
+
+      await ids(provider);
+      const fetchedAt = provider.getModelCatalogStatus()?.fetchedAt;
+      expect(await ids(provider, { forceRefresh: true })).toContain("live");
+      expect(provider.getModelCatalogStatus()).toEqual({
+        source: "live",
+        fetchedAt,
+        error: "probe timed out",
+      });
+    });
+
+    it("falls back when the first probe fails", async () => {
+      const provider = new ClaudeProvider();
+      authenticated(provider);
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      probe(provider).mockRejectedValueOnce(new Error("no runtime"));
+
+      expect(await ids(provider)).toContain("default");
+      expect(provider.getModelCatalogStatus()).toMatchObject({
+        source: "fallback",
+        error: "no runtime",
+      });
+    });
+  });
+
   it("resolves a launch alias to the concrete model the SDK reports", async () => {
     const provider = new ClaudeProvider();
     expect(provider.resolveLaunchModel("opus")).toBeUndefined();

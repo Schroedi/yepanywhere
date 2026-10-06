@@ -153,6 +153,7 @@ export function createProvidersRoutes(deps: ProviderRouteDeps = {}): Hono {
         user: authStatus.user,
         loginCommand: authStatus.loginCommand,
         models,
+        modelCatalog: provider.getModelCatalogStatus?.(),
         additionalModelOptions: provider.getAdditionalModelOptions?.(),
         imageSizing: getProviderImageSizing(provider.name),
         supportsPermissionMode: provider.supportsPermissionMode,

@@ -329,10 +329,12 @@ describe("CodexProvider", () => {
         .mockResolvedValueOnce([{ id: "gpt-6.1-sol", name: "Sol 6.1" }]);
       const internals = testProvider as unknown as {
         isCodexCliInstalled: () => Promise<boolean>;
-        getModelsFromAppServer: () => Promise<ModelInfo[]>;
+        getModelsFromAppServer: () => Promise<{ models: ModelInfo[] }>;
       };
       internals.isCodexCliInstalled = vi.fn(async () => true);
-      internals.getModelsFromAppServer = modelProbe;
+      internals.getModelsFromAppServer = async () => ({
+        models: await modelProbe(),
+      });
 
       expect((await testProvider.getAvailableModels())[0]?.id).toBe(
         "gpt-6-astra",
@@ -349,6 +351,35 @@ describe("CodexProvider", () => {
         "gpt-6.1-sol",
       );
       expect(modelProbe).toHaveBeenCalledTimes(2);
+      expect(testProvider.getModelCatalogStatus()?.source).toBe("live");
+    });
+
+    it("labels the version-matched built-in list as a fallback", async () => {
+      const testProvider = new CodexProvider();
+      const internals = testProvider as unknown as {
+        isCodexCliInstalled: () => Promise<boolean>;
+        getModelsFromAppServer: () => Promise<{
+          models: ModelInfo[];
+          error?: string;
+        }>;
+        getFallbackCodexModels: () => Promise<ModelInfo[]>;
+      };
+      internals.isCodexCliInstalled = vi.fn(async () => true);
+      internals.getModelsFromAppServer = async () => ({
+        models: [],
+        error: "app-server exited",
+      });
+      internals.getFallbackCodexModels = async () => [
+        { id: "gpt-fallback", name: "Fallback" },
+      ];
+
+      expect((await testProvider.getAvailableModels())[0]?.id).toBe(
+        "gpt-fallback",
+      );
+      expect(testProvider.getModelCatalogStatus()).toMatchObject({
+        source: "fallback",
+        error: "app-server exited",
+      });
     });
   });
 

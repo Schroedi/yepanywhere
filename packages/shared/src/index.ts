@@ -415,6 +415,7 @@ export type {
   ProviderName,
   ProviderInfo,
   ProviderImageSizing,
+  ModelCatalogStatus,
   ModelInfo,
   RecapMode,
   CacheMissBillingReason,
@@ -1655,9 +1656,13 @@ export type {
   AgentAuthRouterPool,
   AgentAuthRouterPoolInput,
   AgentAuthRouterOverview,
+  AgentAuthRouterCliModel,
 } from "./agent-auth-router.js";
 
 export {
   routerModelSupportsThinking,
   resolveRouterModel,
+  routerAliasTargets,
+  routerCliModelTarget,
+  sanitizeRouterCliModels,
 } from "./agent-auth-router.js";

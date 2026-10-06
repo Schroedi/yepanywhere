@@ -108,6 +108,21 @@ success or failure cannot replace or delete the newer row. The provider's model
 catalog key participates in generation identity. Aggregate `Promise.all`
 failure behavior is unchanged.
 
+A provider row reports the provenance of its models as `modelCatalog`:
+`live` with the time the provider was read, `fallback` when YA substituted its
+built-in list because the live read failed or the provider is signed out, or
+`static` when the provider has no live list. An `error` records why the last
+live read failed. A provider that caches its own catalog discards that cache on
+`refresh=1`; Claude also re-probes after an hour and keeps its last live list,
+with the error, when a re-probe fails. The field is optional: a client shows no
+provenance for a server that omits it and makes no additional request.
+
+Below the model picker, New Session shows a muted "Models updated Xm ago" line
+with Refresh for a live list, and a warning-toned line with Refresh for a
+fallback list or a failed refresh. Refresh is the named `refresh=1` probe for
+the selected provider. Pool launches omit the line until the router catalog
+carries its own provenance.
+
 The client persists a versioned, source-scoped browser snapshot for seven days.
 An explicit allowlist retains provider/model display metadata and capabilities;
 identity, expiry, login commands, credentials, authorization material, raw

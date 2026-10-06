@@ -4,7 +4,10 @@ import { mkdir } from "node:fs/promises";
 import http from "node:http";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { routerModelSupportsThinking } from "@yep-anywhere/shared";
+import {
+  routerModelSupportsThinking,
+  sanitizeRouterCliModels,
+} from "@yep-anywhere/shared";
 import type {
   ModelInfo,
   ThinkingConfig,
@@ -17,6 +20,7 @@ import type {
   AgentAuthRouterRecovery,
 } from "@yep-anywhere/shared";
 import type { SessionMetadataService } from "../metadata/SessionMetadataService.js";
+import { mapClaudeCliModels } from "../sdk/providers/claude.js";
 import { writeFileAtomically } from "../utils/writeFileAtomically.js";
 
 export interface RouterLaunch {
@@ -117,6 +121,32 @@ function routerOffline() {
     "Router unavailable. Start AAR on the YA server and check its socket in Settings → Providers, then retry. This session will keep its pinned account.",
     "unavailable",
   );
+}
+/**
+ * Map each Claude account's CLI rows through the direct list's pipeline, so
+ * pool and direct pickers agree. Rows are dropped unless the router
+ * advertises them, and are bounded before mapping.
+ */
+function withCliModels<T>(overview: T, info: Info): T {
+  const accounts = (overview as { accounts?: unknown } | null)?.accounts;
+  if (!Array.isArray(accounts)) return overview;
+  const supported = info.capabilities.includes("catalog-cli-models-v1");
+  return {
+    ...overview,
+    accounts: accounts.map((account: Record<string, unknown>) => {
+      const { cliModels, cliModelsAt, ...rest } = account;
+      const rows =
+        supported && account.provider === "claude"
+          ? sanitizeRouterCliModels(cliModels)
+          : undefined;
+      if (!rows?.length) return rest;
+      return {
+        ...rest,
+        cliModels: mapClaudeCliModels(rows),
+        ...(typeof cliModelsAt === "string" ? { cliModelsAt } : {}),
+      };
+    }),
+  };
 }
 /**
  * Only 4xx policy refusals are the router's own decisions; 5xx bodies may
@@ -507,7 +537,7 @@ export class AgentAuthRouter {
       const result = await routerRequest<T>(c.socketPath, path, c.token, body);
       if (path === "/v1/overview" || path === "/v1/overview/refresh")
         return {
-          ...result,
+          ...withCliModels(result, info),
           canManagePools: !ownerManaged,
           supportedPolicies: info.capabilities.includes("most-remaining-v1")
             ? ["manual", "round-robin", "most-remaining"]
@@ -547,7 +577,7 @@ export class AgentAuthRouter {
     let job = this.discoveryJobs.get(key);
     if (!job) {
       job = (async () => {
-        await this.info(c);
+        const info = await this.info(c);
         const result = await routerRequest<AgentAuthRouterOverview>(
           c.socketPath,
           "/v1/selection",
@@ -556,7 +586,7 @@ export class AgentAuthRouter {
         );
         if (this.connection().id !== c.id)
           throw new RouterUnavailable(409, "Router connection changed");
-        return result;
+        return withCliModels(result, info);
       })().finally(() => this.discoveryJobs.delete(key));
       this.discoveryJobs.set(key, job);
     }

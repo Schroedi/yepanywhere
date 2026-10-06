@@ -192,8 +192,10 @@ function hostedProvider(rawProvider: AgentProvider): AgentProvider {
         property === "getAvailableModels" &&
         target.name === "claude-gateway"
       ) {
-        return async () => {
-          const models = await target.getAvailableModels();
+        return async (
+          options?: Parameters<AgentProvider["getAvailableModels"]>[0],
+        ) => {
+          const models = await target.getAvailableModels(options);
           const retentions =
             await ClaudeGatewayProvider.retainOwnedGatewayProcessGroups(
               retainProviderRuntimeProcessGroup,

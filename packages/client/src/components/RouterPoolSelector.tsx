@@ -1,5 +1,6 @@
 import {
   resolveRouterModel,
+  routerAliasTargets,
   routerModelSupportsThinking,
   type AgentAuthRouterOverview,
   type AgentAuthRouterPoolPolicy,
@@ -77,20 +78,28 @@ export function routerBindingChip(
   };
 }
 
+/** Enabled accounts whose models a selection can launch: the pool's, or all. */
+export function routedAccounts(
+  data: AgentAuthRouterOverview | null,
+  provider: string | null,
+  poolId?: string,
+): OverviewAccount[] {
+  const pool = data?.pools.find((p) => p.id === poolId);
+  return (data?.accounts ?? []).filter(
+    (a) =>
+      a.enabled &&
+      a.provider === provider &&
+      (!poolId || pool?.accountIds.includes(a.id)),
+  );
+}
+
 export function routedModels(
   data: AgentAuthRouterOverview | null,
   provider: string | null,
   poolId?: string,
 ): ModelInfo[] {
-  const pool = data?.pools.find((p) => p.id === poolId);
   const result = new Map<string, ModelInfo>();
-  for (const a of data?.accounts ?? []) {
-    if (
-      !a.enabled ||
-      a.provider !== provider ||
-      (poolId && !pool?.accountIds.includes(a.id))
-    )
-      continue;
+  for (const a of routedAccounts(data, provider, poolId)) {
     for (const model of a.models) {
       const previous = result.get(model.id);
       result.set(model.id, {
@@ -146,6 +155,7 @@ export function routerPoolMembers(
   const concreteModel = resolveRouterModel(
     model,
     routedModels(data, provider, poolId),
+    routerAliasTargets(routedAccounts(data, provider, poolId)),
   );
   return routerPoolAccounts(data, poolId, provider).filter(
     (a) =>

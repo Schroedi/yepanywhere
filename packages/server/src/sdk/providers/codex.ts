@@ -29,6 +29,7 @@ import {
   type EffortLevel,
   type EffectiveSessionLaunchSettings,
   hasInvocationCandidate,
+  type ModelCatalogStatus,
   type ModelInfo,
   normalizeCodexAsyncUserInputQuestions,
   type PermissionMode,
@@ -152,6 +153,11 @@ import {
   normalizeSemver,
 } from "./codex-model-catalog.js";
 import { normalizeCodexSubscriptionUsage } from "./provider-subscription-usage.js";
+import {
+  fallbackModelCatalog,
+  liveModelCatalog,
+  modelCatalogError,
+} from "./model-catalog-status.js";
 import {
   asCodexAgentMessageDeltaNotification,
   asCodexCommandExecutionOutputDeltaNotification,
@@ -1331,6 +1337,7 @@ export class CodexProvider implements AgentProvider {
   private readonly installationCoordinator: ProviderInstallationCoordinator;
   private modelCache: {
     models: ModelInfo[];
+    status: ModelCatalogStatus;
     expiresAt: number;
     installationSourceVersion: string;
   } | null = null;
@@ -1521,17 +1528,23 @@ export class CodexProvider implements AgentProvider {
     const readGeneration = ++this.modelCacheReadGeneration;
 
     let models: ModelInfo[] = [];
+    let error = "Codex CLI is not installed";
     if (await this.isCodexCliInstalled()) {
-      models = await this.getModelsFromAppServer();
+      const read = await this.getModelsFromAppServer();
+      models = read.models;
+      error = read.error ?? "Codex returned no models";
     }
 
+    let status = liveModelCatalog();
     if (models.length === 0) {
       models = await this.getFallbackCodexModels();
+      status = fallbackModelCatalog(error);
     }
 
     if (readGeneration === this.modelCacheReadGeneration) {
       this.modelCache = {
         models,
+        status,
         expiresAt: Date.now() + MODEL_CACHE_TTL_MS,
         installationSourceVersion,
       };
@@ -1562,16 +1575,23 @@ export class CodexProvider implements AgentProvider {
     }
   }
 
-  private async getModelsFromAppServer(): Promise<ModelInfo[]> {
+  getModelCatalogStatus(): ModelCatalogStatus | undefined {
+    return this.modelCache?.status;
+  }
+
+  private async getModelsFromAppServer(): Promise<{
+    models: ModelInfo[];
+    error?: string;
+  }> {
     try {
       const appServerModels = await this.requestAppServerModelList();
-      return normalizeCodexModelList(appServerModels);
+      return { models: normalizeCodexModelList(appServerModels) };
     } catch (error) {
       log.debug(
         { error },
         "Failed to query Codex app-server model list, using fallback models",
       );
-      return [];
+      return { models: [], error: modelCatalogError(error) };
     }
   }
 

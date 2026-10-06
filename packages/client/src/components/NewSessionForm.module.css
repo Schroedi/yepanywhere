@@ -371,3 +371,68 @@
   gap: var(--space-2);
   margin-top: var(--space-3);
 }
+
+/* Model list provenance under the model picker: muted while the list is live
+   and current, warning-toned when it is the built-in fallback or a refresh
+   failed. */
+.catalogStatus,
+.catalogStatusMuted {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+
+.catalogStatus {
+  padding: 0.55rem 0.65rem;
+  border: 1px solid
+    color-mix(in srgb, var(--warning-color) 38%, var(--border-color));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--warning-color) 8%, var(--bg-code));
+}
+
+.catalogStatusMuted {
+  margin-top: var(--space-1);
+  color: var(--text-dimmed);
+}
+
+.catalogAction {
+  flex: none;
+  min-height: 2rem;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.catalogStatusMuted .catalogAction {
+  min-height: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font-weight: inherit;
+  text-decoration: underline;
+}
+
+.catalogAction:hover:not(:disabled) {
+  border-color: var(--text-dimmed);
+  background: var(--bg-hover);
+}
+
+.catalogStatusMuted .catalogAction:hover:not(:disabled) {
+  background: none;
+  color: var(--text-primary);
+}
+
+.catalogAction:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}

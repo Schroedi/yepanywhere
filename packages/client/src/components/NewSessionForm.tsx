@@ -1,10 +1,11 @@
 import { useRouterDiscovery } from "../hooks/useRouterDiscovery";
 import {
   RouterPoolSelector,
+  routedAccounts,
   routedModels,
   routerPoolMembers,
 } from "./RouterPoolSelector";
-import { resolveRouterModel } from "@yep-anywhere/shared";
+import { resolveRouterModel, routerAliasTargets } from "@yep-anywhere/shared";
 import type { RouterSelection } from "./RouterPoolSelector";
 import { DraftSyncNotice } from "./DraftSyncNotice";
 import { DRAFT_STORAGE_EVENT } from "../lib/draftSyncStorage";
@@ -31,7 +32,6 @@ import {
   HELPER_SIDE_MODEL_CHEAPEST,
   HELPER_SIDE_MODEL_SAME_AS_MAIN,
   type EffortLevel,
-  type ModelInfo,
   type PromptSuggestionMode,
   type ProviderInfo,
   type ProviderName,
@@ -88,8 +88,10 @@ import { useRemoteExecutors } from "../hooks/useRemoteExecutors";
 import { useSpeechSourceRuntime } from "../hooks/useSpeechSourceRuntime";
 import { useServerSettings } from "../hooks/useServerSettings";
 import { useSessionToolbarPresence } from "../hooks/useSessionToolbarPresence";
-import { useI18n } from "../i18n";
+import { type MessageKey, useI18n } from "../i18n";
 import { formatFileSize } from "../lib/formatFileSize";
+import { formatContextWindowLabel } from "../lib/contextWindowLabel";
+import { formatBriefAge } from "../lib/sessionAge";
 import { getUiCreationProvenance } from "../lib/sessionCreationProvenance";
 import { parseComposerSlashCommand } from "../lib/slashCommands";
 import { takePrebootComposer } from "../lib/prebootComposer";
@@ -115,6 +117,8 @@ import {
   withProviderSessionDefaults,
 } from "../lib/newSessionDefaults";
 import {
+  type RouterModelUnavailable,
+  buildRouterModelList,
   startsAdditionalModelGroup,
   withProviderVisibleModelSelection,
 } from "../lib/modelCatalog";
@@ -269,6 +273,12 @@ import {
   type SpeechPendingKind,
   type VoiceInputButtonRef,
 } from "./VoiceInputButton";
+
+const ROUTER_MODEL_UNAVAILABLE = {
+  unresolved: "routerModelUnresolved",
+  conflict: "routerModelConflict",
+  missing: "routerModelMissing",
+} as const satisfies Record<RouterModelUnavailable, MessageKey>;
 
 interface WorkstreamsLoadState {
   status: "idle" | "loading" | "ready" | "error";
@@ -1202,6 +1212,15 @@ export function NewSessionForm({
     effectiveSandboxLevel === "none" &&
     (selectedProvider === "claude" || selectedProvider === "codex");
   const routerDiscovery = useRouterDiscovery(selectedProvider, routerEnabled);
+  const routerAccounts = useMemo(
+    () =>
+      routedAccounts(
+        routerDiscovery.data,
+        selectedProvider,
+        routerSelection?.poolId,
+      ),
+    [routerDiscovery.data, selectedProvider, routerSelection?.poolId],
+  );
   const accountModels = useMemo(
     () =>
       routedModels(
@@ -1211,31 +1230,46 @@ export function NewSessionForm({
       ),
     [routerDiscovery.data, selectedProvider, routerSelection?.poolId],
   );
-  const availableModels: ModelInfo[] = useMemo(() => {
-    const direct = selectedProviderInfo?.models ?? [];
-    const merged = new Map(direct.map((m) => [m.id, m]));
-    for (const m of accountModels) {
-      const representedByAlias = direct.some(
-        (d) =>
-          d.id !== m.id && resolveRouterModel(d.id, accountModels) === m.id,
-      );
-      if (representedByAlias && selectedModel !== m.id) continue;
-      if (!merged.has(m.id) || routerSelection) merged.set(m.id, m);
-    }
-    if (routerSelection)
-      for (const m of direct) {
-        const routed = accountModels.find(
-          (a) => a.id === resolveRouterModel(m.id, accountModels),
-        );
-        if (routed) merged.set(m.id, { ...routed, id: m.id, name: m.name });
-      }
-    return [...merged.values()];
-  }, [
-    selectedProviderInfo?.models,
-    accountModels,
-    routerSelection,
-    selectedModel,
-  ]);
+  const routerAliases = useMemo(
+    () => routerAliasTargets(routerAccounts),
+    [routerAccounts],
+  );
+  const routerModelList = useMemo(
+    () =>
+      buildRouterModelList({
+        direct: selectedProviderInfo?.models ?? [],
+        accounts: routerAccounts,
+        accountModels,
+        routed: !!routerSelection,
+        selectedModel,
+      }),
+    [
+      selectedProviderInfo?.models,
+      routerAccounts,
+      accountModels,
+      routerSelection,
+      selectedModel,
+    ],
+  );
+  const availableModels = routerModelList.models;
+  // The pool's rows are as old as its least recently read member.
+  const routerCatalogAt = routerAccounts
+    .flatMap((a) => [a.catalogAt, a.cliModelsAt])
+    .filter((at): at is string => !!at)
+    .sort()[0];
+  const [routerCatalogRefresh, setRouterCatalogRefresh] = useState<
+    "idle" | "refreshing" | "failed"
+  >("idle");
+  const refreshRouterCatalog = useCallback(async () => {
+    setRouterCatalogRefresh("refreshing");
+    const results = await Promise.allSettled(
+      routerAccounts.map((a) => api.routerRefreshOverview({ accountId: a.id })),
+    );
+    await routerDiscovery.reload();
+    setRouterCatalogRefresh(
+      results.some((r) => r.status === "rejected") ? "failed" : "idle",
+    );
+  }, [routerAccounts, routerDiscovery.reload]);
   const visibleModels = useMemo(
     () =>
       withProviderVisibleModelSelection(
@@ -1275,7 +1309,11 @@ export function NewSessionForm({
         ? compatibleMembers[0]?.id
         : routerSelection?.accountId
       : undefined;
-  const routedModel = resolveRouterModel(selectedModel, accountModels);
+  const routedModel = resolveRouterModel(
+    selectedModel,
+    accountModels,
+    routerAliases,
+  );
   const hasSelectedProviderModel = routerSelection
     ? !!(
         routerEnabled &&
@@ -2044,12 +2082,15 @@ export function NewSessionForm({
         ? `${model.name} (${(model.size / (1024 * 1024 * 1024)).toFixed(1)} GB)`
         : model.name;
 
-      let description = model.description;
+      const unavailable = routerModelList.unavailable.get(model.id);
+      let description = unavailable
+        ? t(ROUTER_MODEL_UNAVAILABLE[unavailable])
+        : model.description;
       if (!description) {
         const parts: string[] = [];
         if (model.parameterSize) parts.push(model.parameterSize);
         if (model.contextWindow) {
-          parts.push(`${Math.round(model.contextWindow / 1024)}K ctx`);
+          parts.push(formatContextWindowLabel(model.contextWindow));
         }
         if (model.parentModel) parts.push(model.parentModel);
         if (model.quantizationLevel) parts.push(model.quantizationLevel);
@@ -2060,6 +2101,7 @@ export function NewSessionForm({
         value: model.id,
         label,
         description,
+        disabled: !!unavailable,
         groupLabelBefore: startsAdditionalModelGroup(visibleModels, index)
           ? t("previousModelsGroup")
           : undefined,
@@ -2077,7 +2119,13 @@ export function NewSessionForm({
         ),
       };
     });
-  }, [selectedProvider, subscriptionUsage, t, visibleModels]);
+  }, [
+    routerModelList.unavailable,
+    selectedProvider,
+    subscriptionUsage,
+    t,
+    visibleModels,
+  ]);
 
   // Handle model selection from FilterDropdown
   const handleModelSelect = useCallback((selected: string[]) => {
@@ -4330,37 +4378,113 @@ export function NewSessionForm({
         />
       </NewSessionOptionSection>
     ) : null;
-  const gatewayCatalogStatus =
+  const gatewayCatalogUnavailable =
     selectedProvider === "claude-gateway" &&
-    (!selectedProviderQuery.fresh || availableModels.length === 0) ? (
+    (!selectedProviderQuery.fresh || availableModels.length === 0);
+  const modelCatalog = selectedProviderInfo?.modelCatalog;
+  const modelCatalogAge = formatBriefAge(modelCatalog?.fetchedAt);
+  const routerCatalogAge = formatBriefAge(routerCatalogAt);
+  // Pool launches read their rows from the router, not this provider list.
+  const routerCatalogNotice =
+    !routerSelection || modelOptions.length === 0
+      ? null
+      : routerCatalogRefresh === "refreshing"
+        ? {
+            warning: false,
+            message: t("newSessionModelCatalogRefreshing"),
+            action: t("newSessionModelCatalogRefresh"),
+          }
+        : routerCatalogAge
+          ? {
+              warning: routerCatalogRefresh === "failed",
+              message:
+                routerCatalogRefresh === "failed"
+                  ? t("newSessionModelCatalogRefreshFailed", {
+                      age: routerCatalogAge,
+                    })
+                  : t("newSessionModelCatalogUpdated", {
+                      age: routerCatalogAge,
+                    }),
+              action: t("newSessionModelCatalogRefresh"),
+            }
+          : null;
+  const modelCatalogNotice = gatewayCatalogUnavailable
+    ? {
+        warning: true,
+        message: selectedProviderQuery.refreshing
+          ? t("newSessionGatewayCatalogLoading")
+          : t("newSessionGatewayCatalogUnavailable"),
+        action: t("newSessionGatewayCatalogRetry"),
+      }
+    : routerSelection ||
+        !modelCatalog ||
+        modelCatalog.source === "static" ||
+        modelOptions.length === 0
+      ? null
+      : selectedProviderQuery.refreshing
+        ? {
+            warning: false,
+            message: t("newSessionModelCatalogRefreshing"),
+            action: t("newSessionModelCatalogRefresh"),
+          }
+        : modelCatalog.source === "fallback"
+          ? {
+              warning: true,
+              message: t("newSessionModelCatalogFallback"),
+              action: t("newSessionModelCatalogRefresh"),
+            }
+          : {
+              warning: modelCatalog.error !== undefined,
+              message: modelCatalog.error
+                ? t("newSessionModelCatalogRefreshFailed", {
+                    age: modelCatalogAge ?? "?",
+                  })
+                : t("newSessionModelCatalogUpdated", {
+                    age: modelCatalogAge ?? "0m",
+                  }),
+              action: t("newSessionModelCatalogRefresh"),
+            };
+  const catalogNotice = routerCatalogNotice ?? modelCatalogNotice;
+  const modelCatalogStatus = catalogNotice ? (
+    <div
+      className={
+        catalogNotice.warning ? styles.catalogStatus : styles.catalogStatusMuted
+      }
+      role="status"
+      aria-live="polite"
+      title={routerCatalogNotice ? undefined : modelCatalog?.error}
+    >
+      <span>{catalogNotice.message}</span>
+      <button
+        type="button"
+        className={styles.catalogAction}
+        disabled={
+          routerCatalogNotice
+            ? routerCatalogRefresh === "refreshing"
+            : selectedProviderQuery.refreshing
+        }
+        onClick={() =>
+          void (routerCatalogNotice
+            ? refreshRouterCatalog()
+            : selectedProviderQuery.refresh())
+        }
+      >
+        {catalogNotice.action}
+      </button>
+    </div>
+  ) : null;
+  const gatewayCatalogStatus =
+    gatewayCatalogUnavailable && !modelField ? (
       <div className="new-session-model-field">
         <h3>{sessionDefaultCopy.model.title}</h3>
-        <div
-          className="new-session-provider-catalog-status"
-          role="status"
-          aria-live="polite"
-        >
-          <span>
-            {selectedProviderQuery.refreshing
-              ? t("newSessionGatewayCatalogLoading")
-              : t("newSessionGatewayCatalogUnavailable")}
-          </span>
-          <button
-            type="button"
-            className="new-session-provider-catalog-retry"
-            disabled={selectedProviderQuery.refreshing}
-            onClick={() => void selectedProviderQuery.refresh()}
-          >
-            {t("newSessionGatewayCatalogRetry")}
-          </button>
-        </div>
+        {modelCatalogStatus}
       </div>
     ) : null;
   const modelSection =
     modelField || gatewayCatalogStatus ? (
       <div className="new-session-model-section">
         {modelField}
-        {gatewayCatalogStatus}
+        {gatewayCatalogStatus ?? modelCatalogStatus}
       </div>
     ) : null;
   const showThinkingSection = (

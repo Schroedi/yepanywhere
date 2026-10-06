@@ -476,6 +476,23 @@ export interface SlashCommand {
 }
 
 /**
+ * Where a provider's current model list came from.
+ *
+ * - `live`: read from the provider (CLI, SDK, or endpoint) at `fetchedAt`.
+ * - `fallback`: YA's built-in list, used because the live read was
+ *   unavailable; it may be missing or misnaming current models.
+ * - `static`: the provider has no live list; YA's built-in list is the
+ *   intended source.
+ */
+export interface ModelCatalogStatus {
+  source: "live" | "fallback" | "static";
+  /** ISO time the list was produced. */
+  fetchedAt?: string;
+  /** Why the live read was unavailable, when known. */
+  error?: string;
+}
+
+/**
  * Provider info for UI display.
  */
 export interface ProviderInfo {
@@ -493,6 +510,8 @@ export interface ProviderInfo {
   user?: { email?: string; name?: string };
   /** Available models for this provider */
   models?: ModelInfo[];
+  /** Provenance of `models`; absent from servers that predate it. */
+  modelCatalog?: ModelCatalogStatus;
   /** Server-maintained opt-in choices that do not enter models by default. */
   additionalModelOptions?: ModelInfo[];
   /** Long-edge image sizing guidance for client-side attachment rescaling. */

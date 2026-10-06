@@ -5,6 +5,7 @@ import type {
   ContextBreakdown,
   ConversationContextTurn,
   EffectiveSessionLaunchSettings,
+  ModelCatalogStatus,
   ModelInfo,
   PermissionMode,
   PromptCacheKeepaliveProviderInfo,
@@ -550,13 +551,18 @@ export interface AgentProvider {
   startSession(options: StartSessionOptions): Promise<AgentSession>;
 
   /**
-   * Get available models for this provider.
-   * For local providers (Codex with Ollama), this queries the local model list.
-   * For cloud providers (Claude, Gemini), this returns a static list.
+   * Get available models for this provider. Implementations may cache;
+   * `forceRefresh` discards that cache and reads the provider again.
    */
   getAvailableModels(options?: {
     forceRefresh?: boolean;
   }): Promise<ModelInfo[]>;
+
+  /**
+   * Provenance of the list the latest `getAvailableModels` call returned.
+   * Absence means the provider does not report one.
+   */
+  getModelCatalogStatus?(): ModelCatalogStatus | undefined;
 
   /**
    * Read account/subscription quota windows without creating a provider turn.

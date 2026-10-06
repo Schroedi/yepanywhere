@@ -425,15 +425,27 @@ measured in the tightest window that bounds the selected model. These are
 the last observation, not a promise; AAR confirms quota at launch. All of it
 derives from the overview YA already holds; no extra router call is made.
 Discovery progress, discovery failure with Retry, and an unavailable
-selection appear as a status line under the Pool control. Model
-family aliases resolve to a concrete catalog model before allocation. An unavailable
+selection appear as a status line under the Pool control. A selection
+resolves to a concrete catalog model before allocation. When AAR advertises
+`catalog-cli-models-v1`, each Claude account carries its own CLI's model rows
+(`initialize.models`); YA's server bounds them and maps them through the same
+pipeline as the direct Claude list, so a pool shows the direct picker's names
+and descriptions. Each row launches the `resolvedModel` the members' CLIs
+report (a `[1m]` suffix is dropped for admission). A row with no reported
+target, conflicting targets, or a target absent from every member's catalog
+stays listed but disabled with the reason; catalog models no row launches
+follow under Previous models. Older routers keep the family guess (newest
+`claude-<family>-*`). The model status line shows the oldest member catalog
+age, and Refresh re-reads each member. An unavailable
 selection remains selected and cannot silently fall back to direct login.
 Explicit thinking travels through allocation, persistence, native launch and
 resume. Native adapters use the pinned account's model metadata, including
 Codex Max-to-ultra mapping, instead of querying the direct login's catalog.
 
-`POST /api/agent-auth-router/selection` performs catalog-only discovery through
-the private control socket. Requests coalesce by connection/provider. The client
+`POST /api/agent-auth-router/selection` performs catalog discovery through
+the private control socket; with `catalog-cli-models-v1` AAR also re-reads
+Claude CLI rows older than an hour, which starts the account's CLI but makes no
+inference request. Requests coalesce by connection/provider. The client
 revalidates on mount, provider/source changes, focus/visibility and connection
 changes, discarding obsolete results. There is no idle polling; quota admission
 still happens when starting a session. Recovery and usage diagnostics remain in

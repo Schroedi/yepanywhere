@@ -38,8 +38,10 @@ import {
   DEFAULT_SUBAGENT_MAX_DEPTH,
   GOAL_COMMAND_NAME,
   HELPER_SIDE_MODEL_CHEAPEST,
+  type AgentAuthRouterCliModel,
   type ClaudeAdditionalModelSelection,
   type EffortLevel,
+  type ModelCatalogStatus,
   type ModelInfo,
   type PromptCacheKeepaliveProviderInfo,
   type ProviderSubscriptionUsage,
@@ -52,6 +54,10 @@ import { quoteShellWord } from "../../utils/posixShell.js";
 import { logSDKMessage } from "../messageLogger.js";
 import { MessageQueue } from "../messageQueue.js";
 import { ClaudeTurnEffort } from "./claude-turn-effort.js";
+import {
+  fallbackModelCatalog,
+  modelCatalogError,
+} from "./model-catalog-status.js";
 import { normalizeClaudeContextUsage } from "./claude-context-breakdown.js";
 import {
   getClaudeAdditionalModelOptions,
@@ -697,6 +703,9 @@ export function normalizeClaudeLaunchModel(
 }
 
 /** Static fallback list of Claude models (used if probe fails) */
+/** Re-probe the live catalog after this long; aliases move between releases. */
+const CLAUDE_MODEL_CACHE_TTL_MS = 60 * 60_000;
+
 const CLAUDE_MODELS_FALLBACK: ModelInfo[] = [
   {
     id: "default",
@@ -856,6 +865,23 @@ function mapClaudeSdkModel(model: ClaudeSdkModelInfo): ModelInfo {
     supportsFastMode: model.supportsFastMode,
     supportsAutoMode: model.supportsAutoMode,
   };
+}
+
+/**
+ * Map an agent-auth-router account's CLI rows exactly as the direct probe's
+ * rows, so pool and direct pickers show the same names and descriptions.
+ */
+export function mapClaudeCliModels(
+  rows: readonly AgentAuthRouterCliModel[],
+): ModelInfo[] {
+  return mergeClaudeModels(
+    rows.map((row) =>
+      mapClaudeSdkModel({
+        ...row,
+        description: row.description ?? "",
+      } as ClaudeSdkModelInfo),
+    ),
+  );
 }
 
 function claudeModelFamily(
@@ -1064,7 +1090,10 @@ export class ClaudeProvider implements AgentProvider {
     defaultInactivityMinutes: DEFAULT_PROMPT_CACHE_KEEPALIVE_INACTIVITY_MINUTES,
   };
   private cachedModels: ModelInfo[] | null = null;
+  private cachedModelsAt = 0;
+  private modelCacheGeneration = 0;
   private probePromise: Promise<ModelInfo[]> | null = null;
+  protected modelCatalogStatus: ModelCatalogStatus | undefined;
   private getAdditionalModelSelections: () =>
     | readonly ClaudeAdditionalModelSelection[]
     | undefined = () => [];
@@ -1101,6 +1130,22 @@ export class ClaudeProvider implements AgentProvider {
   protected invalidateModelCache(): void {
     this.cachedModels = null;
     this.probePromise = null;
+    this.modelCacheGeneration += 1;
+  }
+
+  getModelCatalogStatus(): ModelCatalogStatus | undefined {
+    return this.modelCatalogStatus;
+  }
+
+  /** Publish a live catalog unless a newer read has already started. */
+  private acceptLiveModels(models: ModelInfo[], generation: number): void {
+    if (generation !== this.modelCacheGeneration) return;
+    this.cachedModels = models;
+    this.cachedModelsAt = Date.now();
+    this.modelCatalogStatus = {
+      source: "live",
+      fetchedAt: new Date(this.cachedModelsAt).toISOString(),
+    };
   }
 
   private projectAdditionalModels(models: readonly ModelInfo[]): ModelInfo[] {
@@ -1264,38 +1309,63 @@ export class ClaudeProvider implements AgentProvider {
 
   /**
    * Get available Claude models.
-   * Fetches dynamically from SDK via a probe session, with caching.
-   * Falls back to static list if probe fails or user is not authenticated.
+   * Fetches dynamically from SDK via a probe session, cached for an hour or
+   * until `forceRefresh`. A failed re-probe keeps the last live list; with
+   * none, or without authentication, it returns the built-in fallback.
    */
-  async getAvailableModels(): Promise<ModelInfo[]> {
-    // Return cached models if available
-    if (this.cachedModels) {
+  async getAvailableModels(options?: {
+    forceRefresh?: boolean;
+  }): Promise<ModelInfo[]> {
+    const forceRefresh = options?.forceRefresh === true;
+    if (
+      !forceRefresh &&
+      this.cachedModels &&
+      Date.now() - this.cachedModelsAt < CLAUDE_MODEL_CACHE_TTL_MS
+    ) {
       return this.projectAdditionalModels(this.cachedModels);
     }
 
     // Check if user is authenticated before trying to probe
     const authStatus = await this.getAuthStatus();
     if (!authStatus.authenticated) {
-      return this.projectAdditionalModels(CLAUDE_MODELS_FALLBACK);
+      return this.useFallbackModels("Claude is not signed in");
     }
 
-    // If probe is already in progress, wait for it
-    if (this.probePromise) {
-      return this.projectAdditionalModels(await this.probePromise);
+    // Join a probe already in progress unless the caller asked for a new one.
+    let probe = forceRefresh ? null : this.probePromise;
+    let generation = this.modelCacheGeneration;
+    if (!probe) {
+      generation = ++this.modelCacheGeneration;
+      probe = this.probeModels();
+      this.probePromise = probe;
     }
-
-    // Start a new probe
-    this.probePromise = this.probeModels();
     try {
-      const models = await this.probePromise;
-      this.cachedModels = mergeClaudeModels(models);
-      return this.projectAdditionalModels(this.cachedModels);
+      const models = mergeClaudeModels(await probe);
+      this.acceptLiveModels(models, generation);
+      return this.projectAdditionalModels(models);
     } catch (error) {
-      console.warn("[Claude] Failed to probe models, using fallback:", error);
-      return this.projectAdditionalModels(CLAUDE_MODELS_FALLBACK);
+      console.warn("[Claude] Failed to probe models:", error);
+      if (this.cachedModels) {
+        if (
+          generation === this.modelCacheGeneration &&
+          this.modelCatalogStatus
+        ) {
+          this.modelCatalogStatus = {
+            ...this.modelCatalogStatus,
+            error: modelCatalogError(error),
+          };
+        }
+        return this.projectAdditionalModels(this.cachedModels);
+      }
+      return this.useFallbackModels(modelCatalogError(error));
     } finally {
-      this.probePromise = null;
+      if (this.probePromise === probe) this.probePromise = null;
     }
+  }
+
+  private useFallbackModels(error: string): ModelInfo[] {
+    this.modelCatalogStatus = fallbackModelCatalog(error);
+    return this.projectAdditionalModels(CLAUDE_MODELS_FALLBACK);
   }
 
   async getSubscriptionUsage(
@@ -1403,7 +1473,7 @@ export class ClaudeProvider implements AgentProvider {
     const mappedModels = mergeClaudeModels(
       models.map((model) => mapClaudeSdkModel(model)),
     );
-    this.cachedModels = mappedModels;
+    this.acceptLiveModels(mappedModels, ++this.modelCacheGeneration);
     return this.projectAdditionalModels(mappedModels);
   }
 

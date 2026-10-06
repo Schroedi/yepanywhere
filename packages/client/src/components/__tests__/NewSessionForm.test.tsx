@@ -31,6 +31,7 @@ import {
   YA_GROK_BATCH_SPEECH_METHOD,
   XAI_DIRECT_STREAMING_SPEECH_METHOD,
 } from "../../lib/speechProviders/methods";
+import { api } from "../../api/client";
 import { UI_KEYS } from "../../lib/storageKeys";
 import { NewSessionForm } from "../NewSessionForm";
 
@@ -148,6 +149,11 @@ const {
       supportsRecaps?: boolean;
       supportsNativeRecaps?: boolean;
       supportsNativePromptSuggestions?: boolean;
+      modelCatalog?: {
+        source: "live" | "fallback" | "static";
+        fetchedAt?: string;
+        error?: string;
+      };
       models?: Array<{
         id: string;
         name: string;
@@ -344,6 +350,7 @@ vi.mock("../../api/client", () => ({
       ],
     })),
     routerStatus: vi.fn(async () => ({ state: "connected" })),
+    routerRefreshOverview: vi.fn(async () => ({})),
     routerAccounts: vi.fn(async () => ({
       accounts: [{ id: "routed-account", provider: "claude", enabled: true }],
     })),
@@ -970,6 +977,41 @@ describe("NewSessionForm", () => {
     vi.unstubAllGlobals();
   });
 
+  it("shows where the model list came from and refreshes it", () => {
+    const claude = providersState.providers[0];
+    if (!claude) throw new Error("expected Claude provider fixture");
+    claude.modelCatalog = {
+      source: "fallback",
+      fetchedAt: new Date().toISOString(),
+      error: "Claude is not signed in",
+    };
+    const { rerender } = render(<NewSessionForm projectId="project-1" />);
+    fireEvent.click(screen.getByRole("button", { name: "Claude" }));
+
+    const fallback = screen.getByText("newSessionModelCatalogFallback");
+    expect(fallback.parentElement?.getAttribute("title")).toBe(
+      "Claude is not signed in",
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "newSessionModelCatalogRefresh" }),
+    );
+    expect(mockRefreshProviderRow).toHaveBeenCalledTimes(1);
+
+    claude.modelCatalog = {
+      source: "live",
+      fetchedAt: new Date(Date.now() - 5 * 60_000).toISOString(),
+    };
+    rerender(<NewSessionForm projectId="project-1" />);
+    expect(screen.getByText("newSessionModelCatalogUpdated")).toBeDefined();
+    expect(screen.queryByText("newSessionModelCatalogFallback")).toBeNull();
+
+    claude.modelCatalog = { source: "static" };
+    rerender(<NewSessionForm projectId="project-1" />);
+    expect(
+      screen.queryByRole("button", { name: "newSessionModelCatalogRefresh" }),
+    ).toBeNull();
+  });
+
   it("keeps an explicit Claude selection when saved Codex defaults load later", async () => {
     const { rerender } = render(<NewSessionForm projectId="project-1" />);
 
@@ -1554,6 +1596,97 @@ describe("NewSessionForm", () => {
       model: "claude-opus-4-8",
       thinking: "on:high",
     });
+  });
+
+  it("lists the pool accounts' CLI rows and launches the model they select", async () => {
+    const opus = {
+      id: "claude-opus-4-8",
+      name: "Claude Opus 4.8",
+      supportsEffort: true,
+      supportsAdaptiveThinking: true,
+      supportedReasoningEfforts: [
+        { reasoningEffort: "high", description: "High" },
+      ],
+    };
+    const account = {
+      id: "routed-account",
+      provider: "claude",
+      enabled: true,
+      catalogAt: "2026-10-06T10:00:00Z",
+      cliModelsAt: "2026-10-06T10:00:00Z",
+      models: [opus],
+      cliModels: [
+        {
+          id: "opus",
+          name: "Opus",
+          description: "Opus 4.8 from the account's CLI",
+          resolvedModel: "claude-opus-4-8[1m]",
+        },
+        { id: "best", name: "Best", description: "Most capable" },
+      ],
+    };
+    const selection = {
+      accounts: [account],
+      pools: [
+        {
+          id: "work",
+          name: "Work",
+          provider: "claude",
+          accountIds: ["routed-account"],
+          policy: "round-robin",
+        },
+      ],
+    };
+    vi.mocked(api.routerSelection).mockResolvedValue(selection as never);
+    versionState.version = { capabilities: ["agent-auth-router"] };
+    modelSettingsState.thinkingMode = "on";
+    serverSettingsState.isLoading = false;
+    try {
+      render(
+        <NewSessionForm
+          projectId="project-1"
+          selectedProject={chooserProjects[0]}
+          projects={[...chooserProjects]}
+        />,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Claude" }));
+      openAdvancedOptions();
+      fireEvent.click(screen.getAllByRole("button", { name: "Opus 4.8" })[0]!);
+      await screen.findByTestId("filter-routerPool");
+      fireEvent.click(dropdownOption("routerPool", "Work"));
+
+      const opusRow = dropdownOption("newSessionModelTitle", "Opus");
+      expect(opusRow.textContent).toContain("Opus 4.8 from the account's CLI");
+      expect(opusRow.className).toBe("selected");
+      const best = dropdownOption("newSessionModelTitle", "Best");
+      expect(best.disabled).toBe(true);
+      expect(best.textContent).toContain("routerModelUnresolved");
+      expect(screen.getByText("newSessionModelCatalogUpdated")).toBeDefined();
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "newSessionModelCatalogRefresh" }),
+      );
+      await waitFor(() =>
+        expect(api.routerRefreshOverview).toHaveBeenCalledWith({
+          accountId: "routed-account",
+        }),
+      );
+
+      fireEvent.change(screen.getByPlaceholderText("newSessionPlaceholder"), {
+        target: { value: "hello" },
+      });
+      fireEvent.click(
+        screen.getByRole("button", { name: "newSessionStartAction" }),
+      );
+      await waitFor(() => expect(mockStartSession).toHaveBeenCalledTimes(1));
+      expect(mockStartSession.mock.calls[0]?.[2]).toMatchObject({
+        routerPoolId: "work",
+        model: "claude-opus-4-8",
+        thinking: "on:high",
+      });
+    } finally {
+      vi.mocked(api.routerSelection).mockReset();
+    }
   });
 
   it("submits the selected Claude provider and model to startSession", async () => {
