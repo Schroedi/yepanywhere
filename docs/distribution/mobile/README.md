@@ -94,26 +94,24 @@ with those public links. The public contact is `graehlarts@gmail.com`.
 The beta source is committed and integrated with current main at `7ea72be0c`.
 Open testing has unlimited enrollment, 177 selected countries/regions with
 France excluded, and `graehlarts@gmail.com` for feedback. Advertising ID use is
-declared absent, matching the native app and merged manifest. Open beta 1 is
-saved as **Ready to release** with signed code `57901` / `0.1.2-ci.479.1`, English
-notes, and the native pre-login privacy link. The candidate comes from the
-passing build/lint/inspection gate in
+declared absent, matching the native app and merged manifest. Open beta 1 was
+submitted for review on October 6 with signed code `57901` / `0.1.2-ci.479.1`,
+English notes, and the native pre-login privacy link. The exact source passed
+build/lint/inspection and WebView instrumentation in
 [Android CI 37416431327](https://github.com/kzahel/yepanywhere/actions/runs/37416431327).
-WebView instrumentation also passed for that source. Publishing overview has
-the release and setup changes saved; none has been sent for review. Play quick
-checks were last observed in progress.
 
-The maintainer requested children in the intended audience on October 6.
-Selecting all six age groups reaches a required certification of compliance
-with laws relating to children. That edit remains **unsaved**: the current
-Android candidate has no separate adult verification or child controls
-for public sharing, and child data/API/SDK handling still needs verification.
-[Play Families requirements](https://support.google.com/googleplay/android-developer/answer/9893335?hl=en)
-require adult-managed social features and adult action before children can
-exchange personal information. The existing saved intended audience remains
-18 and older until a supported child-audience declaration can be completed.
-The maintainer's saved all-ages content rating remains unchanged.
-Saving setup changes does not publish an open beta.
+The maintainer selected **13 and older**: ages 13–15, 16–17, and 18 and over.
+That declaration is saved and included in the 13 submitted changes. The
+maintainer's saved all-ages content rating remains unchanged, verified as
+Everyone / PEGI 3 / USK all ages and corresponding regional ratings.
+Automated quick checks completed. Publishing overview confirms **Changes in
+review**. Managed publishing is off, so approval will publish the open-testing
+rollout. It is not available to new public testers until Play completes review
+and publication.
+
+An under-13 audience would require separate child-data and sharing readiness
+under [Play Families requirements](https://support.google.com/googleplay/android-developer/answer/9893335?hl=en).
+That expansion is not part of the selected 13+ beta.
 
 A full public listing is not the first internal-testing prerequisite.
 [Google permits internal testing before completing app setup](https://support.google.com/googleplay/android-developer/answer/9845334).
