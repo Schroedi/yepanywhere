@@ -50,9 +50,31 @@ The same read reaches the other providers through their own native hooks:
   server through `createSdkMcpServer`. This is the Claude counterpart of Codex
   dynamic tools: no listener, no credential, and the tools appear as
   `mcp__ya__*`. Sandboxed launches set `mcpServers: {}` and disallow `mcp__*`
-  (`packages/server/src/sdk/providers/claude.ts`). Allowing YA's in-process
-  server through that lockdown is a deliberate exception that needs its own
-  decision. It is not network-reachable, but it is still a new tool authority.
+  (`packages/server/src/sdk/providers/claude.ts`). It is not network-reachable,
+  but it is still a new tool authority.
+
+**Sandboxed sessions (user-directed 2026-10-06).** When the view feature is
+enabled, YA's own view server is the one exception to the sandbox MCP
+lockdown ([session sandboxing § Claude MCP and connectors](../../topics/session-sandboxing.md#claude-mcp-and-connectors)).
+For Claude that means passing only the in-process `ya` server and narrowing
+the `mcp__*` deny to everything except `mcp__ya__*`. Configured servers,
+Claude.ai connectors and remote servers stay disabled. The exception covers
+YA's server alone, and only its read-only view tools. Any later YA tool that
+can act needs its own review before it passes the lockdown. Sandboxed Codex
+and ACP launches get the same single-server exception through their own MCP
+configuration.
+
+Limited users' sessions are sandboxed, so they inherit this exception.
+Limited users' tabs are currently refused when they report a view (the route
+is a session mutation no limited grant allows). Their agent would therefore see
+no clients until a session-view report is allowed under `view` access on that
+session.
+
+Whether a sandbox may allow other MCP servers, chosen per sandbox level or per
+limited user, is a separate question. Sandbox settings may later offer that
+granularity, and [sandbox MCP allowlist](sandbox-mcp-allowlist.md) sketches
+its settings and UI. The view server's exception does not depend on that
+work.
 - **pi.** YA already loads a bundled extension into every pi session
   (`packages/server/src/sdk/providers/pi-yep-anywhere-extension.mjs`).
   `pi.registerTool()` there can expose the read. pi has no MCP by design, so
