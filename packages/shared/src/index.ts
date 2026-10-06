@@ -19,6 +19,7 @@ export type {
 } from "./retained-session-collections.js";
 
 export * from "./session-content-search.js";
+export * from "./mcp-apps.js";
 export * from "./instructionRestoration.js";
 export * from "./limited-users.js";
 export * from "./sidebar-categories.js";

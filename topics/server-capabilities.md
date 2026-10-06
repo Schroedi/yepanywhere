@@ -76,6 +76,14 @@ Without the capability the client shows the tier read-only in Session Info and
 sends no tier change. No existing capability changes meaning. The maintainer
 approved this gate on 2026-10-06. See [service tier](service-tier.md#compatibility).
 
+`mcp-app-views` (permanent ID 120, version-implied from 0.9.4) owns the
+`mcpAppViews` server setting, the `_mcpApp` tool_use field,
+`POST /api/projects/:projectId/sessions/:sessionId/mcp-apps`, and the
+artifact-origin proxy path. v0.9.0–v0.9.2 lack all of them; without the
+capability clients hide the setting and every view button and send no view
+request. No existing capability changes meaning; the maintainer's standing
+compatibility approval covers the gate. See [MCP Apps](mcp-apps.md#compatibility).
+
 `context-usage-breakdown` (permanent ID 108, version-implied from 0.9.4) owns
 `GET /api/sessions/:sessionId/context-breakdown`. v0.9.0–v0.9.2 lack the
 route; without the capability the context-usage popover shows only its

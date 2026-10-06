@@ -5957,6 +5957,84 @@ describe("CodexProvider Event Normalization", () => {
     expect((params.clientInfo as { name?: unknown }).name).toEqual(
       expect.any(String),
     );
+    expect(params.capabilities).not.toHaveProperty("extensions");
+  });
+
+  it("declares the MCP Apps extension only when views are hosted", () => {
+    const provider = createTestProvider() as unknown as {
+      createInitializeParams: (
+        experimentalApiEnabled: boolean,
+        clientName: string | undefined,
+        mcpAppViews: boolean,
+      ) => { capabilities: Record<string, unknown> | null };
+    };
+
+    expect(
+      provider.createInitializeParams(true, undefined, true).capabilities,
+    ).toEqual({
+      experimentalApi: true,
+      extensions: {
+        "io.modelcontextprotocol/ui": {
+          mimeTypes: ["text/html;profile=mcp-app"],
+        },
+      },
+    });
+    expect(
+      provider.createInitializeParams(false, undefined, true).capabilities,
+    ).toBeNull();
+  });
+
+  it("carries an MCP tool's declared view beside its unchanged arguments", () => {
+    const provider = createTestProvider() as unknown as {
+      normalizeThreadItem: (item: Record<string, unknown>) => unknown;
+      convertItemToSDKMessages: (
+        item: unknown,
+        sessionId: string,
+        turnId: string,
+        sourceEvent: "item/started" | "item/completed",
+      ) => Array<{ message?: { content?: Array<Record<string, unknown>> } }>;
+    };
+    const base = {
+      id: "call-1",
+      type: "mcpToolCall",
+      server: "weather",
+      tool: "forecast",
+      status: "inProgress",
+      arguments: { city: "Oslo" },
+    };
+    const toolUse = (item: Record<string, unknown>) =>
+      provider.convertItemToSDKMessages(
+        provider.normalizeThreadItem(item),
+        "session-1",
+        "turn-1",
+        "item/started",
+      )[0]?.message?.content?.[0];
+
+    expect(
+      toolUse({
+        ...base,
+        mcpAppUi: {
+          resourceUri: "ui://weather/forecast",
+          preferredModelDisplayMode: "fullscreen",
+        },
+      }),
+    ).toMatchObject({
+      name: "weather:forecast",
+      input: { city: "Oslo" },
+      _mcpApp: {
+        server: "weather",
+        tool: "forecast",
+        resourceUri: "ui://weather/forecast",
+        displayMode: "fullscreen",
+      },
+    });
+    expect(
+      toolUse({ ...base, mcpAppResourceUri: "ui://weather/legacy" }),
+    ).toMatchObject({
+      input: { city: "Oslo" },
+      _mcpApp: { resourceUri: "ui://weather/legacy", displayMode: "inline" },
+    });
+    expect(toolUse(base)).not.toHaveProperty("_mcpApp");
   });
 
   it("records and recovers an unsupported experimental initialize", async () => {

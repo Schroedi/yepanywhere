@@ -8,6 +8,7 @@
  * App types extend these with runtime fields that are computed or added during processing.
  */
 
+import type { McpAppToolCall } from "./mcp-apps.js";
 import type { SessionClearloopBadge } from "./session-rewind.js";
 import type {
   AssistantEntry,
@@ -57,6 +58,8 @@ export interface AppContentBlock {
   input?: unknown;
   /** YA-derived presentation semantics; recomputed rather than persisted. */
   _displayActions?: ToolDisplayAction[];
+  /** The MCP App view this tool call's tool declared. */
+  _mcpApp?: McpAppToolCall;
   /** Server-confirmed file links for visible command or result text. */
   _projectPathLinks?: ProjectPathLinkTarget[];
   // tool_result block

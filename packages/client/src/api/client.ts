@@ -2136,6 +2136,8 @@ export interface ServerSettings {
   codexUpdatePolicy?: "auto" | "notify" | "off";
   /** Keep eligible local Linux Codex runtimes across YA server reloads. */
   codexReloadSafeSessions?: boolean;
+  /** Host MCP App views from Codex tool calls (topics/mcp-apps.md). */
+  mcpAppViews?: boolean;
   /** Best-effort idle provider reap grace in hours; negative disables it. */
   idleReapHours?: number;
   /** Max seconds between consecutive queued turns to join at delivery. */

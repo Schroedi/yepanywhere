@@ -419,6 +419,12 @@ class RemoteAgentSession {
               this.rpc<boolean>("appendConversationContext", [turns]),
           }
         : {}),
+      ...(capabilities.mcpAppRequest
+        ? {
+            mcpAppRequest: (request) =>
+              this.rpc<unknown>("mcpAppRequest", [request]),
+          }
+        : {}),
       ...(capabilities.setMaxThinkingTokens
         ? {
             setMaxThinkingTokens: (tokens) =>

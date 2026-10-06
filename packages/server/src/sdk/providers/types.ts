@@ -411,6 +411,14 @@ export interface AgentSession {
     turns: ConversationContextTurn[],
   ) => Promise<boolean>;
   /**
+   * Serve an MCP App view through the provider's own MCP connections: read
+   * its resource, call its server's tools, or hold its model context.
+   * Present only while MCP App hosting is enabled for this session.
+   */
+  mcpAppRequest?: (
+    request: import("@yep-anywhere/shared").McpAppProviderRequest,
+  ) => Promise<unknown>;
+  /**
    * Change max thinking tokens without restarting the session.
    * Pass null to disable thinking mode.
    * Only supported by Claude SDK 0.2.7+.

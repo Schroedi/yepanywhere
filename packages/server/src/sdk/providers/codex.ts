@@ -1,4 +1,12 @@
-import { routerModelSupportsThinking } from "@yep-anywhere/shared";
+import {
+  MCP_APP_EXTENSION_ID,
+  MCP_APP_EXTENSION_SETTINGS,
+  type McpAppProviderRequest,
+  type McpAppToolCall,
+  formatMcpAppModelContext,
+  mcpAppToolCallFromCodexItem,
+  routerModelSupportsThinking,
+} from "@yep-anywhere/shared";
 import {
   codexRouterArguments,
   codexRouterEnvironment,
@@ -108,6 +116,13 @@ import type {
   ThreadGoalGetResponse,
   ThreadGoalSetParams,
   ThreadGoalSetResponse,
+  InitializeCapabilities,
+  ListMcpServerStatusParams,
+  ListMcpServerStatusResponse,
+  McpResourceReadParams,
+  McpResourceReadResponse,
+  McpServerToolCallParams,
+  McpServerToolCallResponse,
   ThreadReadParams,
   ThreadReadResponse,
   ThreadItem as CodexThreadItem,
@@ -475,6 +490,13 @@ interface CodexTurnRuntimeState {
   workspaceWriteSandboxPolicy: CodexSandboxPolicy | null;
   activeToolCallIds: Set<string>;
   backgroundToolCallIds: Set<string>;
+  /** MCP App hosting as configured when this session's app-server started. */
+  mcpAppViews: boolean;
+  /** Latest `ui/update-model-context` per MCP App view, sent before the next turn. */
+  mcpAppModelContext: Map<
+    string,
+    { server: string; tool: string; text: string }
+  >;
 }
 
 type CodexRetryableTurnErrorKind = "serverOverloaded" | "cyberAccessDenied";
@@ -796,7 +818,7 @@ type NormalizedThreadItem =
       server: string;
       tool: string;
       arguments: unknown;
-      mcpAppResourceUri?: string;
+      mcpApp?: McpAppToolCall;
       result?: unknown;
       error?: { message: string };
       status: string;
@@ -1354,6 +1376,7 @@ export class CodexProvider implements AgentProvider {
   private readonly cyberAccessDenials = new Set<string>();
   private getConfiguredSubagentMaxDepth: () => SubagentMaxDepth = () =>
     DEFAULT_SUBAGENT_MAX_DEPTH;
+  private getMcpAppViews: () => boolean = () => false;
 
   constructor(config: CodexProviderConfig = {}) {
     if (config.externalChatgptAuth && (config.apiKey || config.baseUrl)) {
@@ -1370,6 +1393,10 @@ export class CodexProvider implements AgentProvider {
     this.config.codexPath = codexPath;
     this.modelCache = null;
     this.modelCacheReadGeneration += 1;
+  }
+
+  setMcpAppViewsGetter(getter: () => boolean): void {
+    this.getMcpAppViews = getter;
   }
 
   setReasoningSummaryGetter(getter: () => CodexReasoningSummary): void {
@@ -1962,6 +1989,8 @@ export class CodexProvider implements AgentProvider {
       workspaceWriteSandboxPolicy: null,
       activeToolCallIds: new Set(),
       backgroundToolCallIds: new Set(),
+      mcpAppViews: this.getMcpAppViews(),
+      mcpAppModelContext: new Map(),
     };
 
     // Push initial message if provided
@@ -2237,6 +2266,65 @@ export class CodexProvider implements AgentProvider {
           throw error;
         }
       },
+      ...(runtimeState.mcpAppViews
+        ? {
+            mcpAppRequest: async (request: McpAppProviderRequest) => {
+              const threadId = runtimeState.threadId;
+              if (!activeClient || !threadId) {
+                throw new Error("Codex session is not ready for MCP Apps");
+              }
+              switch (request.kind) {
+                case "readResource":
+                  return activeClient.request<McpResourceReadResponse>(
+                    "mcpServer/resource/read",
+                    {
+                      threadId,
+                      server: request.server,
+                      uri: request.uri,
+                      originCallId: request.originCallId ?? null,
+                    } satisfies McpResourceReadParams,
+                  );
+                case "callTool":
+                  return activeClient.request<McpServerToolCallResponse>(
+                    "mcpServer/tool/call",
+                    {
+                      threadId,
+                      server: request.server,
+                      tool: request.tool,
+                      arguments: (request.arguments ??
+                        {}) as McpServerToolCallParams["arguments"],
+                    } satisfies McpServerToolCallParams,
+                  );
+                case "listTools": {
+                  const status =
+                    await activeClient.request<ListMcpServerStatusResponse>(
+                      "mcpServerStatus/list",
+                      {
+                        threadId,
+                        serverName: request.server,
+                        detail: "toolsAndAuthOnly",
+                      } satisfies ListMcpServerStatusParams,
+                    );
+                  return (
+                    status.data.find((entry) => entry.name === request.server)
+                      ?.tools ?? {}
+                  );
+                }
+                case "updateModelContext":
+                  if (request.text === null) {
+                    runtimeState.mcpAppModelContext.delete(request.key);
+                  } else {
+                    runtimeState.mcpAppModelContext.set(request.key, {
+                      server: request.server,
+                      tool: request.tool,
+                      text: request.text,
+                    });
+                  }
+                  return true;
+              }
+            },
+          }
+        : {}),
       steer: async (message) => {
         if (!activeClient) return false;
         if (!runtimeState.threadId || !runtimeState.activeTurnId) return false;
@@ -2966,6 +3054,7 @@ export class CodexProvider implements AgentProvider {
         appServer,
         options.clientName,
         Boolean(this.config.externalChatgptAuth),
+        runtimeState.mcpAppViews,
       );
       appServer.notify("initialized");
       await this.loginWithExternalChatgptAuth(appServer);
@@ -3674,6 +3763,11 @@ export class CodexProvider implements AgentProvider {
                   baseline,
               });
           }
+          await this.flushMcpAppModelContext(
+            appServer,
+            runtimeState,
+            sessionId,
+          );
           let notificationBarrierSequence =
             appServer.lastNotificationReceiptSequence;
           let settlePendingTurnStart: (turnId: string | null) => void =
@@ -3965,12 +4059,55 @@ export class CodexProvider implements AgentProvider {
     }
   }
 
+  /**
+   * Deliver each MCP App view's latest model context as hidden history ahead
+   * of the user turn it informs. A failed insertion is logged and the context
+   * stays held for the next turn.
+   */
+  private async flushMcpAppModelContext(
+    appServer: CodexAppServerClient,
+    runtimeState: CodexTurnRuntimeState,
+    threadId: string,
+  ): Promise<void> {
+    if (runtimeState.mcpAppModelContext.size === 0) return;
+    const held = [...runtimeState.mcpAppModelContext.values()];
+    try {
+      await appServer.request("thread/inject_items", {
+        threadId,
+        items: held.map(({ server, tool, text }) => ({
+          type: "message",
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: formatMcpAppModelContext(server, tool, text),
+            },
+          ],
+        })),
+      });
+      runtimeState.mcpAppModelContext.clear();
+    } catch (error) {
+      log.warn(
+        {
+          event: "codex_mcp_app_context_inject_failed",
+          threadId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        "Could not deliver MCP App model context before the turn",
+      );
+    }
+  }
+
   private createInitializeParams(
     experimentalApiEnabled: boolean,
     clientName?: string,
+    mcpAppViews = false,
   ): {
     clientInfo: { name: string; title: null; version: string };
-    capabilities: { experimentalApi: boolean } | null;
+    capabilities: Pick<
+      InitializeCapabilities,
+      "experimentalApi" | "extensions"
+    > | null;
   } {
     return {
       clientInfo: {
@@ -3978,7 +4115,20 @@ export class CodexProvider implements AgentProvider {
         title: null,
         version: "dev",
       },
-      capabilities: experimentalApiEnabled ? { experimentalApi: true } : null,
+      capabilities: experimentalApiEnabled
+        ? {
+            experimentalApi: true,
+            // Codex forwards these to every MCP server it connects, which is
+            // how a server learns it may offer UI-bearing tools.
+            ...(mcpAppViews
+              ? {
+                  extensions: {
+                    [MCP_APP_EXTENSION_ID]: MCP_APP_EXTENSION_SETTINGS,
+                  },
+                }
+              : {}),
+          }
+        : null,
     };
   }
 
@@ -3986,11 +4136,12 @@ export class CodexProvider implements AgentProvider {
     appServer: CodexAppServerClient,
     clientName?: string,
     requireExperimentalApi = false,
+    mcpAppViews = false,
   ): Promise<boolean> {
     try {
       await appServer.request<{ userAgent: string }>(
         "initialize",
-        this.createInitializeParams(true, clientName),
+        this.createInitializeParams(true, clientName, mcpAppViews),
       );
       return true;
     } catch (error) {
@@ -6364,14 +6515,15 @@ export class CodexProvider implements AgentProvider {
             ? (itemRecord.error as Record<string, unknown>)
             : null;
 
+        const server = this.getOptionalString(itemRecord.server) ?? "unknown";
+        const tool = this.getOptionalString(itemRecord.tool) ?? "unknown";
         return {
           id,
           type: "mcp_tool_call",
-          server: this.getOptionalString(itemRecord.server) ?? "unknown",
-          tool: this.getOptionalString(itemRecord.tool) ?? "unknown",
+          server,
+          tool,
           arguments: itemRecord.arguments,
-          mcpAppResourceUri:
-            this.getOptionalString(itemRecord.mcpAppResourceUri) ?? undefined,
+          mcpApp: mcpAppToolCallFromCodexItem(itemRecord, server, tool),
           result: itemRecord.result,
           error:
             this.getOptionalString(errorObj?.message) !== null
@@ -7383,13 +7535,6 @@ export class CodexProvider implements AgentProvider {
 
       case "mcp_tool_call": {
         const messages: SDKMessage[] = [];
-        const input = item.mcpAppResourceUri
-          ? {
-              arguments: item.arguments,
-              mcpAppResourceUri: item.mcpAppResourceUri,
-            }
-          : item.arguments;
-
         const toolUseMessage = withCodexTimestamp(
           {
             type: "assistant",
@@ -7402,7 +7547,8 @@ export class CodexProvider implements AgentProvider {
                   type: "tool_use",
                   id: item.id,
                   name: `${item.server}:${item.tool}`,
-                  input,
+                  input: item.arguments,
+                  ...(item.mcpApp ? { _mcpApp: item.mcpApp } : {}),
                 },
               ],
             },

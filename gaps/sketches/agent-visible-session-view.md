@@ -7,7 +7,7 @@ project app opened from the sidebar, or an app another session announced.
 When the user asks about "the app" or "this page", the agent reasons from its
 own last printout.
 [Project app entry points](project-app-entry-points.md) names the manual-switch
-case. An [MCP App view](mcp-apps-host.md) would add more such state.
+case. An [MCP App view](../../topics/mcp-apps.md) adds more such state.
 
 **Status (2026-10-06): the pull read through the shell is implemented.**
 Tabs publish their views, the server forwards them to the provider owner, and

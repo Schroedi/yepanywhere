@@ -149,6 +149,7 @@ import {
   startEarlyTypingHandoff,
 } from "../lib/earlyTypingHandoff";
 import { AsyncQuestionsProvider } from "../contexts/AsyncQuestionsContext";
+import { ComposerInsertContext } from "../contexts/ComposerInsertContext";
 import { useEngagementTracking } from "../hooks/useEngagementTracking";
 import { useBtwAsides } from "../hooks/useBtwAsides";
 import { useGeneratedTitleEnabled } from "../hooks/useGeneratedTitleEnabled";
@@ -7280,7 +7281,9 @@ function SessionPageContent({
       }
     >
       <RoutedSessionContext value={Boolean(session?.routerBinding)}>
-        {content}
+        <ComposerInsertContext value={insertQuotedSelection}>
+          {content}
+        </ComposerInsertContext>
       </RoutedSessionContext>
     </AsyncQuestionsProvider>
   );

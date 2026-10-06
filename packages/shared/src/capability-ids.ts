@@ -738,6 +738,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "agent-session-view",
     introducedIn: "0.9.4",
   },
+  mcpAppViews: {
+    id: 120,
+    direction: "server",
+    name: "mcp-app-views",
+    introducedIn: "0.9.4",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [

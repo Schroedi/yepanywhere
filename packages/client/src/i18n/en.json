@@ -4585,5 +4585,19 @@
   "routerQuotaUsedOn": "from a request {date}",
   "routerQuotaRefreshFailed": "last refresh failed",
   "routerQuotaNotObserved": "no quota observed",
-  "routerQuotaObservedTitle": "Quota observed {time}. Remaining quota is confirmed at launch."
+  "routerQuotaObservedTitle": "Quota observed {time}. Remaining quota is confirmed at launch.",
+  "mcpAppViewShow": "Show app view",
+  "mcpAppViewExpand": "Expand",
+  "mcpAppViewShowInline": "Show in transcript",
+  "mcpAppViewClose": "Close view",
+  "mcpAppViewLoading": "Loading app view…",
+  "mcpAppViewUnavailable": "App view unavailable: {reason}",
+  "mcpAppViewFrame": "{server} {tool} app view",
+  "mcpAppViewNeedsArtifactOrigin": "This tool has an app view. Set an artifact address in Settings → Apps to show it.",
+  "mcpAppViewApprove": "The {server} app view wants to run {tool}.",
+  "mcpAppViewAllowOnce": "Allow once",
+  "mcpAppViewAllowAlways": "Allow for this view",
+  "mcpAppViewDeny": "Deny",
+  "mcpAppViewsSettingTitle": "MCP App views",
+  "mcpAppViewsSettingDescription": "Tell MCP servers in new Codex sessions that YA can show their interactive app views, and offer a Show app view button on tool calls that have one. Views run on the artifact address, never on YA's own address."
 }

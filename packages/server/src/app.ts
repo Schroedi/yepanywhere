@@ -32,6 +32,7 @@ import {
   createSessionAppRoutes,
   sessionAppBrokerSocket,
 } from "./routes/sessionApps.js";
+import { createMcpAppRoutes } from "./routes/mcpApps.js";
 import { createSessionPathScopeResolver } from "./routes/session-path-scope.js";
 import { createSessionLocalFileRoutes } from "./routes/session-local-files.js";
 import {
@@ -706,6 +707,7 @@ export function createApp(options: AppOptions): AppResult {
       codexReasoningSummary: options.serverSettingsService?.getSetting(
         "codexReasoningSummary",
       ),
+      mcpAppViews: options.serverSettingsService?.getSetting("mcpAppViews"),
       claudeAdditionalModels: options.serverSettingsService?.getSetting(
         "claudeAdditionalModels",
       ),
@@ -1375,6 +1377,15 @@ export function createApp(options: AppOptions): AppResult {
       getArtifactServer: () => artifactServer,
       getProcessForSession: (sessionId) =>
         supervisor.getProcessForSession(sessionId),
+    }),
+  );
+  app.route(
+    "/api",
+    createMcpAppRoutes({
+      getProcessForSession: (sessionId) =>
+        supervisor.getProcessForSession(sessionId),
+      isEnabled: () =>
+        options.serverSettingsService?.getSetting("mcpAppViews") === true,
     }),
   );
   const toolResultMediaStore = new ToolResultMediaStore({

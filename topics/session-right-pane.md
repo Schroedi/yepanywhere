@@ -42,8 +42,8 @@ primary conversation surface.
 Consumers include loopback HTTP apps discovered from tool output (Plannotator
 is the worked case), artifact links, session file viewers, and the detail
 panels tool rows publish — the long-edit diff, full bash output, write and
-grep details. All of them reuse the pane instead of covering the transcript
-when the setting is on.
+grep details, and a fullscreen [MCP App view](mcp-apps.md). All of them reuse
+the pane instead of covering the transcript when the setting is on.
 
 ## Enablement
 

@@ -99,6 +99,7 @@ export interface ProviderSessionReadyMetadata {
     steer: boolean;
     steerUsesMessageQueue?: boolean;
     appendConversationContext?: boolean;
+    mcpAppRequest?: boolean;
     instructionRestoration?: boolean;
     setMaxThinkingTokens: boolean;
     setEffort: boolean;
@@ -274,6 +275,7 @@ export class ProviderSessionOwner {
         steer: Boolean(session.steer),
         steerUsesMessageQueue: session.steerUsesMessageQueue,
         appendConversationContext: Boolean(session.appendConversationContext),
+        mcpAppRequest: Boolean(session.mcpAppRequest),
         instructionRestoration: Boolean(
           session.configureInstructionRestoration &&
             session.forceReadInstructions,
@@ -930,6 +932,12 @@ export class ProviderSessionOwner {
               >[0],
             )
           : false;
+      case "mcpAppRequest":
+        if (!session.mcpAppRequest)
+          throw new Error("MCP App hosting is unavailable for this session");
+        return session.mcpAppRequest(
+          args[0] as Parameters<NonNullable<AgentSession["mcpAppRequest"]>>[0],
+        );
       case "hydrateInstructionReadHistory":
         if (!session.hydrateInstructionReadHistory)
           throw new Error("Instruction history hydration is unavailable");

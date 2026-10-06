@@ -127,6 +127,8 @@ export interface ProviderRuntimeSnapshot {
   codexPlanToolMode?: CodexPlanToolMode;
   codexCyberAccessProgram?: CodexCyberAccessProgram;
   codexReasoningSummary?: CodexReasoningSummary;
+  /** Host MCP App views: declare the UI extension and serve view requests. */
+  mcpAppViews?: boolean;
   claudeAdditionalModels?: readonly ClaudeAdditionalModelSelection[];
   claudeGatewayUrl?: string;
   claudeGatewayStartCommand?: string;
@@ -180,6 +182,9 @@ export function configureProviderRuntime(config: ProviderRuntimeConfig): void {
   codexProvider.setReasoningSummaryGetter(getCodexReasoningSummary);
   codexProvider.setPlanToolModeGetter(getCodexPlanToolMode);
   codexProvider.setCyberAccessProgramGetter(getCodexCyberAccessProgram);
+  codexProvider.setMcpAppViewsGetter(
+    () => getProviderRuntimeSnapshot().mcpAppViews === true,
+  );
   codexProvider.setSubagentMaxDepthGetter(getSubagentMaxDepth);
 }
 

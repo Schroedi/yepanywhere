@@ -510,6 +510,32 @@ export const SERVER_CAPABILITIES = {
         "Servers before 0.9.4 ignore serviceTier on the process config route, so the client must not offer the control there.",
     },
   },
+  mcpAppViews: {
+    id: CAPABILITY_ID_ALLOCATIONS.mcpAppViews.id,
+    name: "mcp-app-views",
+    kind: "permanent",
+    area: "sessions",
+    introducedIn: "0.9.4",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Persists the default-off MCP App views setting, records a Codex tool call's declared view on its tool_use block, serves the sandbox proxy on the artifact origin, and answers a live session's view requests.",
+    clientFallback:
+      "Hide the setting and every view launcher, and make no MCP App request; tool rows show only their static result.",
+    serverContract: {
+      routes: [
+        "GET /api/settings",
+        "PUT /api/settings",
+        "POST /api/projects/:projectId/sessions/:sessionId/mcp-apps",
+      ],
+      requestFields: ["settings.mcpAppViews"],
+      responseFields: ["settings.mcpAppViews", "tool_use._mcpApp"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "Servers through 0.9.2 have no view route or proxy, so a hosted client must not offer views there.",
+    },
+  },
   projectFileViewCommand: {
     id: CAPABILITY_ID_ALLOCATIONS.projectFileViewCommand.id,
     name: "project-file-view-command",

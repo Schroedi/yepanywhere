@@ -11,6 +11,7 @@ import type {
   ProviderName,
   ProviderRuntimeStatus,
   RecapMode,
+  McpAppProviderRequest,
   SessionLivenessSnapshot,
   SessionQueuedMessageSummary,
   SessionQueuedYaCommand,
@@ -933,6 +934,8 @@ export interface ProcessConstructorOptions extends ProcessOptions {
   appendConversationContextFn?: (
     turns: ConversationContextTurn[],
   ) => Promise<boolean>;
+  /** Serves MCP App views through the provider's MCP connections. */
+  mcpAppRequestFn?: (request: McpAppProviderRequest) => Promise<unknown>;
   /** Function to get supported models (SDK 0.2.7+) */
   supportedModelsFn?: () => Promise<ModelInfo[]>;
   /** Function to get supported slash commands (SDK 0.2.7+) */
@@ -1136,6 +1139,7 @@ export class Process {
   private steerFn: ((message: UserMessage) => Promise<boolean>) | null;
   private readonly steerUsesMessageQueue: boolean;
   private appendConversationContextFn: ProcessConstructorOptions["appendConversationContextFn"];
+  private readonly mcpAppRequestFn: ProcessConstructorOptions["mcpAppRequestFn"];
 
   /** Function to get supported models (SDK 0.2.7+) */
   private supportedModelsFn: (() => Promise<ModelInfo[]>) | null;
@@ -1319,6 +1323,7 @@ export class Process {
     this.steerFn = options.steerFn ?? null;
     this.steerUsesMessageQueue = options.steerUsesMessageQueue ?? false;
     this.appendConversationContextFn = options.appendConversationContextFn;
+    this.mcpAppRequestFn = options.mcpAppRequestFn;
     this.supportedModelsFn = options.supportedModelsFn ?? null;
     this.getContextBreakdownFn = options.getContextBreakdownFn ?? null;
     this.supportedCommandsFn = options.supportedCommandsFn ?? null;
@@ -2573,6 +2578,17 @@ export class Process {
     if (!this.appendConversationContextFn) return false;
     await this.waitForProviderSessionId();
     return this.appendConversationContextFn(turns);
+  }
+
+  get supportsMcpApps(): boolean {
+    return this.mcpAppRequestFn !== undefined;
+  }
+
+  async mcpAppRequest(request: McpAppProviderRequest): Promise<unknown> {
+    if (!this.mcpAppRequestFn) {
+      throw new Error("MCP App hosting is unavailable for this session");
+    }
+    return this.mcpAppRequestFn(request);
   }
 
   /**

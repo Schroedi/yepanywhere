@@ -718,7 +718,11 @@ permits only YA's nonce-authorized selection script and a validated target-id
 message to the parent. That message can open source; it cannot write or invoke
 a script. Producer scripts and event handlers are removed.
 
-The static artifact handler exposes only GET/HEAD health and granted files.
+The static artifact handler exposes only GET/HEAD health, granted files, and
+the fixed MCP App sandbox proxy at `/.yep/mcp-app-proxy`. The proxy is
+YA-authored, holds no secrets, and frames an MCP App view in an opaque-origin
+`srcdoc` child under the view's own restrictive policy
+([MCP Apps § Isolation](mcp-apps.md#isolation)).
 The separate `/p/<launch-token>/` service route supports app HTTP/WebSockets
 as described above. `/api`, `/public-api`, desktop bootstrap, and YA control
 WebSocket upgrades remain unavailable on artifact hosts.
