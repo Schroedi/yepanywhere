@@ -577,6 +577,14 @@ describe("renderSafeMarkdown — local file links", () => {
     ["mp4", "video"],
     ["ogv", "video"],
     ["webm", "video"],
+    ["aac", "audio"],
+    ["flac", "audio"],
+    ["m4a", "audio"],
+    ["mp3", "audio"],
+    ["oga", "audio"],
+    ["ogg", "audio"],
+    ["opus", "audio"],
+    ["wav", "audio"],
   ])("recognizes .%s as local %s media", (extension, mediaType) => {
     const html = renderSafeMarkdown(
       `[asset](/tmp/rendered-media.${extension})`,

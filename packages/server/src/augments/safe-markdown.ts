@@ -2,6 +2,7 @@ import { statSync } from "node:fs";
 import { isAbsolute, normalize, posix, win32 } from "node:path";
 import { katex as markdownItKatex } from "@mdit/plugin-katex";
 import {
+  type LocalResourceMediaType,
   linkifyToHtml,
   normalizeTexForKatex,
   paperKatexMacros,
@@ -47,7 +48,28 @@ const EXTENSIONLESS_IMAGE_CANDIDATES = [
 
 const VIDEO_EXTENSIONS = new Set(["mp4", "webm", "mov", "avi", "mkv", "ogv"]);
 
-const MEDIA_EXTENSIONS = new Set([...IMAGE_EXTENSIONS, ...VIDEO_EXTENSIONS]);
+const AUDIO_EXTENSIONS = new Set([
+  "wav",
+  "mp3",
+  "ogg",
+  "oga",
+  "opus",
+  "m4a",
+  "aac",
+  "flac",
+]);
+
+const MEDIA_EXTENSIONS = new Set([
+  ...IMAGE_EXTENSIONS,
+  ...VIDEO_EXTENSIONS,
+  ...AUDIO_EXTENSIONS,
+]);
+
+function localMediaType(ext: string): LocalResourceMediaType {
+  if (VIDEO_EXTENSIONS.has(ext)) return "video";
+  if (AUDIO_EXTENSIONS.has(ext)) return "audio";
+  return "image";
+}
 const MARKDOWN_EXTENSIONS = new Set(["md", "markdown", "qmd"]);
 
 export interface SafeMarkdownRenderOptions {
@@ -154,7 +176,7 @@ interface LocalPathReference {
 }
 
 interface LocalResourceAttributeOptions {
-  mediaType?: "image" | "video";
+  mediaType?: LocalResourceMediaType;
   renderMarkdown?: boolean;
 }
 
@@ -838,8 +860,8 @@ function renderLocalMediaLinkParts(
   const parsed = toLocalPathReference(reference);
   const apiUrl = escapeHtml(localMediaApiUrl(parsed.filePath));
   const escapedPath = escapeHtml(parsed.filePath);
-  const mediaType = VIDEO_EXTENSIONS.has(ext) ? "video" : "image";
-  const typeLabel = VIDEO_EXTENSIONS.has(ext) ? "video" : "image";
+  const mediaType = localMediaType(ext);
+  const typeLabel = mediaType;
   const defaultExpanded = false;
   const toggleVerb = defaultExpanded ? "Collapse" : "Expand";
   const toggleTitle = defaultExpanded
@@ -858,8 +880,7 @@ function renderLocalMediaLinkParts(
 function renderDirectLocalImage(path: string, altText: string, title?: string) {
   const src = escapeHtml(localMediaApiUrl(path));
   const parsed = parseLocalPathReference(path);
-  const ext = getExtension(path);
-  const mediaType = VIDEO_EXTENSIONS.has(ext) ? "video" : "image";
+  const mediaType = localMediaType(getExtension(path));
   const altAttr = altText ? ` alt="${escapeHtml(altText)}"` : ' alt=""';
   const titleAttr = title ? ` title="${escapeHtml(title)}"` : "";
   const resourceAttrs = localResourceDataAttributes("local-media", parsed, {
