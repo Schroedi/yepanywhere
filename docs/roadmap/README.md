@@ -154,9 +154,10 @@ the viewer/download gap remain the next mobile release work.
   The maintainer selected and saved a 13+ intended audience; the all-ages
   content rating is unchanged. Play approved and published the release on
   October 6. A later link check found the open-testing track paused. Resume is
-  saved, with quick checks completed, but its activation submission remains
-  pending after a Play confirmation error. Retry activation before claiming
-  public enrollment can install the app.
+  saved, with quick checks completed. A later reload confirms its separate
+  activation change is in review despite the earlier confirmation error.
+  Public enrollment still reports App not available; await activation
+  publication before claiming public testers can install.
 - Native app CI now runs on relevant platform, shared mobile-core and packaging
   changes rather than ordinary web/server edits. Daily Android/iOS acceptance
   and the existing desktop nightly retain full shared-source coverage; manual

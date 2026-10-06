@@ -106,10 +106,11 @@ maintainer's saved all-ages content rating remains unchanged, verified as
 Everyone / PEGI 3 / USK all ages and corresponding regional ratings.
 Play approved and published the submitted release on October 6. A later
 installation-link check found the open-testing track paused. Resume was saved,
-but its separate activation change remains **not submitted**: Play returned an
-unexpected error during the final confirmation. Quick checks completed for
-that activation change. Retry its submission before claiming public testers
-can install.
+and its separate activation change is now **in review**, verified after
+reloading Publishing overview on October 6. Quick checks completed; the earlier
+confirmation error did not prevent the change from eventually reaching review.
+The public enrollment page still reports **App not available**. Wait for track
+activation to publish before claiming public testers can install.
 
 The public [beta enrollment link](https://play.google.com/apps/testing/com.yepanywhere.mobile)
 is shareable, but installation still depends on publishing track activation.
