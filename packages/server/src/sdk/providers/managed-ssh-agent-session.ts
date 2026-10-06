@@ -428,6 +428,12 @@ class RemoteAgentSession {
       ...(capabilities.setEffort
         ? { setEffort: (effort) => this.rpc("setEffort", [effort]) }
         : {}),
+      ...(capabilities.setServiceTier
+        ? {
+            setServiceTier: (serviceTier?: string) =>
+              this.rpc("setServiceTier", [serviceTier ?? null]),
+          }
+        : {}),
       ...(capabilities.setSessionOptions
         ? {
             setSessionOptions: (sessionOptions: ProviderSessionOptions) =>

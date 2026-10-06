@@ -308,6 +308,11 @@ export interface StartSessionResult {
   ) => Promise<void>;
   /** This provider can publish effort changes into the active turn. */
   effortUpdatesActiveTurn?: boolean;
+  /**
+   * Change the provider service tier (for example Codex "priority") used by
+   * subsequent turns without restarting. undefined selects the standard tier.
+   */
+  setServiceTier?: (serviceTier?: string) => Promise<void>;
   /** Request provider-owned generation changes for this live session. */
   setSessionOptions?: (
     options: ProviderSessionOptions,

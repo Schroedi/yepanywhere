@@ -1506,6 +1506,8 @@ export const api = {
       model?: string;
       thinking?: ThinkingOption;
       showThinking?: ShowThinking;
+      /** null selects the standard tier. */
+      serviceTier?: string | null;
     },
   ) =>
     fetchJSON<{
@@ -1514,6 +1516,8 @@ export const api = {
       model?: string;
       thinking?: { type: string };
       effort?: string;
+      /** Absent from servers without the process-service-tier-change capability. */
+      serviceTier?: string | null;
     }>(`/processes/${processId}/config`, {
       method: "POST",
       body: JSON.stringify(config),

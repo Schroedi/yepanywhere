@@ -103,6 +103,7 @@ import {
   resolveSupportedEffortLevel,
   resolveSupportedThinkingMode,
 } from "../lib/effortLevels";
+import { selectableServiceTiers, serviceTierLabel } from "../lib/serviceTiers";
 import {
   knownLockedEffort,
   knownLockedProvider,
@@ -473,6 +474,10 @@ export function NewSessionForm({
     );
   }, [clientSummarySourceKey]);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
+  // Paid speed tiers are never remembered: each new session starts Standard.
+  const [selectedServiceTier, setSelectedServiceTier] = useState<string | null>(
+    null,
+  );
   const [selectedThinkingMode, setSelectedThinkingMode] =
     useState<ThinkingMode>("off");
   const [selectedEffortLevel, setSelectedEffortLevel] =
@@ -1360,6 +1365,14 @@ export function NewSessionForm({
   const selectedModelInfo = visibleModels.find(
     (model) => model.id === selectedModel,
   );
+  const serviceTierOptions = routerSelection
+    ? []
+    : selectableServiceTiers(selectedModelInfo?.serviceTiers);
+  const effectiveServiceTier =
+    selectedServiceTier &&
+    serviceTierOptions.some((tier) => tier.id === selectedServiceTier)
+      ? selectedServiceTier
+      : null;
   const effortOptions = useMemo(
     () =>
       getEffortLevelOptions({
@@ -2754,6 +2767,9 @@ export function NewSessionForm({
             : {}),
           thinking: routerSelection ? routerThinking : thinking,
           showThinking,
+          ...(effectiveServiceTier
+            ? { serviceTier: effectiveServiceTier }
+            : {}),
           provider: selectedProvider ?? undefined,
           executor: effectiveExecutor ?? undefined,
           ...(supportsSessionSandboxing
@@ -3038,6 +3054,7 @@ export function NewSessionForm({
       effectiveEffortLevel,
       effectiveExecutor,
       effectivePermissionMode,
+      effectiveServiceTier,
       effectiveThinkingMode,
       helperSideModel,
       hasSelectedProviderModel,
@@ -3147,6 +3164,9 @@ export function NewSessionForm({
           type: "new-session",
           mode: sessionMode,
           model: selectedModel ?? undefined,
+          ...(effectiveServiceTier
+            ? { serviceTier: effectiveServiceTier }
+            : {}),
           thinking,
           showThinking,
           provider: selectedProvider ?? undefined,
@@ -4509,6 +4529,36 @@ export function NewSessionForm({
       />
     </NewSessionOptionSection>
   );
+  const serviceTierSection =
+    serviceTierOptions.length > 0 ? (
+      <NewSessionOptionSection
+        className="new-session-helper-section"
+        title={t("newSessionServiceTierTitle")}
+        caption={t("newSessionServiceTierDescription")}
+        showCaption={showOptionCaptions}
+      >
+        <FilterDropdown<string>
+          label={t("newSessionServiceTierTitle")}
+          options={[
+            {
+              value: "",
+              label: t("serviceTierStandardLabel"),
+              description: t("serviceTierStandardDescription"),
+            },
+            ...serviceTierOptions.map((tier) => ({
+              value: tier.id,
+              label: tier.name,
+              description: tier.description,
+            })),
+          ]}
+          selected={[effectiveServiceTier ?? ""]}
+          onChange={([value]) => setSelectedServiceTier(value || null)}
+          multiSelect={false}
+          fullWidth
+          triggerClassName={styles.leftAlignedTrigger}
+        />
+      </NewSessionOptionSection>
+    ) : null;
   const effortSection = showThinkingControls ? (
     <NewSessionOptionSection
       className={`new-session-helper-section ${styles.effortSection}`}
@@ -4879,6 +4929,9 @@ export function NewSessionForm({
     effectivePermissionMode !== "default"
       ? `${sessionDefaultCopy.permission.title}: ${modeLabels[effectivePermissionMode]}`
       : null,
+    effectiveServiceTier
+      ? `${t("newSessionServiceTierTitle")}: ${serviceTierLabel(effectiveServiceTier, serviceTierOptions, t)}`
+      : null,
     showThinking !== "default"
       ? `${sessionDefaultCopy.showThinking.title}: ${showThinking === "on" ? t("showThinkingOn") : t("showThinkingOff")}`
       : null,
@@ -5142,6 +5195,7 @@ export function NewSessionForm({
               />
             )}
           {permissionSection}
+          {serviceTierSection}
           {showThinkingSection}
           {recapSection}
           {helperSideModelSection}

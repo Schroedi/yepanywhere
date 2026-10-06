@@ -455,6 +455,28 @@ export const SERVER_CAPABILITIES = {
         "Servers before 0.9.4 have no breakdown route; the client must not request it from them.",
     },
   },
+  processServiceTierChange: {
+    id: CAPABILITY_ID_ALLOCATIONS.processServiceTierChange.id,
+    name: "process-service-tier-change",
+    kind: "permanent",
+    area: "sessions",
+    introducedIn: "0.9.4",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Changes a live session's provider service tier (Codex Fast or Standard) through the process config route, live when the provider supports it and by restart otherwise.",
+    clientFallback:
+      "Show the current tier read-only in Session Info and make no service-tier process-config request.",
+    serverContract: {
+      routes: ["POST /api/processes/:processId/config"],
+      requestFields: ["serviceTier"],
+      responseFields: ["serviceTier"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "Servers before 0.9.4 ignore serviceTier on the process config route, so the client must not offer the control there.",
+    },
+  },
   projectFileViewCommand: {
     id: CAPABILITY_ID_ALLOCATIONS.projectFileViewCommand.id,
     name: "project-file-view-command",

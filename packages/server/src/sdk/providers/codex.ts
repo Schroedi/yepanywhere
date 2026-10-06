@@ -470,6 +470,8 @@ interface CodexTurnRuntimeState {
   activePermissionMode: PermissionMode;
   turnEffortOverride: EffortLevel | null | undefined;
   activeTurnHasEffortOverride?: boolean;
+  /** Launch tier, or the live selection; null is an explicit Standard. */
+  serviceTier: string | null | undefined;
   workspaceWriteSandboxPolicy: CodexSandboxPolicy | null;
   activeToolCallIds: Set<string>;
   backgroundToolCallIds: Set<string>;
@@ -1956,6 +1958,7 @@ export class CodexProvider implements AgentProvider {
         options.permissionMode,
       ),
       turnEffortOverride: options.effort,
+      serviceTier: options.serviceTier || undefined,
       workspaceWriteSandboxPolicy: null,
       activeToolCallIds: new Set(),
       backgroundToolCallIds: new Set(),
@@ -2140,6 +2143,18 @@ export class CodexProvider implements AgentProvider {
           ? (options.routerLaunch.models ?? [])
           : this.getAvailableModels(),
       effortUpdatesActiveTurn: true,
+      setServiceTier: async (serviceTier) => {
+        const next = serviceTier || null;
+        // Thread settings apply from the next turn; resume does not restore
+        // them, so later turn/start requests carry the selection too.
+        if (activeClient && runtimeState.threadId) {
+          await activeClient.request("thread/settings/update", {
+            threadId: runtimeState.threadId,
+            serviceTier: next,
+          });
+        }
+        runtimeState.serviceTier = next;
+      },
       setModel: async (model) => {
         if (
           options.routerLaunch?.models &&
@@ -3607,6 +3622,7 @@ export class CodexProvider implements AgentProvider {
             runtimeState.turnEffortOverride,
             message.uuid,
             cyberAccess.program,
+            runtimeState.serviceTier,
           );
           let restoreThreadEffort: (() => Promise<unknown>) | undefined;
           if (message.turnEffort) {
@@ -3756,6 +3772,7 @@ export class CodexProvider implements AgentProvider {
               runtimeState.turnEffortOverride,
               undefined,
               cyberAccessProgram,
+              runtimeState.serviceTier,
             );
             if (message.turnEffort)
               retryTurnStartParams.effort = turnStartParams.effort;
@@ -4466,12 +4483,13 @@ export class CodexProvider implements AgentProvider {
     effortOverride: EffortLevel | null | undefined = options.effort,
     clientUserMessageId?: string,
     cyberAccessProgram: CyberAccessProgram | null = null,
+    serviceTier: string | null | undefined = options.serviceTier,
   ): TurnStartParams {
     return {
       threadId,
       ...(clientUserMessageId ? { clientUserMessageId } : {}),
       model: modelOverride,
-      ...(options.serviceTier ? { serviceTier: options.serviceTier } : {}),
+      ...(serviceTier || serviceTier === null ? { serviceTier } : {}),
       input,
       effort:
         effortOverride === null

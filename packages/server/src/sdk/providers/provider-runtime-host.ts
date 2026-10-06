@@ -60,6 +60,7 @@ interface WorkerCapabilities {
   setMaxThinkingTokens: boolean;
   setEffort: boolean;
   effortUpdatesActiveTurn?: boolean;
+  setServiceTier?: boolean;
   setSessionOptions: boolean;
   interrupt: boolean;
   supportedModels: boolean;
@@ -1432,6 +1433,12 @@ class HostedAgentSession {
         : {}),
       ...(capabilities.effortUpdatesActiveTurn
         ? { effortUpdatesActiveTurn: true }
+        : {}),
+      ...(capabilities.setServiceTier
+        ? {
+            setServiceTier: (serviceTier) =>
+              this.rpc("setServiceTier", [serviceTier ?? null]),
+          }
         : {}),
       ...(capabilities.setSessionOptions
         ? {

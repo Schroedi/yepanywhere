@@ -58,6 +58,14 @@ routes. Without the bit clients hide app/project cleanup controls and show
 update guidance. Existing project deletion retains its meaning. See
 [app inventory](project-service.md#app-address-in-project-settings).
 
+`process-service-tier-change` (permanent ID 118, version-implied from 0.9.4)
+owns the `serviceTier` request and response field on
+`POST /api/processes/:processId/config`. v0.9.0–v0.9.2 return the tier from
+process info and accept it on create and queue but ignore it on that route.
+Without the capability the client shows the tier read-only in Session Info and
+sends no tier change. No existing capability changes meaning. The maintainer
+approved this gate on 2026-10-06. See [service tier](service-tier.md#compatibility).
+
 `context-usage-breakdown` (permanent ID 108, version-implied from 0.9.4) owns
 `GET /api/sessions/:sessionId/context-breakdown`. v0.9.0–v0.9.2 lack the
 route; without the capability the context-usage popover shows only its

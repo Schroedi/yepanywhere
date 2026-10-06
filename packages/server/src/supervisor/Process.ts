@@ -910,6 +910,8 @@ export interface ProcessConstructorOptions extends ProcessOptions {
   setMaxThinkingTokensFn?: (tokens: number | null) => Promise<void>;
   /** Function to change effort without restarting the provider process. */
   setEffortFn?: (effort?: EffortLevel) => Promise<void>;
+  /** Function to change the service tier without restarting the provider. */
+  setServiceTierFn?: (serviceTier?: string) => Promise<void>;
   /** Publish selected/pending settings to the optional owning-session projection. */
   publishAgentSelfSelectionFn?: (
     selection: import("../agent-tools/protocol.js").AgentSelfSelection,
@@ -986,7 +988,7 @@ export class Process {
   readonly startedAt: Date;
   readonly provider: ProviderName;
   readonly model: string | undefined;
-  readonly serviceTier: string | undefined;
+  private _serviceTier: string | undefined;
   /** SSH host for remote execution (undefined = local) */
   readonly executor: string | undefined;
   /** Internal placement coordinate, kept out of browser-facing ProcessInfo. */
@@ -1118,6 +1120,7 @@ export class Process {
     | null;
   /** Function to change effort without restarting the provider process. */
   private setEffortFn: ((effort?: EffortLevel) => Promise<void>) | null;
+  private setServiceTierFn: ((serviceTier?: string) => Promise<void>) | null;
   /** Publish selected/pending settings to the optional owning-session projection. */
   private publishAgentSelfSelectionFn: ProcessConstructorOptions["publishAgentSelfSelectionFn"];
   private effortUpdatesActiveTurn: boolean;
@@ -1289,7 +1292,7 @@ export class Process {
     this.compactAtContextTokenLimit = options.compactAtContextTokenLimit;
     this.launchCompactPercentOverride = options.launchCompactPercentOverride;
     this.gatewayServiceId = options.gatewayServiceId;
-    this.serviceTier = options.serviceTier;
+    this._serviceTier = options.serviceTier;
     this.executor = options.executor;
     this.execution =
       options.execution ??
@@ -1303,6 +1306,7 @@ export class Process {
     this._effort = options.effort;
     this.setMaxThinkingTokensFn = options.setMaxThinkingTokensFn ?? null;
     this.setEffortFn = options.setEffortFn ?? null;
+    this.setServiceTierFn = options.setServiceTierFn ?? null;
     this.publishAgentSelfSelectionFn = options.publishAgentSelfSelectionFn;
     this.effortUpdatesActiveTurn = options.effortUpdatesActiveTurn === true;
     this.interruptFn = options.interruptFn ?? null;
@@ -2115,6 +2119,37 @@ export class Process {
   /** Whether this process can change effort without being restarted. */
   get supportsEffortChange(): boolean {
     return this.setEffortFn !== null;
+  }
+
+  /** Provider service tier (for example Codex "priority"); undefined is Standard. */
+  get serviceTier(): string | undefined {
+    return this._serviceTier;
+  }
+
+  /** Whether this process can change service tier without being restarted. */
+  get supportsServiceTierChange(): boolean {
+    return this.setServiceTierFn !== null;
+  }
+
+  /** Select the service tier for subsequent provider turns. */
+  async setServiceTier(serviceTier?: string): Promise<boolean> {
+    if (!this.setServiceTierFn) {
+      return false;
+    }
+    getLogger().info(
+      {
+        event: "service_tier_change",
+        sessionId: this._sessionId,
+        processId: this.id,
+        oldServiceTier: this._serviceTier,
+        newServiceTier: serviceTier,
+      },
+      `Changing service tier: ${this._serviceTier ?? "default"} → ${serviceTier ?? "default"}`,
+    );
+    await this.setServiceTierFn(serviceTier);
+    this._serviceTier = serviceTier;
+    this.emit({ type: "configuration-applied", setting: "serviceTier" });
+    return true;
   }
 
   /**

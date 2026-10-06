@@ -1824,6 +1824,56 @@ describe("CodexProvider app-server lifecycle", () => {
     }
   });
 
+  it("changes the service tier for later turns without restarting app-server", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "codex-provider-tier-"));
+    const logPath = join(tempDir, "fake-codex-requests.jsonl");
+    const codexPath = createFakeCodexCommand(
+      tempDir,
+      "fake-codex-tier",
+      buildFakeCodexPermissionAppServer(logPath),
+    );
+    const testProvider = new CodexProvider({ codexPath });
+    const session = await testProvider.startSession({
+      cwd: tempDir,
+      initialMessage: { text: "fast turn" },
+      serviceTier: "priority",
+    });
+
+    try {
+      await consumeCodexTurn(session.iterator);
+      expect(session.setServiceTier).toBeTypeOf("function");
+      await session.setServiceTier?.(undefined);
+      session.queue.push({ text: "standard turn" });
+      await consumeCodexTurn(session.iterator);
+      await session.setServiceTier?.("priority");
+      session.queue.push({ text: "fast again" });
+      await consumeCodexTurn(session.iterator);
+
+      const requests = readFakeCodexRequests(logPath);
+      expect(
+        requests.filter((request) => request.method === "thread/start"),
+      ).toHaveLength(1);
+      expect(new Set(requests.map((request) => request.pid))).toHaveLength(1);
+      expect(
+        requests
+          .filter((request) => request.method === "thread/settings/update")
+          .map((request) => request.params),
+      ).toEqual([
+        { threadId: expect.any(String), serviceTier: null },
+        { threadId: expect.any(String), serviceTier: "priority" },
+      ]);
+      // Explicit null keeps a later turn/start from re-sending the launch tier.
+      expect(
+        requests
+          .filter((request) => request.method === "turn/start")
+          .map((request) => request.params?.serviceTier),
+      ).toEqual(["priority", null, "priority"]);
+    } finally {
+      await session.abort();
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
   it.each([false, true])(
     "isolates one-turn effort and maps Max using the selected catalog (routed: %s)",
     async (routed) => {

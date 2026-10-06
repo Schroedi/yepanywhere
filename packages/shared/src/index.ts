@@ -417,6 +417,7 @@ export type {
   ProviderImageSizing,
   ModelCatalogStatus,
   ModelInfo,
+  ModelServiceTier,
   RecapMode,
   CacheMissBillingReason,
   CacheMissBillingOutcome,

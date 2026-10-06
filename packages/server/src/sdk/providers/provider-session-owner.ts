@@ -102,6 +102,7 @@ export interface ProviderSessionReadyMetadata {
     setMaxThinkingTokens: boolean;
     setEffort: boolean;
     effortUpdatesActiveTurn?: boolean;
+    setServiceTier?: boolean;
     setSessionOptions: boolean;
     interrupt: boolean;
     supportedModels: boolean;
@@ -278,6 +279,7 @@ export class ProviderSessionOwner {
         setMaxThinkingTokens: Boolean(session.setMaxThinkingTokens),
         setEffort: Boolean(session.setEffort),
         effortUpdatesActiveTurn: session.effortUpdatesActiveTurn === true,
+        setServiceTier: Boolean(session.setServiceTier),
         setSessionOptions: Boolean(session.setSessionOptions),
         interrupt: Boolean(session.interrupt),
         supportedModels: Boolean(session.supportedModels),
@@ -946,6 +948,12 @@ export class ProviderSessionOwner {
           (args[0] ?? undefined) as Parameters<
             NonNullable<AgentSession["setEffort"]>
           >[0],
+        );
+      case "setServiceTier":
+        if (!session.setServiceTier)
+          throw new Error("Service tier change is unavailable");
+        return await session.setServiceTier(
+          typeof args[0] === "string" ? args[0] : undefined,
         );
       case "setSessionOptions":
         return session.setSessionOptions

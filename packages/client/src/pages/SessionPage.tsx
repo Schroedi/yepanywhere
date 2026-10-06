@@ -1403,6 +1403,11 @@ function SessionPageContent({
     [effectiveProvider, providers],
   );
   const currentProviderInfo = providerCapabilities.providerInfo;
+  const providerServiceTiers = useMemo(
+    () =>
+      currentProviderInfo?.models?.flatMap((model) => model.serviceTiers ?? []),
+    [currentProviderInfo],
+  );
   // Default to true for backwards compatibility (except slash commands)
   const supportsPermissionMode =
     currentProviderInfo?.supportsPermissionMode ?? true;
@@ -6503,6 +6508,8 @@ function SessionPageContent({
                   sessionId={actualSessionId}
                   provider={session.provider}
                   model={session.model}
+                  savedServiceTier={savedLaunchSettings?.serviceTier}
+                  serviceTiers={providerServiceTiers}
                   status={status}
                   processState={processState}
                   sessionLiveness={sessionLiveness}

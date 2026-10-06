@@ -64,6 +64,8 @@ resolved against that provider's available model metadata.
 
 - **Model** — model ids are provider-local and cannot be shared across providers.
 - **Service tier / speed tier** — provider-visible economics and latency knobs.
+  New Session deliberately does not remember a paid tier; every session starts
+  Standard ([service tier](service-tier.md)).
 - **Thinking mode** — `off` / `auto` / `on` changes provider work requested.
 - **Effort level** — effort labels are not comparable across providers; `high`
   on one backend is not a portable meaning or cost on another.
