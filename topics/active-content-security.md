@@ -596,6 +596,13 @@ a public visitor from a local one, subject to the usual caveat that the
 leftmost entry is only as trustworthy as the proxy that wrote it.
 
 **Copy app link** and **Revoke existing links** live beside each saved vhost.
+Each saved row in the vhost table also carries a link icon for the same URL:
+a click opens it in a new tab, and a right-click (a touch long press where the
+browser raises one) offers **Open** and **Copy link**. The icon is absent for
+an unsaved or edited row and for a private row whose access token is
+unavailable. A saved file row that serves one existing file has a file icon
+beside its path with the same gestures, for YA's authenticated file viewer
+(`/file-view`) on that path; a directory or missing path has none.
 Revocation durably increments that app's generation and rejects old URLs and
 cookies on subsequent requests and closes established app WebSockets. It does
 not stop the app or erase already
