@@ -110,6 +110,7 @@ function markdownCacheKey(
     options?.localFileBasePath ?? null,
     options?.inlineLocalImages ?? false,
     options?.quartoMarkdown ?? false,
+    options?.siteRelativeReferences ?? false,
     projectLinks?.projectId ?? null,
     projectLinks?.projectPath ?? null,
     projectLinks?.pathDiscovery ?? "resolve",
