@@ -152,9 +152,11 @@ the viewer/download gap remain the next mobile release work.
   link was submitted for Open beta 1 review on October 6. Android
   build/lint/inspection and WebView instrumentation pass for the exact source.
   The maintainer selected and saved a 13+ intended audience; the all-ages
-  content rating is unchanged. Automated quick checks completed and Publishing
-  overview confirms Changes in review. Managed publishing is off; approval
-  will publish the open-testing rollout.
+  content rating is unchanged. Play approved and published the release on
+  October 6. A later link check found the open-testing track paused. Resume is
+  saved, with quick checks completed, but its activation submission remains
+  pending after a Play confirmation error. Retry activation before claiming
+  public enrollment can install the app.
 - Native app CI now runs on relevant platform, shared mobile-core and packaging
   changes rather than ordinary web/server edits. Daily Android/iOS acceptance
   and the existing desktop nightly retain full shared-source coverage; manual

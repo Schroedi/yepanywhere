@@ -104,10 +104,15 @@ The maintainer selected **13 and older**: ages 13–15, 16–17, and 18 and over
 That declaration is saved and included in the 13 submitted changes. The
 maintainer's saved all-ages content rating remains unchanged, verified as
 Everyone / PEGI 3 / USK all ages and corresponding regional ratings.
-Automated quick checks completed. Publishing overview confirms **Changes in
-review**. Managed publishing is off, so approval will publish the open-testing
-rollout. It is not available to new public testers until Play completes review
-and publication.
+Play approved and published the submitted release on October 6. A later
+installation-link check found the open-testing track paused. Resume was saved,
+but its separate activation change remains **not submitted**: Play returned an
+unexpected error during the final confirmation. Quick checks completed for
+that activation change. Retry its submission before claiming public testers
+can install.
+
+The public [beta enrollment link](https://play.google.com/apps/testing/com.yepanywhere.mobile)
+is shareable, but installation still depends on publishing track activation.
 
 An under-13 audience would require separate child-data and sharing readiness
 under [Play Families requirements](https://support.google.com/googleplay/android-developer/answer/9893335?hl=en).
