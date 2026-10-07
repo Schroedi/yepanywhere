@@ -29,8 +29,8 @@ and refuses physical devices. Do not run two Android studies or instrumentation
 runners concurrently on one emulator. The runner installs the prepared APKs;
 it does not silently rebuild them. Rebuild after changing native or bundled
 client source. The HTML hash, source revision, dirty paths, and harness hash
-are recorded. The finalized runner also records APK hashes or the browser
-version; earlier investigation runs predate those fields. Initial execution
+are recorded. The finalized runner also records APK hashes, browser/WebView
+versions and the emulator build fingerprint; earlier investigation runs predate those fields. Initial execution
 evidence is macOS ARM64 only.
 
 ## Run matched experiments
@@ -238,3 +238,22 @@ unrelated page read cannot trigger the disconnect too early.
 kills the app a second time while its tap is pending, then launches normally
 before restoring the network. The push suite includes this third case and
 records both PIDs. This exercises saved pending navigation, not just saved tabs.
+
+## Interrupted upload diagnostic
+
+`--fault=upload-interruption --surface=session` starts a real 4 MiB file,
+then the TCP gate cuts after 256 KiB of additional client traffic and refuses
+reconnections. It records the explicit failure, restores service, waits for
+page catch-up and reselects the original file through the normal input. It
+requires the text draft to survive and exactly one completed chip after the
+explicit selection. The gate records its actual byte counter; this is a
+mid-transfer cut, not a substituted upload error.
+
+This fault is diagnostic-only and rejects `--verify=true`: an explicit upload
+failure is expected, whereas normal page acceptance forbids error notices.
+The ordinary acceptance result remains visible and can fail; it is not a
+passing no-error case. Inspect `uploadFailure`, `uploadBeforeReselection`,
+`uploadReselection` and `pageErrors` separately. It does not test memo capture,
+OS file-picker access, server-side deduplication or exactly-once delivery of
+ambiguous writes. Attachment identity comes from visible chips' full accessible
+names so a shortened filename is not mistaken for a lost attachment.

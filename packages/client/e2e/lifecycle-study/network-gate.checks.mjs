@@ -69,3 +69,38 @@ test("closing a gate while bytes are stalled releases its sockets", {
     await new Promise((done) => upstream.close(done));
   }
 });
+
+test("a byte-triggered cut interrupts existing traffic once and permits explicit recovery", {
+  timeout: 5000,
+}, async () => {
+  const upstream = createServer((socket) => socket.pipe(socket));
+  upstream.listen(0, "127.0.0.1");
+  await once(upstream, "listening");
+  const gate = await createNetworkGate(upstream.address().port);
+  let client = createConnection(gate.port, "127.0.0.1");
+  client.on("error", () => {});
+  try {
+    await once(client, "connect");
+    gate.refuseAfterClientBytes(8);
+    const echoed = once(client, "data");
+    client.write("first");
+    assert.equal(String((await echoed)[0]), "first");
+    const closed = once(client, "close");
+    client.write("second");
+    await closed;
+    assert.equal(gate.snapshot().cuts, 1);
+    assert.equal(gate.snapshot().mode, "refuse");
+    gate.setMode("pass");
+    client = createConnection(gate.port, "127.0.0.1");
+    client.on("error", () => {});
+    await once(client, "connect");
+    const retried = once(client, "data");
+    client.write("explicit retry");
+    assert.equal(String((await retried)[0]), "explicit retry");
+    assert.equal(gate.snapshot().cuts, 1);
+  } finally {
+    client.destroy();
+    await gate.close();
+    await new Promise((done) => upstream.close(done));
+  }
+});

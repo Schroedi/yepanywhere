@@ -51,6 +51,15 @@ test("rejects transient errors and login even when the final page looks healthy"
     assert.equal(assessPageRecovery(result).passed, false);
   }
 });
+test("attachment identity uses the full accessible name, not truncated chip text", () => {
+  const result = recovered();
+  result.expectedAttachment = "a-long-attachment-filename.bin";
+  result.final.attachments = "a-long...4 mb";
+  result.final.attachmentNames = [result.expectedAttachment];
+  assert.equal(assessPageRecovery(result).passed, true);
+  result.final.attachmentNames = [];
+  assert.equal(assessPageRecovery(result).passed, false);
+});
 test("separates new-document bootstrap from a rendered page becoming empty", () => {
   const result = recovered();
   result.observer.rows.unshift({ at: 21, bodyEmpty: true, initializing: true });

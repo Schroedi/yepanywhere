@@ -4,7 +4,7 @@ import { promisify } from "node:util";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { randomUUID, createHash } from "node:crypto";
+import { randomUUID, createHash, randomBytes } from "node:crypto";
 import { arch, cpus, freemem, loadavg, platform, totalmem } from "node:os";
 import { setTimeout as pause } from "node:timers/promises";
 import { chromium, _android } from "@playwright/test";
@@ -73,6 +73,7 @@ if (
     "process-death-offline",
     "notification",
     "notification-offline",
+    "upload-interruption",
   ].includes(fault) ||
   !(observationMs >= 1000 && observationMs <= 180_000) ||
   !["automated", "stock"].includes(chromeMode) ||
@@ -81,6 +82,8 @@ if (
   !(sleepMs >= 1000 && sleepMs <= 300_000) ||
   (notification && client !== "android") ||
   (attachment && surface !== "session") ||
+  (fault === "upload-interruption" &&
+    (surface !== "session" || verify || attachment)) ||
   (restartAfterTap && fault !== "notification-offline") ||
   (options["restart-after-tap"] !== undefined &&
     !["true", "false"].includes(options["restart-after-tap"])) ||
@@ -391,6 +394,14 @@ try {
   gate = await createNetworkGate(relay?.port ?? fixture.port, record);
   const endpoint = `ws://127.0.0.1:${gate.port}/${relay ? "ws" : "api/ws"}`;
   if (onDevice) {
+    const [build, webView] = await Promise.all([
+      device("shell", "getprop", "ro.build.fingerprint"),
+      device("shell", "dumpsys", "webviewupdate"),
+    ]);
+    result.androidBuild = build.stdout.trim();
+    result.webViewPackage = webView.stdout.match(
+      /Current WebView package \(name, version\): (.*)/,
+    )?.[1];
     androidDevices = await _android.devices({ omitDriverInstall: true });
     emulator = androidDevices.find((device) => device.serial() === serial);
     if (!emulator)
@@ -900,6 +911,67 @@ try {
     gate.disconnect();
     await probe("api-delay?ms=0");
     await pause(1000);
+  } else if (fault === "upload-interruption") {
+    // Diagnostic-only: an explicit upload failure is expected, so the ordinary
+    // no-error page acceptance is deliberately not weakened for this experiment.
+    const file = {
+      name: "lifecycle-interrupted.bin",
+      mimeType: "application/octet-stream",
+      buffer: randomBytes(4 * 1024 * 1024),
+    };
+    const before = gate.snapshot();
+    gate.refuseAfterClientBytes(256 * 1024);
+    await page.locator('input[type="file"]').setInputFiles(file);
+    await until(() => gate.snapshot().cuts > before.cuts);
+    await until(async () =>
+      (await page.locator("body").innerText()).includes(
+        `Failed to upload ${file.name}`,
+      ),
+    );
+    result.uploadFailure = await snapshot("upload-failed");
+    if (
+      result.uploadFailure.draft !== result.expectedDraft ||
+      result.uploadFailure.attachmentNames.includes(file.name)
+    )
+      throw new Error(
+        "Interrupted upload changed the draft or appeared complete",
+      );
+    await capture("upload-failed");
+    result.uploadCut = gate.snapshot();
+    await updateWhileDisconnected();
+    gate.setMode("pass");
+    await until(async () => {
+      const state = await snapshot("upload-recovery");
+      return !state.connection && state.titleUpdated && state.needle;
+    }, 180_000);
+    result.uploadBeforeReselection = await snapshot(
+      "upload-before-reselection",
+    );
+    if (result.uploadBeforeReselection.attachmentNames.includes(file.name))
+      throw new Error("Interrupted upload was replayed without user selection");
+    // A user reselects the original file; neither transport may replay a write.
+    record({ type: "upload-explicit-reselection" });
+    await page.locator('input[type="file"]').setInputFiles(file);
+    await page
+      .getByRole("button", { name: `Remove ${file.name}`, exact: true })
+      .waitFor();
+    await until(
+      async () =>
+        !(await page.locator(".attachment-list").innerText()).includes("%"),
+    );
+    result.expectedAttachment = file.name;
+    result.uploadReselection = await snapshot("upload-reselected");
+    result.uploadReselection.chipCount = await page
+      .getByRole("button", { name: `Remove ${file.name}`, exact: true })
+      .count();
+    if (
+      result.uploadReselection.chipCount !== 1 ||
+      result.uploadReselection.draft !== result.expectedDraft
+    )
+      throw new Error(
+        "Upload reselection duplicated its chip or changed the draft",
+      );
+    await capture("upload-reselected");
   } else if (fault === "disconnect") gate.disconnect();
   await updateWhileDisconnected();
   await snapshot("interrupted");

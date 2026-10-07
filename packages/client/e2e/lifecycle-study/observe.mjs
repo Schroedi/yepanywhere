@@ -36,6 +36,13 @@ export function installObserver() {
       loading: text(".loading"),
       draftNotice: text("[data-draft-notice]"),
       attachments: text(".attachment-list"),
+      attachmentNames: [
+        ...document.querySelectorAll(
+          '.attachment-list button[aria-label^="Remove "]',
+        ),
+      ]
+        .filter(visible)
+        .map((button) => button.getAttribute("aria-label").slice(7)),
       login: [
         ...document.querySelectorAll(
           '[data-testid="login-form"], [data-testid="relay-login-form"]',

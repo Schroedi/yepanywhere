@@ -29,7 +29,7 @@ export function assessPageRecovery(result) {
       failures.push("Unsent draft changed or disappeared");
     if (
       result.expectedAttachment &&
-      !final?.attachments?.includes(result.expectedAttachment)
+      !final?.attachmentNames?.includes(result.expectedAttachment)
     )
       failures.push("Unsent draft attachment disappeared");
   }

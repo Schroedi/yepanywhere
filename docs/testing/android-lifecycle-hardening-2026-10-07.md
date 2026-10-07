@@ -31,8 +31,10 @@ uses ordinary launcher startup. It does not simulate process death by reloading
 a page or by force-stopping YA, which changes push-delivery policy. Separate
 cleanup restores saved profiles/tabs and retires owned push subscriptions.
 
-Mobile Chrome comparisons use Chrome 124.0.6367.219 on the same emulator, not
-proof of every current Chrome version. Stock Chrome adds only first-run
+Mobile Chrome comparisons use Chrome 124.0.6367.219 on the same emulator.
+Its installed Google WebView is also 124.0.6367.219, so the native/browser
+comparison uses the same engine generation; it is not proof of current
+phone WebView/Chrome versions. Stock Chrome adds only first-run
 suppression and a debugger socket. Its normal background policy stays enabled;
 Playwright's automated launcher additionally disables some background throttling.
 A browser restart may need explicit navigation to the saved URL; results record
@@ -101,7 +103,9 @@ changes. This is a bounded shared UI/data-preservation correction.
 The browser's separate [raw socket-error gap](../../gaps/browser-reconnect-shows-raw-websocket-error.md)
 still reproduces when page reads are interrupted. It predates this round and is
 kept as baseline behavior; attachment validation must not disguise that remaining
-page-error failure as a clean whole-page pass. The final minified Android APK
+page-error failure as a clean whole-page pass. The final desktop in-flight
+comparison fails only that raw page-error assertion; its attachment notice is
+absent and the file stays present. The final minified Android APK
 passes validation interrupted in flight and attachment wake into outage; stock
 emulator Chrome also passes the matched attachment wake. The Android wake
 needed about 57 seconds of passive recovery in this run, so this is evidence
@@ -130,6 +134,26 @@ PIDs and recovery of the saved action, not merely restoration of Inbox. Final
 offline cases open the session about two and three seconds after restoring
 service. All 113 Android unit cases pass, including the seven new regressions.
 
+## Interrupted uploads
+
+A further byte-triggered experiment cuts a real 4 MiB file after 256 KiB of
+additional client traffic. Both native routes show an explicit upload failure,
+retain the typed draft, do not replay automatically, and produce exactly one
+completed chip when the original file is explicitly selected again. Native has
+no uncaught page exception or fabricated server response. Desktop Chromium and
+stock emulator Chrome recover the file the same way on both routes, but all
+four web comparisons also emit an
+[unhandled socket rejection](../../gaps/browser-upload-interruption-unhandled-rejection.md).
+That standard-web issue is recorded without a transport-policy change.
+
+This is deliberately a diagnostic, not a generic no-error acceptance pass:
+the expected upload-failed notice remains in the observations. The runner
+asserts draft retention and one completed chip after reselection, and records
+exceptions separately. It does not establish server-side exactly-once delivery.
+Its longer filename also exposed a harness assumption: visible chip text can
+be shortened. Attachment identity now uses the full accessible name; an empty
+chip list still fails. Eight fault-controller/oracle checks pass.
+
 ## Harness limits and verification
 
 Two initial process-death setup attempts selected a retired instrumentation
@@ -145,8 +169,55 @@ observers and checkpoint captures do not establish frame-by-frame visible flicke
 Some frames before debugger attachment and replaced-document observations are
 unavailable. Those limits are not evidence that a user's draft was erased.
 
-The broader post-repair acceptance and CI results are recorded after the final
-build is verified. Three-minute forced idle, debugger-driven input and repeated
+Workspace verification passes lint, formatting, type checking and all unit
+packages: shared 955, broker 45, relay 130, server 6,447 and client 6,804 tests.
+Android build/lint and 113 unit tests pass. The console-warning budget ratchets
+down by two. The touched-CSS review defers extraction from the large legacy
+SessionPage/NewSessionForm styles; this change does not edit styles.
+
+The harness-only commit's main CI exposed a separate
+[Project App handoff failure](../../gaps/project-app-session-handoff-misses-pane-in-ci.md)
+and two selection retries. A focused fresh local run passes all three without
+retries; that does not erase the hosted evidence. The five-case page acceptance suite and full native live suite pass on both
+routes. The latter executes 15 direct and 7 relay tests; two host-driven
+preparation/cleanup methods and relay-inapplicable cases are skipped by
+assumptions (JUnit reports 17/16 methods in total). The relay case includes the
+100 MiB upload and unchanged 100 ms sequential-input gate. The fourteen-case
+longer matrix finishes 13/14: all seven Android cases pass. Stock Chrome
+passes recovery in every case but fails the Doze case's **initial typing**,
+three to four seconds before sleep, with four delayed characters (169–299 ms).
+None are lost. This is retained as a failed case and an
+[open typing gap](../../gaps/emulator-chrome-initial-typing-latency.md); three fresh
+Android/stock-Chrome control pairs subsequently pass with unchanged readiness
+and limits. Android maxima are 14.1/14.9/71.6 ms and Chrome
+16.9/19.3/34.5 ms. These do not erase the original failure. General
+[CI 37691081022](https://github.com/kzahel/yepanywhere/actions/runs/37691081022)
+passes all 24 jobs on `8610677ef`, with three browser retries: native-fixture
+composer readiness, Project App handoff, and initial follow-scroll position.
+Their gaps remain open. The fixture correction also passes
+[iOS CI](https://github.com/kzahel/yepanywhere/actions/runs/37690486734).
+Android verification and manually requested internal-release
+[run 503](https://github.com/kzahel/yepanywhere/actions/runs/37694018913) are
+still running; no new Play publication is claimed yet. Three-minute forced idle, debugger-driven input and repeated
 wake cycles can falsify important lifecycle assumptions, but cannot establish
 real modem handoff, manufacturer battery policy or overnight behavior. Those
 remain the final physical-phone checks after emulator defects are repaired.
+
+## Physical checks after the release gates pass
+
+1. Update through the internal Play track and confirm saved hosts, unsent text
+   and staged attachments survive the update.
+2. Switch real Wi-Fi/cellular connections while viewing Inbox and a session,
+   including waking before service returns. Check sidebar catch-up and that
+   recovery does not require login or a page refresh.
+3. Leave the phone locked for hours under its normal battery policy; receive
+   and tap a notification, including a tap while temporarily offline. Confirm
+   the intended session opens when service returns.
+4. Check ordinary phone-keyboard typing and file selection during active output.
+   Hardware/IME input and current phone WebView versions need this final check.
+
+No physical device was operated during this investigation. The emulator results
+establish a strong Android recovery baseline, not a claim about overnight modem
+behavior or every vendor's process/battery policy. The shared transport-unit
+conformance factory remains useful follow-up; a JVM/desktop bridge harness is
+not required to reproduce or protect the repairs found in this round.

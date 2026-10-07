@@ -39,9 +39,10 @@ Agreed 2026-10-07:
    that handed the WebView native's resume credential was reverted in
    `65dcadaa5`: servers and the relay reject the bundled origins
    ([mobile-server-pairing § Bundled Web Client Transport](../../topics/mobile-server-pairing.md#bundled-web-client-transport)).
-2. Build the conformance suite in this sketch, run it against the browser
-   transports and the bridge's client half, and fix web behavior where it
-   fails. Web clients must not regress.
+2. Build the conformance suite in this sketch and run it against the browser
+   transports and the bridge's client half. The later October 7 direction
+   preserves web recovery as the working baseline; record its failures and
+   limit shared fixes to small, demonstrated defects. Web clients must not regress.
 3. Repair the bridge until it passes: a typed retryable error instead of
    synthetic responses, requests held while native reconnects, and every web
    subscription field forwarded
@@ -66,11 +67,14 @@ The suite, not a transport switch, is what forces the lifecycle questions.
 
 These test parts (the manager, the protocol, one stream) rather than what a
 transport promises its callers, and each transport has its own tests. The
-opt-in study now probes browser freezing and bounded silent traffic stalls;
-these do not establish dead-peer detection or full sleep semantics. Still
-uncovered: sockets that die without a close, a sleep long
-enough for the session to expire, server restart while hidden, and native
-reconnect seen through the bridge. Android CI runs the live native probes
+opt-in study now probes real native reconnection through the bridge, browser
+freezing, bounded silent traffic stalls, cold process restart, repeated sleep,
+forced Doze and real notification taps. Matched stock emulator Chrome cases
+exercise the standard web client under the same controller. These do not
+establish raw TCP dead-peer detection or complete physical sleep semantics.
+Still uncovered: real silent peer death, sleep past credential/session expiry,
+and server restart while hidden. The shared transport conformance factory also
+remains open. Android CI runs the live native probes
 (`test:live`) only after every instrumented test passes, so one unrelated
 failure hides them.
 
@@ -91,7 +95,7 @@ each keystroke within 100 ms (AGENTS.md).
 | Request in flight when the phone sleeps or native reconnects | Typed retryable connection failure; never a synthetic HTTP status or blind write replay | Android request repair verified; extend shared conformance |
 | Subscription misses events during the gap | Resumes from `lastEventId`; no missing or duplicated turns | possibly [live-user-turns-missing-until-reload](../live-user-turns-missing-until-reload.md) |
 | Page frozen, then resumed (Android freezes background WebView timers) | Due timers fire once, one health check, no reconnect storm | |
-| Renderer or process killed, document restored | Offline entry, drafts kept, connection acquired | |
+| Renderer or process killed, document restored | Offline entry, drafts kept, connection acquired | Android cold-process acceptance passes; Chrome comparison records explicit URL reopening when needed |
 | Refresh or forced reconnect while connected | Source returns to `ready` durably | [experimental-preview-refresh-disconnect](../experimental-preview-refresh-disconnect.md) |
 | Server stalls after accepting | A visible slow state before the deadline | [client-requests-have-no-deadline](../client-requests-have-no-deadline.md) |
 

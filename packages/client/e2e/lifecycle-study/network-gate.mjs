@@ -7,6 +7,9 @@ export async function createNetworkGate(targetPort, record = () => {}) {
   let accepted = 0;
   let refused = 0;
   let stalledBytes = 0;
+  let clientBytes = 0;
+  let cutAt;
+  let cuts = 0;
   // One blocked chunk per direction; Transform backpressure bounds the rest.
   const held = new Map();
   const sockets = new Set(); // Removed on close; close() destroys every owner.
@@ -38,9 +41,21 @@ export async function createNetworkGate(targetPort, record = () => {}) {
         dispose();
       });
     }
-    const filter = () => {
+    const filter = (fromClient = false) => {
       const stream = new Transform({
         transform(chunk, _encoding, done) {
+          if (fromClient) {
+            clientBytes += chunk.length;
+            if (cutAt !== undefined && clientBytes >= cutAt) {
+              cutAt = undefined;
+              cuts++;
+              mode = "refuse";
+              record({ type: "gate-upload-cut", clientBytes, cuts });
+              for (const socket of sockets) socket.destroy();
+              done();
+              return;
+            }
+          }
           if (mode === "silent") {
             stalledBytes += chunk.length;
             held.set(stream, { chunk, done });
@@ -50,7 +65,7 @@ export async function createNetworkGate(targetPort, record = () => {}) {
       filters.push(stream);
       return stream;
     };
-    client.pipe(filter()).pipe(upstream);
+    client.pipe(filter(true)).pipe(upstream);
     upstream.pipe(filter()).pipe(client);
     record({ type: "gate-accepted", accepted });
   });
@@ -65,8 +80,15 @@ export async function createNetworkGate(targetPort, record = () => {}) {
       accepted,
       refused,
       stalledBytes,
+      clientBytes,
+      cuts,
       sockets: sockets.size,
     }),
+    refuseAfterClientBytes(bytes) {
+      if (!Number.isSafeInteger(bytes) || bytes <= 0)
+        throw new Error("A positive byte count is required");
+      cutAt = clientBytes + bytes;
+    },
     setMode(next) {
       if (!["pass", "refuse", "silent"].includes(next))
         throw new Error(`Unknown gate mode: ${next}`);
