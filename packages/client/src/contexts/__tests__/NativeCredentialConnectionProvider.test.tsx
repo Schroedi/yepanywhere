@@ -85,7 +85,10 @@ function Page() {
           void getSourceRuntimeRegistry()
             .getCurrentSourceRuntime()
             .transport.fetch<{ authenticated: boolean }>("/auth/status")
-            .then((body) => setStatus(String(body.authenticated)));
+            .then(
+              (body) => setStatus(String(body.authenticated)),
+              (error: Error) => setStatus(`error: ${error.message}`),
+            );
         }}
       >
         Probe
@@ -176,7 +179,10 @@ describe("NativeCredentialConnectionProvider", () => {
 
   it("asks native to sign in again when the server rejects the session", async () => {
     socketModes = ["rejected", "ok"];
-    native.reauthenticate.mockResolvedValue({ ...credential });
+    native.reauthenticate.mockResolvedValue({
+      ...credential,
+      sessionId: "replacement-session",
+    });
     render(<App />);
     await flush();
     await flush();
@@ -188,6 +194,20 @@ describe("NativeCredentialConnectionProvider", () => {
     await flush();
     expect(screen.getByTestId("probe").textContent).toBe("true");
     expect(localStorage.length).toBe(0);
+  });
+
+  it("waits for recovery when native still accepts the rejected session", async () => {
+    socketModes = ["rejected", "ok"];
+    native.reauthenticate.mockResolvedValue({ ...credential });
+    render(<App />);
+    await flush();
+    await flush();
+
+    // No immediate retry loop with the same session; the page stays mounted.
+    expect(native.reauthenticate).toHaveBeenCalledTimes(1);
+    expect(sockets).toHaveLength(1);
+    expect(screen.getByTestId("mounted").textContent).toBe("yes");
+    expect(screen.getByTestId("connecting").textContent).toBe("settled");
   });
 
   it("falls through an unreachable route to the next one without signing in", async () => {

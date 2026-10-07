@@ -391,10 +391,31 @@ open class WebClientActivity : ComponentActivity() {
             }
         }
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
+        val notifications = checkNotNull(notificationOperations)
+        // The control channel also serves hosted-latest documents, so only
+        // signed bundled code bound to a profile may receive the credential.
+        val sessionProfileId = activeProfileId?.takeIf { config.bundled }
         nativeHost = YaNativeMessageHost.install(
             view,
             config,
-            checkNotNull(notificationOperations),
+            if (sessionProfileId == null) {
+                notifications
+            } else {
+                CompositeNativeHostOperations(
+                    listOf(
+                        notifications,
+                        NativeSessionHostOperations(
+                            scope = lifecycleScope,
+                            profileId = sessionProfileId,
+                            source = RuntimeNativeSessionSource(
+                                (application as YepAnywhereApplication).nativeRuntime,
+                                sessionProfileId,
+                            ),
+                            showSignIn = { showHostManagement() },
+                        ),
+                    ),
+                )
+            },
         )
         activeProfileId?.let { profileId ->
             transportHost = YaNativeTransportHost.install(view, config,

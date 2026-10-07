@@ -49,24 +49,27 @@ export function NativeCredentialConnectionProvider({
     null,
   );
   const [failed, setFailed] = useState(false);
-  const [attempt, setAttempt] = useState(0);
-  useEffect(() => {
-    let active = true;
+  const mountedRef = useRef(true);
+  const requestCredential = useCallback(() => {
     setFailed(false);
     void nativeHost.session.credential().then(
       (received) => {
-        if (active) setCredential(received);
+        if (mountedRef.current) setCredential(received);
       },
       (error: unknown) => {
         debugLogNativeCredential("Credential request failed", error);
-        if (active) setFailed(true);
+        if (mountedRef.current) setFailed(true);
       },
     );
+  }, []);
+  useEffect(() => {
+    mountedRef.current = true;
+    requestCredential();
     return () => {
-      active = false;
+      mountedRef.current = false;
     };
-  }, [attempt]);
-  useResumeRecovery(failed && !credential, () => setAttempt((n) => n + 1));
+  }, [requestCredential]);
+  useResumeRecovery(failed && !credential, requestCredential);
 
   if (!credential)
     return (
@@ -163,15 +166,21 @@ function NativeCredentialSource({
   const reauthenticate = useCallback(async () => {
     const attempt = ++attemptRef.current;
     setPhase("reauthenticating");
+    const rejectedSessionId = credentialRef.current.sessionId;
     try {
-      const replacement = await nativeHost.session.reauthenticate(
-        credentialRef.current.sessionId,
-      );
+      const replacement =
+        await nativeHost.session.reauthenticate(rejectedSessionId);
       if (disposedRef.current || attempt !== attemptRef.current) return;
       if (replacement.profileId !== profileId) {
         throw new Error("Native reauthenticated a different profile");
       }
       credentialRef.current = replacement;
+      if (replacement.sessionId === rejectedSessionId) {
+        // Native's own resume accepted the session this document saw
+        // rejected. Retrying at once could loop; wait for a recovery signal.
+        setPhase("offline");
+        return;
+      }
     } catch (error) {
       if (disposedRef.current || attempt !== attemptRef.current) return;
       debugLogNativeCredential("Reauthentication failed", error);

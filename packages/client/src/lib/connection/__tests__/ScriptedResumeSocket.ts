@@ -28,6 +28,9 @@ export class ScriptedResumeSocket implements SecureConnectionSocket {
   sent: unknown[] = [];
   subscriptions = new Set<string>();
   private clientNonce = "";
+  // Echo the session the client asks to resume, so a test may hand over a
+  // replacement session id; the scripted key stays the same.
+  private sessionId = resumeSession.sessionId;
   private nonce = btoa(String.fromCharCode(...new Uint8Array(24).fill(9)));
   private key = new Uint8Array(32).fill(7);
   private transportKey = deriveTransportKey(this.key, this.nonce);
@@ -73,12 +76,13 @@ export class ScriptedResumeSocket implements SecureConnectionSocket {
       if (this.readyState !== 1 || this.mode === "silent") return;
       if (message.type === "srp_resume_init") {
         this.clientNonce = message.clientNonce;
+        this.sessionId = message.sessionId;
         if (this.mode === "rejected") {
           this.receive({ type: "srp_invalid", reason: "expired" });
         } else {
           this.receive({
             type: "srp_resume_challenge",
-            sessionId: resumeSession.sessionId,
+            sessionId: this.sessionId,
             nonce: this.nonce,
           });
         }
@@ -88,7 +92,7 @@ export class ScriptedResumeSocket implements SecureConnectionSocket {
       ) {
         this.receive({
           type: "srp_resumed",
-          sessionId: resumeSession.sessionId,
+          sessionId: this.sessionId,
           transportNonce: this.nonce,
           serverProof:
             this.mode === "bad-proof"
@@ -97,7 +101,7 @@ export class ScriptedResumeSocket implements SecureConnectionSocket {
                   encrypt(
                     JSON.stringify({
                       type: "srp_resume_server_proof",
-                      sessionId: resumeSession.sessionId,
+                      sessionId: this.sessionId,
                       clientNonce: this.clientNonce,
                       serverNonce: this.nonce,
                       resumeProtocolVersion: 3,
