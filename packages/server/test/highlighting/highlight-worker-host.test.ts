@@ -113,7 +113,9 @@ describe("HighlightWorkerHost", () => {
   });
 
   it("rejects only the stalled job once the worker has proven it can run", async () => {
-    const host = createHost({ stallMs: 50, workerUrl: HANGING_WORKER });
+    // The stall limit also covers a cold worker's startup before its first
+    // reply, so leave room for a loaded CI runner.
+    const host = createHost({ stallMs: 2_000, workerUrl: HANGING_WORKER });
     const results = await Promise.allSettled([
       host.highlight("ok", "python"),
       host.highlight("hang", "python"),
