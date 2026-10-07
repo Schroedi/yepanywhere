@@ -115,6 +115,7 @@ import type {
   SessionDiscoveryIndexRegistry,
   SessionIndexService,
 } from "./indexes/index.js";
+import { createLruMap, refreshLruMap } from "./lib/lruCollections.js";
 import type {
   ProjectMetadataService,
   SessionMetadataService,
@@ -1413,7 +1414,8 @@ export function createApp(options: AppOptions): AppResult {
           eventBus: options.eventBus,
         })
       : null;
-  const readerCache = new Map<string, ISessionReader>();
+  /** Least recently used first; bounded by `maxReaderCacheSize`. */
+  const readerCache = createLruMap<string, ISessionReader>();
   const projectFileCompletion = new ProjectFileCompletion(effectiveDataDir, {
     eventBus: options.eventBus,
   });
@@ -1485,7 +1487,10 @@ export function createApp(options: AppOptions): AppResult {
     factory: () => T,
   ): T => {
     const cached = readerCache.get(key);
-    if (cached) return cached as T;
+    if (cached) {
+      refreshLruMap(readerCache, key, cached);
+      return cached as T;
+    }
 
     const reader = factory();
     readerCache.set(key, reader);

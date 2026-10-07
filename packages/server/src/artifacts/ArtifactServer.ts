@@ -144,7 +144,9 @@ const MAX_SESSION_APPS = 256;
 export class ArtifactServer {
   readonly vhostAccess: VhostAccess;
   readonly app = new Hono();
+  /** Expired grants are deleted on access and on each new grant; revoked ones at once. */
   private readonly grants = new Map<string, Grant>();
+  /** Bounded by `MAX_SESSION_APPS`. */
   private readonly sessionApps = new Map<string, SessionApp>();
   /**
    * Every name ever minted stays excluded from YA's host trust until exit,
@@ -155,6 +157,7 @@ export class ArtifactServer {
   private projectAppDelivery?: ProjectAppDelivery;
   private fileSiteAdmitted: (site: ArtifactVhostSite) => boolean = (site) =>
     !site.ownerUsername;
+  /** One host per served project. */
   private readonly projectHosts = new Set<string>();
   private listener: Server | undefined;
   private listening = false;

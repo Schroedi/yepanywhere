@@ -52,3 +52,8 @@ copyFileSync(
   join(serverSourceDir, "sdk/providers/pi-yep-anywhere-extension.mjs"),
   join(serverTargetDir, "sdk/providers/pi-yep-anywhere-extension.mjs"),
 );
+
+copyFileSync(
+  join(serverSourceDir, "highlighting/highlight-worker.mjs"),
+  join(serverTargetDir, "highlighting/highlight-worker.mjs"),
+);

@@ -6,6 +6,8 @@ import type {
   ProjectFileCompletionResult,
 } from "@yep-anywhere/shared";
 import { runGit } from "../git/gitExec.js";
+import { refreshLruMap } from "../lib/lruCollections.js";
+import { registerIdleSweep } from "../lib/processIdleSweep.js";
 import { onProjectFileChange } from "../projects/projectFileChanges.js";
 import {
   type GitMetadataPaths,
@@ -22,6 +24,8 @@ const REFRESH_MS = 60_000;
 const UNUSED_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_BUFFER = 32 * 1024 * 1024;
 const MAX_RETAINED_BYTES = 128 * 1024 * 1024;
+/** Accounted path storage across every project's published inventory. */
+const MAX_TOTAL_RETAINED_BYTES = 256 * 1024 * 1024;
 const MAX_ACTIVE_QUERIES = 8;
 
 /** An inventory path, and whether Git's index lists it. */
@@ -62,6 +66,8 @@ interface Inventory {
   error?: unknown;
   refreshedAt: number;
   lastUsedAt: number;
+  /** Accounted bytes of the published `entries`. */
+  retainedBytes: number;
   truncated: boolean;
   args: string[];
   metadata: GitMetadataPaths | null;
@@ -76,6 +82,10 @@ const compare = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 /** Created inert. Only a completion request acquires a bounded inventory. */
 export class ProjectFileCompletion {
+  /**
+   * Least recently used first. Bounded by the process-wide byte budget and by
+   * last-use expiry, checked on each request and by the process idle sweep.
+   */
   private readonly inventories = new Map<string, Inventory>();
   private emptyGitDirectory?: Promise<string>;
   private activeScans = 0;
@@ -83,6 +93,7 @@ export class ProjectFileCompletion {
   private readonly abort = new AbortController();
   private unsubscribeFiles?: () => void;
   private unsubscribeActivity?: () => void;
+  private unregisterIdleSweep?: () => void;
   private readonly queries = new Map<string, Promise<unknown>>();
 
   constructor(
@@ -90,6 +101,7 @@ export class ProjectFileCompletion {
     private readonly options: {
       maxPaths?: number;
       maxRetainedBytes?: number;
+      maxTotalRetainedBytes?: number;
       now?: () => number;
       eventBus?: EventBus;
     } = {},
@@ -126,6 +138,9 @@ export class ProjectFileCompletion {
       )
         this.invalidate(fromUrlProjectId(event.projectId));
     });
+    this.unregisterIdleSweep ??= registerIdleSweep((now) =>
+      this.releaseUnused(this.options.now?.() ?? now),
+    );
     return this.withQuery([project, key], () =>
       this.acquire(project).then((state) => read(this.view(project, state))),
     );
@@ -185,16 +200,14 @@ export class ProjectFileCompletion {
     this.abort.abort();
     this.unsubscribeFiles?.();
     this.unsubscribeActivity?.();
+    this.unregisterIdleSweep?.();
     await Promise.allSettled([...this.scans, ...this.queries.values()]);
     this.inventories.clear();
   }
 
   private async acquire(project: string): Promise<Inventory> {
     const now = this.options.now?.() ?? Date.now();
-    for (const [path, inventory] of this.inventories) {
-      if (!inventory.pending && now - inventory.lastUsedAt > UNUSED_MS)
-        this.inventories.delete(path);
-    }
+    this.releaseUnused(now);
     let state = this.inventories.get(project);
     if (!state) {
       if (this.activeScans >= MAX_ACTIVE_SCANS)
@@ -205,6 +218,7 @@ export class ProjectFileCompletion {
         pending: true,
         refreshedAt: now,
         lastUsedAt: now,
+        retainedBytes: 0,
         truncated: false,
         args: [],
         metadata: null,
@@ -218,6 +232,7 @@ export class ProjectFileCompletion {
       state.ready = this.refresh(project, state, true);
     } else {
       state.lastUsedAt = now;
+      refreshLruMap(this.inventories, project, state);
       if (!state.pending) {
         const current = state;
         current.checking ??= this.fingerprint(project, current.metadata)
@@ -241,6 +256,32 @@ export class ProjectFileCompletion {
     await state.ready;
     if (state.error) throw state.error;
     return state;
+  }
+
+  private releaseUnused(now: number): void {
+    for (const [path, inventory] of this.inventories) {
+      if (!inventory.pending && now - inventory.lastUsedAt > UNUSED_MS)
+        this.inventories.delete(path);
+    }
+  }
+
+  /**
+   * Release least recently used settled inventories until the published total
+   * fits the process budget. In-flight scans and `keep` are never released; a
+   * released project rescans on its next request.
+   */
+  private enforceTotalBudget(keep: Inventory): void {
+    const budget =
+      this.options.maxTotalRetainedBytes ?? MAX_TOTAL_RETAINED_BYTES;
+    let total = 0;
+    for (const inventory of this.inventories.values())
+      total += inventory.retainedBytes;
+    for (const [path, inventory] of this.inventories) {
+      if (total <= budget) break;
+      if (inventory === keep || inventory.pending) continue;
+      this.inventories.delete(path);
+      total -= inventory.retainedBytes;
+    }
   }
 
   private view(project: string, state: Inventory): InventoryView {
@@ -472,6 +513,8 @@ export class ProjectFileCompletion {
     state.entries = [...inventory.entries.values()].sort((a, b) =>
       compare(a.path, b.path),
     );
+    state.retainedBytes = inventory.retainedBytes;
+    this.enforceTotalBudget(state);
   }
 
   private emptyGitDir(): Promise<string> {
@@ -489,6 +532,10 @@ class CompletionInventory {
   readonly entries = new Map<string, InventoryEntry>();
   truncated = false;
   private bytes = 0;
+
+  get retainedBytes(): number {
+    return this.bytes;
+  }
 
   constructor(
     private readonly maxPaths: number,

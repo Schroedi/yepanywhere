@@ -1,6 +1,18 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { EventEmitter } from "node:events";
 import { type FSWatcher, realpathSync, statSync, watch } from "node:fs";
 import { sep } from "node:path";
+
+/**
+ * Runs a function in the async context captured when this module loaded, which
+ * is outside every request. A native watch captures the async context it is
+ * created in and keeps it, with every AsyncLocalStorage store value, until the
+ * watch closes. Watches are created lazily during requests (for example when
+ * markdown augmentation checks a displayed path), so creating them in the
+ * caller's context pinned that request's whole message array for the lifetime
+ * of a shared directory watch.
+ */
+const runOutsideRequestContext = AsyncLocalStorage.snapshot();
 
 type Listener = (event: string, filename: string | null) => void;
 interface WatchEntry {
@@ -111,10 +123,8 @@ export class SharedDirectoryWatcher {
     entry.native = null;
     replaced?.close();
     entry.recursive = recursive;
-    const native = watch(
-      entry.path,
-      { recursive, persistent: false },
-      (event, filename) => {
+    const native: FSWatcher = runOutsideRequestContext(() =>
+      watch(entry.path, { recursive, persistent: false }, (event, filename) => {
         if (entry.native !== native) return;
         for (const lease of [...entry.leases]) {
           if (
@@ -123,7 +133,7 @@ export class SharedDirectoryWatcher {
           )
             lease.emit("change", event, filename);
         }
-      },
+      }),
     );
     entry.native = native;
     native.on("error", (error) => {

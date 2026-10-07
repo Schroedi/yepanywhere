@@ -192,6 +192,11 @@ interface CodexSharedScanCacheEntry {
   inFlight?: Promise<CodexSessionFile[]>;
 }
 
+/**
+ * Keyed by sessions directory and active-after cutoff. Bounded per sessions
+ * directory to the unfiltered scan plus the latest settled cutoff and any
+ * in-flight scans; see `retainLatestCutoff`.
+ */
 const codexSharedScanCache = new Map<string, CodexSharedScanCacheEntry>();
 
 interface CodexFullSummaryCacheEntry {
@@ -1461,6 +1466,8 @@ export class CodexSessionReader implements ISessionReader {
         timestamp: Date.now(),
         sessions,
       });
+      if (options?.activeAfterMs !== undefined)
+        this.retainLatestCutoff(cacheKey);
       this.hydrateSessionFileCache(sessions);
       const visibleSessions = this.filterVisibleSessionsForScanMetrics(
         sessions,
@@ -1477,6 +1484,26 @@ export class CodexSessionReader implements ISessionReader {
         codexSharedScanCache.delete(cacheKey);
       }
       throw error;
+    }
+  }
+
+  /**
+   * The active-after cutoff advances over time, and each cutoff would
+   * otherwise keep its own copy of the directory's session list forever.
+   * Keep only `cacheKey` among this directory's settled cutoff scans.
+   */
+  private retainLatestCutoff(cacheKey: string): void {
+    const unfiltered = this.getSharedScanCacheKey();
+    const prefix = `${this.sessionsDir}::`;
+    for (const [key, entry] of codexSharedScanCache) {
+      if (
+        key !== cacheKey &&
+        key !== unfiltered &&
+        key.startsWith(prefix) &&
+        !entry.inFlight
+      ) {
+        codexSharedScanCache.delete(key);
+      }
     }
   }
 

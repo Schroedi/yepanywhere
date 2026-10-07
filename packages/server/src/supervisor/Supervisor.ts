@@ -706,7 +706,11 @@ export class Supervisor {
   private readonly activationCoordinator: SessionActivationCoordinator;
   private readonly sessionDone: SessionDoneCoordinator;
   private observedProcessIds: Set<string> = new Set();
-  private everOwnedSessions: Set<string> = new Set(); // Sessions we've ever owned (for orphan detection)
+  /**
+   * Sessions we've ever owned, for orphan detection. Semantic: one session ID
+   * per session owned since process start, reset on restart.
+   */
+  private everOwnedSessions: Set<string> = new Set();
   private terminatedProcesses: ProcessInfo[] = []; // Recently terminated processes
   private provider: AgentProvider | null;
   private readonly providerDiscoveryEnabled: boolean;

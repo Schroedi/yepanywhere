@@ -38,6 +38,7 @@ import {
   createFrontendProxy,
   createStaticRoutes,
 } from "./frontend/index.js";
+import { highlightWorker } from "./highlighting/highlight-worker-host.js";
 import { ensureSelfSignedCertificate } from "./https/self-signed.js";
 import {
   SessionDiscoveryIndexRegistry,
@@ -1912,6 +1913,7 @@ async function startServer() {
           codexEntries: codexEntryCacheBudget.getStats(),
           markdownAugments: markdownAugmentCacheDiagnostics(),
           projectPaths: projectPathCacheDiagnostics(),
+          highlightWorker: highlightWorker.getStats(),
         },
         relay: {
           responseSerialization: relayResponseSerializationDiagnostics(),

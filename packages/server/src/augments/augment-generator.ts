@@ -1,7 +1,7 @@
 /**
  * AugmentGenerator - Renders completed markdown blocks to HTML
  *
- * Uses shiki for syntax highlighting of code blocks and markdown-it for
+ * Uses the shared Shiki highlight worker for code blocks and markdown-it for
  * rendering other markdown blocks. Also provides lightweight inline
  * formatting for pending/incomplete text during streaming.
  */
@@ -13,13 +13,8 @@ import {
   renderAnsiToHtml,
   toonDocumentToMarkdown,
 } from "@yep-anywhere/shared";
-import {
-  type BundledLanguage,
-  bundledLanguages,
-  createHighlighter,
-  type Highlighter,
-} from "shiki";
-import { addClassToHast, createCssVariablesTheme } from "shiki/core";
+import { bundledLanguages } from "shiki";
+import { highlightWorker } from "../highlighting/highlight-worker-host.js";
 import type {
   CompletedBlock,
   StreamingCodeBlock,
@@ -37,21 +32,10 @@ import {
   sanitizeUrl,
 } from "./safe-markdown.js";
 
-/** CSS variables theme - outputs `style="color: var(--shiki-...)"` */
-const cssVarsTheme = createCssVariablesTheme({
-  name: "css-variables",
-  variablePrefix: "--shiki-",
-  fontStyle: true,
-});
-
 export interface Augment {
   blockIndex: number;
   html: string;
   type: CompletedBlock["type"];
-}
-
-export interface AugmentGeneratorConfig {
-  languages: string[]; // Languages to load when finalized code first needs highlighting
 }
 
 export interface AugmentGenerator {
@@ -73,37 +57,11 @@ export interface AugmentGenerator {
 }
 
 /**
- * Creates an AugmentGenerator. Syntax highlighting initializes on finalized code.
- *
- * @param config - Configuration for languages and theme
- * @returns Promise that resolves to an AugmentGenerator
+ * Creates an AugmentGenerator. Finalized code blocks are highlighted by the
+ * process-wide highlight worker, so a generator holds no Shiki state and
+ * needs no disposal.
  */
-export async function createAugmentGenerator(
-  config: AugmentGeneratorConfig,
-): Promise<AugmentGenerator> {
-  // Filter languages to only include valid bundled languages
-  const validLanguages = config.languages.filter(
-    (lang) => lang in bundledLanguages,
-  ) as BundledLanguage[];
-
-  // Prose, lists and pending code do not need Shiki. Share initialization
-  // between concurrent finalized blocks without charging ordinary Markdown
-  // its cold grammar/WASM cost.
-  let highlighterPromise: Promise<Highlighter> | undefined;
-  const getHighlighter = (): Promise<Highlighter> => {
-    highlighterPromise ??= createHighlighter({
-      themes: [cssVarsTheme],
-      langs:
-        validLanguages.length > 0
-          ? validLanguages
-          : ["javascript", "typescript"],
-    });
-    return highlighterPromise;
-  };
-
-  // Track loaded languages for sync checking
-  const loadedLanguages = new Set<string>(validLanguages);
-
+export async function createAugmentGenerator(): Promise<AugmentGenerator> {
   return {
     async processBlock(
       block: CompletedBlock,
@@ -111,11 +69,7 @@ export async function createAugmentGenerator(
       safeMarkdownOptions?: SafeMarkdownRenderOptions,
     ): Promise<Augment> {
       if (block.type === "code") {
-        const html = await renderCodeBlock(
-          block,
-          await getHighlighter(),
-          loadedLanguages,
-        );
+        const html = await renderCodeBlock(block);
         return { blockIndex, html, type: block.type };
       }
 
@@ -196,8 +150,6 @@ function extractStreamingCodeContent(content: string): string {
 async function renderCodeWithHighlighter(
   code: string,
   normalizedLang: string,
-  highlighter: Highlighter,
-  loadedLanguages: Set<string>,
 ): Promise<string> {
   // Route colored terminal output through the ANSI renderer when the
   // fence is tagged `ansi` or contains raw CSI bytes; otherwise shiki
@@ -216,40 +168,19 @@ async function renderCodeWithHighlighter(
     }
   }
 
-  // Check if language is loaded and valid
-  const isValidLang = normalizedLang && normalizedLang in bundledLanguages;
-
-  if (isValidLang && !loadedLanguages.has(normalizedLang)) {
-    // Load the language dynamically
+  if (normalizedLang && normalizedLang in bundledLanguages) {
     try {
-      await highlighter.loadLanguage(normalizedLang as BundledLanguage);
-      loadedLanguages.add(normalizedLang);
+      // Shiki carries the language only in its token colors, so stamp the
+      // same `language-*` class the plain fallback emits. That single class
+      // is what lets the client label a block and pick a per-language
+      // renderer without re-reading the original fence.
+      return await highlightWorker.highlight(
+        code,
+        normalizedLang,
+        `language-${normalizedLang}`,
+      );
     } catch {
-      // Language loading failed, fall back to plain text
-      return renderPlainCodeBlock(code, normalizedLang);
-    }
-  }
-
-  if (isValidLang && loadedLanguages.has(normalizedLang)) {
-    try {
-      const html = highlighter.codeToHtml(code, {
-        lang: normalizedLang as BundledLanguage,
-        theme: "css-variables",
-        // Shiki carries the language only in its token colors, so stamp the
-        // same `language-*` class the plain fallback emits. That single class
-        // is what lets the client label a block and pick a per-language
-        // renderer without re-reading the original fence.
-        transformers: [
-          {
-            code(node) {
-              addClassToHast(node, `language-${normalizedLang}`);
-            },
-          },
-        ],
-      });
-      return html;
-    } catch {
-      // Highlighting failed, fall back to plain text
+      // Language loading or highlighting failed, fall back to plain text
       return renderPlainCodeBlock(code, normalizedLang);
     }
   }
@@ -261,14 +192,10 @@ async function renderCodeWithHighlighter(
 /**
  * Render a code block with syntax highlighting.
  */
-async function renderCodeBlock(
-  block: CompletedBlock,
-  highlighter: Highlighter,
-  loadedLanguages: Set<string>,
-): Promise<string> {
+async function renderCodeBlock(block: CompletedBlock): Promise<string> {
   const code = extractCodeContent(block.content);
   const lang = normalizeCodeBlockLanguage(block.lang) ?? "";
-  return renderCodeWithHighlighter(code, lang, highlighter, loadedLanguages);
+  return renderCodeWithHighlighter(code, lang);
 }
 
 /**

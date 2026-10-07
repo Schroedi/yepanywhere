@@ -10,7 +10,6 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { SourceVersionedSingleFlight } from "../lib/sourceVersionedSingleFlight.js";
 import {
   type AugmentGenerator,
-  type AugmentGeneratorConfig,
   createAugmentGenerator,
 } from "./augment-generator.js";
 import { BlockDetector } from "./block-detector.js";
@@ -22,30 +21,6 @@ import {
   collectMarkdownHeadingSlugs,
   type SafeMarkdownRenderOptions,
 } from "./safe-markdown.js";
-
-/**
- * Default configuration for the AugmentGenerator.
- * Should match the streaming coordinator config.
- */
-const DEFAULT_CONFIG: AugmentGeneratorConfig = {
-  languages: [
-    "javascript",
-    "js",
-    "typescript",
-    "ts",
-    "tsx",
-    "python",
-    "bash",
-    "json",
-    "css",
-    "html",
-    "yaml",
-    "sql",
-    "go",
-    "rust",
-    "diff",
-  ],
-};
 
 // Singleton generator instance (initialized lazily)
 let generatorPromise: Promise<AugmentGenerator> | null = null;
@@ -134,11 +109,10 @@ function markdownSourceVersion(
 
 /**
  * Get or create the shared AugmentGenerator instance.
- * Uses a singleton to avoid re-loading shiki themes/languages.
  */
 async function getGenerator(): Promise<AugmentGenerator> {
   if (!generatorPromise) {
-    generatorPromise = createAugmentGenerator(DEFAULT_CONFIG);
+    generatorPromise = createAugmentGenerator();
   }
   return generatorPromise;
 }
