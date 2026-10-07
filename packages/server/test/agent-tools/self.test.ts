@@ -60,7 +60,12 @@ async function command(
   );
 }
 
-describe("ya-agent self real command/service", () => {
+// Each `command` spawns a shell and the ya-agent launcher. CI runs measured
+// 0.9-1.7 s per spawn (2026-10-06/07 unit-tests jobs: the one-spawn token
+// case took 896-1706 ms); the four- and five-spawn cases took 3.0-3.7 s, then
+// hit the 5 s default on the slower 92b5f8a66 and 8f03d343f runs. 20 s is
+// about 2.5x the ~8 s five spawns reach at 1.7 s each.
+describe("ya-agent self real command/service", { timeout: 20_000 }, () => {
   it.each([
     [{ schemaVersion: 2 }, "unsupported-protocol"],
     [
