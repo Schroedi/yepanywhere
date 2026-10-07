@@ -7,7 +7,7 @@ credential storage and native work such as push enrollment. The bundled
 document receives the profile's resume credential over the native control
 channel, held in memory only, and connects through the ordinary web transport.
 It never receives the password, and never shows a web login
-([decision](../../topics/mobile-server-pairing.md#decided-replacement-shared-resume-credential-2026-10-07)).
+([contract](../../topics/mobile-server-pairing.md#bundled-web-client-transport)).
 
 ## Build and verify
 

@@ -5,7 +5,7 @@ export const NATIVE_NOTIFICATION_PERMISSION_FEATURE =
 /**
  * The bundled document connects with the native profile's resume credential.
  * Native advertises these only to signed bundled code; see
- * topics/mobile-server-pairing.md § Decided replacement.
+ * topics/mobile-server-pairing.md § Bundled Web Client Transport.
  */
 export const NATIVE_SESSION_CREDENTIAL_FEATURE = "session.credential";
 export const NATIVE_SESSION_REAUTHENTICATE_FEATURE = "session.reauthenticate";

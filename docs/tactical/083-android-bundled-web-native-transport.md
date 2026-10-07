@@ -2,6 +2,11 @@
 
 Topic: mobile-server-pairing
 
+See also: on 2026-10-07 the native data transport described here was replaced
+by a credential handoff; the document now connects through the web transport.
+Current contract and the retired bridge record:
+[mobile-server-pairing § Bundled Web Client Transport](../../topics/mobile-server-pairing.md#bundled-web-client-transport).
+
 Status: Android implementation complete 2026-09-30. Native login, full bundled
 web foreground, host switching and duplicate native screen retirement are
 implemented. Validation and remaining release acceptance are recorded below.

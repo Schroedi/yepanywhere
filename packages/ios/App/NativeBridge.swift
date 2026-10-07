@@ -7,7 +7,8 @@ enum BridgeFailure: Error {
 
 /// The bundled document's native control channel. The document connects to
 /// its server through the ordinary web transport with the profile's resume
-/// credential (topics/mobile-server-pairing.md § Decided replacement), so no
+/// credential (topics/mobile-server-pairing.md § Bundled Web Client
+/// Transport), so no
 /// application traffic crosses this bridge.
 @MainActor
 final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate {

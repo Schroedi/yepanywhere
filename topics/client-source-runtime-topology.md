@@ -122,9 +122,10 @@ The accepted mobile ownership and authentication requirements for that future
 identity are in
 [`mobile-server-pairing.md`](mobile-server-pairing.md). In particular, it is a
 separate public id authenticated through SRP/full-resume proof, not the relay
-ownership `installId`, a browser profile id, or an SRP session id. Native and
-bundled-web transports may use different credentials and connections while
-still resolving to the same logical source.
+ownership `installId`, a browser profile id, or an SRP session id. Native work
+and the bundled document use separate connections, the document resuming the
+native profile's credential, while still resolving to the same logical source
+(`native:<profileId>` in the document's source runtime).
 
 ### SourceRuntimeRegistry
 

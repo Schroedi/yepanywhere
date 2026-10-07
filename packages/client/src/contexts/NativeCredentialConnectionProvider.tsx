@@ -1,7 +1,7 @@
 /**
  * Connection owner for a bundled app document whose native host hands it the
- * profile's resume credential (topics/mobile-server-pairing.md § Decided
- * replacement). The document connects through the ordinary secure transport,
+ * profile's resume credential (topics/mobile-server-pairing.md § Bundled Web
+ * Client Transport). The document connects through the ordinary secure transport,
  * the same reconnect machinery browsers use, under the native profile's source
  * key. The credential lives only in memory here and is never written to web
  * storage. A rejected resume asks native to sign in again; this document never

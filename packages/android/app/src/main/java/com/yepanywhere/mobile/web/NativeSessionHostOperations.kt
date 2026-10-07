@@ -64,7 +64,7 @@ class RuntimeNativeSessionSource(
 /**
  * Hands the bundled document its profile's resume credential so it connects
  * through the ordinary web transport (topics/mobile-server-pairing.md
- * § Decided replacement). Install only for signed bundled code bound to one
+ * § Bundled Web Client Transport). Install only for signed bundled code bound to one
  * profile: the channel also exists for hosted-`latest`, so the caller's
  * bundled check is the gate, not the channel.
  *

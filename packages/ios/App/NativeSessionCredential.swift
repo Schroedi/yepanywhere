@@ -2,7 +2,7 @@ import Foundation
 
 /// The resume credential the bundled document connects with, so it uses the
 /// ordinary web transport instead of a native data bridge
-/// (topics/mobile-server-pairing.md § Decided replacement).
+/// (topics/mobile-server-pairing.md § Bundled Web Client Transport).
 enum NativeSessionCredential {
   static let features = ["session.credential", "session.reauthenticate", "host.switch"]
 

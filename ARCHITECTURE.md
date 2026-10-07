@@ -50,9 +50,10 @@ alternatives rather than selecting a new runtime contract.
   login, saved hosts and host management; the bundled WebView is the primary
   foreground for the full existing web UI. A shared Rust/UniFFI core owns SRP,
   encryption, direct/relay transport, route candidates and reconnect. Kotlin
-  owns protected credential storage, platform demand and native adapters. The
-  WebView consumes source-scoped native leases through a bounded exact-origin
-  `SourceTransport` adapter without receiving keys or authenticating twice.
+  owns protected credential storage, platform demand and native adapters.
+  Native hands the signed bundled WebView the profile's resume credential over
+  the exact-origin control channel; the document connects through the ordinary
+  web transport and never authenticates twice.
   Paired hosts remain independent even when relay profiles share a mux socket.
   Native dashboard and Conversation presentation have been removed. The
   hosted-latest testing channel keeps independent web authentication and has

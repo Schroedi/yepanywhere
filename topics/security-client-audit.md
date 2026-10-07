@@ -573,9 +573,18 @@ The initial implementation deliberately leaves these separately reviewable:
 The iOS shell implements the existing capability-gated registry contract using
 per-profile P-256 SecKey continuity keys labeled ios-keychain. The key is a
 software Keychain item; no Secure Enclave, attestation or hardware-backed proof
-is asserted. Native Rust retains the authenticated session id and exact wire
-transport nonce for registration/check-in transcripts; these values and signing
-operations are unavailable to the source/control JavaScript bridge.
+is asserted. Native Rust retains the exact wire transport nonce for
+registration/check-in transcripts; that nonce, the continuity key and signing
+operations are unavailable to the bundled document's control channel.
+
+The bundled document does receive the profile's resume credential (session id
+and base key) and resumes the same server session over its own connection
+([mobile-server-pairing § Bundled Web Client Transport](mobile-server-pairing.md#bundled-web-client-transport)).
+That connection is an ordinary browser connection: it carries no
+continuity-key proof and appears among connected browsers. Registration and
+check-in happen only on native's own connections. Revoking the native client
+invalidates the shared session, so the document's next resume is rejected and
+it asks native to sign in again.
 
 Simulator acceptance verifies post-registration storage failure and idempotent
 recovery of the same client id/request/key, stable resumed check-in, changed

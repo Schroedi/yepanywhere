@@ -24,7 +24,7 @@ requests, subscriptions, resume and three bounded reconnect attempts.
 The final circuit closes its socket and cancels its work. Bundled web documents
 do not use this core: native hands them the profile's resume credential and
 they connect through the web transport
-([decision](../../topics/mobile-server-pairing.md#decided-replacement-shared-resume-credential-2026-10-07)).
+([contract](../../topics/mobile-server-pairing.md#bundled-web-client-transport)).
 Direct routes and eligible relay mux
 routes use the same authentication; unavailable mux setup falls back to the
 exact configured legacy relay endpoint. Explicit custom URLs remain authoritative.

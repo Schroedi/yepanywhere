@@ -19,8 +19,8 @@ App Store and Google Play, not stop at internal testing.
 **Status:** in progress. Mobile release direction selected 2026-09-30:
 bundled web UI as the primary foreground, with native login, host selection,
 secure SRP/session storage, transport, reconnect, and notifications. Android
-now opens the complete bundled UI through its native authenticated transport,
-with native host management and no duplicate dashboard/Conversation screens.
+now opens the complete bundled UI on the native profile's credential, with
+native host management and no duplicate dashboard/Conversation screens.
 The implementation and acceptance evidence are recorded in
 [the WebView app plan](../tactical/083-android-bundled-web-native-transport.md).
 Native dashboard/Conversation rendering and the experimental Simple Client API
@@ -237,10 +237,13 @@ shell are implemented; iOS has owned simulator, unsigned-device and signed
 physical-phone acceptance evidence.
 
 The [WebView app implementation](../tactical/083-android-bundled-web-native-transport.md)
-reuses the existing native pairing and multi-host core and the web client's
-SourceTransport contract. It adds no server authentication protocol or child
-credential. The duplicate native dashboard and Conversation presentation are
-removed, with reusable decoder/projection helpers retained.
+reuses the existing native pairing and multi-host core. Since 2026-10-07 the
+document resumes the native profile's credential over the ordinary web
+transport instead of a native data bridge
+([contract](../../topics/mobile-server-pairing.md#bundled-web-client-transport));
+it adds no server authentication protocol and never shows a web login. The
+duplicate native dashboard and Conversation presentation are removed, with
+reusable decoder/projection helpers retained.
 
 The [Simple Client API experiment](../tactical/130-simple-client-api-and-three-client-demo.md)
 remains separate work: the generated contracts and deliberate-entry web preview
