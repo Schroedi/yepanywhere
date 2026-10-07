@@ -442,3 +442,5 @@
 - android-internal-delivery - Verified AAB delivery to Play internal testing.
 
 - service-tier - Codex Fast/Standard selection at launch, live change, and Session Info display.
+
+- source-transport-lifecycle-conformance - One sleep, wake and reconnect suite for every source transport, including the native bridge.

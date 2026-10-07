@@ -507,6 +507,21 @@ authenticates there. The baseline does not mint, delegate, or expose a child
 resume credential merely to avoid the second prompt. Any later delegated-token
 proposal requires its own security and compatibility review.
 
+A shared-credential replacement for this bridge landed on 2026-10-07 and was
+reverted the same day. Native handed the bundled document the profile's SRP
+resume credential, and the document opened its own socket. Installed servers
+close that socket with `4003 Forbidden: Invalid origin`: the WebSocket origin
+allowlist (`packages/server/src/middleware/allowed-hosts.ts`) admits neither
+`https://appassets.androidplatform.net` nor `yepapp://bundle`, and the relay's
+default origin policy (`packages/relay/src/origin-policy.ts`) rejects both as
+well. The document therefore never connected over any route. The design,
+including its security review, is
+`gaps/sketches/native-webview-shared-resume-credential.md` as of `65dcadaa5^`.
+Reviving it needs server and relay origin acceptance, a capability, and a
+fallback for servers without it. The planned direction instead keeps native as
+the only SRP owner and repairs this bridge against
+[a lifecycle conformance suite](../gaps/sketches/source-transport-lifecycle-conformance.md).
+
 ### Implemented bridge contract
 
 `window.yaNativeTransport` is restricted to the bundled app-assets origin and
