@@ -147,7 +147,7 @@
   display: none;
 }
 
-@media (max-width: 899px) {
+@media (width < 900px) {
   .optionLayout.optionLayout {
     grid-template-areas:
       "main"
@@ -173,7 +173,7 @@
   }
 }
 
-@media (max-width: 600px) {
+@media (width <= 600px) {
   .optionLayout :global(.new-session-provider-slot) {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -183,7 +183,7 @@
   }
 }
 
-@media (min-width: 900px) {
+@media (width >= 900px) {
   .optionLayout.optionLayout {
     grid-template-areas:
       "main project"
@@ -358,7 +358,7 @@
   max-width: none;
 }
 
-@media (max-width: 600px) {
+@media (width <= 600px) {
   :global(.modal):has(.fullPane) {
     height: 100dvh;
     max-height: 100dvh;
