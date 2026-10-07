@@ -10,13 +10,74 @@ if (!/^emulator-\d+$/.test(process.env.ANDROID_SERIAL ?? ""))
   throw new Error(
     "Select the owned emulator with ANDROID_SERIAL; physical devices are refused",
   );
-const cases = [
+const smoke = [
   ["direct-session-read", "direct", "session", "in-flight"],
   ["mux-session-read", "mux", "session", "in-flight"],
   ["direct-inbox-disconnect", "direct", "inbox", "disconnect"],
   ["mux-inbox-outage", "mux", "inbox", "outage"],
   ["direct-session-wake", "direct", "session", "wake-outage"],
-];
+].map(([name, route, surface, fault]) => [
+  name,
+  "android",
+  route,
+  surface,
+  fault,
+  [],
+]);
+const hardening = ["android", "android-chrome"].flatMap((client) =>
+  [
+    ["cold-offline", "direct", "session", "process-death-offline", []],
+    [
+      "direct-silent",
+      "direct",
+      "session",
+      "silent",
+      ["--outage-ms=75000", "--steady-ms=30000"],
+    ],
+    ["mux-silent", "mux", "session", "silent", ["--outage-ms=75000"]],
+    [
+      "session-cycles",
+      "direct",
+      "session",
+      "cycles",
+      ["--cycles=8", "--sleep-ms=3000"],
+    ],
+    [
+      "inbox-cycles",
+      "mux",
+      "inbox",
+      "cycles",
+      ["--cycles=8", "--sleep-ms=3000"],
+    ],
+    ["doze", "direct", "session", "doze", ["--sleep-ms=180000"]],
+    [
+      "attachment-wake",
+      "direct",
+      "session",
+      "wake-outage",
+      ["--attachment=true"],
+    ],
+  ].map(([name, route, surface, fault, extra]) => [
+    `${client}-${name}`,
+    client,
+    route,
+    surface,
+    fault,
+    [...extra, ...(client === "android-chrome" ? ["--chrome=stock"] : [])],
+  ]),
+);
+const push = ["notification", "notification-offline"].map((fault) => [
+  fault,
+  "android",
+  "direct",
+  "session",
+  fault,
+  [],
+]);
+const suite = process.env.YA_LIFECYCLE_SUITE ?? "smoke";
+const cases = { smoke, hardening, push }[suite];
+if (!cases)
+  throw new Error("Unknown YA_LIFECYCLE_SUITE; use smoke, hardening or push");
 const selected = process.env.YA_LIFECYCLE_CASES?.split(",");
 if (selected?.some((name) => !cases.some(([id]) => id === name)))
   throw new Error("Unknown YA_LIFECYCLE_CASES name");
@@ -28,7 +89,7 @@ const out = join(
 );
 await mkdir(out, { recursive: true });
 const results = [];
-for (const [name, route, surface, fault] of cases) {
+for (const [name, client, route, surface, fault, extra] of cases) {
   if (selected && !selected.includes(name)) continue;
   console.log(`Checking ${name}…`);
   const log = createWriteStream(join(out, `${name}.log`));
@@ -41,12 +102,13 @@ for (const [name, route, surface, fault] of cases) {
       "--conditions",
       "source",
       fileURLToPath(new URL("run.mjs", import.meta.url)),
-      "--client=android",
+      `--client=${client}`,
       `--route=${route}`,
       `--surface=${surface}`,
       `--fault=${fault}`,
       "--verify=true",
       `--out=${directory}`,
+      ...extra,
     ],
     { cwd: root, stdio: ["ignore", "pipe", "pipe"] },
   );

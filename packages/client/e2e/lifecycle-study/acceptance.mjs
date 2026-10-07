@@ -27,6 +27,11 @@ export function assessPageRecovery(result) {
     const draft = result.expectedDraft ?? "Draft survives outage";
     if (final?.draft !== draft)
       failures.push("Unsent draft changed or disappeared");
+    if (
+      result.expectedAttachment &&
+      !final?.attachments?.includes(result.expectedAttachment)
+    )
+      failures.push("Unsent draft attachment disappeared");
   }
   if (!result.sidebar?.sidebar?.includes("Updated study"))
     failures.push("Opened sidebar does not show the updated session title");
@@ -37,7 +42,8 @@ export function assessPageRecovery(result) {
     if (row.errors) failures.push(`Transient page error: ${row.errors}`);
     if (row.login || /(?:^|\/)login(?:\/|$)/.test(row.path ?? ""))
       failures.push("Temporary outage redirected to sign-in");
-    if (row.bodyEmpty) failures.push("Page became empty during recovery");
+    if (row.bodyEmpty && !row.initializing)
+      failures.push("Page became empty during recovery");
   }
   if (
     result.client === "android" &&

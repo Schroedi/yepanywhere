@@ -52,13 +52,25 @@ class YaNativeReconnectInstrumentedTest {
     fun hostDrivenLifecycleStudy() {
         assumeTrue("Only the lifecycle study runner owns this fixture",
             InstrumentationRegistry.getArguments().getString("yaLifecycleStudy") == "true")
-        withLoadedSession("lifecycle-study") { session ->
+        val detached = InstrumentationRegistry.getArguments().getString("yaLifecycleDetached") == "true"
+        withLoadedSession("lifecycle-study", preserveForHost = detached) { session ->
             val directory = java.io.File(InstrumentationRegistry.getInstrumentation().targetContext.getExternalFilesDir(null), "lifecycle-study")
             directory.mkdirs()
             val stop = java.io.File(directory, "stop")
             stop.delete()
-            java.io.File(directory, "ready.json").writeText(org.json.JSONObject()
-                .put("sessionPath", session.sessionPath).toString())
+            val ready = org.json.JSONObject().put("sessionPath", session.sessionPath)
+            if (InstrumentationRegistry.getArguments().getString("yaLifecyclePush") == "true") {
+                val context = InstrumentationRegistry.getInstrumentation().targetContext
+                val runtime = (context.applicationContext as YepAnywhereApplication).nativeRuntime
+                val profile = runBlocking { checkNotNull(runtime.pairedServers.selectedProfileId.first()) }
+                runBlocking { withTimeout(40_000) {
+                    while (com.yepanywhere.mobile.notifications.NotificationFoundation.installationStore(context).read()?.targetCurrent != true) kotlinx.coroutines.delay(100)
+                    runtime.nativePush.enable(profile)
+                } }
+                ready.put("subscriptionId", checkNotNull(runtime.nativePush.bindings.get(profile)).subscriptionId)
+            }
+            java.io.File(directory, "ready.json").writeText(ready.toString())
+            if (detached) return@withLoadedSession
             try {
                 // Study observation window, not a product recovery deadline. The
                 // host terminates each run; this bounds cleanup if it disappears.
@@ -70,6 +82,31 @@ class YaNativeReconnectInstrumentedTest {
                 java.io.File(directory, "ready.json").delete()
             }
         }
+    }
+
+    /** Host-owned process-death studies restore their fixture in a new process. */
+    @Test
+    fun cleanupHostDrivenLifecycleStudy() = runBlocking {
+        assumeTrue(InstrumentationRegistry.getArguments().getString("yaLifecycleStudy") == "true")
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val runtime = (context.applicationContext as YepAnywhereApplication).nativeRuntime
+        val saved = context.getSharedPreferences("owned-lifecycle-study", android.content.Context.MODE_PRIVATE)
+        val id = saved.getString("profile", null) ?: return@runBlocking
+        val subscription = runtime.nativePush.bindings.get(id)?.subscriptionId
+        runtime.nativePush.forget(id)
+        check(runtime.nativePush.bindings.get(id) == null) { "Owned push capability cleanup failed" }
+        if (subscription != null) {
+            val notifications = context.getSystemService(android.app.NotificationManager::class.java)
+            notifications.activeNotifications.filter { it.tag?.startsWith("$subscription:") == true }.forEach { notifications.cancel(it.tag, it.id) }
+        }
+        runtime.connectionManager(id).shutdownAndAwait()
+        runtime.pairedServers.forget(id)
+        val previous = saved.getString("previous", null)
+        if (previous != null && runtime.pairedServers.snapshot(previous) != null) runtime.pairedServers.select(previous)
+        context.getSharedPreferences("native-tabs", android.content.Context.MODE_PRIVATE).edit().apply {
+            if (saved.contains("tabs")) putString("state", saved.getString("tabs", null)) else remove("state")
+        }.commit()
+        saved.edit().clear().commit()
     }
 
     @Test
@@ -328,6 +365,7 @@ class YaNativeReconnectInstrumentedTest {
         name: String,
         directOnly: Boolean = false,
         recordFromLaunch: Boolean = false,
+        preserveForHost: Boolean = false,
         body: (LoadedSession) -> Unit,
     ) {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
@@ -342,6 +380,8 @@ class YaNativeReconnectInstrumentedTest {
         if (recordFromLaunch) device.executeShellCommand("logcat -c")
         val application = instrumentation.targetContext.applicationContext as YepAnywhereApplication
         val runtime = application.nativeRuntime
+        val saved = application.getSharedPreferences("owned-lifecycle-study", android.content.Context.MODE_PRIVATE)
+        if (preserveForHost) check(!saved.contains("profile")) { "Clean the previous host-driven study first" }
         val previous = runBlocking { runtime.pairedServers.selectedProfileId.first() }
         val profile = runBlocking { withTimeout(15_000) {
             withContext(Dispatchers.Main) {
@@ -357,6 +397,11 @@ class YaNativeReconnectInstrumentedTest {
         watcher.launch { manager.state.collect { phases += "${SystemClock.elapsedRealtime() - started}ms ${it.phase} attempt=${it.retryAttempt} ${it.errorMessage ?: ""}".trim() } }
         val preferences = application.getSharedPreferences("native-tabs", android.content.Context.MODE_PRIVATE)
         val previousTabs = preferences.getString("state", null)
+        if (preserveForHost) {
+            saved.edit().putString("profile", profile.id).putString("previous", previous)
+                .putString("tabs", previousTabs).commit()
+        }
+        var prepared = false
         preferences.edit().remove("state").commit()
         runBlocking { runtime.pairedServers.select(profile.id) }
         val base = checkNotNull(ws).replace("ws://", "http://").replace("wss://", "https://").substringBefore("/api/ws")
@@ -384,6 +429,7 @@ class YaNativeReconnectInstrumentedTest {
             if (!recordFromLaunch) device.executeShellCommand("logcat -c")
             session = LoadedSession(device, scenario, manager, sessionPath, phases, http, base, this)
             body(session)
+            prepared = true
         } catch (error: Throwable) {
             com.yepanywhere.mobile.UiFailureCapture.save("native-reconnect-$name", "phases=$phases; manager=${manager.state.value}")
             throw error
@@ -394,18 +440,25 @@ class YaNativeReconnectInstrumentedTest {
             runCatching { session?.probe("/__probe/outage?enabled=false") }
             watcher.cancel()
             scenario.close()
-            preferences.edit().apply { if (previousTabs == null) remove("state") else putString("state", previousTabs) }.commit()
-            try {
-                // Later relay probes count live circuits; leave none behind.
-                runBlocking { withTimeout(10_000) { manager.state.first { it.phase == YaConnectionPhase.IDLE } } }
-                args.getString("yaProbeRelayStatusUrl")?.let { awaitRelayDrained(http, it) }
-            } finally {
+            if (!preserveForHost || !prepared) {
+                preferences.edit().apply { if (previousTabs == null) remove("state") else putString("state", previousTabs) }.commit()
+                try {
+                    // Later relay probes count live circuits; leave none behind.
+                    runBlocking { withTimeout(10_000) { manager.state.first { it.phase == YaConnectionPhase.IDLE } } }
+                    args.getString("yaProbeRelayStatusUrl")?.let { awaitRelayDrained(http, it) }
+                } finally {
+                    http.connectionPool.evictAll()
+                    http.dispatcher.executorService.shutdown()
+                    runBlocking {
+                        runtime.nativePush.forget(profile.id)
+                        runtime.pairedServers.forget(profile.id)
+                        if (previous != null && runtime.pairedServers.snapshot(previous) != null) runtime.pairedServers.select(previous)
+                    }
+                }
+                if (preserveForHost) saved.edit().clear().commit()
+            } else {
                 http.connectionPool.evictAll()
                 http.dispatcher.executorService.shutdown()
-                runBlocking {
-                    runtime.pairedServers.forget(profile.id)
-                    if (previous != null && runtime.pairedServers.snapshot(previous) != null) runtime.pairedServers.select(previous)
-                }
             }
         }
     }

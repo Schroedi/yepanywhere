@@ -86,8 +86,12 @@ the viewer/download gap remain the next mobile release work.
   diagnosis is narrowed: the WebView already retries after 60 seconds. The
   first repair preserves typed operation errors instead of fabricated HTTP
   responses; direct/mux emulator reproductions recover without the error.
-  Explicit recovery ownership and page catch-up remain mobile reliability
-  work. Native remains the sole app connection owner;
+  Explicit recoverability, platform network signals, abandoned-subscription
+  cleanup and page catch-up acceptance are implemented. The
+  [second emulator hardening round](../testing/android-lifecycle-hardening-2026-10-07.md)
+  finds shared draft-attachment warnings and lost offline notification taps;
+  these block handoff, and the internal release was gated off by instrumentation.
+  Native remains the sole app connection owner;
   the shared conformance suite and repairs are not yet complete.
 
 - Signed macOS and Windows desktop releases already exist. The

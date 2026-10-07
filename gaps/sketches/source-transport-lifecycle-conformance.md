@@ -8,7 +8,11 @@ passes the direct/mux visible-503 reproductions. Android exhausted recovery now
 has an explicit recoverability contract and platform network signals. The
 page acceptance matrix checks Inbox/session/sidebar catch-up, drafts, input
 acknowledgement and transient errors, with a sleep/wake case in normal Android
-CI. The shared all-transport conformance factory remains open.
+CI. The [second hardening round](../../docs/testing/android-lifecycle-hardening-2026-10-07.md)
+adds process death, real notification taps, repeated sleep, forced Doze,
+attachment-containing drafts and stock emulator Chrome comparisons. It records
+shared attachment-validation and native notification-routing escapes. The shared
+all-transport conformance factory remains open.
 
 ## Purpose
 

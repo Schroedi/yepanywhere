@@ -39,10 +39,20 @@ const observationMs = Number(
 );
 const outageMs = Number(options["outage-ms"] ?? 16_000);
 const activity = options.activity ?? "none";
+const chromeMode = options.chrome ?? "automated";
+const cycles = Number(options.cycles ?? 1);
+const sleepMs = Number(options["sleep-ms"] ?? 8000);
+const steadyMs = Number(options["steady-ms"] ?? 5000);
+const attachment = options.attachment === "true";
+const onDevice = client === "android" || client === "android-chrome";
+const notification =
+  fault === "notification-offline" || fault === "notification";
+const processDeath =
+  fault === "process-death" || fault === "process-death-offline";
 if (
   (options.verify !== undefined &&
     !["true", "false"].includes(options.verify)) ||
-  !["browser", "android"].includes(client) ||
+  !["browser", "android", "android-chrome"].includes(client) ||
   !["direct", "mux"].includes(route) ||
   !["session", "inbox"].includes(surface) ||
   ![
@@ -52,15 +62,31 @@ if (
     "outage",
     "wake-outage",
     "silent",
+    "sleep",
+    "doze",
+    "cycles",
+    "process-death",
+    "process-death-offline",
+    "notification",
+    "notification-offline",
   ].includes(fault) ||
   !(observationMs >= 1000 && observationMs <= 180_000) ||
+  !["automated", "stock"].includes(chromeMode) ||
+  !(Number.isInteger(cycles) && cycles >= 1 && cycles <= 20) ||
+  !(steadyMs >= 5000 && steadyMs <= 60_000) ||
+  !(sleepMs >= 1000 && sleepMs <= 300_000) ||
+  (notification && client !== "android") ||
+  (attachment && surface !== "session") ||
+  (options.attachment !== undefined &&
+    !["true", "false"].includes(options.attachment)) ||
+  (fault === "doze" && !onDevice) ||
   !(outageMs >= 1000 && outageMs <= 120_000) ||
   !["none", "typing"].includes(activity) ||
   (activity === "typing" && surface !== "session")
 )
   throw new Error("Invalid study options; see README.md");
 const serial = process.env.ANDROID_SERIAL;
-if (client === "android" && !/^emulator-\d+$/.test(serial ?? ""))
+if (onDevice && !/^emulator-\d+$/.test(serial ?? ""))
   throw new Error(
     "This study only operates an explicitly selected emulator: set ANDROID_SERIAL",
   );
@@ -83,6 +109,12 @@ const screenshots = [];
 const started = Date.now();
 const record = (event) => {
   timeline.push({ at: Date.now(), ...event });
+  if (
+    ["stage", "fault-start", "network-restored", "process-absent"].includes(
+      event.type,
+    )
+  )
+    console.log(JSON.stringify(event));
   if (timeline.length > 20_000) timeline.shift();
 };
 const host = () => ({
@@ -104,6 +136,11 @@ const result = {
   observationMs,
   outageMs,
   activity,
+  chromeMode,
+  cycles,
+  sleepMs,
+  steadyMs,
+  attachment,
   started,
   hostStart: host(),
   grade: "page invariants; timings are not benchmark acceptance",
@@ -129,8 +166,14 @@ for (const file of [
 result.harnessHash = harnessHash.digest("hex");
 let relay, fixture, gate, staticServer, browser, page, cdp, instrument;
 let instrumentDone;
+let emulator;
+let chromeContext;
+let notificationPermission;
+let preparedMetadata;
+const previousObservers = { rows: [], keys: [] };
 let androidDevices = [];
 const reverses = [];
+const forwards = [];
 let instrumentLog = "";
 const deviceDir =
   "/sdcard/Android/data/com.yepanywhere.mobile/files/lifecycle-study";
@@ -158,6 +201,78 @@ const probe = async (path, method = "POST") => {
   if (!response.ok) throw new Error(`Probe ${path}: ${response.status}`);
   return response.json();
 };
+async function launchChrome() {
+  if (chromeMode !== "stock") return emulator.launchBrowser();
+  // Chrome's normal background policy; Playwright launchBrowser adds switches
+  // that disable background timer throttling and renderer backgrounding.
+  await device("shell", "am", "force-stop", "com.android.chrome");
+  const socket = "ya_lifecycle_devtools_remote";
+  await device(
+    "shell",
+    `echo '_ --disable-fre --no-default-browser-check --remote-debugging-socket-name=${socket}' > /data/local/tmp/chrome-command-line`,
+  );
+  try {
+    await device(
+      "shell",
+      "am",
+      "start",
+      "-W",
+      "-a",
+      "android.intent.action.VIEW",
+      "-d",
+      "about:blank",
+      "com.android.chrome",
+    );
+    const port = (
+      await device("forward", "tcp:0", `localabstract:${socket}`)
+    ).stdout.trim();
+    forwards.push(port);
+    await until(
+      async () =>
+        (
+          await fetch(`http://127.0.0.1:${port}/json/version`, {
+            signal: AbortSignal.timeout(2000),
+          })
+        ).ok,
+    );
+    browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
+    return browser.contexts()[0];
+  } finally {
+    await device("shell", "rm", "-f", "/data/local/tmp/chrome-command-line");
+  }
+}
+async function cleanup(label, action) {
+  try {
+    await action();
+  } catch (error) {
+    record({ type: "cleanup-error", label, error: String(error) });
+    result.completed = false;
+    result.error ??= `Cleanup failed: ${label}: ${error}`;
+    process.exitCode = 1;
+  }
+}
+async function observePage() {
+  page.setDefaultTimeout(30_000);
+  page.on("console", (message) => {
+    if (["error", "warning"].includes(message.type()))
+      record({
+        type: `console-${message.type()}`,
+        text: message.text().slice(0, 1600),
+      });
+  });
+  page.on("pageerror", (error) =>
+    record({ type: "page-error", text: error.message }),
+  );
+  page.on("framenavigated", (frame) => {
+    if (frame === page.mainFrame())
+      record({
+        type: "document-navigation",
+        path: new URL(frame.url()).pathname,
+      });
+  });
+  await page.addInitScript(installObserver);
+  await page.evaluate(installObserver);
+}
 async function capture(name) {
   if (!page || page.isClosed()) return;
   const path = join(out, `${name}.png`);
@@ -170,13 +285,19 @@ async function capture(name) {
 }
 async function snapshot(label) {
   const state = await page.evaluate(
-    (needle) => ({
+    ({ needle, title }) => ({
       ...window.__lifecycleStudy?.sample(),
       body: document.body.innerText.slice(0, 5000),
       needle: needle ? document.body.innerText.includes(needle) : false,
-      titleUpdated: document.body.innerText.includes("Updated study"),
+      needleCount: needle
+        ? document.body.innerText.split(needle).length - 1
+        : 0,
+      titleUpdated: document.body.innerText.includes(title),
     }),
-    result.expectedMessage,
+    {
+      needle: result.expectedMessage,
+      title: result.expectedTitle ?? "Updated study",
+    },
   );
   record({ type: "checkpoint", label, ...state });
   return state;
@@ -187,15 +308,17 @@ async function navigate(path) {
     dispatchEvent(new PopStateEvent("popstate"));
   }, path);
 }
-async function updateWhileDisconnected() {
-  if (result.expectedMessage) return;
+async function updateWhileDisconnected(force = false) {
+  if (result.expectedMessage && !force) return;
   result.expectedMessage = (await probe("append")).message;
+  result.updateNumber = (result.updateNumber ?? 0) + 1;
+  result.expectedTitle = `Updated study${force ? ` ${result.updateNumber}` : ""}`;
   const response = await fetch(
     `http://127.0.0.1:${fixture.port}/api/sessions/android-preview-session/metadata`,
     {
       method: "PUT",
       headers: { "content-type": "application/json", "X-Yep-Anywhere": "true" },
-      body: JSON.stringify({ title: "Updated study", starred: true }),
+      body: JSON.stringify({ title: result.expectedTitle, starred: true }),
     },
   );
   if (!response.ok)
@@ -205,7 +328,7 @@ async function updateWhileDisconnected() {
 try {
   process.env.YEP_PROVIDER_HOST_ENABLED = "false";
   const username = `study-${randomUUID().slice(0, 8)}`;
-  if (client === "browser") {
+  if (client !== "android") {
     staticServer = await preview({
       configFile: false,
       root: join(repo, "packages/client"),
@@ -242,13 +365,36 @@ try {
   });
   gate = await createNetworkGate(relay?.port ?? fixture.port, record);
   const endpoint = `ws://127.0.0.1:${gate.port}/${relay ? "ws" : "api/ws"}`;
-  if (client === "browser") {
-    browser = await chromium.launch();
-    result.browserVersion = browser.version();
-    const context = await browser.newContext({
-      viewport: { width: 375, height: 812 },
-      recordVideo: { dir: out },
-    });
+  if (onDevice) {
+    androidDevices = await _android.devices({ omitDriverInstall: true });
+    emulator = androidDevices.find((device) => device.serial() === serial);
+    if (!emulator)
+      throw new Error("Selected emulator absent from Playwright discovery");
+    emulator.setDefaultTimeout(30_000);
+  }
+  if (client !== "android") {
+    let context;
+    if (client === "android-chrome") {
+      for (const port of [
+        gate.port,
+        new URL(staticServer.resolvedUrls.local[0]).port,
+      ]) {
+        await device("reverse", `tcp:${port}`, `tcp:${port}`);
+        reverses.push(port);
+      }
+      chromeContext = await launchChrome();
+      context = chromeContext;
+      result.browserVersion = (
+        await device("shell", "dumpsys", "package", "com.android.chrome")
+      ).stdout.match(/versionName=(.*)/)?.[1];
+    } else {
+      browser = await chromium.launch();
+      result.browserVersion = browser.version();
+      context = await browser.newContext({
+        viewport: { width: 375, height: 812 },
+        recordVideo: { dir: out },
+      });
+    }
     page = await context.newPage();
     await page.goto(staticServer.resolvedUrls.local[0]);
     await page
@@ -286,12 +432,27 @@ try {
       await device("reverse", `tcp:${port}`, `tcp:${port}`);
       reverses.push(port);
     }
+    if (notification) {
+      notificationPermission = /POST_NOTIFICATIONS: granted=true/.test(
+        (await device("shell", "dumpsys", "package", "com.yepanywhere.mobile"))
+          .stdout,
+      );
+      await device(
+        "shell",
+        "pm",
+        "grant",
+        "com.yepanywhere.mobile",
+        "android.permission.POST_NOTIFICATIONS",
+      );
+    }
     await device("shell", "rm", "-rf", deviceDir);
     await device("shell", "logcat", "-c");
     const args = {
       class:
         "com.yepanywhere.mobile.web.YaNativeReconnectInstrumentedTest#hostDrivenLifecycleStudy",
       yaLifecycleStudy: "true",
+      ...(processDeath || notification ? { yaLifecycleDetached: "true" } : {}),
+      ...(notification ? { yaLifecyclePush: "true" } : {}),
       yaProbeWsUrl: relay ? fixture.endpoint : endpoint,
       yaProbeUsername: username,
       yaProbePassword: "native-fixture-password",
@@ -326,38 +487,43 @@ try {
         await device("shell", "cat", `${deviceDir}/ready.json`)
       ).stdout.includes("sessionPath");
     }, 60_000);
-    // The Android adapter avoids desktop-only CDP commands that WebView rejects.
-    // Discovery installs no driver; only the explicitly selected emulator is used.
-    androidDevices = await _android.devices({ omitDriverInstall: true });
-    const emulator = androidDevices.find(
-      (device) => device.serial() === serial,
-    );
-    if (!emulator)
-      throw new Error("Selected emulator absent from Playwright discovery");
+    if (processDeath || notification) {
+      preparedMetadata = JSON.parse(
+        (await device("shell", "cat", `${deviceDir}/ready.json`)).stdout,
+      );
+      record({ type: "stage", name: "wait-preparation" });
+      await instrumentDone;
+      record({ type: "stage", name: "launch-prepared" });
+      if (!/OK \(1 test\)/.test(instrumentLog)) throw new Error(instrumentLog);
+      await device(
+        "shell",
+        "am",
+        "start",
+        "-W",
+        "-n",
+        "com.yepanywhere.mobile/.MainActivity",
+        "-a",
+        "android.intent.action.MAIN",
+        "-c",
+        "android.intent.category.LAUNCHER",
+      );
+    }
+    record({ type: "stage", name: "attach-webview" });
     page = await (
-      await emulator.webView({ pkg: "com.yepanywhere.mobile" })
+      await emulator.webView({
+        pkg: "com.yepanywhere.mobile",
+        pid: Number(
+          (
+            await device("shell", "pidof", "com.yepanywhere.mobile")
+          ).stdout.trim(),
+        ),
+      })
     ).page();
+    record({ type: "stage", name: "attached" });
     result.webView = (await device("shell", "dumpsys", "webviewupdate")).stdout;
   }
-  page.setDefaultTimeout(30_000);
-  page.on("console", (message) => {
-    if (["error", "warning"].includes(message.type()))
-      record({
-        type: `console-${message.type()}`,
-        text: message.text().slice(0, 1600),
-      });
-  });
-  page.on("pageerror", (error) =>
-    record({ type: "page-error", text: error.message }),
-  );
-  page.on("framenavigated", (frame) => {
-    if (frame === page.mainFrame())
-      record({
-        type: "document-navigation",
-        path: new URL(frame.url()).pathname,
-      });
-  });
-  await page.evaluate(installObserver);
+  record({ type: "stage", name: "observe-page" });
+  await observePage();
   cdp = await page.context().newCDPSession(page);
   const projects = await (
     await fetch(`http://127.0.0.1:${fixture.port}/api/projects`)
@@ -385,19 +551,256 @@ try {
     await page
       .locator("textarea[data-composer-input]")
       .pressSequentially("Draft survives outage", { delay: 40 });
+  if (attachment) {
+    result.expectedAttachment = "lifecycle-draft.txt";
+    await page.locator('input[type="file"]').setInputFiles({
+      name: result.expectedAttachment,
+      mimeType: "text/plain",
+      buffer: Buffer.from("Keep this staged attachment across reconnects.\n"),
+    });
+    await page
+      .getByRole("button", {
+        name: `Remove ${result.expectedAttachment}`,
+        exact: true,
+      })
+      .waitFor();
+    await until(
+      async () =>
+        !(await page.locator(".attachment-list").innerText()).includes("%"),
+    );
+  }
   await pause(1500);
+  result.initialResources = await (
+    await fetch(`http://127.0.0.1:${fixture.port}/api/activity/status`)
+  ).json();
   await snapshot("before");
   await capture("before");
   result.faultAt = Date.now();
   record({ type: "fault-start", fault });
-  if (fault === "wake-outage") {
-    if (client === "android")
-      await device("shell", "input", "keyevent", "KEYCODE_SLEEP");
+  if (notification) {
+    Object.assign(
+      previousObservers,
+      await page.evaluate(() => ({
+        rows: window.__lifecycleStudy.rows,
+        keys: window.__lifecycleStudy.keys,
+      })),
+    );
+    await navigate(`${prefix}/inbox`);
+    await page.locator(".inbox-toolbar").waitFor();
+    await device("shell", "input", "keyevent", "KEYCODE_HOME");
+    await pause(1500);
+    await device("shell", "am", "kill", "com.yepanywhere.mobile");
+    await until(
+      async () =>
+        !(
+          await device("shell", "pidof", "com.yepanywhere.mobile").catch(
+            () => ({ stdout: "" }),
+          )
+        ).stdout.trim(),
+    );
+    record({ type: "process-absent", package: "com.yepanywhere.mobile" });
+    await device("shell", "input", "keyevent", "KEYCODE_SLEEP");
+    await updateWhileDisconnected();
+    const sent = await probe("push");
+    if (sent.sent !== 1)
+      throw new Error(
+        `Push fixture submission failed: ${JSON.stringify(sent)}`,
+      );
+    await until(
+      async () =>
+        (await device("shell", "cmd", "notification", "list")).stdout.includes(
+          `${preparedMetadata.subscriptionId}:android-preview-session`,
+        ),
+      40_000,
+    );
+    record({
+      type: "push-delivered",
+      note: "Real FCM after verified absent app process, screen asleep",
+    });
+    if (fault === "notification-offline") gate.setMode("refuse");
+    await device("shell", "input", "keyevent", "KEYCODE_WAKEUP");
+    await device("shell", "wm", "dismiss-keyguard");
+    await device("shell", "cmd", "statusbar", "expand-notifications");
+    const bounds = await until(async () => {
+      await device(
+        "shell",
+        "uiautomator",
+        "dump",
+        "/sdcard/ya-study-notifications.xml",
+      );
+      const xml = (
+        await device("shell", "cat", "/sdcard/ya-study-notifications.xml")
+      ).stdout;
+      await writeFile(join(out, "notification.xml"), xml);
+      const node = xml.match(
+        /<node[^>]*text="An agent has finished working\."[^>]*>/,
+      )?.[0];
+      return node?.match(/bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/);
+    });
+    await device(
+      "shell",
+      "input",
+      "tap",
+      String(Math.round((Number(bounds[1]) + Number(bounds[3])) / 2)),
+      String(Math.round((Number(bounds[2]) + Number(bounds[4])) / 2)),
+    );
+    record({ type: "notification-tap" });
+    page = await (
+      await emulator.webView({
+        pkg: "com.yepanywhere.mobile",
+        pid: Number(
+          (
+            await device("shell", "pidof", "com.yepanywhere.mobile")
+          ).stdout.trim(),
+        ),
+      })
+    ).page();
+    await observePage();
+    await pause(outageMs);
+    result.notificationEntry = await snapshot("notification-entry");
+    await capture("notification-entry");
+  } else if (processDeath) {
+    Object.assign(
+      previousObservers,
+      await page.evaluate(() => ({
+        rows: window.__lifecycleStudy.rows,
+        keys: window.__lifecycleStudy.keys,
+      })),
+    );
+    const url = page.url();
+    if (fault === "process-death-offline") gate.setMode("refuse");
+    if (onDevice) {
+      const pkg =
+        client === "android" ? "com.yepanywhere.mobile" : "com.android.chrome";
+      result.pidBefore = (await device("shell", "pidof", pkg)).stdout.trim();
+      await device("shell", "input", "keyevent", "KEYCODE_HOME");
+      await pause(1500);
+      await device("shell", "am", "kill", pkg);
+      await until(
+        async () =>
+          !(
+            await device("shell", "pidof", pkg).catch(() => ({ stdout: "" }))
+          ).stdout.trim(),
+      );
+      record({ type: "process-absent", package: pkg });
+      await updateWhileDisconnected();
+      if (client === "android") {
+        await device(
+          "shell",
+          "am",
+          "start",
+          "-W",
+          "-n",
+          `${pkg}/.MainActivity`,
+          "-a",
+          "android.intent.action.MAIN",
+          "-c",
+          "android.intent.category.LAUNCHER",
+        );
+        page = await (
+          await emulator.webView({
+            pkg,
+            pid: Number((await device("shell", "pidof", pkg)).stdout.trim()),
+          })
+        ).page();
+      } else {
+        chromeContext = await launchChrome();
+        page = chromeContext
+          .pages()
+          .find((candidate) => candidate.url() === url);
+        result.chromeRestoredTab = Boolean(page);
+        if (!page) {
+          page = await chromeContext.newPage();
+          await page.goto(url);
+          record({
+            type: "browser-reopen-saved-url",
+            note: "No restored tab; navigation uses retained Chrome site storage",
+          });
+        }
+      }
+      result.pidAfter = (await device("shell", "pidof", pkg)).stdout.trim();
+    } else {
+      await page.close();
+      await updateWhileDisconnected();
+      page = await browser.contexts()[0].newPage();
+      await page.goto(url);
+    }
+    await page.waitForLoadState("domcontentloaded");
+    await observePage();
+    await pause(3000);
+    result.coldEntry = await snapshot("cold-entry");
+    await capture("cold-entry");
+    if (fault === "process-death-offline") await pause(outageMs);
+  } else if (["sleep", "doze", "cycles"].includes(fault)) {
+    result.cycleResults = [];
+    for (let cycle = 1; cycle <= cycles; cycle++) {
+      if (onDevice) await device("shell", "input", "keyevent", "KEYCODE_SLEEP");
+      else await cdp.send("Page.setWebLifecycleState", { state: "frozen" });
+      if (fault === "doze") {
+        await device("shell", "dumpsys", "battery", "unplug");
+        result.dozeState = (
+          await device("shell", "dumpsys", "deviceidle", "force-idle")
+        ).stdout;
+        if (!result.dozeState.includes("Now forced in to deep idle mode"))
+          throw new Error(`Doze not entered: ${result.dozeState}`);
+      }
+      gate.setMode("refuse");
+      await updateWhileDisconnected(true);
+      await pause(sleepMs);
+      const asleepResources = await (
+        await fetch(`http://127.0.0.1:${fixture.port}/api/activity/status`)
+      ).json();
+      gate.setMode("pass");
+      if (fault === "doze") {
+        await device("shell", "dumpsys", "deviceidle", "unforce");
+        await device("shell", "dumpsys", "battery", "reset");
+      }
+      if (onDevice) {
+        await device("shell", "input", "keyevent", "KEYCODE_WAKEUP");
+        await device("shell", "wm", "dismiss-keyguard");
+      } else await cdp.send("Page.setWebLifecycleState", { state: "active" });
+      const wokeAt = Date.now();
+      let state;
+      await until(async () => {
+        state = await snapshot(`cycle-${cycle}`);
+        return (
+          !state.connection &&
+          !state.errors &&
+          !state.login &&
+          state.titleUpdated &&
+          (surface !== "session" || state.needle)
+        );
+      }, observationMs);
+      const resourceResponse = await fetch(
+        `http://127.0.0.1:${fixture.port}/api/activity/status`,
+      );
+      const resources = await resourceResponse.json();
+      if (surface === "session" && state.draft !== result.expectedDraft)
+        throw new Error(`Cycle ${cycle} lost the unsent draft`);
+      if (surface === "session" && state.needleCount !== 1)
+        throw new Error(`Cycle ${cycle} duplicated the catch-up message`);
+      if (resources.subscribers > result.initialResources.subscribers)
+        throw new Error(
+          `Cycle ${cycle} grew server subscribers: ${JSON.stringify(resources)}`,
+        );
+      result.cycleResults.push({
+        cycle,
+        recoveryMs: Date.now() - wokeAt,
+        state,
+        resources,
+        asleepResources,
+        gate: gate.snapshot(),
+      });
+      console.log(JSON.stringify({ type: "cycle-complete", cycle, resources }));
+      await pause(1000);
+    }
+  } else if (fault === "wake-outage") {
+    if (onDevice) await device("shell", "input", "keyevent", "KEYCODE_SLEEP");
     else await cdp.send("Page.setWebLifecycleState", { state: "frozen" });
     gate.setMode("refuse");
     await updateWhileDisconnected();
     await pause(8000);
-    if (client === "android") {
+    if (onDevice) {
       await device("shell", "input", "keyevent", "KEYCODE_WAKEUP");
       await device("shell", "wm", "dismiss-keyguard");
     } else await cdp.send("Page.setWebLifecycleState", { state: "active" });
@@ -452,7 +855,7 @@ try {
     ) {
       result.firstHealthyAt ??= Date.now();
       healthySince ??= Date.now();
-      if (verify && Date.now() - healthySince >= 5000) break;
+      if (verify && Date.now() - healthySince >= steadyMs) break;
     } else healthySince = undefined;
     if (!captured && Date.now() - result.restoredAt >= 30_000) {
       await capture("after-30s");
@@ -490,6 +893,8 @@ try {
     rows: window.__lifecycleStudy.rows,
     keys: window.__lifecycleStudy.keys,
   }));
+  result.observer.rows.unshift(...previousObservers.rows);
+  result.observer.keys.unshift(...previousObservers.keys);
 
   result.completed = true;
 } catch (error) {
@@ -498,67 +903,105 @@ try {
   await capture("failure").catch(() => {});
   process.exitCode = 1;
 } finally {
-  if (client === "android" && instrument) {
+  gate?.setMode("pass");
+  if (onDevice) {
+    await device("shell", "dumpsys", "deviceidle", "unforce").catch(() => {});
+    await device("shell", "dumpsys", "battery", "reset").catch(() => {});
     await device("shell", "input", "keyevent", "KEYCODE_WAKEUP").catch(
       () => {},
     );
     await device("shell", "wm", "dismiss-keyguard").catch(() => {});
-    await device("shell", "touch", `${deviceDir}/stop`).catch(() => {});
-    const stopDeadline = new AbortController();
-    try {
-      await Promise.race([
-        instrumentDone,
-        pause(15_000, undefined, { signal: stopDeadline.signal }),
-      ]);
-    } finally {
-      // A completed instrument run must not leave every matrix child alive
-      // for the remainder of its cleanup deadline.
-      stopDeadline.abort();
-    }
-    if (instrument.exitCode === null) {
-      instrument.kill();
-      await device("shell", "am", "force-stop", "com.yepanywhere.mobile").catch(
+  }
+  if (client === "android" && instrument)
+    await cleanup("Android instrumentation", async () => {
+      await device("shell", "input", "keyevent", "KEYCODE_WAKEUP").catch(
         () => {},
       );
-    }
-    await writeFile(join(out, "instrumentation.log"), instrumentLog);
-    result.instrumentationPassed = /OK \(1 test\)/.test(instrumentLog);
-    if (!result.instrumentationPassed) {
-      result.completed = false;
-      result.error ??=
-        "Android instrumentation did not finish successfully; see instrumentation.log";
-      process.exitCode = 1;
-    }
-    await device(
-      "pull",
-      `${deviceDir}/phases.json`,
-      join(out, "native-phases.json"),
-    ).catch(() => {});
-    const nativeErrors = (
-      await device("logcat", "-d", "-s", "YaSyntheticResponse:W").catch(() => ({
-        stdout: "unavailable",
-      }))
-    ).stdout;
-    await writeFile(join(out, "native-errors.log"), nativeErrors);
-    result.nativeDiagnosticsAvailable = nativeErrors !== "unavailable";
-    result.nativeSyntheticErrors = nativeErrors
-      .split("\n")
-      .filter((line) => line.includes("Synthetic 503"));
-  }
+      await device("shell", "wm", "dismiss-keyguard").catch(() => {});
+      await device("shell", "touch", `${deviceDir}/stop`).catch(() => {});
+      const stopDeadline = new AbortController();
+      try {
+        await Promise.race([
+          instrumentDone,
+          pause(15_000, undefined, { signal: stopDeadline.signal }),
+        ]);
+      } finally {
+        // A completed instrument run must not leave every matrix child alive
+        // for the remainder of its cleanup deadline.
+        stopDeadline.abort();
+      }
+      if (instrument.exitCode === null) {
+        instrument.kill();
+        await device(
+          "shell",
+          "am",
+          "force-stop",
+          "com.yepanywhere.mobile",
+        ).catch(() => {});
+      }
+      await writeFile(join(out, "instrumentation.log"), instrumentLog);
+      result.instrumentationPassed = /OK \(1 test\)/.test(instrumentLog);
+      if (processDeath || notification) {
+        const cleanupLog = (
+          await device(
+            "shell",
+            "am",
+            "instrument",
+            "-w",
+            "-r",
+            "-e",
+            "class",
+            "com.yepanywhere.mobile.web.YaNativeReconnectInstrumentedTest#cleanupHostDrivenLifecycleStudy",
+            "-e",
+            "yaLifecycleStudy",
+            "true",
+            "com.yepanywhere.mobile.test/androidx.test.runner.AndroidJUnitRunner",
+          )
+        ).stdout;
+        await writeFile(join(out, "cleanup-instrumentation.log"), cleanupLog);
+        result.instrumentationPassed &&= /OK \(1 test\)/.test(cleanupLog);
+      }
+      if (!result.instrumentationPassed) {
+        result.completed = false;
+        result.error ??=
+          "Android instrumentation did not finish successfully; see instrumentation.log";
+        process.exitCode = 1;
+      }
+      await device(
+        "pull",
+        `${deviceDir}/phases.json`,
+        join(out, "native-phases.json"),
+      ).catch(() => {});
+      const nativeErrors = (
+        await device("logcat", "-d", "-s", "YaSyntheticResponse:W").catch(
+          () => ({
+            stdout: "unavailable",
+          }),
+        )
+      ).stdout;
+      await writeFile(join(out, "native-errors.log"), nativeErrors);
+      result.nativeDiagnosticsAvailable = nativeErrors !== "unavailable";
+      result.nativeSyntheticErrors = nativeErrors
+        .split("\n")
+        .filter((line) => line.includes("Synthetic 503"));
+    });
+  if (notificationPermission === false)
+    await cleanup("notification permission", () =>
+      device(
+        "shell",
+        "pm",
+        "revoke",
+        "com.yepanywhere.mobile",
+        "android.permission.POST_NOTIFICATIONS",
+      ),
+    );
+  await chromeContext?.close().catch(() => {});
   await browser?.close().catch(() => {});
   for (const device of androidDevices) await device.close().catch(() => {});
+  for (const port of forwards)
+    await device("forward", "--remove", `tcp:${port}`).catch(() => {});
   for (const port of reverses)
     await device("reverse", "--remove", `tcp:${port}`).catch(() => {});
-  const cleanup = async (label, action) => {
-    try {
-      await action();
-    } catch (error) {
-      record({ type: "cleanup-error", label, error: String(error) });
-      result.completed = false;
-      result.error ??= `Cleanup failed: ${label}: ${error}`;
-      process.exitCode = 1;
-    }
-  };
   await cleanup("network gate", async () => gate?.close());
   await cleanup("fixture", async () => fixture?.stop());
   await cleanup("relay", async () => relay?.close());

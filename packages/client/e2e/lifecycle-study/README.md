@@ -46,7 +46,7 @@ ANDROID_SERIAL=emulator-5554 pnpm exec tsx --conditions source \
 
 Options use `--name=value`:
 
-- `client`: `browser` or `android`.
+- `client`: `browser`, `android` or `android-chrome` (same emulator).
 - `route`: `direct` or `mux`. Each run owns a fresh relay and username; ordinary
   production relay limits remain enabled. The browser fixture's exact local
   origin is explicitly allowed by its private relay, without changing defaults.
@@ -70,7 +70,7 @@ simulator: each half's OS TCP connection remains locally established.
 `wake-outage` sleeps the emulator (freezes the browser page) for eight seconds,
 then wakes it while connections remain refused for another eight seconds.
 Freezing is not the same as hiding a tab, Android Doze, or killing an app.
-These need separate experiments; this runner does not claim to simulate them.
+The extended faults below exercise those device boundaries separately.
 
 The server appends a known response and changes the session title/star while
 the connection is interrupted. After restoration, the default run observes
@@ -90,6 +90,11 @@ ANDROID_SERIAL=emulator-5554 pnpm exec node \
 ```
 
 `YA_LIFECYCLE_CASES` can select comma-separated case names from that script.
+`YA_LIFECYCLE_SUITE=hardening` selects fourteen matched Android/stock-Chrome
+cases: cold restart offline, direct/mux silent stalls, session/Inbox cycles,
+three-minute Doze and attachment wake. `YA_LIFECYCLE_SUITE=push` selects two
+real-FCM notification taps (online/offline); it requires configured Firebase and
+working broker enrollment. These extended suites remain opt-in.
 Each case owns a fresh server/relay, records its result and cleans up before
 the next. The runner finishes all selected cases and exits nonzero if any
 fails; it never retries a failed case. Logs and `matrix.json` share one new
@@ -164,3 +169,59 @@ The opt-in Android method `hostDrivenLifecycleStudy` owns pairing, the Activity,
 and cleanup. A bounded rendezvous file lets the host run the experiment while
 the real app stays alive. Without its explicit instrumentation argument the
 method does not run in normal live acceptance.
+
+## Process, idle and repeated-cycle experiments
+
+The second experiment round adds `client=android-chrome` on the same explicitly
+selected emulator. Use `--chrome=stock` to retain Chrome's normal background
+policy; the default `automated` mode uses Playwright's Android launcher, whose
+flags disable some background throttling. Both retain the installed browser
+version in the result. Only the owned emulator's Chrome is operated.
+
+Additional faults:
+
+- `process-death`: background the app, kill its process with Android's ordinary
+  background-kill command, verify absence and reopen. Android uses the launcher;
+  Chrome retains site storage and records whether its prior tab was restored or
+  the runner explicitly reopened its saved URL. Desktop browser mode closes
+  and reopens a document; it does not claim OS process-death equivalence.
+- `process-death-offline`: the same, with service unavailable during reopening.
+- `sleep`, `doze`, `cycles`: interrupt service while asleep, append fresh server
+  content, restore service and wake. `doze` verifies Android accepted forced
+  deep idle; desktop browser mode is refused for that fault. `cycles` repeats
+  the operation. `--sleep-ms` defaults to 8000 (maximum 300000); `--cycles` is
+  1–20. Each session cycle checks its new message and retained draft. Server
+  activity-subscriber counts are recorded to detect accumulating ownership.
+- `notification`, `notification-offline`: Android only, using configured real
+  Firebase/broker delivery to a disposable host binding. The runner grants
+  notification permission temporarily, verifies the app process absent, sends
+  the fixture event while the screen sleeps and taps the real notification row.
+  The offline variant refuses the native service during the tap. The initial
+  page is deliberately Inbox so an ignored session destination cannot pass.
+  These cases require the private Firebase build configuration; a missing or
+  failed delivery is a failed setup, never replaced by a fabricated push.
+
+Process-death and notification experiments use separate preparation/cleanup
+instrumentation invocations. Preparation preserves an owned paired profile and
+its navigation after the runner exits; cleanup restores previous profiles/tab
+state and retires any temporary push capability. Never run another study before
+that cleanup has completed. If the host is interrupted, run
+`YaNativeReconnectInstrumentedTest#cleanupHostDrivenLifecycleStudy` with
+`yaLifecycleStudy=true` against the owned emulator before starting again.
+
+`--steady-ms=30000` extends healthy post-recovery observation to catch delayed
+regressions, including draft-sync notices (allowed range 5000–60000). It does
+not turn that duration into a product recovery deadline. New-document observers
+start after debugger attachment, so cold-entry screenshots and native state
+must supplement the mutation log.
+
+`--attachment=true` uploads a real small text file before a session fault, waits
+for its completed chip and requires the attachment to survive. It also subjects
+attachment notices to the transient-error acceptance check.
+
+The observer reinstalls in documents opened by notification routing. Initial
+empty HTML before a document's first content is labeled `initializing`; it is
+recorded separately from an already-rendered document becoming empty. Final
+emptiness still fails. Cold-entry observers cannot establish frame-by-frame
+paint behavior, and samples from a replaced document before attachment may be
+unavailable.

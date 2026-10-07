@@ -51,10 +51,21 @@ test("rejects transient errors and login even when the final page looks healthy"
     assert.equal(assessPageRecovery(result).passed, false);
   }
 });
+test("separates new-document bootstrap from a rendered page becoming empty", () => {
+  const result = recovered();
+  result.observer.rows.unshift({ at: 21, bodyEmpty: true, initializing: true });
+  assert.equal(assessPageRecovery(result).passed, true);
+  result.observer.rows.push({ at: 31, bodyEmpty: true, initializing: false });
+  assert.equal(assessPageRecovery(result).passed, false);
+});
 test("rejects lost drafts, stale views, missing evidence and incomplete cleanup", () => {
   const changes = [
     (r) => {
       r.final.draft = "";
+    },
+    (r) => {
+      r.expectedAttachment = "draft.txt";
+      r.final.attachments = "";
     },
     (r) => {
       r.final.needle = false;

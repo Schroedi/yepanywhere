@@ -1,9 +1,16 @@
 /** Runs unchanged inside Chromium and the actual Android WebView. No app hooks. */
 export function installObserver() {
+  if (!document.body) {
+    document.addEventListener("DOMContentLoaded", installObserver, {
+      once: true,
+    });
+    return;
+  }
   if (window.__lifecycleStudy) return;
   const rows = [];
   const keys = [];
   let previous = "";
+  let hasContent = false;
   const visible = (element) =>
     element instanceof HTMLElement &&
     element.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true });
@@ -15,6 +22,8 @@ export function installObserver() {
       .slice(0, 1600);
   const sample = () => {
     const composer = document.querySelector("textarea[data-composer-input]");
+    const bodyEmpty = !document.body.innerText.trim();
+    hasContent ||= !bodyEmpty;
     const state = {
       path: location.pathname,
       visibility: document.visibilityState,
@@ -25,6 +34,8 @@ export function installObserver() {
         .join(","),
       errors: text('.error, [role="alert"], [class*="errorMessage"]'),
       loading: text(".loading"),
+      draftNotice: text("[data-draft-notice]"),
+      attachments: text(".attachment-list"),
       login: [
         ...document.querySelectorAll(
           '[data-testid="login-form"], [data-testid="relay-login-form"]',
@@ -34,7 +45,8 @@ export function installObserver() {
       sidebar: text(".sidebar"),
       main: text("main").slice(-1600),
       draft: composer?.value ?? null,
-      bodyEmpty: !document.body.innerText.trim(),
+      bodyEmpty,
+      initializing: !hasContent,
     };
     const signature = JSON.stringify(state);
     if (signature !== previous) {
