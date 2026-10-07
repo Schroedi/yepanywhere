@@ -376,6 +376,9 @@ private fun PairingScreen(
                                 R.string.websocket_url_example
                             },
                         ),
+                        // The theme default is nearly as bright as entered text,
+                        // so an empty field read as already filled in.
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                     )
                 },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
