@@ -260,6 +260,13 @@ or Job Object. Quit, restart, update, and uninstall attempt graceful shutdown
 and then terminate only that owned tree within a bounded deadline. No
 unqualified `bun.exe`, provider, shell, or PowerShell process kill is allowed.
 
+Opening any packaged window from the tray or a native command leaves the tray,
+the new window's close button, and every other window responsive. On Windows,
+creating a WebView inside a synchronous Tauri command or event handler
+deadlocks the event loop, so window creation always runs from an async command
+or a spawned task. Closing Server Output, Diagnostics, or the recovery window
+hides it; a failed hide is logged.
+
 The installed app has no sidecar console window. Interactive and quiet
 installation, update, reinstall, and uninstall are release-tested from a clean
 Windows user profile.
