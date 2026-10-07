@@ -28,6 +28,9 @@ const options = Object.fromEntries(
   }),
 );
 const client = options.client ?? "browser";
+const webBuild = resolve(
+  options["web-build"] ?? join(repo, "packages/client/dist-remote"),
+);
 const route = options.route ?? "direct";
 const surface = options.surface ?? "session";
 const fault = options.fault ?? "disconnect";
@@ -44,6 +47,7 @@ const cycles = Number(options.cycles ?? 1);
 const sleepMs = Number(options["sleep-ms"] ?? 8000);
 const steadyMs = Number(options["steady-ms"] ?? 5000);
 const attachment = options.attachment === "true";
+const restartAfterTap = options["restart-after-tap"] === "true";
 const onDevice = client === "android" || client === "android-chrome";
 const notification =
   fault === "notification-offline" || fault === "notification";
@@ -77,6 +81,9 @@ if (
   !(sleepMs >= 1000 && sleepMs <= 300_000) ||
   (notification && client !== "android") ||
   (attachment && surface !== "session") ||
+  (restartAfterTap && fault !== "notification-offline") ||
+  (options["restart-after-tap"] !== undefined &&
+    !["true", "false"].includes(options["restart-after-tap"])) ||
   (options.attachment !== undefined &&
     !["true", "false"].includes(options.attachment)) ||
   (fault === "doze" && !onDevice) ||
@@ -141,6 +148,7 @@ const result = {
   sleepMs,
   steadyMs,
   attachment,
+  restartAfterTap,
   started,
   hostStart: host(),
   grade: "page invariants; timings are not benchmark acceptance",
@@ -153,7 +161,7 @@ result.dirtyFiles = (
   await exec("git", ["status", "--short"], { cwd: repo })
 ).stdout.trim();
 result.bundleHash = createHash("sha256")
-  .update(await readFile(join(repo, "packages/client/dist-remote/remote.html")))
+  .update(await readFile(join(webBuild, "remote.html")))
   .digest("hex");
 const harnessHash = createHash("sha256");
 for (const file of [
@@ -332,7 +340,7 @@ try {
     staticServer = await preview({
       configFile: false,
       root: join(repo, "packages/client"),
-      build: { outDir: "dist-remote" },
+      build: { outDir: webBuild },
       preview: { host: "127.0.0.1", port: 0 },
       plugins: [
         {
@@ -363,6 +371,23 @@ try {
     username,
     relayURL: relay ? `ws://127.0.0.1:${relay.port}/ws` : undefined,
   });
+  if (attachment) {
+    const response = await fetch(
+      `http://127.0.0.1:${fixture.port}/api/attachments/staging/drafts/study-preflight/validate`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Yep-Anywhere": "true",
+        },
+        body: JSON.stringify({ refs: [] }),
+      },
+    );
+    if (!response.ok)
+      throw new Error(
+        `Fixture attachment validation unavailable: ${response.status}`,
+      );
+  }
   gate = await createNetworkGate(relay?.port ?? fixture.port, record);
   const endpoint = `ws://127.0.0.1:${gate.port}/${relay ? "ws" : "api/ws"}`;
   if (onDevice) {
@@ -659,6 +684,51 @@ try {
     await pause(outageMs);
     result.notificationEntry = await snapshot("notification-entry");
     await capture("notification-entry");
+    if (restartAfterTap) {
+      const observed = await page.evaluate(() => ({
+        rows: window.__lifecycleStudy.rows,
+        keys: window.__lifecycleStudy.keys,
+      }));
+      previousObservers.rows.push(...observed.rows);
+      previousObservers.keys.push(...observed.keys);
+      const pkg = "com.yepanywhere.mobile";
+      result.pendingTapPidBefore = (
+        await device("shell", "pidof", pkg)
+      ).stdout.trim();
+      await device("shell", "input", "keyevent", "KEYCODE_HOME");
+      await pause(1500);
+      await device("shell", "am", "kill", pkg);
+      await until(
+        async () =>
+          !(
+            await device("shell", "pidof", pkg).catch(() => ({ stdout: "" }))
+          ).stdout.trim(),
+      );
+      record({
+        type: "process-absent",
+        package: pkg,
+        pendingNotification: true,
+      });
+      await device(
+        "shell",
+        "am",
+        "start",
+        "-W",
+        "-n",
+        `${pkg}/.MainActivity`,
+        "-a",
+        "android.intent.action.MAIN",
+        "-c",
+        "android.intent.category.LAUNCHER",
+      );
+      result.pendingTapPidAfter = (
+        await device("shell", "pidof", pkg)
+      ).stdout.trim();
+      page = await (
+        await emulator.webView({ pkg, pid: Number(result.pendingTapPidAfter) })
+      ).page();
+      await observePage();
+    }
   } else if (processDeath) {
     Object.assign(
       previousObservers,
@@ -819,7 +889,14 @@ try {
     await pause(1000);
     await probe("api-delay?ms=5000");
     await navigate(target);
-    await until(async () => (await probe("status", "GET")).delayedRequests > 0);
+    await until(async () => {
+      const pending = await probe("status", "GET");
+      return (
+        (attachment
+          ? pending.delayedValidationRequests
+          : pending.delayedRequests) > 0
+      );
+    });
     gate.disconnect();
     await probe("api-delay?ms=0");
     await pause(1000);

@@ -74,6 +74,14 @@ const push = ["notification", "notification-offline"].map((fault) => [
   fault,
   [],
 ]);
+push.push([
+  "notification-offline-restart",
+  "android",
+  "direct",
+  "session",
+  "notification-offline",
+  ["--restart-after-tap=true"],
+]);
 const suite = process.env.YA_LIFECYCLE_SUITE ?? "smoke";
 const cases = { smoke, hardening, push }[suite];
 if (!cases)

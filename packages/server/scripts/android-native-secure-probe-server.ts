@@ -164,6 +164,10 @@ await Promise.all([
   sessionMetadataService.initialize(),
 ]);
 
+// Use the same upgrade function for the full HTTP app and the native socket.
+// createApp mounts staging validation/materialization with its upload routes.
+const app = new Hono<{ Bindings: HttpBindings }>();
+const { upgradeWebSocket, wss } = createNodeWebSocket({ app });
 const {
   app: yaApp,
   supervisor,
@@ -195,23 +199,29 @@ const {
   projectQueueService,
   recentsService,
   sessionMetadataService,
+  upgradeWebSocket,
+  maxUploadSizeBytes: 100 * 1024 * 1024,
 });
 const projectGlossarySubscriptionManager =
   new ProjectGlossarySubscriptionManager({ scanner, glossaryIndexService });
 // Pad a real API response without burdening transcript rendering or adding a
 // production endpoint. This crosses the encrypted circuit and the WebView.
-const app = new Hono<{ Bindings: HttpBindings }>();
 // A test-controlled response delay keeps API requests in flight while a probe
 // drops the socket, so reconnect handling of pending requests is deterministic.
 let apiDelayMs = 0;
 let delayedRequests = 0;
+let delayedValidationRequests = 0;
 app.use("/api/*", async (c, next) => {
   if (apiDelayMs > 0 && c.req.path !== "/api/ws") {
     delayedRequests++;
+    const validation =
+      /^\/api\/attachments\/staging\/drafts\/[^/]+\/validate$/.test(c.req.path);
+    if (validation) delayedValidationRequests++;
     try {
       await new Promise((resolveDelay) => setTimeout(resolveDelay, apiDelayMs));
     } finally {
       delayedRequests--;
+      if (validation) delayedValidationRequests--;
     }
   }
   await next();
@@ -228,7 +238,6 @@ app.get("/api/version", async (c) => {
   );
 });
 app.route("/", yaApp);
-const { upgradeWebSocket, wss } = createNodeWebSocket({ app });
 const uploadManager = new UploadManager({ uploadsDir: join(root, "uploads") });
 // A bounded test-controlled pause makes switching during a real resume
 // deterministic. Only the disposable probe exposes this handshake gate.
@@ -329,7 +338,13 @@ if (conversationProbe) {
     return c.json({ apiDelayMs });
   });
   app.get("/__probe/status", (c) =>
-    c.json({ apiDelayMs, delayedRequests, heldResumes, outage }),
+    c.json({
+      apiDelayMs,
+      delayedRequests,
+      delayedValidationRequests,
+      heldResumes,
+      outage,
+    }),
   );
   app.post("/__probe/outage", (c) => {
     outage = c.req.query("enabled") === "true";

@@ -92,8 +92,9 @@ ANDROID_SERIAL=emulator-5554 pnpm exec node \
 `YA_LIFECYCLE_CASES` can select comma-separated case names from that script.
 `YA_LIFECYCLE_SUITE=hardening` selects fourteen matched Android/stock-Chrome
 cases: cold restart offline, direct/mux silent stalls, session/Inbox cycles,
-three-minute Doze and attachment wake. `YA_LIFECYCLE_SUITE=push` selects two
-real-FCM notification taps (online/offline); it requires configured Firebase and
+three-minute Doze and attachment wake. `YA_LIFECYCLE_SUITE=push` selects three
+real-FCM notification cases (online, offline and offline with a second process
+death); it requires configured Firebase and
 working broker enrollment. These extended suites remain opt-in.
 Each case owns a fresh server/relay, records its result and cleans up before
 the next. The runner finishes all selected cases and exits nonzero if any
@@ -225,3 +226,15 @@ recorded separately from an already-rendered document becoming empty. Final
 emptiness still fails. Cold-entry observers cannot establish frame-by-frame
 paint behavior, and samples from a replaced document before attachment may be
 unavailable.
+
+`--web-build=/absolute/build/directory` selects a separately prepared web build
+for browser comparisons without replacing the normal bundled assets. Its HTML
+hash is recorded; Android always uses the installed APK's bundled client.
+Attachment runs preflight the fixture's real validation route. The in-flight
+attachment fault waits for a delayed validation request specifically, so an
+unrelated page read cannot trigger the disconnect too early.
+
+`--restart-after-tap=true` with `--fault=notification-offline` backgrounds and
+kills the app a second time while its tap is pending, then launches normally
+before restoring the network. The push suite includes this third case and
+records both PIDs. This exercises saved pending navigation, not just saved tabs.

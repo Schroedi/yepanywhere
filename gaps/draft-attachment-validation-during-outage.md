@@ -1,25 +1,24 @@
-# Reconnecting reports retained draft attachments as unavailable
+# Interrupted validation misreports or clears draft attachments
 
-Android App CI [498](https://github.com/kzahel/yepanywhere/actions/runs/37679085281)
-failed the wake and real-network-restoration page checks because the session
-composer repeatedly showed “Draft attachments were no longer available.”
-The connection recovered. The fixture had a draft containing a prior upload.
+`SessionPage` and `NewSessionForm` interpret rejected attachment validation as
+missing files. With draft sync they preserve references but show an unavailable
+notice; the legacy path also clears references. A failed connection check
+proves neither expiry nor loss. Retain references and their visible chips,
+quiet known transport interruptions, and keep accurate feedback for genuine
+validation failures and completed missing-file responses.
 
-The matched desktop web experiment `browser-attachment-wake` independently
-reproduces the same warning with a newly uploaded `lifecycle-draft.txt`: freeze
-the page, refuse sockets, resume while still offline, then restore connectivity.
-The final attachment chip is present and the draft remains intact. Thus this
-is a shared client defect, not a reason to change web reconnection policy.
+Android CI 498 and 499 first exposed attachment toasts, but tracing found an
+additional fixture defect: native uploads were wired while the HTTP staging
+validation route was absent. It returned a real 404 after reconnecting. The
+fixture correction must remain separate from the client repair; do not hide
+that setup problem by suppressing arbitrary server errors.
 
-`SessionPage.hydrateDraftAttachments` and `NewSessionForm` interpret a rejected
-validation request as missing attachments. With draft synchronization enabled
-they preserve references but show a false warning; the legacy path additionally
-clears references. A temporary transport failure proves neither expiry nor loss.
-Preserve the draft during interrupted validation, and retain the existing warning
-for a completed server validation that actually reports missing references.
+With the complete fixture, the in-flight experiment waits for a validation
+request specifically. Native connection replacement and browser socket closure
+reproduce the feature error in owning-layer component tests. The browser also
+retains its separately recorded raw socket page-error gap.
 
-Recorded before repair as an emulator/CI escape; the existing request tests did
-not exercise draft-attachment hydration. The hardening report records matched
-runs and the eventual owning-layer regression checks.
+See the [hardening report](../docs/testing/android-lifecycle-hardening-2026-10-07.md)
+for corrected attribution, retained failed runs and red/green checks.
 
 Found 2026-10-07 while investigating Android lifecycle hardening.
