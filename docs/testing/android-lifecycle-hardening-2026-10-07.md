@@ -50,7 +50,7 @@ that distinction rather than claiming the tab restored automatically.
 | 75-second relay silent traffic stall | Pass; catch-up about 1 s after restoration | Emulator Chrome passes, about 1 s |
 | Eight direct session sleep/outage cycles | Pass; draft and one copy of each missed message retained; subscribers remain 17 | Automated emulator Chrome passes; subscribers remain 17 |
 | Eight relay Inbox cycles with a new title every time | Pass; subscribers return to 17 each cycle | Stock emulator Chrome passes; same stable subscriber count |
-| Three-minute forced deep idle, restore service and wake | Pass; catch-up about 0.8 s after waking | Automated Chrome about 38 s; stock Chrome about 36 s; both pass |
+| Three-minute forced deep idle, restore service and wake | Pass; catch-up about 0.8–1 s after waking | Recovery succeeds in about 36–38 s; the final stock-Chrome case fails initial typing before sleep, detailed below |
 | Draft-sync notice after a silent stall | Clears within the extended 30-second healthy observation | No stuck-sync defect established |
 | Real FCM, absent app process, asleep screen, online tap | Pass with corrected observer; opens the session and retains its draft | Web Push delivery/service-worker routing not exercised |
 | Same notification tapped while server sockets are refused | Fails 2/2 before repair: Inbox recovers but the destination is lost for the entire three-minute window | Cold URL reopening during outage is a partial comparison and recovers |
@@ -109,7 +109,9 @@ absent and the file stays present. The final minified Android APK
 passes validation interrupted in flight and attachment wake into outage; stock
 emulator Chrome also passes the matched attachment wake. The Android wake
 needed about 57 seconds of passive recovery in this run, so this is evidence
-of eventual recovery, not instant reconnection.
+of eventual recovery, not instant reconnection. That
+[latency follow-up](../../gaps/android-passive-service-restoration-slow-probe.md)
+records the approved backstop and the limits on simply probing more often.
 
 ### Android discards an offline notification tap
 
@@ -152,7 +154,8 @@ asserts draft retention and one completed chip after reselection, and records
 exceptions separately. It does not establish server-side exactly-once delivery.
 Its longer filename also exposed a harness assumption: visible chip text can
 be shortened. Attachment identity now uses the full accessible name; an empty
-chip list still fails. Eight fault-controller/oracle checks pass.
+chip list still fails. Eight fault-controller/oracle checks pass and now run
+in root `pnpm test`, so ordinary CI also protects the experiment machinery.
 
 ## Harness limits and verification
 
@@ -194,14 +197,77 @@ and limits. Android maxima are 14.1/14.9/71.6 ms and Chrome
 [CI 37691081022](https://github.com/kzahel/yepanywhere/actions/runs/37691081022)
 passes all 24 jobs on `8610677ef`, with three browser retries: native-fixture
 composer readiness, Project App handoff, and initial follow-scroll position.
-Their gaps remain open. The fixture correction also passes
+Their gaps remain open. Later general CI `37698697131` fails the known Project
+App handoff after both retries and the recorded fake-Codex shell-probe waiter.
+Those failures remain distinct from native acceptance. The fixture correction also passes
 [iOS CI](https://github.com/kzahel/yepanywhere/actions/runs/37690486734).
-Android verification and manually requested internal-release
-[run 503](https://github.com/kzahel/yepanywhere/actions/runs/37694018913) are
-still running; no new Play publication is claimed yet. Three-minute forced idle, debugger-driven input and repeated
+Android [verification 502](https://github.com/kzahel/yepanywhere/actions/runs/37691081079)
+passes build/lint/package inspection and the complete hosted WebView
+instrumentation gate on `8610677ef`. The manually requested internal-release
+[run 503](https://github.com/kzahel/yepanywhere/actions/runs/37694018913) then
+timed out preparing its minified live probe and published nothing. The
+workflow had prebuilt ordinary Debug, then started another R8 build beside
+the running emulator. `7c7a1261c` aligns preparation and ordinary/live tests on
+the same minified fixture variant. All 17 standalone instrumentation cases
+pass locally on that variant (25 fixture-dependent assumptions); repeated
+preparation takes five seconds with both R8 tasks up-to-date. No test,
+typing ceiling, job deadline or Release network policy changes. The
+[replacement release 505](https://github.com/kzahel/yepanywhere/actions/runs/37698935387)
+was deliberately canceled after the actual Release smoke exposed the system-bar
+contrast defect below. Its duplicate push-only verification was also canceled.
+A replacement candidate must pass both gates before any new Play publication. Three-minute forced idle, debugger-driven input and repeated
 wake cycles can falsify important lifecycle assumptions, but cannot establish
 real modem handoff, manufacturer battery policy or overnight behavior. Those
 remain the final physical-phone checks after emulator defects are repaired.
+
+## Release smoke exposed missing system-bar coverage
+
+The fully optimized, non-debuggable Release APK passed real native-form login
+through the public TLS relay, session entry and process-death restoration on a
+fresh owned API 35 emulator. Full-device captures then exposed almost invisible
+clock/Wi-Fi/battery icons: the native shell paints dark inset areas, while
+`enableEdgeToEdge()` automatically requested dark foreground icons in system
+light mode. The earlier WebView-only screenshots excluded those areas.
+
+The owning Activity instrumentation reproduces the wrong appearance flags
+before the repair (24 instead of 0). Explicit dark system-bar styles retain
+light icons across Activity recreation, without changing layout or web theme.
+The regression passes in both system themes. The rebuilt actual Release APK
+also passes native-form public TLS login and session restoration after confirmed
+process death (PID 9996 to 10429), with readable icons in the final full-device
+capture. It is non-debuggable and disallows cleartext; the local debug signature
+is only for installation on the owned emulator, never a store upload artifact.
+Both focused native live routes pass again, including the 100 MiB relay upload
+and unchanged 100 ms sequential-input gate. The lifecycle harness now saves
+full-device PNGs alongside page captures, with their actual pixel dimensions.
+Fresh stock Chrome has readable icons; its first-run notification sheet also
+showed why page-level debugger assertions alone do not establish an unobscured
+foreground UI. After declining ordinary onboarding, a new full-device capture
+and control run are clean. Native control acceptance also passes with the new
+captures and unchanged typing limit.
+
+The clean minified standalone suite passes all 18 executable cases (25
+fixture-dependent assumptions; JUnit reports 43). Earlier attempts are retained:
+one iframe-load marker timeout passes when isolated, and repeating the whole
+suite without resetting test state kills instrumentation when its notification
+permission test revokes the previously granted permission. The
+[test-repeatability gap](../../gaps/android-control-instrumentation-repeatability.md)
+records both; neither is silently converted into a passing attempt. No physical
+phone data was cleared or operated on.
+
+## Remaining issues by client
+
+| Observation | Android app | Standard web client |
+| --- | --- | --- |
+| Slow passive recovery when the service returns without a network signal | About 57 seconds in the attachment-wake case; retained policy, separate UX follow-up | Matched stock-Chrome case about two seconds; other Chrome cold/Doze cases take longer |
+| Raw socket error shown when an in-flight page read is cut | Repaired native path passes | Existing raw `1006` page-error gap remains |
+| Extra uncaught error after an interrupted upload | Not observed on either native route; explicit failure/reselection works | Reproduces on both routes in desktop and emulator Chrome; explicit recovery still works |
+| Initial typing exceeds 100 ms | All final Android cases and fresh controls pass | One stock-Chrome case reaches 299 ms before sleep; subsequent controls pass, cause unresolved |
+
+These observations do not justify replacing the native connection or rewriting
+browser recovery. Keep the real-app emulator harness, extend owning-layer
+regressions for each new escape, and use physical testing for the remaining
+hardware and platform-policy boundaries.
 
 ## Physical checks after the release gates pass
 
@@ -221,3 +287,11 @@ establish a strong Android recovery baseline, not a claim about overnight modem
 behavior or every vendor's process/battery policy. The shared transport-unit
 conformance factory remains useful follow-up; a JVM/desktop bridge harness is
 not required to reproduce or protect the repairs found in this round.
+
+The larger matched matrix and real-FCM suite are repeatable opt-in commands,
+not new per-push CI gates. The owning-layer regressions and native live
+sleep/wake checks run in ordinary CI. A useful next automation step is a
+bounded nightly or manual run of the larger matrix, retaining failed cases
+without automatic retries. Keep its browser failures visible and report them
+separately from Android; do not turn a known browser baseline into a blanket
+exception that could hide a new Android regression.

@@ -286,13 +286,32 @@ async function observePage() {
 }
 async function capture(name) {
   if (!page || page.isClosed()) return;
+  const dimensions = (bytes) => {
+    if (bytes.toString("hex", 0, 8) !== "89504e470d0a1a0a")
+      throw new Error("Expected a PNG screenshot");
+    return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
+  };
   const path = join(out, `${name}.png`);
-  await page.screenshot({ path, timeout: 10_000 });
-  const size = await page.evaluate(() => ({
-    width: innerWidth,
-    height: innerHeight,
-  }));
-  screenshots.push({ name, path, ...size });
+  const bytes = await page.screenshot({ path, timeout: 10_000 });
+  screenshots.push({ name, path, ...dimensions(bytes) });
+  if (onDevice) {
+    const full = await exec(
+      adb,
+      ["-s", serial, "exec-out", "screencap", "-p"],
+      {
+        encoding: "buffer",
+        timeout: 10_000,
+        maxBuffer: 16 * 1024 * 1024,
+      },
+    );
+    const devicePath = join(out, `${name}-device.png`);
+    await writeFile(devicePath, full.stdout);
+    screenshots.push({
+      name: `${name}-device`,
+      path: devicePath,
+      ...dimensions(full.stdout),
+    });
+  }
 }
 async function snapshot(label) {
   const state = await page.evaluate(

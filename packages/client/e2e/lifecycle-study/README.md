@@ -134,8 +134,10 @@ mode makes those failures affect the exit status. It changes no app behavior.
   native state and fabricated-response evidence. Native phase times are relative
   to instrumentation setup, not the host timeline's time origin.
 - PNG captures are presented through the repository artifact capture helper.
-  Browser runs also retain a WebM recording. Android currently has checkpoint
-  WebView captures plus mutation observations, not continuous device video.
+  Emulator checkpoints include both the page and a `-device.png` full-screen
+  capture, so native chrome, status icons and system/browser overlays are
+  visible. Metadata uses each PNG's actual pixel dimensions. Browser runs also
+  retain a WebM recording; Android has no continuous device video yet.
 
 Recovery requires no connection bar, no observed error/login screen, and the
 updated title; a session must also show the appended message. Snapshots poll
@@ -143,6 +145,11 @@ once per second, so recovery figures are approximate and not paint timings.
 Mutation observations retain intermediate states, including short error flashes.
 The observer is bounded and uses known error selectors; it is not proof that
 every possible error component or visual flicker was detected.
+Full-device captures require visual review: page-level acceptance and debugger
+input cannot establish that a Chrome onboarding sheet or native dialog did
+not cover the page. Complete ordinary browser onboarding on the owned emulator
+before treating a Chrome run as foreground interaction acceptance; retain any
+overlay capture as a setup limitation rather than hiding it.
 
 The fixture has one project/session and 50 starting transcript messages.
 Input is sequential through browser debugging input, including on WebView;

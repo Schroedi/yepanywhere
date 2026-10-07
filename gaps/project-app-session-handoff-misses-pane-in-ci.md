@@ -24,3 +24,8 @@ on `8610677ef` repeats the same missing-iframe assertion and passes on retry.
 The general workflow is green, but the defect is not resolved.
 
 Found 2026-10-07 while checking CI during Android lifecycle hardening.
+
+2026-10-08: general CI `37698697131` on `7c7a1261c` again exhausts both
+retries at the same session App iframe assertion (`project-app.spec.ts:448`),
+with 194 other shard cases passing. This remains open independently of the
+Android lifecycle repairs; no timeout or assertion was relaxed.

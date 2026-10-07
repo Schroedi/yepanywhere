@@ -92,10 +92,20 @@ the viewer/download gap remain the next mobile release work.
   repairs shared draft-attachment preservation after failed validation and
   corrects missing fixture routes. Offline notification taps now survive
   recovery and process death, with unit and real-FCM emulator acceptance.
-  The broader regression matrix and fresh internal release remain pending;
-  the prior internal release was gated off by instrumentation.
-  Native remains the sole app connection owner;
-  the shared conformance suite and repairs are not yet complete.
+  The full native live suite and all seven extended Android lifecycle cases
+  pass, including direct/relay outages, eight-cycle catch-up, process death,
+  real FCM and interrupted uploads. Matched Chrome runs retain an intermittent
+  initial-typing failure and an unhandled upload rejection as separate gaps;
+  standard web recovery policy stays unchanged. Android verification 502
+  passes. Internal release 503 timed out rebuilding its live probe; replacement
+  release 505 was canceled to include a system-bar contrast repair found by
+  actual Release login testing. CI now prebuilds the same minified variant
+  used by instrumentation. Full-device captures supplement page observations.
+  Native remains the sole app connection owner.
+  [Passive service-restoration latency](../../gaps/android-passive-service-restoration-slow-probe.md)
+  remains a measured UX follow-up under the retained 60-second probe policy.
+  The shared transport-unit conformance factory remains follow-up work;
+  physical update, modem, overnight and keyboard checks follow release gates.
 
 - Signed macOS and Windows desktop releases already exist. The
   [desktop release QA log](../testing/desktop-release-qa-log.md) records

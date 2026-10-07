@@ -3,8 +3,9 @@
 Internal-release run 503 on `8610677ef` passed build/lint/package inspection
 and ordinary instrumentation, then stopped producing output at
 `:app:minifyBundledDebugWithR8` during live-probe preparation. The same source's
-ordinary Android verification run 502 passed both gates. A terminal outcome
-for 503 is still pending; a resource-starvation cause is not yet established.
+ordinary Android verification run 502 passed both gates. Run 503 then exceeded
+the instrumentation job's 30-minute limit and publication was skipped.
+Resource starvation remains an inference, not an established diagnosis.
 
 The workflow's pre-emulator build prepared ordinary Debug APKs. The later
 `test:live` runner enables both `yaNativeProbeCleartext` and
@@ -17,7 +18,12 @@ The local candidate uses the same minified fixture variant for prebuilding,
 ordinary connected tests and live tests. The ordinary suite passes on the owned
 API 35 emulator: 17 executed cases and 25 fixture-dependent assumptions, with
 the full live direct/relay suite already passing on that minified variant.
-No test, typing threshold, timeout or Release network policy is weakened.
+Repeated local preparation completes in five seconds with both R8 tasks
+up-to-date. No test, typing threshold, timeout or Release network policy is
+weakened. Replacement internal-release run 505 on `7c7a1261c` was canceled after the
+actual Release smoke found a system-bar contrast defect. Its duplicate
+push-only run 504 was also canceled deliberately. The next repaired candidate
+owns hosted confirmation.
 Hosted confirmation is required before deleting this gap.
 
 Found 2026-10-08 while waiting for the requested internal release.

@@ -9,7 +9,9 @@ import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.os.Build
 import android.webkit.WebView
+import android.view.View
 import android.view.ViewGroup
+import android.view.WindowInsetsController
 import androidx.core.graphics.Insets
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -35,6 +37,28 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class WebClientActivityTest {
+    @Test
+    fun darkNativeSystemBarsKeepLightIconsAfterRecreation() {
+        ActivityScenario.launch(WebClientActivity::class.java).use { scenario ->
+            repeat(2) { generation ->
+                scenario.onActivity { activity ->
+                    // Inspect the framework result: unused AndroidX test-only
+                    // helpers can be removed from the minified target APK.
+                    val lightBarAppearance = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        checkNotNull(activity.window.insetsController).systemBarsAppearance and
+                            (WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        (activity.window.decorView.systemUiVisibility and
+                            (View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR))
+                    }
+                    assertEquals("Dark native insets need light foreground icons in every system theme", 0, lightBarAppearance)
+                }
+                if (generation == 0) scenario.recreate()
+            }
+        }
+    }
+
     @Test
     fun systemBarsAndCutoutAreAppliedOnceWithoutConsumingKeyboardInsets() {
         launchClient().use { scenario ->
