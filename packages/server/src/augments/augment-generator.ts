@@ -14,7 +14,10 @@ import {
   toonDocumentToMarkdown,
 } from "@yep-anywhere/shared";
 import { bundledLanguages } from "shiki";
-import { highlightWorker } from "../highlighting/highlight-worker-host.js";
+import {
+  HighlightWorkerUnavailableError,
+  highlightWorker,
+} from "../highlighting/highlight-worker-host.js";
 import type {
   CompletedBlock,
   StreamingCodeBlock,
@@ -36,6 +39,11 @@ export interface Augment {
   blockIndex: number;
   html: string;
   type: CompletedBlock["type"];
+  /**
+   * Set when highlighting was temporarily unavailable and the block fell back
+   * to plain output; a later render may differ, so do not retain this HTML.
+   */
+  degraded?: boolean;
 }
 
 export interface AugmentGenerator {
@@ -69,8 +77,16 @@ export async function createAugmentGenerator(): Promise<AugmentGenerator> {
       safeMarkdownOptions?: SafeMarkdownRenderOptions,
     ): Promise<Augment> {
       if (block.type === "code") {
-        const html = await renderCodeBlock(block);
-        return { blockIndex, html, type: block.type };
+        const code = extractCodeContent(block.content);
+        const lang = normalizeCodeBlockLanguage(block.lang) ?? "";
+        try {
+          const html = await renderCodeWithHighlighter(code, lang);
+          return { blockIndex, html, type: block.type };
+        } catch (error) {
+          if (!(error instanceof HighlightWorkerUnavailableError)) throw error;
+          const html = renderPlainCodeBlock(code, lang);
+          return { blockIndex, html, type: block.type, degraded: true };
+        }
       }
 
       const html = renderMarkdownBlock(block, safeMarkdownOptions);
@@ -179,23 +195,16 @@ async function renderCodeWithHighlighter(
         normalizedLang,
         `language-${normalizedLang}`,
       );
-    } catch {
-      // Language loading or highlighting failed, fall back to plain text
+    } catch (error) {
+      // An unavailable worker is reported to processBlock so its fallback is
+      // not retained; a language that cannot highlight falls back for good.
+      if (error instanceof HighlightWorkerUnavailableError) throw error;
       return renderPlainCodeBlock(code, normalizedLang);
     }
   }
 
   // Unknown or empty language - render as plain code block
   return renderPlainCodeBlock(code, normalizedLang);
-}
-
-/**
- * Render a code block with syntax highlighting.
- */
-async function renderCodeBlock(block: CompletedBlock): Promise<string> {
-  const code = extractCodeContent(block.content);
-  const lang = normalizeCodeBlockLanguage(block.lang) ?? "";
-  return renderCodeWithHighlighter(code, lang);
 }
 
 /**

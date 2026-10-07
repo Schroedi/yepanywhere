@@ -235,13 +235,17 @@ it("expires unused inventories from the process idle sweep", async () => {
   const service = createService(join(root, "data"), { now: () => now });
   await writeFile(join(root, "known.txt"), "fixture");
   await completed(service, root, "known");
-  const inventories = (
-    service as unknown as { inventories: Map<string, unknown> }
-  ).inventories;
-  expect(inventories.size).toBe(1);
+  const internals = service as unknown as {
+    inventories: Map<string, unknown>;
+    unregisterIdleSweep?: () => void;
+  };
+  expect(internals.inventories.size).toBe(1);
+  expect(internals.unregisterIdleSweep).toBeDefined();
   now = 8 * 24 * 60 * 60 * 1000;
   runIdleSweeps(now);
-  expect(inventories.size).toBe(0);
+  expect(internals.inventories.size).toBe(0);
+  // With nothing retained, the service no longer holds the process sweep.
+  expect(internals.unregisterIdleSweep).toBeUndefined();
 });
 
 it("notices checkout through metadata fingerprints without waiting for expiry", async () => {

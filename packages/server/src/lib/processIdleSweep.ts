@@ -1,4 +1,5 @@
 import { getLogger } from "../logging/logger.js";
+import { runOutsideRequestContext } from "./outsideRequestContext.js";
 
 /**
  * One process-wide, unref'd interval for owners that release idle state.
@@ -20,11 +21,15 @@ let timer: NodeJS.Timeout | null = null;
 export function registerIdleSweep(sweep: IdleSweep): () => void {
   sweeps.add(sweep);
   if (!timer) {
-    timer = setInterval(
-      () => runIdleSweeps(Date.now()),
-      PROCESS_IDLE_SWEEP_INTERVAL_MS,
+    // The first registration usually happens inside a request.
+    const interval = runOutsideRequestContext(() =>
+      setInterval(
+        () => runIdleSweeps(Date.now()),
+        PROCESS_IDLE_SWEEP_INTERVAL_MS,
+      ),
     );
-    timer.unref();
+    interval.unref();
+    timer = interval;
   }
   return () => {
     sweeps.delete(sweep);

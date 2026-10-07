@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { HighlightWorkerHost } from "../../src/highlighting/highlight-worker-host.js";
+import {
+  HighlightWorkerHost,
+  HighlightWorkerUnavailableError,
+} from "../../src/highlighting/highlight-worker-host.js";
 import { runIdleSweeps } from "../../src/lib/processIdleSweep.js";
 
 function inlineWorker(source: string): URL {
@@ -8,6 +11,10 @@ function inlineWorker(source: string): URL {
 
 const SILENT_WORKER = inlineWorker(
   'import { parentPort } from "node:worker_threads"; parentPort.on("message", () => {});',
+);
+// Answers every job except one whose code is "hang".
+const HANGING_WORKER = inlineWorker(
+  'import { parentPort } from "node:worker_threads"; parentPort.on("message", ({ id, code }) => { if (code !== "hang") parentPort.postMessage({ id, html: code }); });',
 );
 const CRASHING_WORKER = inlineWorker(
   'import { parentPort } from "node:worker_threads"; parentPort.on("message", () => { throw new Error("boom"); });',
@@ -43,14 +50,16 @@ describe("HighlightWorkerHost", () => {
     expect(stats.lastExternalBytes).toBeGreaterThan(0);
   });
 
-  it("does not keep the process alive after a job", async () => {
+  it("keeps the process alive only while a job runs", async () => {
     const countPorts = () =>
       process
         .getActiveResourcesInfo()
         .filter((resource) => resource === "MessagePort").length;
     const before = countPorts();
     const host = createHost({});
-    await host.highlight("const x = 1;", "typescript");
+    const pending = host.highlight("const x = 1;", "typescript");
+    expect(countPorts()).toBe(before + 1);
+    await pending;
     expect(countPorts()).toBe(before);
   });
 
@@ -64,8 +73,8 @@ describe("HighlightWorkerHost", () => {
     });
   });
 
-  it("finishes in-flight jobs on a retired worker and routes new jobs to a fresh one", async () => {
-    const host = createHost({ maxJobs: 1 });
+  it("retires the worker at its job limit and continues the queue on a fresh one", async () => {
+    const host = createHost({ maxJobs: 2 });
     const results = await Promise.all([
       host.highlight("a = 1", "python"),
       host.highlight("b = 2", "python"),
@@ -73,22 +82,24 @@ describe("HighlightWorkerHost", () => {
     ]);
     for (const html of results) expect(html).toContain("<span");
     expect(host.getStats()).toMatchObject({
-      live: false,
-      workersStarted: 1,
+      live: true,
+      jobsOnCurrentWorker: 1,
+      workersStarted: 2,
       workersRetired: 1,
     });
-
-    await host.highlight("d = 4", "python");
-    expect(host.getStats()).toMatchObject({ live: false, workersStarted: 2 });
   });
 
-  it("retires the worker past its external memory budget", async () => {
+  it("retires the worker after the job that crosses the memory budget, not after its backlog", async () => {
     const host = createHost({ maxExternalBytes: 1 });
-    await host.highlight("a = 1", "python");
-    await host.highlight("b = 2", "python");
+    await Promise.all([
+      host.highlight("a = 1", "python"),
+      host.highlight("b = 2", "python"),
+      host.highlight("c = 3", "python"),
+    ]);
     expect(host.getStats()).toMatchObject({
-      workersStarted: 2,
-      workersRetired: 2,
+      live: false,
+      workersStarted: 3,
+      workersRetired: 3,
     });
   });
 
@@ -101,7 +112,26 @@ describe("HighlightWorkerHost", () => {
     expect(host.getStats()).toMatchObject({ live: false, workersRetired: 1 });
   });
 
-  it("terminates a stalled worker and rejects its jobs", async () => {
+  it("rejects only the stalled job once the worker has proven it can run", async () => {
+    const host = createHost({ stallMs: 50, workerUrl: HANGING_WORKER });
+    const results = await Promise.allSettled([
+      host.highlight("ok", "python"),
+      host.highlight("hang", "python"),
+      host.highlight("after", "python"),
+    ]);
+    expect(results[0]).toEqual({ status: "fulfilled", value: "ok" });
+    expect(results[1]).toMatchObject({ status: "rejected" });
+    expect((results[1] as PromiseRejectedResult).reason).toBeInstanceOf(
+      HighlightWorkerUnavailableError,
+    );
+    expect(results[2]).toEqual({ status: "fulfilled", value: "after" });
+    expect(host.getStats()).toMatchObject({
+      workersStarted: 2,
+      workersFailed: 1,
+    });
+  });
+
+  it("fails the queue when a worker stalls before completing any job", async () => {
     const host = createHost({ stallMs: 50, workerUrl: SILENT_WORKER });
     const results = await Promise.allSettled([
       host.highlight("a", "python"),
@@ -120,7 +150,11 @@ describe("HighlightWorkerHost", () => {
 
   it("rejects pending jobs when the worker crashes", async () => {
     const host = createHost({ workerUrl: CRASHING_WORKER });
-    await expect(host.highlight("a", "python")).rejects.toThrow("boom");
+    const result = host.highlight("a", "python");
+    await expect(result).rejects.toThrow("boom");
+    await expect(result).rejects.toBeInstanceOf(
+      HighlightWorkerUnavailableError,
+    );
     expect(host.getStats()).toMatchObject({ live: false, workersFailed: 1 });
   });
 });

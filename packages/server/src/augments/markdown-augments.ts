@@ -211,6 +211,7 @@ async function renderMarkdownToHtmlUncached(
         }
       : renderOptions;
     const augment = await generator.processBlock(block, i, blockOptions);
+    if (augment.degraded) retainable = false;
     htmlParts.push(augment.html);
     if (documentAnchors) {
       precedingHeadingSlugs.push(...collectMarkdownHeadingSlugs(block.content));

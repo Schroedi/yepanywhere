@@ -9,24 +9,36 @@
  * budget, a job count, or an idle period. Terminating the worker releases its
  * whole isolate, WebAssembly memory included.
  *
- * A retiring worker finishes its in-flight jobs while new jobs go to a fresh
- * worker. A worker that crashes or stops making progress is terminated and its
- * pending jobs reject; every caller falls back to unhighlighted output.
- * Tokenizing off the main thread also stops large files from blocking the
- * event loop.
+ * Jobs queue on the main thread and the worker receives one at a time, so a
+ * worker that crosses its budget is retired after that job, never after a
+ * backlog, and at most one worker is alive. A worker that crashes or does not
+ * answer a job in time is terminated; only that job rejects, with
+ * `HighlightWorkerUnavailableError`, and the queue continues on a fresh
+ * worker. Callers render unhighlighted output instead and must not retain it
+ * as final. Tokenizing off the main thread also stops large files from
+ * blocking the event loop.
  */
 
 import { Worker } from "node:worker_threads";
+import { runOutsideRequestContext } from "../lib/outsideRequestContext.js";
 import { registerIdleSweep } from "../lib/processIdleSweep.js";
 import { getLogger } from "../logging/logger.js";
 
 const DEFAULT_MAX_EXTERNAL_MB = 192;
 const DEFAULT_MAX_JOBS = 10_000;
 const DEFAULT_IDLE_MS = 5 * 60 * 1000;
-/** Longest a busy worker may go without answering any job. */
+/** Longest one job may run before its worker is treated as stalled. */
 const DEFAULT_STALL_MS = 30 * 1000;
 
 const WORKER_URL = new URL("./highlight-worker.mjs", import.meta.url);
+
+/**
+ * Highlighting was unavailable (worker crash, stall, or shutdown) rather than
+ * impossible for this input; a later attempt may succeed.
+ */
+export class HighlightWorkerUnavailableError extends Error {
+  override name = "HighlightWorkerUnavailableError";
+}
 
 export interface HighlightWorkerHostOptions {
   /** Retire the worker once its isolate's external memory exceeds this. */
@@ -35,7 +47,7 @@ export interface HighlightWorkerHostOptions {
   maxJobs?: number;
   /** Retire a worker idle this long, checked by the process idle sweep. */
   idleMs?: number;
-  /** Terminate a busy worker that answers nothing for this long. */
+  /** Terminate a worker that does not answer one job for this long. */
   stallMs?: number;
   workerUrl?: URL;
 }
@@ -51,17 +63,21 @@ export interface HighlightWorkerStats {
   workersFailed: number;
 }
 
-interface PendingJob {
+interface Job {
+  id: number;
+  code: string;
+  lang: string;
+  codeClass?: string;
   resolve: (html: string) => void;
   reject: (error: Error) => void;
 }
 
 interface WorkerSlot {
   worker: Worker;
-  pending: Map<number, PendingJob>;
+  /** The one job the worker is running, if any. */
+  job: Job | null;
   completedJobs: number;
   externalBytes: number;
-  retiring: boolean;
   stallTimer: NodeJS.Timeout | null;
 }
 
@@ -79,7 +95,7 @@ export class HighlightWorkerHost {
   private readonly stallMs: number;
   private readonly workerUrl: URL;
   private current: WorkerSlot | null = null;
-  private readonly retiring = new Set<WorkerSlot>();
+  private readonly queue: Job[] = [];
   private unregisterIdleSweep: (() => void) | null = null;
   private lastActivityAt = 0;
   private nextJobId = 1;
@@ -101,25 +117,28 @@ export class HighlightWorkerHost {
   /**
    * Highlight `code` as `lang` (a Shiki bundled language id). `codeClass`, when
    * given, is added to the `<code>` element. Rejects when the language cannot
-   * load or the worker fails; callers render plain output instead.
+   * load, or with `HighlightWorkerUnavailableError` when the worker fails;
+   * callers render plain output instead.
    */
   highlight(code: string, lang: string, codeClass?: string): Promise<string> {
     this.lastActivityAt = Date.now();
-    const slot = this.current ?? this.spawn();
-    const id = this.nextJobId++;
     return new Promise<string>((resolve, reject) => {
-      slot.pending.set(id, { resolve, reject });
-      if (slot.pending.size === 1) this.armStallTimer(slot);
-      slot.worker.postMessage({ id, code, lang, codeClass });
+      this.queue.push({
+        id: this.nextJobId++,
+        code,
+        lang,
+        codeClass,
+        resolve,
+        reject,
+      });
+      this.dispatch();
     });
   }
 
   getStats(): HighlightWorkerStats {
-    let pendingJobs = this.current?.pending.size ?? 0;
-    for (const slot of this.retiring) pendingJobs += slot.pending.size;
     return {
       live: this.current !== null,
-      pendingJobs,
+      pendingJobs: this.queue.length + (this.current?.job ? 1 : 0),
       jobsOnCurrentWorker: this.current?.completedJobs ?? 0,
       lastExternalBytes: this.current?.externalBytes ?? 0,
       maxExternalBytes: this.maxExternalBytes,
@@ -129,25 +148,54 @@ export class HighlightWorkerHost {
     };
   }
 
-  /** Terminate every worker, rejecting their pending jobs. */
+  /** Terminate the worker, rejecting its job and every queued job. */
   async close(): Promise<void> {
-    const slots = [...this.retiring];
-    if (this.current) slots.push(this.current);
+    const slot = this.current;
+    const error = new HighlightWorkerUnavailableError(
+      "Highlight worker closed",
+    );
+    this.rejectQueue(error);
+    if (!slot) return;
     this.setCurrent(null);
-    this.retiring.clear();
-    await Promise.all(slots.map((slot) => this.terminate(slot)));
+    this.clearStallTimer(slot);
+    slot.job?.reject(error);
+    slot.job = null;
+    await slot.worker.terminate();
+  }
+
+  /** Send the next queued job to the worker when it is free. */
+  private dispatch(): void {
+    if (this.queue.length === 0) return;
+    const slot = this.current ?? this.spawn();
+    if (slot.job) return;
+    const job = this.queue.shift() as Job;
+    slot.job = job;
+    slot.stallTimer = setTimeout(() => {
+      slot.stallTimer = null;
+      this.onFailure(slot, new Error("Highlight worker stalled"));
+    }, this.stallMs);
+    slot.stallTimer.unref();
+    // A running job keeps the process alive like any pending I/O; an idle
+    // worker does not.
+    slot.worker.ref();
+    slot.worker.postMessage({
+      id: job.id,
+      code: job.code,
+      lang: job.lang,
+      codeClass: job.codeClass,
+    });
   }
 
   private spawn(): WorkerSlot {
-    const worker = new Worker(this.workerUrl);
-    // Highlighting never keeps the server alive on its own.
+    // Usually first reached inside a request; the worker and its message
+    // handlers must not capture that request's context.
+    const worker = runOutsideRequestContext(() => new Worker(this.workerUrl));
     worker.unref();
     const slot: WorkerSlot = {
       worker,
-      pending: new Map(),
+      job: null,
       completedJobs: 0,
       externalBytes: 0,
-      retiring: false,
       stallTimer: null,
     };
     worker.on("message", (reply: WorkerReply) => this.onReply(slot, reply));
@@ -161,12 +209,13 @@ export class HighlightWorkerHost {
   }
 
   private onReply(slot: WorkerSlot, reply: WorkerReply): void {
-    // Delivering a message refs the worker's port again (observed on Node
-    // 24), which would keep short-lived processes alive after highlighting.
+    // Unref on every reply: delivering a message also refs the worker's port
+    // (observed on Node 24). dispatch() refs it again for the next job.
     slot.worker.unref();
-    const job = slot.pending.get(reply.id);
-    if (!job) return;
-    slot.pending.delete(reply.id);
+    const job = slot.job;
+    if (!job || job.id !== reply.id) return;
+    slot.job = null;
+    this.clearStallTimer(slot);
     slot.completedJobs += 1;
     this.lastActivityAt = Date.now();
     if (typeof reply.externalBytes === "number") {
@@ -179,26 +228,18 @@ export class HighlightWorkerHost {
     }
 
     if (
-      !slot.retiring &&
+      slot === this.current &&
       (slot.externalBytes > this.maxExternalBytes ||
         slot.completedJobs >= this.maxJobs)
     ) {
       this.retire(slot, "budget");
     }
-
-    if (slot.pending.size > 0) {
-      this.armStallTimer(slot);
-      return;
-    }
-    this.clearStallTimer(slot);
-    if (slot.retiring) void this.terminate(slot);
+    this.dispatch();
   }
 
-  /** Stop routing new jobs to `slot`; it exits once its queue drains. */
+  /** Terminate an idle worker; the next job starts a fresh one. */
   private retire(slot: WorkerSlot, reason: "budget" | "idle"): void {
-    slot.retiring = true;
-    if (this.current === slot) this.setCurrent(null);
-    this.retiring.add(slot);
+    this.setCurrent(null);
     this.workersRetired += 1;
     getLogger().debug(
       {
@@ -209,48 +250,38 @@ export class HighlightWorkerHost {
       },
       "HIGHLIGHT: retiring worker",
     );
-  }
-
-  private onFailure(slot: WorkerSlot, error: Error): void {
-    this.forget(slot);
-    // A terminated worker's exit arrives after its jobs were already settled.
-    if (slot.pending.size === 0) return;
-    this.workersFailed += 1;
-    getLogger().warn(
-      {
-        event: "highlight_worker_failed",
-        pendingJobs: slot.pending.size,
-        error: error.message,
-      },
-      "HIGHLIGHT: worker failed",
-    );
-    const jobs = [...slot.pending.values()];
-    slot.pending.clear();
-    for (const job of jobs) job.reject(error);
     void slot.worker.terminate();
   }
 
-  private async terminate(slot: WorkerSlot): Promise<void> {
-    this.forget(slot);
-    const jobs = [...slot.pending.values()];
-    slot.pending.clear();
-    for (const job of jobs) job.reject(new Error("Highlight worker closed"));
-    await slot.worker.terminate();
+  private onFailure(slot: WorkerSlot, cause: Error): void {
+    // A retired or closed worker's exit arrives after it was replaced.
+    if (slot !== this.current) return;
+    this.setCurrent(null);
+    this.clearStallTimer(slot);
+    void slot.worker.terminate();
+    this.workersFailed += 1;
+    // A worker that never completed a job may be unable to start at all;
+    // fail the queue instead of respawning once per queued job.
+    const startupFailure = slot.completedJobs === 0;
+    getLogger().warn(
+      {
+        event: "highlight_worker_failed",
+        queuedJobs: this.queue.length,
+        startupFailure,
+        error: cause.message,
+      },
+      "HIGHLIGHT: worker failed",
+    );
+    const error = new HighlightWorkerUnavailableError(cause.message);
+    slot.job?.reject(error);
+    slot.job = null;
+    if (startupFailure) this.rejectQueue(error);
+    else this.dispatch();
   }
 
-  private forget(slot: WorkerSlot): void {
-    this.clearStallTimer(slot);
-    this.retiring.delete(slot);
-    if (this.current === slot) this.setCurrent(null);
-  }
-
-  private armStallTimer(slot: WorkerSlot): void {
-    this.clearStallTimer(slot);
-    slot.stallTimer = setTimeout(() => {
-      slot.stallTimer = null;
-      this.onFailure(slot, new Error("Highlight worker stalled"));
-    }, this.stallMs);
-    slot.stallTimer.unref();
+  private rejectQueue(error: Error): void {
+    const jobs = this.queue.splice(0);
+    for (const job of jobs) job.reject(error);
   }
 
   private clearStallTimer(slot: WorkerSlot): void {
@@ -258,7 +289,7 @@ export class HighlightWorkerHost {
     slot.stallTimer = null;
   }
 
-  /** Track the routable worker; the idle sweep is registered only while one exists. */
+  /** Track the live worker; the idle sweep is registered only while one exists. */
   private setCurrent(slot: WorkerSlot | null): void {
     this.current = slot;
     if (slot) {
@@ -273,10 +304,9 @@ export class HighlightWorkerHost {
 
   private sweepIdle(now: number): void {
     const slot = this.current;
-    if (!slot || slot.pending.size > 0) return;
+    if (!slot || slot.job || this.queue.length > 0) return;
     if (now - this.lastActivityAt < this.idleMs) return;
     this.retire(slot, "idle");
-    void this.terminate(slot);
   }
 }
 

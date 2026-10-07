@@ -287,7 +287,12 @@ export class SessionIndexService implements ISessionIndexService {
   private lastFullValidationAt: Map<string, number> = new Map();
   private dirtyDirs: Set<string> = new Set();
   private dirtySessionsByDir: Map<string, Set<string>> = new Map();
+  /**
+   * Per-scope dirty revisions, drawn from one process-wide counter so a
+   * revision never repeats after a scope's entry is deleted on eviction.
+   */
   private dirtyRevisions: Map<string, number> = new Map();
+  private lastDirtyRevision = 0;
   /** Scopes with a persisted index file (loaded or written this run). */
   private persistedIndexScopes: Set<string> = new Set();
   /** In-flight background full validations, keyed by validation key. */
@@ -728,7 +733,7 @@ export class SessionIndexService implements ISessionIndexService {
   }
 
   private advanceDirtyRevision(scopeKey: string): void {
-    this.dirtyRevisions.set(scopeKey, this.getDirtyRevision(scopeKey) + 1);
+    this.dirtyRevisions.set(scopeKey, ++this.lastDirtyRevision);
   }
 
   private clearSessionDirty(

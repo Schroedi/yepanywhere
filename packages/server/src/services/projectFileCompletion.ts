@@ -138,9 +138,6 @@ export class ProjectFileCompletion {
       )
         this.invalidate(fromUrlProjectId(event.projectId));
     });
-    this.unregisterIdleSweep ??= registerIdleSweep((now) =>
-      this.releaseUnused(this.options.now?.() ?? now),
-    );
     return this.withQuery([project, key], () =>
       this.acquire(project).then((state) => read(this.view(project, state))),
     );
@@ -227,6 +224,7 @@ export class ProjectFileCompletion {
         dirty: true,
       };
       this.inventories.set(project, state);
+      this.syncIdleSweep();
       // First resolve the cheap tracked-index phase. Untracked filesystem
       // enumeration continues separately, shared by subsequent requests.
       state.ready = this.refresh(project, state, true);
@@ -262,6 +260,19 @@ export class ProjectFileCompletion {
     for (const [path, inventory] of this.inventories) {
       if (!inventory.pending && now - inventory.lastUsedAt > UNUSED_MS)
         this.inventories.delete(path);
+    }
+    this.syncIdleSweep();
+  }
+
+  /** Keep the idle sweep registered exactly while inventories are retained. */
+  private syncIdleSweep(): void {
+    if (this.inventories.size > 0 && !this.abort.signal.aborted) {
+      this.unregisterIdleSweep ??= registerIdleSweep((now) =>
+        this.releaseUnused(this.options.now?.() ?? now),
+      );
+    } else {
+      this.unregisterIdleSweep?.();
+      this.unregisterIdleSweep = undefined;
     }
   }
 

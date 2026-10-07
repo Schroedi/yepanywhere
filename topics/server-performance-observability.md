@@ -297,7 +297,8 @@ Two retention hazards found by the 2026-10-07 heap-snapshot investigation
   context frame, and through closures the request's data, until the watch
   closes. About 100 directory watches created during message augmentation
   each pinned one request's augmented messages (1–185 MB each).
-  `SharedDirectoryWatcher` now creates every watch through an
+  `SharedDirectoryWatcher`, the highlight worker, and the idle-sweep
+  interval are created through `lib/outsideRequestContext.ts`, an
   `AsyncLocalStorage.snapshot()` taken at module load. Create other
   long-lived async resources (intervals, sockets, workers) the same way.
 - **Shiki WebAssembly memory.** Oniguruma WebAssembly memory grows and never
@@ -306,10 +307,14 @@ Two retention hazards found by the 2026-10-07 heap-snapshot investigation
   stream. All highlighting now runs in one recyclable worker
   (`highlighting/highlight-worker-host.ts`) that the host retires past
   192 MB of isolate external memory (`YEP_HIGHLIGHT_WORKER_MAX_MB`), 10,000
-  jobs, or 5 idle minutes. Terminating the worker releases its whole
-  isolate. A crash, a 30-second stall, or an unknown language falls back to
-  unhighlighted output. Worker stats appear under the maintenance
-  diagnostics' `caches.highlightWorker`.
+  jobs, or 5 idle minutes. Jobs queue on the main thread and the worker runs
+  one at a time, so retirement follows the job that crossed the budget and
+  only one worker is alive. Terminating the worker releases its whole
+  isolate. A crash or a 30-second stall rejects only the running job, and
+  the queue continues on a fresh worker; that fallback is plain output that
+  the Markdown cache does not retain. An unknown language falls back to plain
+  output for good. Worker stats appear under the maintenance diagnostics'
+  `caches.highlightWorker`.
 
 ## Memory-pressure containment
 

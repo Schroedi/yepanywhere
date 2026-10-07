@@ -2,8 +2,10 @@
 
 Topic: server-performance-observability
 
-Status: implemented 2026-10-07 (steps 1–8). The step 9 repeat sweep is
-pending; unit coverage is in place.
+Status: implemented 2026-10-07 (steps 1–8). Step 9 is partial: unit tests
+cover the bounded owners; the watcher test checks the store seen when a
+watch is created, not delivery from a real watch or collectability, and the
+full-history repeat sweep has not been rerun.
 
 ## Objective
 
@@ -112,9 +114,19 @@ Result: `highlight-worker.mjs` (plain JavaScript, copied to `dist` by
 isolate's `process.memoryUsage().external` after each job. A `dist` smoke run
 with a 30 MB budget and ten 130 KB files per round retired one worker per
 round, and each fresh worker started again near 20 MB external memory.
-Delivering a message refs the worker's port again on Node 24, so the host
-unrefs the worker on every reply; otherwise short-lived scripts that
-highlight never exit.
+The worker holds the event loop only while it runs a job: the host refs it
+on dispatch and unrefs it on every reply, because delivering a message refs
+its port again on Node 24 and otherwise short-lived scripts that highlight
+never exit.
+
+Review follow-up: the worker first received every job at once, so a worker
+retired by budget kept growing while it drained its backlog, and concurrent
+requests could keep several over-budget workers alive. A stall also rejected
+every queued job, and those fallbacks were retained in the Markdown cache.
+The host now queues on the main thread and sends one job at a time; a crash or
+stall rejects only that job with `HighlightWorkerUnavailableError` (the whole
+queue only when the worker never completed a job), and a block rendered after
+that error is marked degraded so its Markdown is not retained.
 
 ### 4 — bound project file completion inventories
 
@@ -150,7 +162,8 @@ its own persistence, so a replacement state reads the latest snapshot.
 - The app reader cache (500-entry FIFO) gains hit retouch.
 
 Result: as listed. Eviction keeps a scope's dirty flags, which are semantic;
-its dirty revision is dropped only when the scope is clean. Codex scans keep
+its dirty revision is dropped only when the scope is clean, and revisions
+come from one process-wide counter so a dropped revision never repeats. Codex scans keep
 the unfiltered scan plus the latest settled cutoff per sessions directory.
 
 ### 7 — bound the remaining per-session and per-site maps
