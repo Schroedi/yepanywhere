@@ -1,6 +1,9 @@
 # Source transports pass one sleep, wake and reconnect conformance suite
 
-Status: sketch, 2026-10-07. Maintainer-directed sequencing; no work started.
+Status: investigation started, 2026-10-07. The
+[browser/emulator study](../../docs/testing/source-lifecycle-study-2026-10-07.md)
+adds a real native comparison harness, visible error reproductions and a small
+red unit case. The shared conformance factory and product repairs remain open.
 
 ## Purpose
 
@@ -51,8 +54,10 @@ The suite, not a transport switch, is what forces the lifecycle questions.
   `native-webview.spec.ts` for the bridge.
 
 These test parts (the manager, the protocol, one stream) rather than what a
-transport promises its callers, and each transport has its own tests. Not
-covered at all: sockets that die without a close, frozen pages, a sleep long
+transport promises its callers, and each transport has its own tests. The
+opt-in study now probes browser freezing and bounded silent traffic stalls;
+these do not establish dead-peer detection or full sleep semantics. Still
+uncovered: sockets that die without a close, a sleep long
 enough for the session to expire, server restart while hidden, and native
 reconnect seen through the bridge. Android CI runs the live native probes
 (`test:live`) only after every instrumented test passes, so one unrelated

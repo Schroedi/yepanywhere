@@ -1,6 +1,6 @@
 # Roadmap
 
-Last updated: 2026-10-05.
+Last updated: 2026-10-07.
 
 This is Yep Anywhere's canonical product-priority overview. Keep initiative
 status, the next action, and major blockers here; keep implementation steps in
@@ -79,6 +79,14 @@ Release builds and required local checks pass. Store publication, remaining nati
 the viewer/download gap remain the next mobile release work.
 
 ### Current baseline
+
+- The October 7 [browser/Android interruption study](../testing/source-lifecycle-study-2026-10-07.md)
+  reproduces visible native synthetic 503s and slow passive wake recovery with
+  a real emulator/browser comparison harness. The original permanent-failure
+  diagnosis is narrowed: the WebView already retries after 60 seconds. Typed
+  operation errors, explicit recovery ownership and page catch-up remain
+  mobile reliability work. Native remains the sole app connection owner;
+  the shared conformance suite and repairs are not yet complete.
 
 - Signed macOS and Windows desktop releases already exist. The
   [desktop release QA log](../testing/desktop-release-qa-log.md) records

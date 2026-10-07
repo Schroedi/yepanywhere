@@ -46,9 +46,25 @@ now logs `Synthetic 503 for native <error>` under `YaSyntheticResponse`, and
   the server produced none, so that path is unconfirmed.
 - Held reconnects, slow routes, fresh relay sign-in, refreshes, and screen-off
   or doze wakes produced none.
-- Waking into a network outage reliably leaves native failed
+- Waking into a network outage exhausts native's quick retries and leaves the
+  page waiting for its recovery signal or 60-second backstop
   ([wake outage gap](android-native-gives-up-after-wake-outage.md)), which is a
   plausible reason to refresh.
+
+Follow-up [matched browser/emulator study](../docs/testing/source-lifecycle-study-2026-10-07.md)
+reproduced the exact visible session-page error on both direct and mux routes.
+The runner navigates away and back, waits for real delayed page reads, then
+disconnects their socket. Native logged seven synthetic responses in the direct
+run and eight in mux. Captures and page mutation observations show the error;
+the draft survived. Recovery took about 11 seconds and one second respectively
+in these individual observations, not a stable timing guarantee. The browser
+counterpart briefly shows its own raw code 1006 error.
+
+The opt-in client characterization in
+[`native.repro.ts`](../packages/client/e2e/lifecycle-study/native.repro.ts)
+demonstrates that the manufactured HTTP response bypasses safe-read recovery.
+The Kotlin connector encoding still needs an owning-layer red test before the
+repair; the client characterization is not a substitute.
 
 Not fixed in place: the change spans Kotlin, the WebView bridge contract, and
 the client. The relogin trigger in the original report is inferred, not

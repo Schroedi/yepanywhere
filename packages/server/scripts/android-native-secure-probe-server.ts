@@ -26,6 +26,7 @@ import { ServerSettingsService } from "../src/services/ServerSettingsService.js"
 import { ProjectQueueService } from "../src/services/ProjectQueueService.js";
 import { RecentsService } from "../src/recents/RecentsService.js";
 import { ProjectGlossarySubscriptionManager } from "../src/projects/projectGlossarySubscriptionManager.js";
+import { SessionMetadataService } from "../src/metadata/SessionMetadataService.js";
 
 const username = process.env.YA_NATIVE_PROBE_USERNAME;
 const password = process.env.YA_NATIVE_PROBE_PASSWORD;
@@ -154,11 +155,13 @@ const projectQueueService = new ProjectQueueService({
   attachmentStagingService,
 });
 const recentsService = new RecentsService({ dataDir });
+const sessionMetadataService = new SessionMetadataService({ dataDir });
 await Promise.all([
   attachmentStagingService.initialize(),
   serverSettingsService.initialize(),
   projectQueueService.initialize(),
   recentsService.initialize(),
+  sessionMetadataService.initialize(),
 ]);
 
 const {
@@ -191,6 +194,7 @@ const {
   serverSettingsService,
   projectQueueService,
   recentsService,
+  sessionMetadataService,
 });
 const projectGlossarySubscriptionManager =
   new ProjectGlossarySubscriptionManager({ scanner, glossaryIndexService });
@@ -200,9 +204,16 @@ const app = new Hono<{ Bindings: HttpBindings }>();
 // A test-controlled response delay keeps API requests in flight while a probe
 // drops the socket, so reconnect handling of pending requests is deterministic.
 let apiDelayMs = 0;
+let delayedRequests = 0;
 app.use("/api/*", async (c, next) => {
-  if (apiDelayMs > 0 && c.req.path !== "/api/ws")
-    await new Promise((resolveDelay) => setTimeout(resolveDelay, apiDelayMs));
+  if (apiDelayMs > 0 && c.req.path !== "/api/ws") {
+    delayedRequests++;
+    try {
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, apiDelayMs));
+    } finally {
+      delayedRequests--;
+    }
+  }
   await next();
 });
 app.get("/api/version", async (c) => {
@@ -317,6 +328,9 @@ if (conversationProbe) {
     apiDelayMs = Math.min(Math.max(Number(c.req.query("ms")) || 0, 0), 15_000);
     return c.json({ apiDelayMs });
   });
+  app.get("/__probe/status", (c) =>
+    c.json({ apiDelayMs, delayedRequests, heldResumes, outage }),
+  );
   app.post("/__probe/outage", (c) => {
     outage = c.req.query("enabled") === "true";
     if (outage)

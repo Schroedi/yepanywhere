@@ -47,6 +47,31 @@ class YaNativeReconnectInstrumentedTest {
     @get:org.junit.Rule
     val launcherAnrRecovery = com.yepanywhere.mobile.LauncherAnrRecoveryRule()
 
+    /** Opt-in host-driven study. The real Activity, bridge, Kotlin and Rust stay live. */
+    @Test
+    fun hostDrivenLifecycleStudy() {
+        assumeTrue("Only the lifecycle study runner owns this fixture",
+            InstrumentationRegistry.getArguments().getString("yaLifecycleStudy") == "true")
+        withLoadedSession("lifecycle-study") { session ->
+            val directory = java.io.File(InstrumentationRegistry.getInstrumentation().targetContext.getExternalFilesDir(null), "lifecycle-study")
+            directory.mkdirs()
+            val stop = java.io.File(directory, "stop")
+            stop.delete()
+            java.io.File(directory, "ready.json").writeText(org.json.JSONObject()
+                .put("sessionPath", session.sessionPath).toString())
+            try {
+                // Study observation window, not a product recovery deadline. The
+                // host terminates each run; this bounds cleanup if it disappears.
+                val deadline = System.nanoTime() + TimeUnit.MINUTES.toNanos(10)
+                while (!stop.exists() && System.nanoTime() < deadline) Thread.sleep(100)
+                check(stop.exists()) { "Lifecycle study host did not finish" }
+            } finally {
+                java.io.File(directory, "phases.json").writeText(org.json.JSONArray(session.phases.toList()).toString())
+                java.io.File(directory, "ready.json").delete()
+            }
+        }
+    }
+
     @Test
     fun requestsMadeWhileNativeReconnectsShowNoSyntheticServerErrors() = withLoadedSession("held-resume", directOnly = true) { session ->
         session.probe("/__probe/resume-hold?enabled=true")
