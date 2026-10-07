@@ -52,6 +52,11 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
       "installation": "unavailable", "notificationsEnabled": false,
     ]
   }
+  /// The profile's resume credential; nil leaves the session features unadvertised.
+  var sessionCredential: (() async throws -> [String: Any])?
+  /// Answers a rejected session: a newer credential, or nil while native
+  /// sign-in or resume replaces this document.
+  var reauthenticateSession: ((String) async throws -> [String: Any]?)?
 
   init(source: NativeSource) { self.source = source }
 
@@ -244,6 +249,7 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
       command["protocol"] as? Int == 1, let id = command["id"] as? String, id.utf8.count <= 128,
       let method = command["method"] as? String
     else { throw BridgeFailure.invalidCommand }
+    let params = command["params"] as? [String: Any] ?? [:]
     let result: [String: Any]
     switch method {
     case "host.describe":
@@ -251,14 +257,42 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate
         "protocol": 1, "platform": "ios",
         "appVersion": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
           ?? "0.1.0", "buildVersion": 1,
-        "features": ["notifications.status", "notifications.requestPermission"],
+        "features": ["notifications.status", "notifications.requestPermission"]
+          + (sessionCredential == nil ? [] : NativeSessionCredential.features),
       ]
     case "notifications.status": result = await notificationStatus()
     case "notifications.requestPermission": result = await requestPermission()
+    case "session.credential":
+      guard let sessionCredential else { throw BridgeFailure.invalidCommand }
+      do { result = try await sessionCredential() } catch {
+        try await deliverUnavailable(id); return
+      }
+    case "session.reauthenticate":
+      guard let reauthenticateSession, let rejected = params["rejectedSessionId"] as? String,
+        !rejected.isEmpty
+      else { throw BridgeFailure.invalidCommand }
+      do {
+        // Nil: native sign-in or resume replaces this document; no reply.
+        guard let replacement = try await reauthenticateSession(rejected) else { return }
+        result = replacement
+      } catch {
+        try await deliverUnavailable(id); return
+      }
+    case "host.switch":
+      guard sessionCredential != nil else { throw BridgeFailure.invalidCommand }
+      switchHost(); return
     default: throw BridgeFailure.invalidCommand
     }
     try await deliver(
       json(["protocol": 1, "id": id, "ok": true, "result": result]), channel: "control")
+  }
+
+  private func deliverUnavailable(_ id: String) async throws {
+    try await deliver(
+      json([
+        "protocol": 1, "id": id, "ok": false,
+        "error": ["code": "unavailable", "message": "Native session is unavailable"],
+      ]), channel: "control")
   }
 
   private func json(_ value: [String: Any]) -> String {

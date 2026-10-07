@@ -69,6 +69,40 @@ final class BridgeTests: XCTestCase {
     bridge.close()
     XCTAssertTrue(source.closed)
   }
+
+  func testSessionCredentialEncodesTheStoredRustCredentialAndRoute() throws {
+    let key = (0..<32).map { $0 }
+    let stored = try JSONSerialization.data(withJSONObject: [
+      "username": "laptop", "session_id": "session-1", "base_key": key,
+      "resume_protocol_version": 3,
+    ])
+    let relay = HostProfile(
+      id: UUID().uuidString, label: "Laptop", endpoint: "wss://relay.example/ws",
+      relayTarget: "laptop", username: "laptop", lastConnected: Date())
+    let encoded = try NativeSessionCredential.json(profile: relay, stored: stored)
+    XCTAssertEqual(encoded["profileId"] as? String, relay.id)
+    XCTAssertEqual(encoded["sessionId"] as? String, "session-1")
+    XCTAssertEqual(
+      encoded["sessionKey"] as? String, Data(key.map { UInt8($0) }).base64EncodedString())
+    XCTAssertEqual(encoded["resumeProtocolVersion"] as? Int, 3)
+    let routes = try XCTUnwrap(encoded["routes"] as? [[String: Any]])
+    XCTAssertEqual(routes.first?["kind"] as? String, "relay")
+    XCTAssertEqual(routes.first?["relayUsername"] as? String, "laptop")
+    XCTAssertEqual(NativeSessionCredential.sessionID(stored), "session-1")
+
+    var direct = relay
+    direct.relayTarget = nil; direct.endpoint = "wss://laptop.example/api/ws"
+    let directRoutes = try XCTUnwrap(
+      try NativeSessionCredential.json(profile: direct, stored: stored)["routes"]
+        as? [[String: Any]])
+    XCTAssertEqual(directRoutes.first?["kind"] as? String, "direct")
+
+    let shortKey = try JSONSerialization.data(withJSONObject: [
+      "username": "laptop", "session_id": "session-1", "base_key": [1, 2],
+      "resume_protocol_version": 3,
+    ])
+    XCTAssertThrowsError(try NativeSessionCredential.json(profile: relay, stored: shortKey))
+  }
 }
 
 @MainActor

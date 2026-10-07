@@ -172,6 +172,22 @@ final class HostModel: ObservableObject {
       try? store.write("route." + profile.id, Data(route.utf8))
     }
     bridge.switchHost = { [weak self] in self?.switchHost() }
+    // Native resumed and stored the verified credential before showing the
+    // document, so the stored copy is the live session.
+    bridge.sessionCredential = { [store] in
+      guard let stored = try store.credential(profile.id) else { throw BridgeFailure.closed }
+      return try NativeSessionCredential.json(profile: profile, stored: stored)
+    }
+    bridge.reauthenticateSession = { [weak self, store] rejected in
+      if let stored = try store.credential(profile.id),
+        let current = NativeSessionCredential.sessionID(stored), current != rejected
+      {
+        return try NativeSessionCredential.json(profile: profile, stored: stored)
+      }
+      // Native's own resume decides: it reopens the document, or asks for sign-in.
+      self?.open(profile)
+      return nil
+    }
     bridge.notificationStatus = { [weak self] in await self?.notifications.status() ?? [:] }
     bridge.requestPermission = { [weak self] in await self?.notifications.requestPermission() ?? [:]
     }
