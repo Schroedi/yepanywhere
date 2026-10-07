@@ -312,7 +312,8 @@ The 2026-08-05 audit supplies the initial registry backlog:
 
 | Owner | Current risk | Required pressure contract |
 |---|---|---|
-| App session readers | 500-entry FIFO without hit retouch; individual Codex readers may retain full parsed transcripts and mapping/file caches. Codex detail updates added per-session in-flight ownership, bounded plain-file reads, and invalidation-fenced publication on 2026-08-24, then append-aware normalized projection reuse on 2026-08-28 | Byte/rebuild-cost bound and access retouch; close and release cold project readers without interrupting active owners |
+| App session readers | 500-entry FIFO without hit retouch; individual Codex readers retain mapping/file caches. Codex detail updates added per-session in-flight ownership, bounded plain-file reads, and invalidation-fenced publication on 2026-08-24, then append-aware normalized projection reuse on 2026-08-28 | Byte/rebuild-cost bound and access retouch; close and release cold project readers without interrupting active owners |
+| Codex parsed transcripts | Bounded 2026-10-07 (`codex-entry-cache-budget.ts`): every reader's detail entry cache is admitted to one process-wide source-byte LRU (default 256 MB, `YEP_CODEX_PARSE_CACHE_MB`) with retouch on hit and growth re-admission; a file over the whole budget is served uncached | Register with a future pressure coordinator as rebuildable; entries plus WeakMap-linked normalized copies release together |
 | Claude parsed transcripts | Added 2026-08-07 (`claude-transcript-cache.ts`): process-wide, source-byte LRU (default 192 MB, `YEP_CLAUDE_PARSE_CACHE_MB`), in-flight coalescing, incremental append parsing; a file over the whole budget is never retained | Register with a future pressure coordinator as rebuildable; entries plus WeakMap-linked normalized copies release together |
 | Pi parsed transcripts | Resolved 2026-08-07: one current version per file, 64-file LRU with access retouch | One current version per canonical file plus byte-bounded LRU |
 | Session summary index | Cold loads now share one mutable scope and validation cannot erase a newer dirty revision; 10,000 scopes remain bounded only by FIFO count, and eviction leaves validation/persisted-scope metadata behind, including another UTC-day cutoff key per scope/day | Evict the complete scope/cutoff record, preserve 10,000-project discovery, and cap live bytes; release disk-rebuildable cold scopes |
@@ -345,9 +346,20 @@ user-turn and tool-lifecycle state. Stateful prior tool rows are copy-on-write,
 and compaction or a non-append source change rebuilds the projection. This
 removes whole-transcript normalization from routine incremental refreshes
 without making an earlier response projection mutable.
-This correctness owner does not resolve the remaining FIFO/byte-pressure work
-in the table above or the distinct read-only summary/projection coordination
-tracked by tacticals 038 and 056.
+Retention is bounded separately by the shared Codex parsed-transcript budget.
+Before it, a full-history sweep of 564 sessions (an agent-sessions audit)
+left one reader holding 165 parsed Codex sessions, 1.16 GB of source JSONL, as
+about 2.4 GB of live heap until the process restarted. Eviction calls the
+owning reader, which drops its map entry so the parsed entries and their
+normalized projection become collectable together. A read whose entry the
+budget declined or evicted still returns that read's snapshot, and a stale
+entry evicted during its own re-parse does not void the replacement; only
+invalidation or a concurrent replacement does. After the bound, the same sweep
+retained 256 MB of Codex source as about 270 MB of live heap, and repeated
+sweeps stayed flat. Roughly 700 MB of post-sweep heap outside this cache
+remains unattributed. This owner does not resolve the reader FIFO in the
+table above or the distinct read-only summary/projection coordination tracked
+by tacticals 038 and 056.
 
 The 2026-08-24 mutable-store slice also gave Codex discovery shards one shared
 process owner, made summary-index dirty acknowledgement revision-aware, fenced

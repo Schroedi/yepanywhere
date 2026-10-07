@@ -126,6 +126,7 @@ import {
 } from "./services/voice/registry.js";
 import { SpeechBackendInstallService } from "./services/voice/speechBackendInstall.js";
 import { claudeTranscriptCache } from "./sessions/claude-transcript-cache.js";
+import { codexEntryCacheBudget } from "./sessions/codex-entry-cache-budget.js";
 import { providerCatalogFamily } from "./sessions/provider-catalog-family.js";
 import { ClaudeSessionReader } from "./sessions/reader.js";
 import { AttachmentStagingService } from "./uploads/AttachmentStagingService.js";
@@ -1908,6 +1909,7 @@ async function startServer() {
       getDiagnostics: () => ({
         caches: {
           claudeTranscript: claudeTranscriptCache.getStats(),
+          codexEntries: codexEntryCacheBudget.getStats(),
           markdownAugments: markdownAugmentCacheDiagnostics(),
           projectPaths: projectPathCacheDiagnostics(),
         },
