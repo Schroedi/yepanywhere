@@ -46,6 +46,7 @@ export function ProviderSignIn({
   }, [provider]);
 
   // Follow a running sign-in until the CLI exits.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: each new flow snapshot re-arms this one-shot poll, including after a transient failure.
   useEffect(() => {
     if (!running || !flowId) return;
     let cancelled = false;

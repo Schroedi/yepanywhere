@@ -46,8 +46,11 @@ export class ProviderLoginError extends Error {
 }
 
 // OSC (hyperlinks, titles), CSI (colors, cursor), then remaining C0 controls.
+// biome-ignore lint/suspicious/noControlCharactersInRegex: OSC sequences contain literal ESC and BEL control characters.
 const OSC_SEQUENCE = /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g;
+// biome-ignore lint/suspicious/noControlCharactersInRegex: CSI sequences start with the ESC control character.
 const CSI_SEQUENCE = /\x1b\[[0-?]*[ -/]*[@-~]/g;
+// biome-ignore lint/suspicious/noControlCharactersInRegex: remove C0 controls while preserving tab and newline.
 const CONTROL_CHARACTERS = /[\x00-\x08\x0b-\x1f\x7f]/g;
 
 export function stripTerminalControls(text: string): string {
