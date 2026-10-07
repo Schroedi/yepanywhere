@@ -415,6 +415,8 @@ export type {
   CodexReasoningSummary,
   ProviderName,
   ProviderInfo,
+  ProviderLoginFlow,
+  ProviderLoginFlowState,
   ProviderImageSizing,
   ModelCatalogStatus,
   ModelInfo,

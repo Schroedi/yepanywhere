@@ -558,6 +558,43 @@ export interface ProviderInfo {
   supportsBoundedTurnSearch?: boolean;
   /** Provider-specific command a user can run to authenticate this provider. */
   loginCommand?: string;
+  /**
+   * Whether the server can run this provider's sign-in itself and relay its
+   * link and code through `/api/providers/:name/login`. Absent on servers
+   * without the route.
+   */
+  supportsInAppLogin?: boolean;
+  /**
+   * Whether `/api/providers/:name/login/terminal` can open the sign-in in a
+   * visible terminal on the server's own desktop.
+   */
+  supportsHostTerminalLogin?: boolean;
+}
+
+/** Lifecycle of a server-run provider sign-in. */
+export type ProviderLoginFlowState =
+  | "running"
+  | "succeeded"
+  | "failed"
+  | "cancelled"
+  | "expired";
+
+/** A provider sign-in the server is running on the user's behalf. */
+export interface ProviderLoginFlow {
+  id: string;
+  provider: ProviderName;
+  state: ProviderLoginFlowState;
+  /** Sign-in page the user opens in any browser. */
+  url?: string;
+  /** One-time code the user enters on that page (device-code sign-in). */
+  userCode?: string;
+  /** Whether the sign-in waits for an authorization code pasted back to YA. */
+  acceptsCode: boolean;
+  codeSubmitted: boolean;
+  /** Recent sign-in output with terminal control sequences removed. */
+  output: string;
+  startedAt: string;
+  expiresAt: string;
 }
 
 /**

@@ -50,7 +50,7 @@ import {
   getModelContextWindow,
 } from "@yep-anywhere/shared";
 import { getLogger } from "../../logging/logger.js";
-import { quoteShellWord } from "../../utils/posixShell.js";
+import { formatExecutableInvocation } from "../../utils/executableInvocation.js";
 import { logSDKMessage } from "../messageLogger.js";
 import { MessageQueue } from "../messageQueue.js";
 import { ClaudeTurnEffort } from "./claude-turn-effort.js";
@@ -91,7 +91,10 @@ import type {
   SDKMessage,
 } from "../types.js";
 import { createLaunchAgentctlSessionEnvBridge } from "./agentctl-session-env.js";
-import { filterEnvForChildProcess } from "./env-filter.js";
+import {
+  filterEnvForChildProcess,
+  stripYaControlPlaneCredentials,
+} from "./env-filter.js";
 import { normalizeClaudeSubscriptionUsage } from "./provider-subscription-usage.js";
 import type {
   AgentProvider,
@@ -102,6 +105,7 @@ import type {
   ProviderSessionOptionsUpdateResult,
   ProviderName,
   ProviderForkBoundary,
+  ProviderLoginLaunch,
   StartSessionOptions,
   SummaryGenerationRequest,
   SummaryGenerationResult,
@@ -130,7 +134,8 @@ const CLAUDE_LIVENESS_PROBE_TIMEOUT_MS = 5000;
 const CLAUDE_LIVENESS_PROBE_SOURCE = "claude:control/mcp_status";
 const CLAUDE_PROMPT_CACHE_KEEPALIVE_TIMEOUT_MS = 60_000;
 const CLAUDE_PROMPT_CACHE_KEEPALIVE_MAX_BUDGET_USD = 0.02;
-const DEFAULT_CLAUDE_LOGIN_COMMAND = "claude auth login --claudeai";
+export const CLAUDE_LOGIN_ARGS = ["auth", "login", "--claudeai"] as const;
+const DEFAULT_CLAUDE_LOGIN_COMMAND = `claude ${CLAUDE_LOGIN_ARGS.join(" ")}`;
 const PROVIDER_MANAGED_SESSION_TITLE = "Yep Anywhere Session";
 const CLAUDE_AUTOCOMPACT_PCT_OVERRIDE = "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE";
 const CLAUDE_EFFORT_LEVELS: EffortLevel[] = [
@@ -533,13 +538,6 @@ function safeMtimeMs(path: string): number {
   }
 }
 
-function quotePowerShellDoubleQuoted(value: string): string {
-  return `"${value
-    .replace(/`/g, "``")
-    .replace(/\$/g, "`$")
-    .replace(/"/g, '`"')}"`;
-}
-
 export function formatClaudeLoginCommand(
   executablePath?: string,
   platform: NodeJS.Platform = process.platform,
@@ -548,13 +546,11 @@ export function formatClaudeLoginCommand(
   if (!trimmedPath || trimmedPath === "claude") {
     return DEFAULT_CLAUDE_LOGIN_COMMAND;
   }
-
-  const executable =
-    platform === "win32"
-      ? quotePowerShellDoubleQuoted(trimmedPath)
-      : quoteShellWord(trimmedPath);
-  const invocation = platform === "win32" ? `& ${executable}` : executable;
-  return `${invocation} auth login --claudeai`;
+  return formatExecutableInvocation(
+    trimmedPath,
+    CLAUDE_LOGIN_ARGS.join(" "),
+    platform,
+  );
 }
 
 function getClaudeDesktopCodeRoots(): string[] {
@@ -653,6 +649,14 @@ async function findPreferredClaudeLoginExecutable(): Promise<
   }
 
   return undefined;
+}
+
+/** The executable the displayed login command names, as a runnable path. */
+async function resolveClaudeLoginExecutable(): Promise<string | undefined> {
+  return (
+    resolvePathExecutable("claude") ??
+    (await findPreferredClaudeLoginExecutable())
+  );
 }
 
 export async function getClaudeLoginCommand(): Promise<string> {
@@ -1246,6 +1250,22 @@ export class ClaudeProvider implements AgentProvider {
         enabled: false,
       });
     }
+  }
+
+  async getLoginLaunch(): Promise<ProviderLoginLaunch | null> {
+    // Gateway and Ollama variants authenticate through their own services.
+    if (this.name !== "claude") return null;
+    const executable = await resolveClaudeLoginExecutable();
+    if (!executable) return null;
+    return {
+      executable,
+      env: stripYaControlPlaneCredentials(process.env),
+      // Without a terminal the CLI prints its sign-in link and waits for the
+      // code the authorization page shows, read from stdin.
+      relayedArgs: CLAUDE_LOGIN_ARGS,
+      terminalArgs: CLAUDE_LOGIN_ARGS,
+      acceptsCode: true,
+    };
   }
 
   private async withLoginCommand(status: AuthStatus): Promise<AuthStatus> {

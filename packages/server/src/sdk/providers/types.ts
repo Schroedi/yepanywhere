@@ -96,6 +96,18 @@ export interface AuthStatus {
   loginCommand?: string;
 }
 
+/** The provider CLI invocation that signs it in on this host. */
+export interface ProviderLoginLaunch {
+  executable: string;
+  env: NodeJS.ProcessEnv;
+  /** Arguments for a sign-in run without a terminal, its link relayed by YA. */
+  relayedArgs: readonly string[];
+  /** Arguments for a sign-in run in a visible terminal on the host. */
+  terminalArgs: readonly string[];
+  /** Whether the relayed sign-in reads an authorization code from stdin. */
+  acceptsCode: boolean;
+}
+
 /**
  * Provider-owned generation that can happen outside the user's requested
  * assistant response. Omitted options always resolve to false at the YA
@@ -560,6 +572,12 @@ export interface AgentProvider {
    * Get detailed authentication status.
    */
   getAuthStatus(): Promise<AuthStatus>;
+
+  /**
+   * Resolve the CLI invocation that signs this provider in, or null when no
+   * runnable CLI is installed. Absent for providers YA cannot sign in.
+   */
+  getLoginLaunch?(): Promise<ProviderLoginLaunch | null>;
 
   /**
    * Start a new agent session.

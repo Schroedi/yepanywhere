@@ -60,6 +60,7 @@ import type {
   PostCompactReplaySettings,
   LongContextEffortWarningSettings,
   ProviderInfo,
+  ProviderLoginFlow,
   ProviderChildSessionSummary,
   ProviderName,
   ProviderSubscriptionUsage,
@@ -549,6 +550,39 @@ export const api = {
       options?.refresh
         ? { headers: { "Cache-Control": "no-cache" } }
         : undefined,
+    ),
+
+  getProviderLogin: (provider: ProviderName) =>
+    fetchJSON<{ flow: ProviderLoginFlow | null }>(
+      `/providers/${encodeURIComponent(provider)}/login`,
+    ),
+
+  startProviderLogin: (provider: ProviderName) =>
+    fetchJSON<{ flow: ProviderLoginFlow }>(
+      `/providers/${encodeURIComponent(provider)}/login`,
+      { method: "POST" },
+    ),
+
+  submitProviderLoginCode: (
+    provider: ProviderName,
+    flowId: string,
+    code: string,
+  ) =>
+    fetchJSON<{ flow: ProviderLoginFlow }>(
+      `/providers/${encodeURIComponent(provider)}/login/code`,
+      { method: "POST", body: JSON.stringify({ flowId, code }) },
+    ),
+
+  cancelProviderLogin: (provider: ProviderName, flowId: string) =>
+    fetchJSON<{ flow: ProviderLoginFlow | null }>(
+      `/providers/${encodeURIComponent(provider)}/login?flowId=${encodeURIComponent(flowId)}`,
+      { method: "DELETE" },
+    ),
+
+  openProviderLoginTerminal: (provider: ProviderName) =>
+    fetchJSON<{ ok: true }>(
+      `/providers/${encodeURIComponent(provider)}/login/terminal`,
+      { method: "POST" },
     ),
 
   getProviderSubscriptionUsage: (

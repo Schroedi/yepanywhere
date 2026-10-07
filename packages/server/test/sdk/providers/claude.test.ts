@@ -771,7 +771,18 @@ describe("Claude login command", () => {
     );
   });
 
-  it("formats a PowerShell command for Windows executable paths", () => {
+  it("leaves a shell-neutral Windows path bare so cmd.exe and PowerShell both run it", () => {
+    expect(
+      formatClaudeLoginCommand(
+        "C:\\Users\\me\\AppData\\Local\\yep\\node_modules\\@anthropic-ai\\claude-agent-sdk-win32-x64\\claude.exe",
+        "win32",
+      ),
+    ).toBe(
+      "C:\\Users\\me\\AppData\\Local\\yep\\node_modules\\@anthropic-ai\\claude-agent-sdk-win32-x64\\claude.exe auth login --claudeai",
+    );
+  });
+
+  it("formats a PowerShell command for Windows paths that need quoting", () => {
     expect(
       formatClaudeLoginCommand(
         "C:\\Users\\me\\AppData\\Local\\Claude App\\claude.exe",

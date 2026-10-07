@@ -72,7 +72,7 @@ import {
 import { formatCodexSubagentActivity } from "../../codex/subagentActivity.js";
 import { getLogger } from "../../logging/logger.js";
 import { attachToolResultMediaCandidates } from "../../media/inlineImageData.js";
-import { quoteShellWord } from "../../utils/posixShell.js";
+import { formatExecutableInvocation } from "../../utils/executableInvocation.js";
 import {
   CODEX_INSTALLATION_FAMILY,
   type ProviderInstallationCoordinator,
@@ -209,6 +209,7 @@ import type {
   AgentSession,
   AuthStatus,
   ProviderForkBoundary,
+  ProviderLoginLaunch,
   StartSessionOptions,
   SummaryGenerationRequest,
   SummaryGenerationResult,
@@ -407,24 +408,13 @@ interface CodexForkAnchor {
 const DECLARE_CODEX_ORIGINATOR = false;
 const DECLARED_CODEX_ORIGINATOR = "Codex Desktop";
 
-function quotePowerShellDoubleQuoted(value: string): string {
-  return `"${value
-    .replace(/`/g, "``")
-    .replace(/\$/g, "`$")
-    .replace(/"/g, '`"')}"`;
-}
-
 export function formatCodexLoginCommand(
   executablePath: string,
   platform: NodeJS.Platform = process.platform,
 ): string {
   const trimmedPath = executablePath.trim();
   if (!trimmedPath || trimmedPath === "codex") return "codex login";
-  const executable =
-    platform === "win32"
-      ? quotePowerShellDoubleQuoted(trimmedPath)
-      : quoteShellWord(trimmedPath);
-  return `${platform === "win32" ? "& " : ""}${executable} login`;
+  return formatExecutableInvocation(trimmedPath, "login", platform);
 }
 const YEP_ANYWHERE_ORIGINATOR = "yep-anywhere";
 
@@ -1525,6 +1515,24 @@ export class CodexProvider implements AgentProvider {
       ...(codexPath && !authenticated
         ? { loginCommand: formatCodexLoginCommand(codexPath) }
         : {}),
+    };
+  }
+
+  /** Sign in with the same CLI and CODEX_HOME that sessions use. */
+  async getLoginLaunch(): Promise<ProviderLoginLaunch | null> {
+    const codexPath = await findCodexCliPath(
+      this.config.codexPath,
+      this.installationCoordinator,
+    );
+    if (!codexPath) return null;
+    return {
+      executable: codexPath,
+      env: this.getCodexEnv(),
+      // Device-code sign-in completes from a browser on any device; the
+      // default browser sign-in needs a callback on this host's localhost.
+      relayedArgs: ["login", "--device-auth"],
+      terminalArgs: ["login"],
+      acceptsCode: false,
     };
   }
 

@@ -108,7 +108,8 @@ application-only detection with no validated runtime cannot launch. Claude may
 report a launchable runtime without Claude Desktop because YA bundles the
 Claude Agent SDK runtime; its auth probe and login guidance use that resolved
 runtime rather than assuming an unqualified `claude` command exists in Finder's
-environment.
+environment. [Provider sign-in](provider-sign-in.md) owns the login command
+format and the in-app sign-in routes.
 
 The server provider catalog remains authoritative for actual provider
 availability. Provider launch and authentication failures use the ordinary
