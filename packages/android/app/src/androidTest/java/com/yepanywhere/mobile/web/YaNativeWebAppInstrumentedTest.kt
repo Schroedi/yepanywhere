@@ -110,7 +110,7 @@ class YaNativeWebAppInstrumentedTest {
             // A same-origin child frame cannot act as the trusted main frame.
             evaluate(scenario, """
                 (() => { const child = document.createElement('iframe'); child.hidden = true;
-                  child.srcdoc = '<script>window.yaNativeTransport?.postMessage("invalid-child-command")<\/script>';
+                  child.srcdoc = '<script>window.yaNative?.postMessage("invalid-child-command")<\/script>';
                   document.body.appendChild(child); return true; })()
             """.trimIndent())
 
@@ -192,7 +192,7 @@ class YaNativeWebAppInstrumentedTest {
             // 120 s allows ~4x the slowest run, including a 30 s failed focus
             // observation. This opt-in device probe has no CI timing baseline.
             await(scenario, "document.querySelector('.attachment-list')?.textContent.includes('native-upload.bin') === true && !document.querySelector('.attachment-list')?.textContent.includes('%')", 120)
-            scenario.onActivity { activity -> android.util.Log.i("YaNativeWebProof", "uploadBytes=$uploadBytes typingMaxMs=$latency metrics=${activity.nativeTransportDiagnostics()}") }
+            android.util.Log.i("YaNativeWebProof", "uploadBytes=$uploadBytes typingMaxMs=$latency")
 
             device.pressBack() // Hide the keyboard before opening native chrome.
             evaluate(scenario, "window.warmDocument = {identity: Math.random()}; window.warmComposerNode = document.querySelector('textarea[data-composer-input]'); window.warmComposer = window.warmComposerNode.value; window.warmScrollNode = document.querySelector('.message-list').parentElement; window.warmScrollTarget = (window.warmScrollNode.scrollHeight - window.warmScrollNode.clientHeight) / 2; window.warmScrollNode.scrollTop = window.warmScrollTarget; true")
@@ -285,12 +285,12 @@ class YaNativeWebAppInstrumentedTest {
                 device.findObject(By.desc("New tab")).click()
                 device.wait(Until.findObject(By.res("android", "text1").text(secondHostLabel)), 5_000).click()
                 await(scenario, "document.body.textContent.includes('preview-project')")
-                scenario.onActivity { assertEquals(secondProfile.id, it.nativeTransportDiagnostics()?.getString("profileId")) }
+                scenario.onActivity { assertEquals(secondProfile.id, it.nativeDocumentProfileId()) }
                 device.findObject(By.desc("Tabs, 5 open")).click()
                 captureTabs(device, application, "native-tabs-hosts.png")
                 device.wait(Until.findObject(By.desc("Switch to tab: $hostLabel, /projects/$projectId/sessions/android-preview-session")), 5_000).click()
                 await(scenario, "document.body.textContent.includes('Preview message 50')")
-                scenario.onActivity { assertEquals(profile.id, it.nativeTransportDiagnostics()?.getString("profileId")) }
+                scenario.onActivity { assertEquals(profile.id, it.nativeDocumentProfileId()) }
                 // Closing the second host removes metadata and releases only its consumer.
                 device.findObject(By.desc("Tabs, 5 open")).click()
                 device.wait(Until.findObject(By.desc("Close tab: $secondHostLabel")), 5_000).click()
@@ -313,7 +313,7 @@ class YaNativeWebAppInstrumentedTest {
             assertEquals(200, runBlocking { sibling.request("GET", "/version").status })
         } catch (error: Throwable) {
             var details = ""
-            scenario.onActivity { details = "native=${it.nativeTransportDiagnostics()}; manager=${manager.state.value}" }
+            scenario.onActivity { details = "documentProfile=${it.nativeDocumentProfileId()}; manager=${manager.state.value}" }
             com.yepanywhere.mobile.UiFailureCapture.save("native-web", details)
             throw error
         } finally {
@@ -406,10 +406,10 @@ class YaNativeWebAppInstrumentedTest {
         var actual = ""
         while (System.nanoTime() < deadline) {
             // Reload can discard an evaluateJavascript callback sent to the
-            // departing renderer. Wait for the replacement native handshake.
+            // departing renderer. Wait for the replacement document's host.
             var ready = false
             scenario.onActivity { activity ->
-                ready = activity.nativeTransportDiagnostics() != null && activity.findViewById<WebView>(R.id.web_client)?.progress == 100
+                ready = activity.nativeDocumentProfileId() != null && activity.findViewById<WebView>(R.id.web_client)?.progress == 100
             }
             if (!ready) { Thread.sleep(100); continue }
             actual = evaluate(scenario, script)

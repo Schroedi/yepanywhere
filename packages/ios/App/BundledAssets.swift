@@ -5,6 +5,8 @@ final class BundledAssets: NSObject, WKURLSchemeHandler {
   static let scheme = "yepapp"
   static let host = "bundle"
   static let origin = "yepapp://bundle"
+  /// No shipped asset approaches this; it bounds a corrupt or substituted file.
+  static let maximumAssetBytes = 32 * 1024 * 1024
   let root: URL
 
   init(root: URL) { self.root = root.standardizedFileURL.resolvingSymlinksInPath() }
@@ -33,7 +35,7 @@ final class BundledAssets: NSObject, WKURLSchemeHandler {
       "ico": "image/x-icon", "wav": "audio/wav", "mp3": "audio/mpeg", "m4a": "audio/mp4",
     ]
     var bytes = try Data(contentsOf: file)
-    guard bytes.count <= NativeFrame.messageLimit else { throw BridgeFailure.overflow }
+    guard bytes.count <= Self.maximumAssetBytes else { throw BridgeFailure.overflow }
     if file.lastPathComponent == "remote.html" {
       guard let html = String(data: bytes, encoding: .utf8) else {
         throw BridgeFailure.invalidCommand

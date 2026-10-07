@@ -602,6 +602,121 @@ test.describe("Encrypted Data Flow", () => {
   });
 });
 
+interface MintedSession {
+  username: string;
+  sessionId: string;
+  sessionKey: string;
+  resumeProtocolVersion?: number;
+}
+
+/**
+ * A real server session, minted the way native pairing would: one full SRP
+ * login, in a browser context the app document under test never sees.
+ */
+async function mintNativeSession(
+  browser: import("@playwright/test").Browser,
+  remoteClientURL: string,
+  wsURL: string,
+): Promise<MintedSession> {
+  const loginContext = await browser.newContext();
+  try {
+    const loginPage = await loginContext.newPage();
+    await loginViaRemoteClient(
+      loginPage,
+      remoteClientURL,
+      wsURL,
+      TEST_USERNAME,
+      TEST_PASSWORD,
+    );
+    const session = await loginPage.evaluate(
+      () =>
+        JSON.parse(
+          localStorage.getItem("yep-anywhere-remote-credentials") ?? "{}",
+        ).session as MintedSession,
+    );
+    expect(session.sessionId).toBeTruthy();
+    return session;
+  } finally {
+    await loginContext.close();
+  }
+}
+
+function nativeCredential(session: MintedSession, wsURL: string) {
+  return {
+    profileId: "native-profile",
+    label: TEST_USERNAME,
+    username: session.username,
+    sessionId: session.sessionId,
+    sessionKey: session.sessionKey,
+    ...(session.resumeProtocolVersion !== undefined
+      ? { resumeProtocolVersion: session.resumeProtocolVersion }
+      : {}),
+    routes: [{ kind: "direct", wsUrl: wsURL }],
+  };
+}
+
+/**
+ * Stand in for the Android/iOS control channel: advertise the credential
+ * operations, hand over `credential`, and record reauthentication requests
+ * without answering them, as native does while its sign-in is showing.
+ */
+async function installNativeHost(
+  page: import("@playwright/test").Page,
+  credential: ReturnType<typeof nativeCredential>,
+) {
+  await page.addInitScript(
+    ({ credential }) => {
+      const reauthenticateRequests: unknown[] = [];
+      const channel = {
+        onmessage: null as ((event: { data: string }) => void) | null,
+        postMessage(message: string) {
+          const request = JSON.parse(message) as {
+            id: string;
+            method: string;
+            params?: unknown;
+          };
+          const reply = (result: unknown) =>
+            queueMicrotask(() =>
+              channel.onmessage?.({
+                data: JSON.stringify({
+                  protocol: 1,
+                  id: request.id,
+                  ok: true,
+                  result,
+                }),
+              }),
+            );
+          switch (request.method) {
+            case "host.describe":
+              reply({
+                protocol: 1,
+                platform: "android",
+                appVersion: "0.1.0",
+                buildVersion: 1,
+                features: [
+                  "session.credential",
+                  "session.reauthenticate",
+                  "host.switch",
+                ],
+              });
+              break;
+            case "session.credential":
+              reply(credential);
+              break;
+            case "session.reauthenticate":
+              reauthenticateRequests.push(request.params);
+              break;
+            default:
+              reply({});
+          }
+        },
+      };
+      Object.assign(window, { yaNative: channel, reauthenticateRequests });
+    },
+    { credential },
+  );
+}
+
 test.describe("Native app credential", () => {
   test.beforeEach(async ({ baseURL }) => {
     await configureRemoteAccess(baseURL, {
@@ -624,95 +739,8 @@ test.describe("Native app credential", () => {
     // Login, session load, 45 paced keys and a rejected reload measured
     // 12-15 s, past the 15 s default; allow twice that for a loaded host.
     test.setTimeout(30_000);
-    // A real server session, minted the way native pairing would: one full
-    // SRP login, in a context the app document under test never sees.
-    const loginContext = await browser.newContext();
-    const loginPage = await loginContext.newPage();
-    await loginViaRemoteClient(
-      loginPage,
-      remoteClientURL,
-      wsURL,
-      TEST_USERNAME,
-      TEST_PASSWORD,
-    );
-    const session = await loginPage.evaluate(
-      () =>
-        JSON.parse(
-          localStorage.getItem("yep-anywhere-remote-credentials") ?? "{}",
-        ).session as {
-          username: string;
-          sessionId: string;
-          sessionKey: string;
-          resumeProtocolVersion?: number;
-        },
-    );
-    await loginContext.close();
-    expect(session.sessionId).toBeTruthy();
-
-    await page.addInitScript(
-      ({ credential }) => {
-        const reauthenticateRequests: unknown[] = [];
-        const channel = {
-          onmessage: null as ((event: { data: string }) => void) | null,
-          postMessage(message: string) {
-            const request = JSON.parse(message) as {
-              id: string;
-              method: string;
-              params?: unknown;
-            };
-            const reply = (result: unknown) =>
-              queueMicrotask(() =>
-                channel.onmessage?.({
-                  data: JSON.stringify({
-                    protocol: 1,
-                    id: request.id,
-                    ok: true,
-                    result,
-                  }),
-                }),
-              );
-            switch (request.method) {
-              case "host.describe":
-                reply({
-                  protocol: 1,
-                  platform: "android",
-                  appVersion: "0.1.0",
-                  buildVersion: 1,
-                  features: [
-                    "session.credential",
-                    "session.reauthenticate",
-                    "host.switch",
-                  ],
-                });
-                break;
-              case "session.credential":
-                reply(credential);
-                break;
-              case "session.reauthenticate":
-                // Native would now show its own sign-in; leave it pending.
-                reauthenticateRequests.push(request.params);
-                break;
-              default:
-                reply({});
-            }
-          },
-        };
-        Object.assign(window, { yaNative: channel, reauthenticateRequests });
-      },
-      {
-        credential: {
-          profileId: "native-profile",
-          label: TEST_USERNAME,
-          username: session.username,
-          sessionId: session.sessionId,
-          sessionKey: session.sessionKey,
-          ...(session.resumeProtocolVersion !== undefined
-            ? { resumeProtocolVersion: session.resumeProtocolVersion }
-            : {}),
-          routes: [{ kind: "direct", wsUrl: wsURL }],
-        },
-      },
-    );
+    const session = await mintNativeSession(browser, remoteClientURL, wsURL);
+    await installNativeHost(page, nativeCredential(session, wsURL));
 
     const projectId = Buffer.from(
       join(e2ePaths.tempDir, "mockproject"),
@@ -786,5 +814,48 @@ test.describe("Native app credential", () => {
     await expect(page.locator('[data-testid="relay-login-form"]')).toHaveCount(
       0,
     );
+  });
+
+  test("bundled document opens offline and recovers without a reload", async ({
+    page,
+    browser,
+    remoteClientURL,
+    wsURL,
+  }) => {
+    const session = await mintNativeSession(browser, remoteClientURL, wsURL);
+    await installNativeHost(page, nativeCredential(session, wsURL));
+    // The bundled app loads from local assets, so only the server is
+    // unreachable: refuse its socket until the network "returns".
+    let serverReachable = false;
+    await page.routeWebSocket(wsURL, (socket) => {
+      if (serverReachable) socket.connectToServer();
+      else socket.close({ code: 1006, reason: "offline" });
+    });
+    await page.goto(`${remoteClientURL}/projects`);
+
+    // The document and its navigation are usable before any connection.
+    await expect(
+      page.locator("header").getByText("Projects", { exact: true }),
+    ).toBeVisible();
+    await expect(page).not.toHaveURL(/\/login/);
+    await expect(page.locator(".project-list-cards")).toHaveCount(0);
+    const offlineDocument = await page.evaluate(() => performance.timeOrigin);
+
+    serverReachable = true;
+    await page.evaluate(() => window.dispatchEvent(new Event("online")));
+    await expect(page.locator(".project-list-cards")).toBeVisible({
+      timeout: 15_000,
+    });
+    // Recovery revalidated the failed reads in the same document.
+    expect(await page.evaluate(() => performance.timeOrigin)).toBe(
+      offlineDocument,
+    );
+    expect(
+      await page.evaluate(
+        () =>
+          (window as unknown as { reauthenticateRequests: unknown[] })
+            .reauthenticateRequests,
+      ),
+    ).toEqual([]);
   });
 });

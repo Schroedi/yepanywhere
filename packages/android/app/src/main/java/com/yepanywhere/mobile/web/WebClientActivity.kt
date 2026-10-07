@@ -49,12 +49,11 @@ open class WebClientActivity : ComponentActivity() {
     protected val config by lazy(WebClientConfig::fromBuild)
     private var webView: WebView? = null
     private var nativeHost: YaNativeMessageHost? = null
-    private var transportHost: YaNativeTransportHost? = null
     private var notificationOperations: NotificationNativeHostOperations? = null
     private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
     private var mainFrameFailed = false
-    private var transportErrorView: View? = null
-    fun nativeTransportDiagnostics(): org.json.JSONObject? = transportHost?.diagnostics()
+    /** The profile whose credential the current document may request, for probes. */
+    fun nativeDocumentProfileId(): String? = activeProfileId?.takeIf { nativeHost != null }
 
     protected lateinit var shellRoot: FrameLayout
     private lateinit var pageRoot: FrameLayout
@@ -65,11 +64,6 @@ open class WebClientActivity : ComponentActivity() {
     private var activeTabId: String? = null
     private var activeProfileId: String? = null
     protected open val ownsTabs: Boolean = false
-    private var pageForeground = true
-    protected fun setPageForeground(value: Boolean) {
-        pageForeground = value
-        transportHost?.setForeground(value && lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED))
-    }
     protected val hasSelectedTab: Boolean get() = tabs.selected != null
     private val tabPreferences by lazy { getSharedPreferences("native-tabs", MODE_PRIVATE) }
     protected open fun showHostManagement(newTab: Boolean = false) {
@@ -284,11 +278,12 @@ open class WebClientActivity : ComponentActivity() {
     private fun mountDocument(url: String, history: Bundle? = null) {
         val clientView = createWebView()
         val errorView = createErrorView(clientView)
-        transportErrorView = errorView
         pageRoot.addView(clientView, FrameLayout.LayoutParams(-1, -1))
         pageRoot.addView(errorView, FrameLayout.LayoutParams(-1, -1))
         clientView.webViewClient = createWebViewClient(errorView)
-        if (config.bundled && activeProfileId != null && transportHost == null) {
+        // Without the control channel the document cannot receive its
+        // credential, and it must never fall back to a web login.
+        if (config.bundled && activeProfileId != null && nativeHost == null) {
             errorView.visibility = View.VISIBLE
             return
         }
@@ -323,7 +318,14 @@ open class WebClientActivity : ComponentActivity() {
             settings.domStorageEnabled = true
             settings.allowFileAccess = false
             settings.allowContentAccess = false
-            settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+            // The bundled page is HTTPS and now opens the server socket itself.
+            // Debug probes reach disposable ws:// servers; release builds forbid
+            // cleartext entirely, so they keep blocking mixed content.
+            settings.mixedContentMode = if (BuildConfig.DEBUG) {
+                WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+            } else {
+                WebSettings.MIXED_CONTENT_NEVER_ALLOW
+            }
             settings.javaScriptCanOpenWindowsAutomatically = false
             settings.setSupportMultipleWindows(ownsTabs)
             settings.builtInZoomControls = false
@@ -417,16 +419,6 @@ open class WebClientActivity : ComponentActivity() {
                 )
             },
         )
-        activeProfileId?.let { profileId ->
-            transportHost = YaNativeTransportHost.install(view, config,
-                (application as YepAnywhereApplication).nativeRuntime, profileId, onFatal = {
-                    mainFrameFailed = true
-                    transportErrorView?.visibility = View.VISIBLE
-                }) {
-                showHostManagement()
-            }
-        }
-        transportHost?.setForeground(pageForeground && lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED))
         webView = view
         return view
     }
@@ -447,7 +439,7 @@ open class WebClientActivity : ComponentActivity() {
                 gravity = Gravity.CENTER
             })
             addView(Button(context).apply {
-                val unavailableTransport = config.bundled && activeProfileId != null && transportHost == null
+                val unavailableTransport = config.bundled && activeProfileId != null && nativeHost == null
                 text = getString(if (unavailableTransport) R.string.back else R.string.retry)
                 setOnClickListener {
                     if (unavailableTransport) finish()
@@ -486,7 +478,6 @@ open class WebClientActivity : ComponentActivity() {
                 mainFrameFailed = false
                 errorView.visibility = View.GONE
                 nativeHost?.onDocumentChanged()
-                transportHost?.onDocumentChanged()
             }
 
             override fun shouldInterceptRequest(
@@ -558,8 +549,6 @@ open class WebClientActivity : ComponentActivity() {
                 detail: RenderProcessGoneDetail,
             ): Boolean {
                 if (view !== webView) { view.destroy(); return true }
-                transportHost?.close()
-                transportHost = null
                 nativeHost?.destroy()
                 nativeHost = null
                 webView = null
@@ -590,9 +579,6 @@ open class WebClientActivity : ComponentActivity() {
     }
 
     private fun destroyDocument() {
-        transportHost?.close()
-        transportHost = null
-        transportErrorView = null
         fileChooserCallback?.onReceiveValue(null)
         fileChooserCallback = null
         nativeHost?.destroy()
@@ -614,7 +600,6 @@ open class WebClientActivity : ComponentActivity() {
 
     override fun onStop() {
         persistTabs()
-        transportHost?.setForeground(false)
         webView?.onPause()
         super.onStop()
     }
@@ -622,7 +607,6 @@ open class WebClientActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         webView?.onResume()
-        transportHost?.setForeground(pageForeground)
     }
 
     override fun onUserInteraction() {

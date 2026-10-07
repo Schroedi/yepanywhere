@@ -81,13 +81,16 @@ final class HostModel: ObservableObject {
         let session = try await connections.login(
           profileId: profile.id, route: profile.nativeRoute, username: profile.username,
           password: password, storage: persistence)
-        guard generation == token, !Task.isCancelled else { session.close(); return }
         do {
+          // Native's session only registers this installation; the document
+          // resumes the stored credential through the web transport.
+          defer { session.close() }
+          guard generation == token, !Task.isCancelled else { return }
           try await security.ensure(profile, session: session)
-          guard generation == token, !Task.isCancelled else { session.close(); return }
-          try show(profile, session: session)
-          adding = false; reauthenticate = nil
-        } catch { session.close(); throw error }
+          guard generation == token, !Task.isCancelled else { return }
+        }
+        try show(profile)
+        adding = false; reauthenticate = nil
       } catch {
         if generation == token {
           self.error =
@@ -117,19 +120,23 @@ final class HostModel: ObservableObject {
           profileId: profile.id, routes: [profile.nativeRoute], username: profile.username,
           credential: credential,
           storage: SavedCredential(store: store, profile: profile))
-        guard generation == token, !Task.isCancelled else { session.close(); return }
         do {
+          // Native resumes to verify the credential, register this
+          // installation and resolve a push route; the document then resumes
+          // the stored credential through the web transport.
+          defer { session.close() }
+          guard generation == token, !Task.isCancelled else { return }
           try await security.ensure(profile, session: session)
-          guard generation == token, !Task.isCancelled else { session.close(); return }
+          guard generation == token, !Task.isCancelled else { return }
           if let pushSessionID,
             let route = try await notifications.destination(
               profile.id, sessionID: pushSessionID, session: session, security: security)
           {
             try store.write("route." + profile.id, Data(route.utf8))
           }
-          guard generation == token, !Task.isCancelled else { session.close(); return }
-          try show(profile, session: session)
-        } catch { session.close(); throw error }
+          guard generation == token, !Task.isCancelled else { return }
+        }
+        try show(profile)
         reauthenticate = nil
       } catch {
         guard generation == token else { return }
@@ -145,7 +152,7 @@ final class HostModel: ObservableObject {
       if generation == token { busy = false; work = nil }
     }
   }
-  private func show(_ profile: HostProfile, session: NativeSourceLease) throws {
+  private func show(_ profile: HostProfile) throws {
     guard let root = Bundle.main.url(forResource: "web", withExtension: nil) else {
       throw BridgeFailure.closed
     }
@@ -156,18 +163,7 @@ final class HostModel: ObservableObject {
     guard let url = URL(string: BundledAssets.origin + route), url.scheme == BundledAssets.scheme,
       url.host == BundledAssets.host
     else { throw BridgeFailure.invalidCommand }
-    let source = RustSource(profile: profile, session: session)
-    source.checkIn = { [security] in try await security.ensure(profile, session: session) }
-    let bridge = NativeBridge(source: source)
-    bridge.reauthenticationRequired = { [weak self] revoked in
-      guard let self else { return }
-      self.switchHost(); try? self.store.forgetCredential(profile.id)
-      if revoked {
-        self.error = "This installation was revoked. Forget this host before pairing again."
-      } else {
-        self.reauthenticate = profile; self.error = "This host requires you to sign in again."
-      }
-    }
+    let bridge = NativeBridge(profileID: profile.id)
     bridge.routeChanged = { [store] route in
       try? store.write("route." + profile.id, Data(route.utf8))
     }

@@ -76,14 +76,17 @@ class YaHostSwitchInstrumentedTest {
                 hostCard(device).findObject(By.text("Open full app")).click()
                 try { waitFor { evaluate("document.body.textContent.includes('preview-project')") == "true" } }
                 catch (error: Throwable) {
-                    var diagnostics = ""
-                    main.onActivity { diagnostics = it.nativeTransportDiagnostics().toString() }
-                    throw AssertionError("manager=${manager.state.value}; native=$diagnostics", error)
+                    var profileId: String? = null
+                    main.onActivity { profileId = it.nativeDocumentProfileId() }
+                    throw AssertionError("manager=${manager.state.value}; documentProfile=$profileId", error)
                 }
-                runBlocking { withTimeout(10_000) { manager.state.first { it.phase == YaConnectionPhase.CONNECTED } } }
                 val identity = evaluate("performance.timeOrigin")
                 if (documentIdentity == null) documentIdentity = identity else assertEquals(documentIdentity, identity)
-                if (attempt == 1) {
+                // The document resumes the credential itself; native resumes
+                // only for its own work, which a lease stands in for here.
+                val nativeWork = if (attempt == 1) runBlocking { manager.acquire() } else null
+                if (nativeWork != null) {
+                    runBlocking { withTimeout(10_000) { manager.state.first { it.phase == YaConnectionPhase.CONNECTED } } }
                     control("resume-hold?enabled=true")
                     control("disconnect")
                     waitFor { control("resume-hold", false).getInt("heldResumes") > 0 }
@@ -93,10 +96,13 @@ class YaHostSwitchInstrumentedTest {
                 waitFor { evaluate("!!document.querySelector('.sidebar-switch-host')") == "true" }
                 evaluate("document.querySelector('.sidebar-switch-host').click(); true")
                 assertTrue(device.wait(Until.hasObject(By.text("Servers")), 5_000))
-                runBlocking { withTimeout(10_000) {
-                    manager.state.first { it.phase == YaConnectionPhase.IDLE }
-                    while (runtime.pairedServers.snapshot(profile.id)?.resumeCredential?.isEligibleAt(System.currentTimeMillis()) != true) delay(25)
-                } }
+                runBlocking {
+                    nativeWork?.releaseAndAwait()
+                    withTimeout(10_000) {
+                        manager.state.first { it.phase == YaConnectionPhase.IDLE }
+                        while (runtime.pairedServers.snapshot(profile.id)?.resumeCredential?.isEligibleAt(System.currentTimeMillis()) != true) delay(25)
+                    }
+                }
                 control("resume-hold?enabled=false")
                 instrumentation.waitForIdleSync()
                 waitFor { hostCard(device).hasObject(By.text("Idle")) }
@@ -105,9 +111,8 @@ class YaHostSwitchInstrumentedTest {
             }
             hostCard(device).findObject(By.text("Open full app")).click()
             waitFor { evaluate("document.body.textContent.includes('preview-project')") == "true" }
-            // The retained page is visible before transport finishes resuming.
-            runBlocking { withTimeout(10_000) { manager.state.first { it.phase == YaConnectionPhase.CONNECTED } } }
-            assertEquals(YaConnectionPhase.CONNECTED, manager.state.value.phase)
+            // The retained page reopens on its own credential, without a password.
+            assertEquals(documentIdentity, evaluate("performance.timeOrigin"))
         } catch (error: Throwable) {
             com.yepanywhere.mobile.UiFailureCapture.save("host-switch")
             throw error
@@ -150,7 +155,7 @@ class YaHostSwitchInstrumentedTest {
         while (System.nanoTime() < deadline) { if (condition()) return; Thread.sleep(50) }
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         UiDevice.getInstance(instrumentation).takeScreenshot(File(instrumentation.targetContext.getExternalFilesDir(null), "host-switch-failure.png"))
-        error("Host switch condition did not settle: " + evaluate("JSON.stringify({url:location.href, body:document.body.innerText.slice(0,1500), native:typeof window.yaNativeTransport})"))
+        error("Host switch condition did not settle: " + evaluate("JSON.stringify({url:location.href, body:document.body.innerText.slice(0,1500), native:typeof window.yaNative})"))
     }
     private fun evaluate(script: String): String {
         val result = AtomicReference("false")

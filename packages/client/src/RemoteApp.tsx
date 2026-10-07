@@ -35,7 +35,6 @@ import { RemoteCompatibilityNotices } from "./components/RemoteCompatibilityNoti
 import { StorageFilesystemBanner } from "./components/StorageFilesystemBanner";
 import { StartupShell } from "./components/StartupShell";
 import { ClientSummarySourceBinding } from "./contexts/ClientSummarySourceBinding";
-import { NativeConnectionProvider } from "./contexts/NativeConnectionProvider";
 import { NativeCredentialConnectionProvider } from "./contexts/NativeCredentialConnectionProvider";
 import {
   HostIdentityProvider,
@@ -385,27 +384,23 @@ function RemoteAppInner({ children }: Props) {
  * - SchemaValidationProvider (localStorage only, no connection needed)
  * - Connection-independent hooks (notify sync, log collection)
  */
-type ApplicationConnectionMode = "pending" | "credential" | "bridge" | "web";
-
-function fallbackConnectionMode(): ApplicationConnectionMode {
-  return window.yaNativeTransport ? "bridge" : "web";
-}
+type ApplicationConnectionMode = "pending" | "credential" | "web";
 
 /**
  * Bundled app documents connect with the native profile's credential when the
- * native host offers it, else through the older native data bridge. Browsers,
- * and native shells that expose neither, use the ordinary web login.
+ * native host offers it. Browsers, hosted app builds, and native shells that
+ * do not offer it use the ordinary web login.
  */
 function ApplicationConnectionProvider({ children }: Props) {
   const { t } = useI18n();
   const [mode, setMode] = useState<ApplicationConnectionMode>(() =>
-    window.yaNative ? "pending" : fallbackConnectionMode(),
+    window.yaNative ? "pending" : "web",
   );
   useEffect(() => {
     if (mode !== "pending") return;
     let active = true;
     void nativeHost.session.supported().then((supported) => {
-      if (active) setMode(supported ? "credential" : fallbackConnectionMode());
+      if (active) setMode(supported ? "credential" : "web");
     });
     return () => {
       active = false;
@@ -423,15 +418,6 @@ function ApplicationConnectionProvider({ children }: Props) {
           {children}
         </NativeCredentialConnectionProvider>
       );
-    case "bridge": {
-      const channel = window.yaNativeTransport;
-      if (!channel) throw new Error("Native data bridge disappeared");
-      return (
-        <NativeConnectionProvider channel={channel}>
-          {children}
-        </NativeConnectionProvider>
-      );
-    }
     case "web":
       return <RemoteConnectionProvider>{children}</RemoteConnectionProvider>;
   }

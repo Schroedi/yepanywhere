@@ -4,23 +4,6 @@ import WebKit
 @testable import YepAnywhere
 
 final class BridgeTests: XCTestCase {
-  func testFrameSequenceRejectsReplayAndOversize() throws {
-    var receiver = NativeFrameReceiver()
-    let chunk = Data(repeating: 42, count: NativeFrame.chunkLimit)
-    let first = try NativeFrame.encode(id: 1, offset: 0, total: chunk.count + 1, data: chunk)
-    XCTAssertNil(try receiver.accept(NativeFrame(first)))
-    XCTAssertThrowsError(try receiver.accept(NativeFrame(first)))
-    let last = try NativeFrame.encode(
-      id: 1, offset: chunk.count, total: chunk.count + 1, data: Data([7]))
-    let result = try receiver.accept(NativeFrame(last))
-    XCTAssertEqual(result?.1.count, chunk.count + 1)
-    XCTAssertEqual(result?.1.last, 7)
-    XCTAssertThrowsError(
-      try NativeFrame.encode(id: 1, offset: 0, total: NativeFrame.messageLimit + 1, data: Data([1]))
-    )
-    XCTAssertThrowsError(try NativeFrame(Data(repeating: 0, count: 17)))
-  }
-
   func testAssetsStayInsideBundleAndRoutesUseSPA() throws {
     let root = try XCTUnwrap(Bundle.main.url(forResource: "web", withExtension: nil))
     let assets = BundledAssets(root: root)
@@ -35,9 +18,21 @@ final class BridgeTests: XCTestCase {
   }
 
   @MainActor
-  func testBundledAppBootstrapsNativeTransportWithoutWebLogin() async throws {
-    let source = FixtureSource()
-    let bridge = NativeBridge(source: source)
+  func testBundledAppRequestsTheNativeCredentialWithoutWebLogin() async throws {
+    let profileID = UUID().uuidString
+    let requests = CredentialRequests()
+    let bridge = NativeBridge(profileID: profileID)
+    bridge.sessionCredential = {
+      requests.count += 1
+      // An unreachable route: the document stays mounted and offline.
+      return [
+        "profileId": profileID, "label": "Simulator fixture", "username": "fixture",
+        "sessionId": "fixture-session",
+        "sessionKey": Data(repeating: 7, count: 32).base64EncodedString(),
+        "resumeProtocolVersion": 3,
+        "routes": [["kind": "direct", "wsUrl": "wss://fixture.invalid/api/ws"]],
+      ]
+    }
     let root = try XCTUnwrap(Bundle.main.url(forResource: "web", withExtension: nil))
     let view = bridge.makeWebView(root: root)
     let scene = try XCTUnwrap(
@@ -52,12 +47,11 @@ final class BridgeTests: XCTestCase {
     defer { bridge.close(); window.isHidden = true }
     view.load(URLRequest(url: URL(string: "yepapp://bundle/")!))
     let deadline = Date().addingTimeInterval(20)
-    while source.requests == 0, Date() < deadline {
+    while requests.count == 0, Date() < deadline {
       try await Task.sleep(nanoseconds: 50_000_000)
     }
     XCTAssertGreaterThan(
-      source.requests, 0, "The shipped React application must issue native source requests")
-    XCTAssertGreaterThan(bridge.framesReceived, 0)
+      requests.count, 0, "The shipped React application must request the native credential")
     let body = try await view.evaluateJavaScript("document.body.textContent") as? String ?? ""
     XCTAssertFalse(body.contains("Sign in to your server"))
     XCTAssertFalse(bridge.closed)
@@ -67,7 +61,7 @@ final class BridgeTests: XCTestCase {
     attachment.name = "ios-bundled-app"; attachment.lifetime = .keepAlways
     add(attachment)
     bridge.close()
-    XCTAssertTrue(source.closed)
+    XCTAssertTrue(bridge.closed)
   }
 
   func testSessionCredentialEncodesTheStoredRustCredentialAndRoute() throws {
@@ -106,53 +100,20 @@ final class BridgeTests: XCTestCase {
 }
 
 @MainActor
-private final class FixtureSource: NativeSource {
-  let profileID = "fixture"
-  let label = "Simulator fixture"
-  var requests = 0
-  var closed = false
-  private var waiter: CheckedContinuation<Data, Error>?
-
-  func dispatch(method: String, params: Data) async throws -> Data {
-    requests += 1
-    let p = try JSONSerialization.jsonObject(with: params) as? [String: Any] ?? [:]
-    let path = p["path"] as? String ?? ""
-    let body: Any
-    if path.contains("projects") {
-      body = ["projects": []]
-    } else if path.contains("sessions") {
-      body = ["sessions": []]
-    } else if path.contains("providers") {
-      body = ["providers": []]
-    } else if path.contains("version") {
-      body = [
-        "current": "0.9.2", "latest": NSNull(), "updateAvailable": false,
-        "resumeProtocolVersion": 3,
-      ]
-    } else {
-      body = [:]
-    }
-    let result: Any = method == "request" ? ["status": 200, "headers": [:], "body": body] : [:]
-    return try JSONSerialization.data(withJSONObject: result)
-  }
-  func upload(_ payload: Data) async throws {}
-  func nextEvent() async throws -> Data {
-    try await withCheckedThrowingContinuation { waiter = $0 }
-  }
-  func close() { closed = true; waiter?.resume(throwing: BridgeFailure.closed); waiter = nil }
+private final class CredentialRequests {
+  var count = 0
 }
 
 @MainActor
 final class BridgeOwnershipTests: XCTestCase {
-  func testUploadAckWaitsForNativeConsumptionAndStaleTokenIsIgnored() async throws {
+  func testStaleDocumentTokenIsIgnoredAndBlobMediaLoads() async throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-    try Data("<html><head></head><body>Transport fixture</body></html>".utf8).write(
+    try Data("<html><head></head><body>Control fixture</body></html>".utf8).write(
       to: root.appendingPathComponent("remote.html"))
     defer { try? FileManager.default.removeItem(at: root) }
-    let started = expectation(description: "Native upload consumer received the frame")
-    let source = HeldUploadSource(); source.started = { started.fulfill() }
-    let bridge = NativeBridge(source: source); let view = bridge.makeWebView(root: root)
+    let bridge = NativeBridge(profileID: UUID().uuidString)
+    let view = bridge.makeWebView(root: root)
     let scene = try XCTUnwrap(
       UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
     let window = UIWindow(windowScene: scene); window.frame = UIScreen.main.bounds
@@ -163,36 +124,20 @@ final class BridgeOwnershipTests: XCTestCase {
     var ready = false
     for _ in 0..<500 {
       if (try? await view.evaluateJavaScript(
-        "location.protocol === 'yepapp:' && document.readyState === 'complete' && !!window.yaNativeTransport"
+        "location.protocol === 'yepapp:' && document.readyState === 'complete' && !!window.yaNative"
       )) as? Bool == true {
         ready = true; break
       }
       try await Task.sleep(nanoseconds: 10_000_000)
     }
-    XCTAssertTrue(ready, "The fixture document must finish loading its document-scoped bridge")
+    XCTAssertTrue(ready, "The fixture document must finish loading its document-scoped host")
+    // A message from a retired document is ignored rather than tearing down
+    // the current document's host.
     _ = try await view.evaluateJavaScript(
-      "window.qaAck=false;window.yaNativeTransport.onmessage=e=>{if(e.data.startsWith('ack:'))window.qaAck=true};true"
+      "window.webkit.messageHandlers.ya.postMessage({document:'retired-token',channel:'control',data:'invalid'});true"
     )
-    var frame = try NativeFrame.encode(
-      id: 1, offset: 0, total: 25, data: Data(repeating: 1, count: 25));
-    frame[3] = 2
-    _ = try await view.callAsyncJavaScript(
-      "window.yaNativeTransport.postMessage(data);return true",
-      arguments: ["data": "frame:" + frame.base64EncodedString()], in: nil, contentWorld: .page)
-    await fulfillment(of: [started], timeout: 10)
-    let early = try await view.evaluateJavaScript("window.qaAck") as? Bool
-    XCTAssertEqual(early, false, "Acknowledgement must follow native upload consumption")
-    source.release()
-    var acknowledged = false
-    for _ in 0..<100 {
-      acknowledged = (try await view.evaluateJavaScript("window.qaAck")) as? Bool ?? false
-      if acknowledged { break }; try await Task.sleep(nanoseconds: 10_000_000)
-    }
-    XCTAssertTrue(acknowledged); XCTAssertEqual(bridge.framesReceived, 1)
-    _ = try await view.evaluateJavaScript(
-      "window.webkit.messageHandlers.ya.postMessage({document:'retired-token',channel:'source',data:'invalid'});true"
-    )
-    XCTAssertFalse(bridge.closed); XCTAssertEqual(bridge.framesReceived, 1)
+    try await Task.sleep(nanoseconds: 100_000_000)
+    XCTAssertFalse(bridge.closed)
     // A short PCM WAV proves the real bundled origin can load Blob media.
     let media = try await view.callAsyncJavaScript(
       "const bytes=new Uint8Array(8044);const v=new DataView(bytes.buffer);const text=(s,p)=>[...s].forEach((c,i)=>bytes[p+i]=c.charCodeAt(0));text('RIFF',0);v.setUint32(4,8036,true);text('WAVEfmt ',8);v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);v.setUint32(24,8000,true);v.setUint32(28,16000,true);v.setUint16(32,2,true);v.setUint16(34,16,true);text('data',36);v.setUint32(40,8000,true);const url=URL.createObjectURL(new Blob([bytes],{type:'audio/wav'}));const audio=new Audio(url);try{return await new Promise((resolve,reject)=>{audio.onloadedmetadata=()=>resolve(audio.duration);audio.onerror=()=>reject(new Error('Media metadata failed'));audio.load()})}finally{URL.revokeObjectURL(url)}",
@@ -208,20 +153,4 @@ final class BridgeOwnershipTests: XCTestCase {
       XCTAssertThrowsError(try BundledAssets(root: root).resource(URL(string: "yepapp://bundle/")!))
     }
   }
-}
-@MainActor
-private final class HeldUploadSource: NativeSource {
-  let profileID = UUID().uuidString
-  let label = "Upload fixture"
-  var started: () -> Void = {}
-  private var pending: CheckedContinuation<Void, Error>?
-  func dispatch(method: String, params: Data) async throws -> Data { Data("{}".utf8) }
-  func upload(_ payload: Data) async throws {
-    try await withCheckedThrowingContinuation {
-      pending = $0; started()
-    }
-  }
-  func nextEvent() async throws -> Data { throw BridgeFailure.closed }
-  func release() { pending?.resume(); pending = nil }
-  func close() { pending?.resume(throwing: BridgeFailure.closed); pending = nil }
 }
