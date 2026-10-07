@@ -62,19 +62,7 @@ class WebClientActivityTest {
             awaitJavaScript(scenario, "document.readyState", "\"complete\"")
             assertEquals("\"object\"", evaluateJavaScript(scenario, "typeof window.yaNative"))
 
-            evaluateJavaScript(
-                scenario,
-                """
-                window.__yaNativeTestResponse = null;
-                window.yaNative.onmessage = (event) => {
-                  window.__yaNativeTestResponse = event.data;
-                };
-                window.yaNative.postMessage(
-                  '{"protocol":1,"id":"device-test","method":"host.describe"}'
-                );
-                true;
-                """.trimIndent(),
-            )
+            postNativeMethod(scenario, "device-test", "host.describe")
 
             awaitJavaScript(
                 scenario,
@@ -383,23 +371,7 @@ class WebClientActivityTest {
         scenario: ActivityScenario<WebClientActivity>,
         requestId: String,
     ) {
-        evaluateJavaScript(
-            scenario,
-            """
-            window.__yaNativeTestResponse = null;
-            window.yaNative.onmessage = (event) => {
-              window.__yaNativeTestResponse = event.data;
-            };
-            window.yaNative.postMessage(
-              JSON.stringify({
-                protocol: 1,
-                id: ${jsonString(requestId)},
-                method: "host.describe"
-              })
-            );
-            true;
-            """.trimIndent(),
-        )
+        postNativeMethod(scenario, requestId, "host.describe")
         awaitJavaScript(
             scenario,
             """
@@ -429,13 +401,21 @@ class WebClientActivityTest {
         requestId: String,
         method: String,
     ) {
+        // The web client binds yaNative.onmessage for its own requests once its
+        // app chunk loads, which can follow document completion. Listen
+        // alongside it and keep only this request's reply.
         evaluateJavaScript(
             scenario,
             """
             window.__yaNativeTestResponse = null;
-            window.yaNative.onmessage = (event) => {
+            window.yaNative.addEventListener("message", (event) => {
+              try {
+                if (JSON.parse(event.data).id !== ${jsonString(requestId)}) return;
+              } catch {
+                return;
+              }
               window.__yaNativeTestResponse = event.data;
-            };
+            });
             window.yaNative.postMessage(
               JSON.stringify({
                 protocol: 1,
