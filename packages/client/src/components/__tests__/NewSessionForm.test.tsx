@@ -33,6 +33,10 @@ import {
 } from "../../lib/speechProviders/methods";
 import { api } from "../../api/client";
 import { UI_KEYS } from "../../lib/storageKeys";
+import {
+  ConnectionReconnectingError,
+  WebSocketCloseError,
+} from "../../lib/connection/types";
 import { NewSessionForm } from "../NewSessionForm";
 
 const {
@@ -2649,6 +2653,94 @@ describe("NewSessionForm", () => {
         undefined,
       );
     });
+  });
+
+  it.each([
+    [false, new ConnectionReconnectingError(), null],
+    [true, new ConnectionReconnectingError(), null],
+    [false, new WebSocketCloseError(1006, ""), null],
+    [true, new WebSocketCloseError(1006, ""), null],
+    [
+      false,
+      new Error("API error: 404: Not found"),
+      "sessionDraftAttachmentsValidationFailed",
+    ],
+    [
+      true,
+      new Error("API error: 404: Not found"),
+      "sessionDraftAttachmentsValidationFailed",
+    ],
+    [
+      false,
+      new WebSocketCloseError(4001, "Sign-in required"),
+      "sessionDraftAttachmentsValidationFailed",
+    ],
+    [
+      true,
+      new WebSocketCloseError(4001, "Sign-in required"),
+      "sessionDraftAttachmentsValidationFailed",
+    ],
+  ] as const)(
+    "retains draft attachments after failed validation (sync=%s, %s)",
+    async (syncEnabled, error, notice) => {
+      versionState.version = {
+        capabilities: [
+          PROJECT_QUEUE_CAPABILITY,
+          ...(syncEnabled ? [SERVER_CAPABILITIES.draftSync.name] : []),
+        ],
+      };
+      draftAttachmentState.value = {
+        batchId: stagedRef.batchId,
+        refs: [stagedRef],
+        updatedAt: stagedRef.updatedAt,
+      };
+      mockConnectionFetch.mockRejectedValue(error);
+      render(
+        <NewSessionForm
+          projectId="project-1"
+          selectedProject={chooserProjects[0]}
+          projects={[...chooserProjects]}
+        />,
+      );
+      await waitFor(() =>
+        expect(mockConnectionFetch).toHaveBeenCalledWith(
+          `/attachments/staging/drafts/${stagedRef.batchId}/validate`,
+          expect.anything(),
+        ),
+      );
+      expect(draftAttachmentState.value?.refs).toEqual([stagedRef]);
+      if (notice) expect(mockShowToast).toHaveBeenCalledWith(notice, "info");
+      else expect(mockShowToast).not.toHaveBeenCalled();
+      expect(screen.getByText("notes.txt")).toBeTruthy();
+    },
+  );
+
+  it("still reports attachments the server confirms missing", async () => {
+    versionState.version = {
+      capabilities: [
+        PROJECT_QUEUE_CAPABILITY,
+        SERVER_CAPABILITIES.draftSync.name,
+      ],
+    };
+    draftAttachmentState.value = {
+      batchId: stagedRef.batchId,
+      refs: [stagedRef],
+      updatedAt: stagedRef.updatedAt,
+    };
+    mockConnectionFetch.mockResolvedValue({ refs: [] });
+    render(
+      <NewSessionForm
+        projectId="project-1"
+        selectedProject={chooserProjects[0]}
+        projects={[...chooserProjects]}
+      />,
+    );
+    await waitFor(() =>
+      expect(mockShowToast).toHaveBeenCalledWith(
+        "sessionDraftAttachmentsUnavailable",
+        "info",
+      ),
+    );
   });
 
   it("stages selected new-session files into the draft envelope", async () => {

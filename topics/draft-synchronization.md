@@ -200,8 +200,12 @@ rollback leaves originals untouched. Copies remain ordinary indexed staging
 records across interruption. No project-local writes are introduced; the
 [attachment storage](attachment-storage.md) policy still applies.
 
-A failed revalidation or a missing file retains the synced reference and shows
-an unavailable notice instead of silently erasing it. Sending still validates
+A failed validation request retains draft references and visible attachment
+chips, including the browser-local fallback on older servers. Connection
+replacement and retryable socket closure are quiet; other failures explain that
+the check failed and the draft was kept. None proves that a file is missing.
+A completed validation reporting a missing file retains the synced reference
+and shows an unavailable notice instead of silently erasing it. Sending still validates
 attachments; users can remove unavailable references explicitly. Upload bytes
 that never completed are not promised to survive a browser reload.
 

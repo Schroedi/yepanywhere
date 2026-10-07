@@ -193,6 +193,7 @@ import {
 } from "../components/FilePathLink";
 import {
   deleteDraftAttachmentRef,
+  isInterruptedDraftAttachmentValidation,
   validateDraftAttachmentRefs,
 } from "../lib/draftAttachmentStaging";
 import { draftTextIsAccountedFor } from "../lib/draftSendReconcile";
@@ -4600,20 +4601,14 @@ function SessionPageContent({
         ) {
           return;
         }
-        if (syncEnabled) {
-          showToast(t("sessionDraftAttachmentsUnavailable"), "info");
-          return;
-        }
-        console.warn(
-          "[SessionPage] Failed to validate draft attachments:",
-          err,
-        );
-        controls.setAttachmentState(null);
-        setComposerAttachments([], {
+        // An interrupted validation says nothing about whether the file exists.
+        // Keep its chip too; sending still requires server materialization.
+        setComposerAttachments(state.refs, {
           persistDraft: false,
           revokeRemovedPreviewUrls: true,
         });
-        showToast(t("sessionDraftAttachmentsUnavailable"), "info");
+        if (!isInterruptedDraftAttachmentValidation(err))
+          showToast(t("sessionDraftAttachmentsValidationFailed"), "info");
       }
     },
     [

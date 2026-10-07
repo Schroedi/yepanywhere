@@ -175,6 +175,7 @@ import { storeUploadedAttachmentPreview } from "../lib/attachmentPreviewCache";
 import type { DraftAttachmentState } from "../lib/draftEnvelope";
 import {
   deleteDraftAttachmentRef,
+  isInterruptedDraftAttachmentValidation,
   materializeDraftAttachmentsForSession,
   validateDraftAttachmentRefs,
 } from "../lib/draftAttachmentStaging";
@@ -881,26 +882,18 @@ export function NewSessionForm({
       ) {
         return;
       }
-      if (syncEnabled) {
-        showToast(t("sessionDraftAttachmentsUnavailable"), "info");
-        return;
-      }
-      console.warn(
-        "[NewSessionForm] Failed to validate draft attachments:",
-        err,
-      );
-      draftControls.setAttachmentState(null);
+      // Reconnection is not evidence that the staged file disappeared.
       setPendingFiles(
-        (prev) =>
-          prev.some(isPendingStagedFile)
-            ? prev.filter((file) => !isPendingStagedFile(file))
-            : prev,
-        {
-          persistDraft: false,
-          revokeRemovedPreviewUrls: true,
-        },
+        (prev) => [
+          ...prev.filter((file) => !isPendingStagedFile(file)),
+          ...state.refs.map(
+            (ref): PendingStagedFile => ({ ...ref, kind: "staged" }),
+          ),
+        ],
+        { persistDraft: false, revokeRemovedPreviewUrls: true },
       );
-      showToast(t("sessionDraftAttachmentsUnavailable"), "info");
+      if (!isInterruptedDraftAttachmentValidation(err))
+        showToast(t("sessionDraftAttachmentsValidationFailed"), "info");
     }
   }, [
     sourceTransport,

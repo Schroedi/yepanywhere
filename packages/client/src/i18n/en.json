@@ -1498,6 +1498,7 @@
   "sessionQueueFailed": "Failed to queue message: {message}",
   "attachmentOnlyRequiresServerUpdate": "Update this YA server to send an attachment without accompanying text.",
   "sessionDraftAttachmentsUnavailable": "Draft attachments were no longer available.",
+  "sessionDraftAttachmentsValidationFailed": "Could not check draft attachments. Your draft has been kept.",
   "composerAttachmentUploadFailed": "An attachment failed to upload. Attach it again before sending.",
   "sessionThinkingChangeFailed": "Failed to change thinking: {message}",
   "sessionDeferredCancelFailed": "Failed to cancel queued message: {message}",

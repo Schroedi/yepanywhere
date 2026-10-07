@@ -52,7 +52,7 @@ that distinction rather than claiming the tab restored automatically.
 | Draft-sync notice after a silent stall | Clears within the extended 30-second healthy observation | No stuck-sync defect established |
 | Real FCM, absent app process, asleep screen, online tap | Pass with corrected observer; opens the session and retains its draft | Web Push delivery/service-worker routing not exercised |
 | Same notification tapped while server sockets are refused | Fails 2/2 before repair: Inbox recovers but the destination is lost for the entire three-minute window | Cold URL reopening during outage is a partial comparison and recovers |
-| Attachment validation interrupted in flight | Candidate repair passes after fixing the fixture and targeting validation specifically | Connection rejection is a raw `WebSocketCloseError`; the existing raw page-error gap also reproduces |
+| Attachment validation interrupted in flight | Pass after repair, with complete fixture and validation targeted specifically | Connection rejection is a raw `WebSocketCloseError`; the existing raw page-error gap also reproduces |
 
 A 30-second Chrome capture initially looked stuck on Host Unreachable; the
 longer observation proved automatic recovery. No permanent-failure defect is
@@ -101,7 +101,11 @@ changes. This is a bounded shared UI/data-preservation correction.
 The browser's separate [raw socket-error gap](../../gaps/browser-reconnect-shows-raw-websocket-error.md)
 still reproduces when page reads are interrupted. It predates this round and is
 kept as baseline behavior; attachment validation must not disguise that remaining
-page-error failure as a clean whole-page pass.
+page-error failure as a clean whole-page pass. The final minified Android APK
+passes validation interrupted in flight and attachment wake into outage; stock
+emulator Chrome also passes the matched attachment wake. The Android wake
+needed about 57 seconds of passive recovery in this run, so this is evidence
+of eventual recovery, not instant reconnection.
 
 ### Android discards an offline notification tap
 

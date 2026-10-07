@@ -89,8 +89,9 @@ the viewer/download gap remain the next mobile release work.
   Explicit recoverability, platform network signals, abandoned-subscription
   cleanup and page catch-up acceptance are implemented. The
   [second emulator hardening round](../testing/android-lifecycle-hardening-2026-10-07.md)
-  finds shared draft-attachment warnings and lost offline notification taps;
-  these block handoff, and the internal release was gated off by instrumentation.
+  repairs shared draft-attachment preservation after failed validation and
+  corrects missing fixture routes. Lost offline notification taps still block
+  handoff; the prior internal release was gated off by instrumentation.
   Native remains the sole app connection owner;
   the shared conformance suite and repairs are not yet complete.
 
