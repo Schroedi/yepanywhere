@@ -116,9 +116,10 @@ pnpm --filter @yep-anywhere/client exec vitest run \
 
 The first command checks the fault controller. The second deliberately exits
 nonzero on the current source: retry exhaustion is exposed as `disconnected`
-instead of the promised `reconnecting`. Its two other tests establish the
-60-second backstop and show that an HTTP-shaped native 503 bypasses read retry.
-The latter is characterization, not permission to retry genuine server 503s.
+instead of the promised `reconnecting`. Its other test establishes the
+60-second backstop. The fabricated-503 repair now has normal Kotlin and
+`NativeSourceTransport.test.ts` coverage, including error/state ordering,
+abandoned operations, mutation non-replay and genuine server 503 preservation.
 These explicit reproductions are outside ordinary `pnpm test`; they are not
 silently converted to passing expectations or retries. Move repaired acceptance
 cases into the normal suite as the relevant fixes land.

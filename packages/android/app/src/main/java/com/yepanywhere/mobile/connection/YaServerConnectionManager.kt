@@ -63,6 +63,17 @@ class YaApiException(val response: YaApiResponse) :
 class YaConnectionUnavailableException(message: String, cause: Throwable? = null) :
     IllegalStateException(message, cause)
 
+internal enum class YaNativeRequestFailure(val description: String) {
+    CONNECTION_UNAVAILABLE("Native connection unavailable"),
+    TIMEOUT("Native request timed out"),
+    OVERFLOW("Native request limit exceeded"),
+    INVALID_MESSAGE("Invalid or unauthenticated native message"),
+    REAUTHENTICATION_REQUIRED("Native sign-in required"),
+}
+
+internal class YaNativeRequestException(val failure: YaNativeRequestFailure) :
+    IllegalStateException(failure.description)
+
 class YaSubscriptionOverflowException :
     IllegalStateException("Native subscription consumer fell behind")
 
@@ -648,6 +659,14 @@ class YaServerConnectionManager(
                         }
                     }
                     "FAILED", "REAUTHENTICATION_REQUIRED" -> throw YaRustTerminalException(YaConnectionPhase.valueOf(message.getString("phase")))
+                }
+            }
+            "requestError" -> {
+                val id = message.getString("id")
+                val failure = YaNativeRequestFailure.valueOf(message.getString("code"))
+                mutex.withLock {
+                    if (connectionGeneration != generation || connection?.transport !== transport) return
+                    pendingRequests.remove(id)?.completeExceptionally(YaNativeRequestException(failure))
                 }
             }
             "response" -> {

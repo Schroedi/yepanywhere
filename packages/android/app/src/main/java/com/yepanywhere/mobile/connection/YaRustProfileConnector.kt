@@ -56,7 +56,7 @@ internal object YaRustTls {
 
 class YaRustTerminalException(val phase: YaConnectionPhase) : IllegalStateException("Native Rust connection ended")
 
-/** Logcat tag for responses native fabricates when no server answered. */
+/** Historical regression tag; request failures now use typed operation errors. */
 const val SYNTHETIC_RESPONSE_TAG = "YaSyntheticResponse"
 
 class YaRustProfileConnector(private val repository: YaPairedServerRepository) : YaProfileConnector, Closeable {
@@ -234,11 +234,15 @@ internal class YaRustMessageTransport(
                         incoming.send(response)
                     } catch (error: CancellationException) { throw error }
                     catch (error: CoreException) {
-                        // Names the native failure behind each synthetic 503
-                        // (gaps/android-native-unavailable-fake-503.md).
-                        android.util.Log.w(SYNTHETIC_RESPONSE_TAG, "Synthetic 503 for native ${error.javaClass.simpleName}")
-                        incoming.send(JSONObject().put("type", "response").put("id", id).put("status", 503)
-                            .put("headers", JSONObject()).put("body", JSONObject().put("error", "Native connection unavailable")))
+                        val failure = when (error) {
+                            is CoreException.Unavailable, is CoreException.Closed -> YaNativeRequestFailure.CONNECTION_UNAVAILABLE
+                            is CoreException.Timeout -> YaNativeRequestFailure.TIMEOUT
+                            is CoreException.Overflow -> YaNativeRequestFailure.OVERFLOW
+                            is CoreException.InvalidMessage -> YaNativeRequestFailure.INVALID_MESSAGE
+                            is CoreException.ReauthenticationRequired -> YaNativeRequestFailure.REAUTHENTICATION_REQUIRED
+                        }
+                        // No server answered. Preserve an operation failure, never an HTTP status.
+                        incoming.send(JSONObject().put("type", "requestError").put("id", id).put("code", failure.name))
                     } finally { requests.remove(id, slot) }
                 }
                 slot.job = job

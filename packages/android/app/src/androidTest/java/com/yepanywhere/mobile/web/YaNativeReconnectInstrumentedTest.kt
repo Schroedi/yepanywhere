@@ -86,9 +86,7 @@ class YaNativeReconnectInstrumentedTest {
         session.assertRecoveredWithoutSyntheticErrors()
     }
 
-    // Red on an API 35 emulator (3/3): native fabricates Unavailable 503s for
-    // the pending requests. Un-ignore with the fix.
-    @Ignore("gaps/android-native-unavailable-fake-503.md")
+    // Originally red on an API 35 emulator: pending requests became fake 503s.
     @Test
     fun requestsInFlightWhenNativeDisconnectsShowNoSyntheticServerErrors() = withLoadedSession("in-flight", directOnly = true) { session ->
         // Keep the page's requests pending at the server, then drop native's socket.
@@ -190,9 +188,7 @@ class YaNativeReconnectInstrumentedTest {
         session.assertRecoveredWithoutSyntheticErrors()
     }
 
-    // Red on an API 35 emulator: the stuck wake above, and one synthetic
-    // Unavailable 503 at screen-off. Un-ignore with the fixes.
-    @Ignore("gaps/android-native-gives-up-after-wake-outage.md, gaps/android-native-unavailable-fake-503.md")
+    // Refresh after exhausted wake recovery must not fabricate server errors.
     @Test
     fun refreshingAfterAFailedWakeShowsNoSyntheticServerErrors() = withLoadedSession("wake-outage-refresh", directOnly = true) { session ->
         // As above, then the user refreshes once the network is back.

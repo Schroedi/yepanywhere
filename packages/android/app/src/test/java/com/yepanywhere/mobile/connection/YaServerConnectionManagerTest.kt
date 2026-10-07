@@ -35,6 +35,31 @@ import org.junit.Test
 
 class YaServerConnectionManagerTest {
     @Test
+    fun requestErrorCrossesTheWebBridgeWithoutBecomingHttp() = runBlocking {
+        val fixture = Fixture()
+        val transport = FakeTransport(fixture.credential)
+        fixture.connector.results.send(Result.success(transport))
+        val manager = fixture.manager()
+        val lease = manager.acquire()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        val emitted = CopyOnWriteArrayList<JSONObject>()
+        val web = YaWebTransportSession("document", lease, scope, { emitted += it }) {}
+        try {
+            web.dispatch(JSONObject().put("handle", "document").put("id", "read").put("method", "request")
+                .put("params", JSONObject().put("method", "GET").put("path", "/projects")))
+            val request = transport.awaitSent("request")
+            transport.incoming.send(JSONObject().put("type", "requestError").put("id", request.getString("id"))
+                .put("code", "CONNECTION_UNAVAILABLE"))
+            withTimeout(2_000) { while (emitted.none { it.optString("id") == "read" }) delay(1) }
+            val reply = emitted.first { it.optString("id") == "read" }
+            assertEquals("CONNECTION_UNAVAILABLE", reply.getString("errorCode"))
+            assertFalse(reply.has("result"))
+            assertEquals(YaConnectionPhase.CONNECTED, manager.state.value.phase)
+            assertFalse(transport.cancelled)
+        } finally { web.close(); scope.cancel(); manager.shutdownAndAwait() }
+    }
+
+    @Test
     fun uploadInterruptedByRecoveryDoesNotCloseWebDocument() = runBlocking {
         val fixture = Fixture()
         val first = FakeTransport(fixture.credential)

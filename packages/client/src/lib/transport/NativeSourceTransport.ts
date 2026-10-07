@@ -15,6 +15,7 @@ import {
 } from "../connection/types";
 import {
   NativeTransportBridge,
+  NativeOperationError,
   type NativeTransportChannel,
 } from "../nativeTransportBridge";
 import {
@@ -261,6 +262,19 @@ export class NativeSourceTransport implements SourceTransport, Connection {
             (error: Error) => {
               const pending = this.protocol.pendingRequests.get(message.id);
               if (pending) {
+                if (
+                  error instanceof NativeOperationError &&
+                  error.code === "CONNECTION_UNAVAILABLE"
+                ) {
+                  // The operation reply can beat native's state notification.
+                  // Admit the safe-read retry only after native is ready again.
+                  // An abandoned request cannot regress a newer ready state.
+                  if (this.phase === "CONNECTED" && this.canRecover()) {
+                    this.setPhase("RETRYING");
+                    return; // The ready-to-retrying transition rejected pending work.
+                  }
+                  error = new ConnectionReconnectingError();
+                }
                 clearTimeout(pending.timeout);
                 this.protocol.pendingRequests.delete(message.id);
                 pending.reject(error);

@@ -37,25 +37,4 @@ describe("native lifecycle: observed behavior and explicit red acceptance cases"
     // Source transport contract: retry exhaustion is not terminal disconnect.
     expect(source.status.getSnapshot().state).toBe("reconnecting");
   });
-
-  it("demonstrates that a fabricated 503 bypasses read recovery before retry state arrives", async () => {
-    const { host, source } = await setup();
-    let reads = 0;
-    host.handler = () => {
-      reads++;
-      // Captured Kotlin connector behavior, not an actual YA HTTP response.
-      // Native's phase notification can arrive after this operation reply.
-      if (reads === 1)
-        return {
-          status: 503,
-          headers: {},
-          body: { error: "Native connection unavailable" },
-        };
-      return { status: 200, headers: {}, body: { recovered: true } };
-    };
-    // Characterization, not desired acceptance: the bridge must stop creating
-    // this HTTP-shaped reply. Teaching the client to retry real 503s is wrong.
-    await expect(source.fetch("/projects")).rejects.toThrow("API error: 503");
-    expect(reads).toBe(1);
-  });
 });

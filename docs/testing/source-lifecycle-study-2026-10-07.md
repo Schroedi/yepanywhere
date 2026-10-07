@@ -6,9 +6,10 @@ does eventually recover from the wake/outage case, but can leave a visible page
 waiting nearly a minute. Typing after connectivity returns causes much faster
 recovery. The browser has its own temporary error messages in these experiments.
 
-This is an investigation and working comparison harness, not a completed repair
-or a release acceptance claim. No production transport implementation changed.
-The native connection remains the Android app's only authenticated connection.
+The initial study below changed no production transport implementation and is
+not release acceptance. The first repair is recorded at the end of this report;
+the original observations remain the baseline. Native remains the Android
+app's only authenticated connection.
 
 ## What was exercised
 
@@ -102,8 +103,9 @@ Disconnecting while the session's initial reads are pending produces the exact
 `API error: 503: Native connection unavailable` text in the actual WebView.
 Rust fails pending work, Kotlin manufactures an HTTP response, and the page
 receives that response before the later reconnect state can rescue the read.
-The [existing gap](../../gaps/android-native-unavailable-fake-503.md) describes
-the source path. A lower-level characterization reproduces why the client does
+The original `android-native-unavailable-fake-503` gap, now retired by the
+first repair below, recorded the source path. A lower-level characterization
+reproduced why the client did
 not retry this HTTP-shaped failure. It is **not** a reason to retry genuine
 server 503 responses indiscriminately.
 
@@ -289,3 +291,68 @@ are retained in the final smoke result. The owned emulator was shut down after
 verification. Local check logs are
 under `tasks/source-lifecycle-study/`; the broad workspace check logs from the
 investigation are also retained under `/tmp/ya-lifecycle-*` on this host.
+
+## First repair: native request errors (2026-10-07)
+
+After the maintainer approved proceeding, the Kotlin connector stopped creating
+HTTP responses for Rust request failures. A request-specific error now passes
+through the connection manager and WebView bridge, retaining a machine-readable
+code. The JavaScript adapter recognizes connection loss without matching text;
+safe reads wait for native readiness and retry once. Writes and uploads are not
+automatically replayed. Timeouts, overload, invalid messages and authentication
+errors keep separate codes; actual HTTP responses retain their meaning.
+The additive bridge contract is documented in
+[mobile server pairing](../../topics/mobile-server-pairing.md#implemented-bridge-contract).
+
+The same real-app pending-read recipe now has zero observed page errors and
+zero synthetic-response logs on direct and mux routes. Updated content was
+observed at approximately one second after restoration in both runs; drafts
+survived. These are observations, not a new timing guarantee. Evidence under
+`tasks/source-lifecycle-study/`:
+
+- `2026-10-07T17-12-34-284Z-android-direct-session-in-flight`
+- `2026-10-07T17-13-55-904Z-android-mux-session-in-flight`
+- `2026-10-07T17-21-38-788Z-android-direct-session-in-flight` (final-build repeat)
+
+The post-change real-browser comparison at
+`2026-10-07T17-17-25-811Z-browser-direct-session-in-flight` still displays the
+known brief code 1006 error. This native repair does not claim to fix it.
+
+Regression coverage now lives in the normal suites. Kotlin tests exercise all
+six Rust failure variants, preserve a genuine 503's headers/body, and verify
+that a request failure crosses the actual manager/WebView-session boundary.
+Client tests cover failure-before-state, state-before-late-failure, cancellation,
+non-replay of mutations, unknown error codes and genuine server 503s. The
+in-flight and refresh-after-failed-wake Android acceptance tests are re-enabled.
+The original fake-503 gap is retired; its baseline evidence remains above and
+in Git history.
+
+All 101 Android JVM tests passed. The workspace suites passed, including 6782
+client and 6447 server tests (63 server tests skipped). Lint, formatting, type
+checking and console scan passed. The focused browser bridge regressions passed
+both sizes, with no lost keys. The direct reconnect class passed its re-enabled
+cases alongside screen-off, Doze, reload, held reconnect and slow-request cases.
+The minified debug probe intentionally produces Gradle's debuggable/minification
+configuration notice; no production warning suppression was introduced.
+
+The final full mux live invocation passed, including the native WebView and
+100 MiB runtime/upload checks. Direct reconnect results contain 10 passed cases,
+one known ignored wake-recovery defect and the opt-in study assumption skip.
+Mux results contain seven passed cases, one known ignored defect and six
+direct-only/opt-in assumption skips. Preserve that distinction from JUnit's
+printed totals. Logs: `fix-live-direct.log` and `fix-live-mux.log` under the
+study artifact directory.
+
+The diagnostic unit suite still deliberately fails on recoverable exhaustion
+being reported as disconnected. It now contains that case plus the passing
+60-second-backstop characterization; repaired request cases moved into normal
+coverage. The long passive wake wait and the browser's raw socket error remain
+separate open repairs. This change adds neither a new reconnect timer nor a
+second connection owner, and does not claim iOS device or physical-phone
+acceptance.
+
+Source review also found a separate
+[subscription error encoding gap](../../gaps/native-subscription-errors-use-synthetic-statuses.md).
+This repair covers request replies; subscription setup still needs its own
+reproduction and typed failure handling. No new subscription banner is claimed
+from source inspection alone.

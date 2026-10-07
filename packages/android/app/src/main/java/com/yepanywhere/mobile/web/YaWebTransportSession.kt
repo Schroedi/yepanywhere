@@ -3,6 +3,9 @@ package com.yepanywhere.mobile.web
 import com.yepanywhere.mobile.connection.YaApiException
 import com.yepanywhere.mobile.connection.YaConnectionLease
 import com.yepanywhere.mobile.connection.YaSubscription
+import com.yepanywhere.mobile.connection.YaConnectionUnavailableException
+import com.yepanywhere.mobile.connection.YaNativeRequestException
+import com.yepanywhere.mobile.connection.YaNativeRequestFailure
 import java.io.Closeable
 import java.nio.ByteBuffer
 import java.util.UUID
@@ -72,7 +75,13 @@ class YaWebTransportSession(
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
+                val code = when (error) {
+                    is YaNativeRequestException -> error.failure.name
+                    is YaConnectionUnavailableException -> YaNativeRequestFailure.CONNECTION_UNAVAILABLE.name
+                    else -> null
+                }
                 emit(JSONObject().put("type", "reply").put("id", id)
+                    .put("errorCode", code)
                     .put("error", error.message ?: "Native source operation failed"))
             }
         }

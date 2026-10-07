@@ -7,8 +7,50 @@ import org.junit.Assert.*
 import org.junit.Test
 import uniffi.ya_mobile_core.NativeSourceLeaseInterface
 import uniffi.ya_mobile_core.NativeSecurityBinding
+import uniffi.ya_mobile_core.CoreException
 
 class YaRustTransportTest {
+    @Test fun realHttpFailureRetainsStatusHeadersAndBody() = runBlocking {
+        val session = FakeSession().also {
+            it.response = """{"status":503,"headers":{"Retry-After":"30"},"body":{"error":"maintenance"}}"""
+        }
+        val transport = YaRustMessageTransport(session, true) {}
+        try {
+            transport.send(JSONObject().put("type", "request").put("id", "server")
+                .put("method", "GET").put("path", "/maintenance"))
+            val reply = withTimeout(2_000) { transport.receive() }
+            assertEquals("response", reply.getString("type"))
+            assertEquals(503, reply.getInt("status"))
+            assertEquals("30", reply.getJSONObject("headers").getString("Retry-After"))
+            assertEquals("maintenance", reply.getJSONObject("body").getString("error"))
+        } finally { transport.closeAndAwait() }
+    }
+
+    @Test fun nativeFailureIsAnOperationErrorInsteadOfAnHttpResponse() = runBlocking {
+        val failures = listOf(
+            CoreException.Unavailable() to "CONNECTION_UNAVAILABLE",
+            CoreException.Closed() to "CONNECTION_UNAVAILABLE",
+            CoreException.Timeout() to "TIMEOUT",
+            CoreException.Overflow() to "OVERFLOW",
+            CoreException.InvalidMessage() to "INVALID_MESSAGE",
+            CoreException.ReauthenticationRequired() to "REAUTHENTICATION_REQUIRED",
+        )
+        for ((failure, code) in failures) {
+            val session = FakeSession().also { it.failure = failure }
+            val transport = YaRustMessageTransport(session, true) {}
+            try {
+                transport.send(JSONObject().put("type", "request").put("id", "failed")
+                    .put("method", "GET").put("path", "/failed"))
+                val reply = withTimeout(2_000) { transport.receive() }
+                assertEquals("requestError", reply.getString("type"))
+                assertEquals("failed", reply.getString("id"))
+                assertEquals(code, reply.getString("code"))
+                assertFalse(reply.has("status"))
+                assertFalse(session.closed)
+            } finally { transport.closeAndAwait() }
+        }
+    }
+
     @Test fun cancellingCallerReleasesItsRustFutureAndPreservesPeer() = runBlocking {
         val session = FakeSession()
         val transport = YaRustMessageTransport(session, true) {}
@@ -41,6 +83,8 @@ class YaRustTransportTest {
         private val events = Channel<String>()
         var closed = false
         var holdUploads = false
+        var failure: CoreException? = null
+        var response = "{\"status\":200,\"headers\":{},\"body\":{}}"
         val uploadStarted = CompletableDeferred<Unit>()
         override fun release() { closed = true }
         override fun routeId() = "fixture-route"
@@ -51,11 +95,12 @@ class YaRustTransportTest {
             if (holdUploads) { uploadStarted.complete(Unit); awaitCancellation() }
         }
         override suspend fun dispatch(method: String, params: String): String {
+            failure?.let { throw it }
             if (JSONObject(params).optString("path") == "/held") {
                 started.complete(Unit)
                 try { awaitCancellation() } finally { cancelled.complete(Unit) }
             }
-            return "{\"status\":200,\"headers\":{},\"body\":{}}"
+            return response
         }
     }
 }

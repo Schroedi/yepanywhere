@@ -83,9 +83,11 @@ the viewer/download gap remain the next mobile release work.
 - The October 7 [browser/Android interruption study](../testing/source-lifecycle-study-2026-10-07.md)
   reproduces visible native synthetic 503s and slow passive wake recovery with
   a real emulator/browser comparison harness. The original permanent-failure
-  diagnosis is narrowed: the WebView already retries after 60 seconds. Typed
-  operation errors, explicit recovery ownership and page catch-up remain
-  mobile reliability work. Native remains the sole app connection owner;
+  diagnosis is narrowed: the WebView already retries after 60 seconds. The
+  first repair preserves typed operation errors instead of fabricated HTTP
+  responses; direct/mux emulator reproductions recover without the error.
+  Explicit recovery ownership and page catch-up remain mobile reliability
+  work. Native remains the sole app connection owner;
   the shared conformance suite and repairs are not yet complete.
 
 - Signed macOS and Windows desktop releases already exist. The

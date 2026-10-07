@@ -3,7 +3,9 @@
 Status: investigation started, 2026-10-07. The
 [browser/emulator study](../../docs/testing/source-lifecycle-study-2026-10-07.md)
 adds a real native comparison harness, visible error reproductions and a small
-red unit case. The shared conformance factory and product repairs remain open.
+red unit case. The first Android repair now preserves typed request errors and
+passes the direct/mux visible-503 reproductions. The shared conformance factory,
+exhausted recovery status and broader page catch-up work remain open.
 
 ## Purpose
 
@@ -12,9 +14,10 @@ wrong, and they are tested piecemeal. The contract exists in prose in
 [source transport](../../topics/source-transport.md) (§ Request Semantics When
 Not Ready, § Health And Recovery Ownership, § Recovery after a temporary
 outage), but no shared test runs a `SourceTransport` through it. The native
-data bridge breaks that contract: it answers with synthetic 503s while native
-reconnects ([fake 503 gap](../android-native-unavailable-fake-503.md)), and
-nothing failed until users saw the banners.
+data bridge originally answered with synthetic 503s while native reconnected,
+and nothing failed until users saw the banners. That request error path is now
+repaired; exhausted recovery still reports disconnected to its callers
+([wake outage gap](../android-native-gives-up-after-wake-outage.md)).
 
 Make the lifecycle contract executable, improve web clients against it, and
 repair the bridge against the same suite, so that native remains the only SRP
@@ -77,7 +80,7 @@ each keystroke within 100 ms (AGENTS.md).
 | Server restarts while the page is hidden | Recovery on visibility; the session page renders without reload | [background-relay-reconnect-blank-page](../background-relay-reconnect-blank-page.md) |
 | Relay up, server down; relay restarts | Failure is not reported as rejection; the credential is kept | |
 | Sleep past the session's idle expiry | Resume is rejected: the browser explains and offers login, the app asks native to sign in; never treated as network failure, never loops | |
-| Request in flight when the phone sleeps or native reconnects | Rejects with `SourceTransportDisconnectedError` or not-ready; never a synthetic HTTP status | [android-native-unavailable-fake-503](../android-native-unavailable-fake-503.md) |
+| Request in flight when the phone sleeps or native reconnects | Typed retryable connection failure; never a synthetic HTTP status or blind write replay | Android request repair verified; extend shared conformance |
 | Subscription misses events during the gap | Resumes from `lastEventId`; no missing or duplicated turns | possibly [live-user-turns-missing-until-reload](../live-user-turns-missing-until-reload.md) |
 | Page frozen, then resumed (Android freezes background WebView timers) | Due timers fire once, one health check, no reconnect storm | |
 | Renderer or process killed, document restored | Offline entry, drafts kept, connection acquired | |

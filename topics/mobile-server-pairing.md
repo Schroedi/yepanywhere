@@ -549,6 +549,24 @@ Browser profile metadata is not forwarded as native identity. Native alone
 restores subscriptions and owns bounded source reconnect. Speech and device
 signaling capabilities are absent until their native adapters are implemented.
 
+Android request failures that have no server response are operation errors,
+never invented HTTP statuses. Protocol-1 error replies keep the existing
+`error` text and add `errorCode`: `CONNECTION_UNAVAILABLE`, `TIMEOUT`, `OVERFLOW`,
+`INVALID_MESSAGE`, or `REAUTHENTICATION_REQUIRED`. The code, not message text,
+determines recovery. Unknown codes and older native replies without a code
+remain ordinary operation failures. This additive bundled-bridge field changes
+no server protocol or minimum server version; iOS may still send legacy text.
+
+Only `CONNECTION_UNAVAILABLE` enters the client's existing reconnect retry path.
+An operation failure may arrive before the native state event: reads must wait
+for native readiness before their single retry. Native's reconnect remains the
+connection owner; operation errors must not start an independent socket or retry
+loop. Writes and uploads are never automatically replayed after an ambiguous
+failure. Timeouts, overload, verification and authentication failures retain
+their own classification. Genuine server responses preserve their status,
+headers and body, including a real 503. Late replies to cancelled or already
+retired operations cannot change the current source's readiness.
+
 Uploads stream at most 100 MiB in 64 KiB chunks, with exact offsets and the
 established encrypted binary upload format. Acknowledging a local upload frame
 waits for the native socket queue to have room. Cancellation releases only that
