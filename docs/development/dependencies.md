@@ -72,6 +72,13 @@ client and server already use. Mermaid calls only `renderToString` with
 breaking changes. Drop the override when mermaid declares a patched KaTeX.
 No new advisory exclusions are added.
 
+The 2026-10-07 CI audit repair moves the server's exact
+`@modelcontextprotocol/sdk` pin from 1.29.0 to 1.32.1, above the 1.31.0 patch
+floor for [OAuth credentials sent to an MCP-chosen authorization server](https://github.com/advisories/GHSA-6qxp-vccf-f47h).
+YA code imports nothing from the SDK; the pin satisfies
+`@anthropic-ai/claude-agent-sdk`'s `^1.29.0` peer range, which 1.32.1 stays
+within. No new advisory exclusions are added.
+
 ### Install-script allowlist
 
 Dependency install scripts (preinstall/install/postinstall) are blocked by
