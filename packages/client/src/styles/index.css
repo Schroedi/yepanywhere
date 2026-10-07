@@ -2338,14 +2338,6 @@ a.sidebar-nav-item {
     color-mix(in srgb, var(--success-color) 18%, transparent);
 }
 
-.btw-aside-turn .message {
-  margin-bottom: 0;
-}
-
-.btw-aside-turn .message-user-prompt {
-  max-width: min(100%, 46rem);
-}
-
 .btw-aside-turn .user-prompt-container {
   align-items: flex-start;
 }
@@ -2755,6 +2747,14 @@ a.sidebar-nav-item {
     box-shadow 0.35s ease;
 }
 
+.btw-aside-turn .message {
+  margin-bottom: 0;
+}
+
+.btw-aside-turn .message-user-prompt {
+  max-width: min(100%, 46rem);
+}
+
 /* Sent but not yet proven in the durable transcript: fainter bubble with a
    hairline outline and a light "sent" tag in the right margin. Everything
    vanishes on confirmation, so the confirmed steady state is the ordinary
@@ -2845,10 +2845,6 @@ a.sidebar-nav-item {
     (var(--space-1) * (var(--user-prompt-action-rows) - 1))
   );
   padding-inline-end: var(--user-prompt-actions-space);
-}
-
-.user-prompt-container > .user-prompt-metadata {
-  display: block;
 }
 
 .user-prompt-correctable {
@@ -3012,6 +3008,10 @@ a.sidebar-nav-item {
   display: flex;
   gap: var(--space-2);
   flex-wrap: wrap;
+}
+
+.user-prompt-container > .user-prompt-metadata {
+  display: block;
 }
 
 .opened-file {
@@ -4180,22 +4180,6 @@ a.sidebar-nav-item {
   flex: 0 0 auto;
 }
 
-.composer-bottom-overflow-menu-group .mode-button,
-.composer-bottom-overflow-menu-group .attach-button,
-.composer-bottom-overflow-menu-group .slash-command-button,
-.composer-bottom-overflow-menu-group .thinking-toggle-button,
-.composer-bottom-overflow-menu-group .render-mode-toolbar-button,
-.composer-bottom-overflow-menu-group .conversation-view-toolbar-button,
-.composer-bottom-overflow-menu-group .heartbeat-toolbar-button,
-.composer-bottom-overflow-menu-group .session-shortcuts-help-button,
-.composer-bottom-overflow-menu-group .context-toolbar-control {
-  width: var(--composer-control-size);
-  height: var(--composer-control-size);
-  min-width: var(--composer-control-size);
-  flex-shrink: 0;
-  padding: 0;
-}
-
 .composer-bottom-overflow-menu-group .btw-toolbar-button,
 .composer-bottom-overflow-menu-group .steer-now-toggle,
 .composer-bottom-overflow-menu-group .send-button.project-queue-button,
@@ -4222,11 +4206,6 @@ a.sidebar-nav-item {
 .composer-bottom-overflow-menu-group .mode-button-label,
 .composer-bottom-overflow-menu-group .thinking-toggle-label {
   display: none;
-}
-
-.composer-bottom-overflow-menu-group .mode-button .mode-dot {
-  width: 8px;
-  height: 8px;
 }
 
 /* Pending approval indicator button in toolbar */
@@ -4315,6 +4294,11 @@ a.sidebar-nav-item {
   height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
+}
+
+.composer-bottom-overflow-menu-group .mode-button .mode-dot {
+  width: 8px;
+  height: 8px;
 }
 
 /* Mode-specific dot colors */
@@ -4524,12 +4508,6 @@ a.sidebar-nav-item {
 
 .message-input-keyboard-more-panel .message-input-toolbar {
   min-width: 0;
-  flex-wrap: wrap;
-}
-
-.message-input-keyboard-more-panel .message-input-left,
-.message-input-keyboard-more-panel .message-input-actions {
-  flex: 1 1 100%;
   flex-wrap: wrap;
 }
 
@@ -5191,6 +5169,12 @@ a.sidebar-nav-item {
   gap: var(--composer-control-gap);
   min-width: 0;
   flex: 1;
+}
+
+.message-input-keyboard-more-panel .message-input-left,
+.message-input-keyboard-more-panel .message-input-actions {
+  flex: 1 1 100%;
+  flex-wrap: wrap;
 }
 
 /* Attach button */
@@ -6048,6 +6032,22 @@ a.sidebar-nav-item {
   min-width: 0;
   flex-shrink: 0;
   box-sizing: border-box;
+}
+
+.composer-bottom-overflow-menu-group .mode-button,
+.composer-bottom-overflow-menu-group .attach-button,
+.composer-bottom-overflow-menu-group .slash-command-button,
+.composer-bottom-overflow-menu-group .thinking-toggle-button,
+.composer-bottom-overflow-menu-group .render-mode-toolbar-button,
+.composer-bottom-overflow-menu-group .conversation-view-toolbar-button,
+.composer-bottom-overflow-menu-group .heartbeat-toolbar-button,
+.composer-bottom-overflow-menu-group .session-shortcuts-help-button,
+.composer-bottom-overflow-menu-group .context-toolbar-control {
+  width: var(--composer-control-size);
+  height: var(--composer-control-size);
+  min-width: var(--composer-control-size);
+  flex-shrink: 0;
+  padding: 0;
 }
 
 .slash-command-button:hover {
@@ -7216,6 +7216,24 @@ a.sidebar-nav-item {
   margin-bottom: 0;
 }
 
+.settings-input,
+.settings-input-small,
+.session-heartbeat-input,
+.session-heartbeat-input-small {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.settings-input,
+.session-heartbeat-input {
+  width: 100%;
+  margin-top: var(--space-2);
+}
+
 /* Groups an enable/disable toggle with its dependent sub-setting(s) inside a
    single beveled container: rows share one continuous background with no
    dividers between them, rather than being indented or split into cards. */
@@ -7275,18 +7293,6 @@ a.sidebar-nav-item {
 .settings-item-inline-field {
   align-items: flex-start;
   flex-wrap: wrap;
-}
-
-.settings-item-inline-field .settings-item-info {
-  flex: 1 1 18rem;
-}
-
-.settings-item-inline-field > .settings-input {
-  flex: 1 1 20rem;
-  width: auto;
-  min-width: min(100%, 18rem);
-  max-width: 28rem;
-  margin-top: 0;
 }
 
 .claude-gateway-settings-control {
@@ -7447,19 +7453,6 @@ a.sidebar-nav-item {
 .file-access-setting-row--readonly {
   align-items: flex-start;
   flex-wrap: wrap;
-}
-
-.file-access-setting-row--field .settings-item-info,
-.file-access-setting-row--readonly .settings-item-info {
-  flex: 1 1 18rem;
-}
-
-.file-access-setting-row--field > .settings-input {
-  flex: 1 1 20rem;
-  width: auto;
-  min-width: min(100%, 18rem);
-  max-width: 28rem;
-  margin-top: 0;
 }
 
 .file-access-settings-warning {
@@ -7852,11 +7845,6 @@ a.sidebar-nav-item {
   flex: 0 0 auto;
 }
 
-.session-toolbar-control-row .session-toolbar-control-copy {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
 .session-toolbar-control-actions {
   display: inline-flex;
   align-items: center;
@@ -7970,6 +7958,11 @@ a.sidebar-nav-item {
   min-width: 0;
 }
 
+.session-toolbar-control-row .session-toolbar-control-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .session-toolbar-control-copy strong {
   color: var(--text-primary);
   font-size: var(--font-size-sm);
@@ -8043,29 +8036,6 @@ a.sidebar-nav-item {
     min-width: 0;
   }
 
-  .session-toolbar-preview .message-input-toolbar {
-    flex-wrap: wrap;
-    align-items: flex-start;
-    justify-content: flex-start;
-    gap: var(--space-1);
-  }
-
-  .session-toolbar-preview .message-input-left {
-    flex: 1 1 100%;
-    flex-wrap: wrap;
-    row-gap: var(--space-1);
-    overflow: visible;
-  }
-
-  .session-toolbar-preview .composer-status-ages {
-    position: static;
-    flex: 1 1 auto;
-    margin-left: 0;
-    max-width: none;
-    transform: none;
-    justify-content: flex-start;
-  }
-
   .session-toolbar-preview .message-input-actions {
     flex: 0 1 auto;
     flex-wrap: wrap;
@@ -8077,6 +8047,15 @@ a.sidebar-nav-item {
 .settings-item-info {
   flex: 1;
   min-width: 0;
+}
+
+.settings-item-inline-field .settings-item-info {
+  flex: 1 1 18rem;
+}
+
+.file-access-setting-row--field .settings-item-info,
+.file-access-setting-row--readonly .settings-item-info {
+  flex: 1 1 18rem;
 }
 
 .settings-item-info strong {
@@ -8156,13 +8135,6 @@ a.sidebar-nav-item {
   gap: 0.75rem 1rem;
   align-items: start;
   container-type: inline-size;
-}
-
-.settings-session-defaults-panel .new-session-provider-section,
-.settings-session-defaults-panel .new-session-model-section,
-.settings-session-defaults-panel .new-session-helper-section,
-.settings-session-defaults-panel .new-session-mode-section {
-  margin-bottom: 0;
 }
 
 .settings-session-defaults-panel .session-default-recap-section {
@@ -8611,13 +8583,6 @@ a.sidebar-nav-item {
   accent-color: var(--app-yep-green);
 }
 
-/* Narrow numeric field: ~4 digits plus a small gap, no spinner buttons. */
-.settings-input-unit .settings-input-small {
-  width: 4rem;
-  -moz-appearance: textfield;
-  appearance: textfield;
-}
-
 .settings-input-unit .settings-input-small::-webkit-inner-spin-button,
 .settings-input-unit .settings-input-small::-webkit-outer-spin-button {
   -webkit-appearance: none;
@@ -8921,28 +8886,33 @@ a.sidebar-nav-item {
   opacity: 0.6;
 }
 
-.settings-input,
-.settings-input-small,
-.session-heartbeat-input,
-.session-heartbeat-input-small {
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-color);
-  background: var(--bg-hover);
-  color: var(--text-primary);
-  font-size: var(--font-size-sm);
+.settings-item-inline-field > .settings-input {
+  flex: 1 1 20rem;
+  width: auto;
+  min-width: min(100%, 18rem);
+  max-width: 28rem;
+  margin-top: 0;
 }
 
-.settings-input,
-.session-heartbeat-input {
-  width: 100%;
-  margin-top: var(--space-2);
+.file-access-setting-row--field > .settings-input {
+  flex: 1 1 20rem;
+  width: auto;
+  min-width: min(100%, 18rem);
+  max-width: 28rem;
+  margin-top: 0;
 }
 
 .settings-input-small,
 .session-heartbeat-input-small {
   width: 96px;
   flex-shrink: 0;
+}
+
+/* Narrow numeric field: ~4 digits plus a small gap, no spinner buttons. */
+.settings-input-unit .settings-input-small {
+  width: 4rem;
+  -moz-appearance: textfield;
+  appearance: textfield;
 }
 
 .settings-input:focus,
@@ -9000,34 +8970,8 @@ a.sidebar-nav-item {
   border-radius: var(--radius-md);
 }
 
-.session-heartbeat-force-section--active .session-heartbeat-item-title,
-.session-heartbeat-force-section--active .session-heartbeat-item-description {
-  color: var(--text-muted);
-}
-
-.session-heartbeat-force-section--active .session-heartbeat-hint {
-  color: color-mix(in srgb, var(--text-muted) 75%, transparent);
-}
-
-.session-heartbeat-force-section--active
-  .session-heartbeat-preset-button.active {
-  box-shadow: inset 0 0 0 1px
-    color-mix(in srgb, var(--error-color) 38%, transparent);
-}
-
 .session-heartbeat-after-off-button--connected {
   border-color: var(--heartbeat-force-outline-color);
-}
-
-.session-heartbeat-after-off-button--connected.session-heartbeat-preset-button.active {
-  border-color: var(--heartbeat-force-outline-color);
-  background: color-mix(in srgb, var(--error-color) 12%, var(--bg-secondary));
-  color: var(--text-primary);
-  box-shadow: inset 0 0 0 1px var(--heartbeat-force-outline-color);
-}
-
-.session-heartbeat-item .session-heartbeat-presets-row {
-  justify-content: flex-start;
 }
 
 .session-heartbeat-item-title {
@@ -9134,6 +9078,32 @@ a.sidebar-nav-item {
   color: var(--text-primary);
   box-shadow: inset 0 0 0 1px
     color-mix(in srgb, var(--accent-color) 18%, transparent);
+}
+
+.session-heartbeat-force-section--active .session-heartbeat-item-title,
+.session-heartbeat-force-section--active .session-heartbeat-item-description {
+  color: var(--text-muted);
+}
+
+.session-heartbeat-force-section--active .session-heartbeat-hint {
+  color: color-mix(in srgb, var(--text-muted) 75%, transparent);
+}
+
+.session-heartbeat-force-section--active
+  .session-heartbeat-preset-button.active {
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--error-color) 38%, transparent);
+}
+
+.session-heartbeat-after-off-button--connected.session-heartbeat-preset-button.active {
+  border-color: var(--heartbeat-force-outline-color);
+  background: color-mix(in srgb, var(--error-color) 12%, var(--bg-secondary));
+  color: var(--text-primary);
+  box-shadow: inset 0 0 0 1px var(--heartbeat-force-outline-color);
+}
+
+.session-heartbeat-item .session-heartbeat-presets-row {
+  justify-content: flex-start;
 }
 
 .session-heartbeat-preset-button:disabled {
@@ -10309,6 +10279,29 @@ a.sidebar-nav-item {
     max-width: min(78vw, 420px);
   }
 
+  .session-toolbar-preview .message-input-toolbar {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: var(--space-1);
+  }
+
+  .session-toolbar-preview .message-input-left {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    row-gap: var(--space-1);
+    overflow: visible;
+  }
+
+  .session-toolbar-preview .composer-status-ages {
+    position: static;
+    flex: 1 1 auto;
+    margin-left: 0;
+    max-width: none;
+    transform: none;
+    justify-content: flex-start;
+  }
+
   .composer-status-chip {
     padding: 2px 6px;
     border: 1px solid color-mix(in srgb, var(--warning-color) 28%, transparent);
@@ -10516,14 +10509,6 @@ a.sidebar-nav-item {
   grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
   gap: 0.65rem 1rem;
   align-items: start;
-}
-
-/* Provider chips read as one wide row; permission mode is the tallest control
-   so it anchors the bottom, spanning full width with its options laid out
-   horizontally (see the shared permission rules below). */
-.new-session-provider-slot .new-session-provider-section {
-  grid-column: 1 / -1;
-  margin-bottom: 0;
 }
 
 .new-session-project-chooser {
@@ -10870,6 +10855,14 @@ a.sidebar-nav-item {
   margin-bottom: 0.9rem;
 }
 
+/* Provider chips read as one wide row; permission mode is the tallest control
+   so it anchors the bottom, spanning full width with its options laid out
+   horizontally (see the shared permission rules below). */
+.new-session-provider-slot .new-session-provider-section {
+  grid-column: 1 / -1;
+  margin-bottom: 0;
+}
+
 .new-session-provider-section h3 {
   font-size: var(--font-size-sm);
   font-weight: 600;
@@ -11193,11 +11186,6 @@ a.sidebar-nav-item {
   cursor: not-allowed;
 }
 
-.new-session-helper-option .mode-option-dot {
-  width: 9px;
-  height: 9px;
-}
-
 .new-session-helper-note {
   margin: 0.35rem 0 0;
   color: var(--text-muted);
@@ -11215,6 +11203,13 @@ a.sidebar-nav-item {
 /* Permission Mode Section */
 .new-session-mode-section {
   margin-bottom: 0.75rem;
+}
+
+.settings-session-defaults-panel .new-session-provider-section,
+.settings-session-defaults-panel .new-session-model-section,
+.settings-session-defaults-panel .new-session-helper-section,
+.settings-session-defaults-panel .new-session-mode-section {
+  margin-bottom: 0;
 }
 
 .new-session-provider-slot > .new-session-model-section,
@@ -11279,6 +11274,11 @@ a.sidebar-nav-item {
   height: 12px;
   border-radius: 50%;
   flex-shrink: 0;
+}
+
+.new-session-helper-option .mode-option-dot {
+  width: 9px;
+  height: 9px;
 }
 
 .mode-option-dot.mode-default {
@@ -14602,13 +14602,6 @@ body:has(.session-page)
   font-weight: 700;
 }
 
-.working-tree-clean-state .git-status-empty {
-  padding: 0;
-  color: var(--text-primary);
-  font-style: normal;
-  font-weight: 600;
-}
-
 .working-tree-clean-state p {
   margin: 0;
   color: var(--text-muted);
@@ -14670,6 +14663,13 @@ body:has(.session-page)
   font-style: italic;
   padding: var(--space-4);
   text-align: center;
+}
+
+.working-tree-clean-state .git-status-empty {
+  padding: 0;
+  color: var(--text-primary);
+  font-style: normal;
+  font-weight: 600;
 }
 
 .git-diff-preview-pane {

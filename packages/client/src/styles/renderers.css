@@ -926,11 +926,6 @@
   max-height: none;
 }
 
-.modal.modal--image-viewer .modal-content {
-  overflow: hidden;
-  padding: 0;
-}
-
 @media (width <= 600px) {
   .modal-overlay.modal-overlay--image-viewer {
     padding: 0;
@@ -1693,10 +1688,6 @@ details[open] .collapsible__icon {
   border-color: var(--vscode-focusBorder, #007fd4);
 }
 
-.file-link-button .file-range {
-  color: var(--text-muted);
-}
-
 .file-link-button .file-line-count {
   color: var(--text-muted);
   margin-left: auto;
@@ -1738,10 +1729,6 @@ details[open] .collapsible__icon {
   text-decoration: none;
 }
 
-.file-line-count-inline .file-path-link {
-  color: inherit;
-}
-
 /* Non-expandable tool row header */
 .tool-row-header.non-expandable {
   cursor: default;
@@ -1768,6 +1755,10 @@ details[open] .collapsible__icon {
 .file-range {
   color: var(--text-muted);
   font-size: var(--font-size-sm);
+}
+
+.file-link-button .file-range {
+  color: var(--text-muted);
 }
 
 .file-content-with-lines {
@@ -1906,10 +1897,6 @@ details[open] .collapsible__icon {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-}
-
-.edit-collapsed-preview .diff-view-container {
-  position: relative;
 }
 
 /* Tapping a diff preview opens the full-diff modal. */
@@ -2060,6 +2047,10 @@ details[open] .collapsible__icon {
   position: relative;
 }
 
+.edit-collapsed-preview .diff-view-container {
+  position: relative;
+}
+
 .diff-copy-button {
   position: absolute;
   top: 0.45rem;
@@ -2183,10 +2174,6 @@ details[open] .collapsible__icon {
   height: auto;
 }
 
-.modal:has(.session-heartbeat-modal) .modal-content {
-  padding: 0.75rem 0.75rem 0.875rem;
-}
-
 .modal--anchored {
   position: fixed;
   margin: 0;
@@ -2237,6 +2224,15 @@ details[open] .collapsible__icon {
   padding: 0.375rem;
 }
 
+.modal:has(.session-heartbeat-modal) .modal-content {
+  padding: 0.75rem 0.75rem 0.875rem;
+}
+
+.modal.modal--image-viewer .modal-content {
+  overflow: hidden;
+  padding: 0;
+}
+
 /* Mobile: Make modals nearly full-screen with minimal chrome */
 @media (width <= 600px) {
   .modal-overlay {
@@ -2266,10 +2262,6 @@ details[open] .collapsible__icon {
     height: 100dvh;
   }
 
-  .modal:has(.session-heartbeat-modal) .modal-content {
-    padding: 0.75rem 0.75rem 0.875rem;
-  }
-
   .modal-header {
     padding: 0.25rem 0.5rem;
     border-radius: 0;
@@ -2277,6 +2269,10 @@ details[open] .collapsible__icon {
 
   .modal-content {
     padding: 0;
+  }
+
+  .modal:has(.session-heartbeat-modal) .modal-content {
+    padding: 0.75rem 0.75rem 0.875rem;
   }
 
   .modal-title {
@@ -2581,11 +2577,6 @@ details[open] .collapsible__icon {
   border-color: var(--accent-color);
 }
 
-.model-switch-item.active .model-switch-name {
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
 .model-switch-item:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -2608,6 +2599,11 @@ details[open] .collapsible__icon {
 
 .model-switch-name {
   font-weight: 500;
+}
+
+.model-switch-item.active .model-switch-name {
+  color: var(--text-primary);
+  font-weight: 600;
 }
 
 .model-switch-description {
@@ -4377,6 +4373,10 @@ pre.code-highlighter-plain code {
   transition: text-decoration-color 0.15s;
 }
 
+.file-line-count-inline .file-path-link {
+  color: inherit;
+}
+
 .file-path-link:hover {
   text-decoration-color: currentColor;
 }
@@ -5054,14 +5054,6 @@ pre.code-highlighter-plain,
   letter-spacing: -0.08em;
 }
 
-.git-diff-pane-toolbar
-  .git-diff-preview-header-actions
-  .source-detail-icon-action {
-  width: 24px;
-  min-width: 24px;
-  height: 22px;
-}
-
 .git-diff-preview-body > .source-diff-pane {
   overflow: visible;
 }
@@ -5420,6 +5412,14 @@ pre.code-highlighter-plain,
   width: 28px;
   min-width: 28px;
   padding-inline: 0;
+}
+
+.git-diff-pane-toolbar
+  .git-diff-preview-header-actions
+  .source-detail-icon-action {
+  width: 24px;
+  min-width: 24px;
+  height: 22px;
 }
 
 .source-detail-icon-action svg {

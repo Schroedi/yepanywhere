@@ -133,10 +133,6 @@ authored client and site CSS, minus these decisions:
   `prefer-modern-syntax` (`rgba(…)` to `rgb(… / 50%)`).
 - **Out of scope:** `packages/desktop` (also outside Biome) and
   `packages/client/mockups` (throwaway mockups).
-- **Exempt pending migration:** `no-descending-specificity` is off for the
-  four legacy global stylesheets until
-  [the remaining out-of-order overrides](../gaps/legacy-css-descending-specificity.md)
-  move into modules or are reordered.
 
 Rules that shape new CSS:
 
@@ -150,6 +146,11 @@ Rules that shape new CSS:
 - Wrap long words with `overflow-wrap: anywhere`, not the deprecated
   `word-break: break-word`. Visually hidden elements use
   `clip-path: inset(50%)`, not `clip: rect(…)`.
+- A base rule comes before every contextual override of the same property
+  (`no-descending-specificity`), in the legacy stylesheets too. When adding
+  an override, place it after its base; when moving rules to satisfy this,
+  check that no rule whose order flips has equal specificity, an
+  overlapping property, and a subject that can be the same element.
 - A selector appears once per file and media context. The diff palette in
   `index.css` is the one deliberate exception: it is grouped separately from
   the theme blocks under a scoped disable comment.
