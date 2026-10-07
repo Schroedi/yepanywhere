@@ -601,3 +601,190 @@ test.describe("Encrypted Data Flow", () => {
     });
   });
 });
+
+test.describe("Native app credential", () => {
+  test.beforeEach(async ({ baseURL }) => {
+    await configureRemoteAccess(baseURL, {
+      username: TEST_USERNAME,
+      password: TEST_PASSWORD,
+    });
+  });
+
+  test.afterEach(async ({ baseURL }) => {
+    await disableRemoteAccess(baseURL);
+  });
+
+  test("bundled document resumes the native session without any login", async ({
+    page,
+    browser,
+    baseURL,
+    remoteClientURL,
+    wsURL,
+  }) => {
+    // Login, session load, 45 paced keys and a rejected reload measured
+    // 12-15 s, past the 15 s default; allow twice that for a loaded host.
+    test.setTimeout(30_000);
+    // A real server session, minted the way native pairing would: one full
+    // SRP login, in a context the app document under test never sees.
+    const loginContext = await browser.newContext();
+    const loginPage = await loginContext.newPage();
+    await loginViaRemoteClient(
+      loginPage,
+      remoteClientURL,
+      wsURL,
+      TEST_USERNAME,
+      TEST_PASSWORD,
+    );
+    const session = await loginPage.evaluate(
+      () =>
+        JSON.parse(
+          localStorage.getItem("yep-anywhere-remote-credentials") ?? "{}",
+        ).session as {
+          username: string;
+          sessionId: string;
+          sessionKey: string;
+          resumeProtocolVersion?: number;
+        },
+    );
+    await loginContext.close();
+    expect(session.sessionId).toBeTruthy();
+
+    await page.addInitScript(
+      ({ credential }) => {
+        const reauthenticateRequests: unknown[] = [];
+        const channel = {
+          onmessage: null as ((event: { data: string }) => void) | null,
+          postMessage(message: string) {
+            const request = JSON.parse(message) as {
+              id: string;
+              method: string;
+              params?: unknown;
+            };
+            const reply = (result: unknown) =>
+              queueMicrotask(() =>
+                channel.onmessage?.({
+                  data: JSON.stringify({
+                    protocol: 1,
+                    id: request.id,
+                    ok: true,
+                    result,
+                  }),
+                }),
+              );
+            switch (request.method) {
+              case "host.describe":
+                reply({
+                  protocol: 1,
+                  platform: "android",
+                  appVersion: "0.1.0",
+                  buildVersion: 1,
+                  features: [
+                    "session.credential",
+                    "session.reauthenticate",
+                    "host.switch",
+                  ],
+                });
+                break;
+              case "session.credential":
+                reply(credential);
+                break;
+              case "session.reauthenticate":
+                // Native would now show its own sign-in; leave it pending.
+                reauthenticateRequests.push(request.params);
+                break;
+              default:
+                reply({});
+            }
+          },
+        };
+        Object.assign(window, { yaNative: channel, reauthenticateRequests });
+      },
+      {
+        credential: {
+          profileId: "native-profile",
+          label: TEST_USERNAME,
+          username: session.username,
+          sessionId: session.sessionId,
+          sessionKey: session.sessionKey,
+          ...(session.resumeProtocolVersion !== undefined
+            ? { resumeProtocolVersion: session.resumeProtocolVersion }
+            : {}),
+          routes: [{ kind: "direct", wsUrl: wsURL }],
+        },
+      },
+    );
+
+    const projectId = Buffer.from(
+      join(e2ePaths.tempDir, "mockproject"),
+    ).toString("base64url");
+    await page.goto(
+      `${remoteClientURL}/projects/${projectId}/sessions/mock-session-001`,
+    );
+    const skip = page.locator(".onboarding-skip-all");
+    if (await skip.isVisible().catch(() => false)) await skip.click();
+    const composer = page.locator("textarea[data-composer-input]");
+    await expect(composer).toBeVisible({ timeout: 10000 });
+    await expect(page.locator(".message-list")).toBeVisible();
+    await expect(page).not.toHaveURL(/\/login/);
+
+    await page.evaluate(() => {
+      const latencies: number[] = [];
+      Object.assign(window, { typingLatencies: latencies });
+      const input = document.querySelector<HTMLTextAreaElement>(
+        "textarea[data-composer-input]",
+      );
+      input?.addEventListener("keydown", () => {
+        const started = performance.now();
+        input.addEventListener(
+          "input",
+          () =>
+            requestAnimationFrame(() =>
+              latencies.push(performance.now() - started),
+            ),
+          { once: true },
+        );
+      });
+    });
+    const text = "Native credential keeps every key responsive.";
+    await composer.click();
+    await composer.pressSequentially(text, { delay: 35 });
+    await expect(composer).toHaveValue(text);
+    const latencies = await page.evaluate(
+      () =>
+        (window as unknown as { typingLatencies: number[] }).typingLatencies,
+    );
+    expect(latencies).toHaveLength(text.length);
+    expect(Math.max(...latencies)).toBeLessThanOrEqual(100);
+
+    // The credential stays in memory; web storage never holds it.
+    expect(
+      await page.evaluate(() =>
+        Object.keys(localStorage).filter((key) =>
+          /remote-credentials|saved-hosts/.test(key),
+        ),
+      ),
+    ).toEqual([]);
+
+    // Changing the password invalidates every session. The document must ask
+    // native to sign in again instead of showing a web login.
+    await configureRemoteAccess(baseURL, {
+      username: TEST_USERNAME,
+      password: "changed-password-456",
+    });
+    await page.reload();
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            (window as unknown as { reauthenticateRequests: unknown[] })
+              .reauthenticateRequests,
+        ),
+      )
+      .toEqual([{ rejectedSessionId: session.sessionId }]);
+    await expect(page).not.toHaveURL(/\/login/);
+    await expect(page.locator('[data-testid="login-form"]')).toHaveCount(0);
+    await expect(page.locator('[data-testid="relay-login-form"]')).toHaveCount(
+      0,
+    );
+  });
+});
