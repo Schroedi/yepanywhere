@@ -56,6 +56,9 @@ internal object YaRustTls {
 
 class YaRustTerminalException(val phase: YaConnectionPhase) : IllegalStateException("Native Rust connection ended")
 
+/** Logcat tag for responses native fabricates when no server answered. */
+const val SYNTHETIC_RESPONSE_TAG = "YaSyntheticResponse"
+
 class YaRustProfileConnector(private val repository: YaPairedServerRepository) : YaProfileConnector, Closeable {
     private val active = ConcurrentHashMap.newKeySet<YaRustMessageTransport>()
     private val runtime = NativeRuntime()
@@ -230,7 +233,10 @@ internal class YaRustMessageTransport(
                         response.put("type", "response").put("id", id)
                         incoming.send(response)
                     } catch (error: CancellationException) { throw error }
-                    catch (_: CoreException) {
+                    catch (error: CoreException) {
+                        // Names the native failure behind each synthetic 503
+                        // (gaps/android-native-unavailable-fake-503.md).
+                        android.util.Log.w(SYNTHETIC_RESPONSE_TAG, "Synthetic 503 for native ${error.javaClass.simpleName}")
                         incoming.send(JSONObject().put("type", "response").put("id", id).put("status", 503)
                             .put("headers", JSONObject()).put("body", JSONObject().put("error", "Native connection unavailable")))
                     } finally { requests.remove(id, slot) }

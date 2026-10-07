@@ -229,13 +229,24 @@ function releaseResumes() {
   for (const release of resumeWaiters) release();
   resumeWaiters.clear();
 }
+// A test-controlled outage refuses every new socket, as when a phone's network
+// is still down after waking, so reconnect attempts fail instead of waiting.
+let outage = false;
 const wsHandler = createWsRelayRoutes({
   upgradeWebSocket: (createEvents) =>
     upgradeWebSocket((context) => {
       const events = createEvents(context);
       return {
         ...events,
+        onOpen: (event, ws) => {
+          if (outage) {
+            ws.close(1013, "Probe outage");
+            return;
+          }
+          return events.onOpen?.(event, ws);
+        },
         onMessage: async (event, ws) => {
+          if (outage) return;
           if (
             holdResume &&
             typeof event.data === "string" &&
@@ -305,6 +316,12 @@ if (conversationProbe) {
   app.post("/__probe/api-delay", (c) => {
     apiDelayMs = Math.min(Math.max(Number(c.req.query("ms")) || 0, 0), 15_000);
     return c.json({ apiDelayMs });
+  });
+  app.post("/__probe/outage", (c) => {
+    outage = c.req.query("enabled") === "true";
+    if (outage)
+      for (const socket of wss.clients) socket.close(1013, "Probe outage");
+    return c.json({ outage });
   });
   app.post("/__probe/disconnect", (c) => {
     for (const socket of wss.clients) socket.close(1012, "Probe reconnect");

@@ -162,13 +162,15 @@ try {
               ]
             : [
                 "com.yepanywhere.mobile.web.YaNativeWebAppInstrumentedTest",
-                "com.yepanywhere.mobile.web.YaNativeReconnectInstrumentedTest",
                 ...(relay
                   ? []
                   : ["com.yepanywhere.mobile.ui.YaHostSwitchInstrumentedTest"]),
                 relay
                   ? "com.yepanywhere.mobile.connection.YaRustRuntimeInstrumentedTest"
                   : "com.yepanywhere.mobile.security.YaSecurityClientE2eInstrumentedTest",
+                // Last: its reloads spend the relay's per-user circuit-open
+                // budget, which the runtime probe's exact counts depend on.
+                "com.yepanywhere.mobile.web.YaNativeReconnectInstrumentedTest",
               ]);
       const options = {
         class: classes.join(","),

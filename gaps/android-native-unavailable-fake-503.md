@@ -31,10 +31,27 @@ reconnecting. As supporting work, `YaServerConnectionManager` should stop
 handing out the current connection while `RETRYING`, so new requests wait
 instead of filling the native queue.
 
+Emulator evidence (2026-10-07): the maintainer recalls refreshing a session
+page, or waking the phone after it was in a pocket. `YaRustProfileConnector`
+now logs `Synthetic 503 for native <error>` under `YaSyntheticResponse`, and
+`YaNativeReconnectInstrumentedTest` asserts on it across reloads.
+
+- Requests in flight when native's socket drops reliably fabricate several
+  `Unavailable` 503s at the disconnect (3 of 3 runs, direct route; the probe
+  server's `/__probe/api-delay` keeps them pending). The page absorbed them
+  without a visible banner in that scenario. A banner would follow when the
+  failed request is one the page reports, such as the session's own read.
+- One run logged an `Unavailable` 503 when the screen turned off, when the
+  bridge releases the page's lease. A deliberate repeat with requests held at
+  the server produced none, so that path is unconfirmed.
+- Held reconnects, slow routes, fresh relay sign-in, refreshes, and screen-off
+  or doze wakes produced none.
+- Waking into a network outage reliably leaves native failed
+  ([wake outage gap](android-native-gives-up-after-wake-outage.md)), which is a
+  plausible reason to refresh.
+
 Not fixed in place: the change spans Kotlin, the WebView bridge contract, and
-the client. This host has no Android SDK, so the Kotlin half can be compiled
-only by `android-app-ci.yml`. The relogin trigger is inferred, not observed;
-confirming it needs device logs of native phase changes alongside the 503
-timestamps.
+the client. The relogin trigger in the original report is inferred, not
+observed.
 
 Found 2026-10-07 while fixing relay sign-in after a rejected saved session.

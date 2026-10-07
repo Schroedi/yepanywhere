@@ -6,9 +6,11 @@ import android.webkit.WebView
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.uiautomator.UiDevice
 import com.yepanywhere.mobile.MainActivity
 import com.yepanywhere.mobile.R
 import com.yepanywhere.mobile.YepAnywhereApplication
+import com.yepanywhere.mobile.connection.SYNTHETIC_RESPONSE_TAG
 import com.yepanywhere.mobile.connection.YaConnectionPhase
 import com.yepanywhere.mobile.connection.YaServerConnectionManager
 import com.yepanywhere.mobile.profiles.YaServerRoute
@@ -30,6 +32,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
+import org.junit.Ignore
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -58,6 +61,9 @@ class YaNativeReconnectInstrumentedTest {
         session.assertRecoveredWithoutSyntheticErrors()
     }
 
+    // Red on an API 35 emulator (3/3): native fabricates Unavailable 503s for
+    // the pending requests. Un-ignore with the fix.
+    @Ignore("gaps/android-native-unavailable-fake-503.md")
     @Test
     fun requestsInFlightWhenNativeDisconnectsShowNoSyntheticServerErrors() = withLoadedSession("in-flight", directOnly = true) { session ->
         // Keep the page's requests pending at the server, then drop native's socket.
@@ -97,7 +103,103 @@ class YaNativeReconnectInstrumentedTest {
         session.assertRecoveredWithoutSyntheticErrors()
     }
 
+    @Test
+    fun refreshingTheSessionPageShowsNoSyntheticServerErrors() = withLoadedSession("refresh") { session ->
+        // Pull-down refresh reloads the current route; repeat it as a user might.
+        repeat(3) {
+            session.reload()
+            session.awaitSession()
+        }
+        session.assertRecoveredWithoutSyntheticErrors()
+    }
+
+    @Test
+    fun refreshingRepeatedlyStaysConnected() = withLoadedSession("refresh-repeatedly") { session ->
+        // More reloads in a minute than the relay's per-user circuit-open
+        // budget (6), as a user retrying a stuck page might.
+        repeat(7) {
+            session.reload()
+            session.awaitSession()
+        }
+        session.assertRecoveredWithoutSyntheticErrors()
+    }
+
+    @Test
+    fun wakingTheScreenShowsNoSyntheticServerErrors() = withLoadedSession("screen-wake") { session ->
+        session.device.sleep()
+        Thread.sleep(20_000)
+        session.wake()
+        session.assertRecoveredWithoutSyntheticErrors()
+    }
+
+    @Test
+    fun wakingFromDozeShowsNoSyntheticServerErrors() = withLoadedSession("doze-wake") { session ->
+        // A phone in a pocket: screen off, unplugged, then device idle.
+        session.device.sleep()
+        session.device.executeShellCommand("dumpsys battery unplug")
+        try {
+            Thread.sleep(2_000)
+            session.device.executeShellCommand("dumpsys deviceidle force-idle")
+            Thread.sleep(20_000)
+        } finally {
+            session.device.executeShellCommand("dumpsys deviceidle unforce")
+            session.device.executeShellCommand("dumpsys battery reset")
+        }
+        session.wake()
+        session.assertRecoveredWithoutSyntheticErrors()
+    }
+
+    // Red on an API 35 emulator (2/2): native stops in FAILED after three
+    // retries and the page stays offline. Un-ignore with the fix.
+    @Ignore("gaps/android-native-gives-up-after-wake-outage.md")
+    @Test
+    fun wakingBeforeTheNetworkReturnsShowsNoSyntheticServerErrors() = withLoadedSession("wake-outage", directOnly = true) { session ->
+        // A phone out of a pocket: the screen is on before its network is back,
+        // so native's reconnect attempts fail rather than wait.
+        session.device.sleep()
+        session.probe("/__probe/outage?enabled=true")
+        Thread.sleep(20_000)
+        session.wake()
+        Thread.sleep(8_000)
+        session.probe("/__probe/outage?enabled=false")
+        session.assertRecoveredWithoutSyntheticErrors()
+    }
+
+    // Red on an API 35 emulator: the stuck wake above, and one synthetic
+    // Unavailable 503 at screen-off. Un-ignore with the fixes.
+    @Ignore("gaps/android-native-gives-up-after-wake-outage.md, gaps/android-native-unavailable-fake-503.md")
+    @Test
+    fun refreshingAfterAFailedWakeShowsNoSyntheticServerErrors() = withLoadedSession("wake-outage-refresh", directOnly = true) { session ->
+        // As above, then the user refreshes once the network is back.
+        session.device.sleep()
+        session.probe("/__probe/outage?enabled=true")
+        Thread.sleep(20_000)
+        session.wake()
+        Thread.sleep(8_000)
+        session.probe("/__probe/outage?enabled=false")
+        Thread.sleep(3_000)
+        session.reload()
+        Thread.sleep(10_000)
+        session.assertRecoveredWithoutSyntheticErrors()
+    }
+
+    @Test
+    fun turningTheScreenOffWithRequestsPendingShowsNoSyntheticServerErrors() = withLoadedSession("sleep-pending", directOnly = true) { session ->
+        // Backgrounding releases the page's native lease while its requests
+        // are still waiting on the server.
+        session.probe("/__probe/api-delay?ms=3000")
+        session.navigate("/projects")
+        Thread.sleep(500)
+        session.device.sleep()
+        Thread.sleep(5_000)
+        session.probe("/__probe/api-delay?ms=0")
+        session.wake()
+        session.navigate(session.sessionPath)
+        session.assertRecoveredWithoutSyntheticErrors()
+    }
+
     private class LoadedSession(
+        val device: UiDevice,
         val scenario: ActivityScenario<MainActivity>,
         val manager: YaServerConnectionManager,
         val sessionPath: String,
@@ -112,13 +214,28 @@ class YaNativeReconnectInstrumentedTest {
 
         fun navigate(path: String) = test.navigate(scenario, path)
 
+        fun reload() = test.evaluate(scenario, "location.reload(); true")
+
+        fun awaitSession() = test.await(scenario, "document.body.textContent.includes('Preview message 50')")
+
+        fun wake() {
+            device.wakeUp()
+            device.executeShellCommand("wm dismiss-keyguard")
+            test.await(scenario, "document.visibilityState === 'visible'")
+        }
+
         fun awaitNativeLeftConnected() {
             runBlocking { withTimeout(10_000) { manager.state.first { it.phase != YaConnectionPhase.CONNECTED } } }
         }
 
         fun assertRecoveredWithoutSyntheticErrors() {
             test.await(scenario, "document.body.textContent.includes('Preview message 50') && !document.querySelector('[data-connection-status]')")
-            val errors = test.evaluate(scenario, "JSON.stringify(window.__syntheticErrors)")
+            // The page recorder covers the current document; native's log
+            // covers every document, including ones a reload replaced.
+            val synthetic = device.executeShellCommand("logcat -d -s $SYNTHETIC_RESPONSE_TAG:W").lines()
+                .filter { it.contains("Synthetic 503") }
+            val errors = test.evaluate(scenario, "JSON.stringify(window.__syntheticErrors ?? [])")
+            assertEquals("Native fabricated responses; native phases=$phases", emptyList<String>(), synthetic)
             assertEquals("Page showed errors the server never sent; native phases=$phases", "\"[]\"", errors)
         }
     }
@@ -137,6 +254,8 @@ class YaNativeReconnectInstrumentedTest {
         assumeTrue("Disposable probe arguments absent in config-free CI", ws != null && username != null && password != null)
         val relayWs = args.getString("yaProbeRelayWsUrl")
         assumeTrue("Direct-route scenario", !directOnly || relayWs == null)
+        val device = UiDevice.getInstance(instrumentation)
+        if (recordFromLaunch) device.executeShellCommand("logcat -c")
         val application = instrumentation.targetContext.applicationContext as YepAnywhereApplication
         val runtime = application.nativeRuntime
         val previous = runBlocking { runtime.pairedServers.selectedProfileId.first() }
@@ -178,24 +297,47 @@ class YaNativeReconnectInstrumentedTest {
             navigate(scenario, sessionPath)
             await(scenario, "document.body.textContent.includes('Preview message 50')")
             if (!recordFromLaunch) recordSyntheticErrors(scenario)
-            session = LoadedSession(scenario, manager, sessionPath, phases, http, base, this)
+            if (!recordFromLaunch) device.executeShellCommand("logcat -c")
+            session = LoadedSession(device, scenario, manager, sessionPath, phases, http, base, this)
             body(session)
         } catch (error: Throwable) {
             com.yepanywhere.mobile.UiFailureCapture.save("native-reconnect-$name", "phases=$phases; manager=${manager.state.value}")
             throw error
         } finally {
+            if (!device.isScreenOn) runCatching { device.wakeUp(); device.executeShellCommand("wm dismiss-keyguard") }
             runCatching { session?.probe("/__probe/resume-hold?enabled=false") }
             runCatching { session?.probe("/__probe/api-delay?ms=0") }
+            runCatching { session?.probe("/__probe/outage?enabled=false") }
             watcher.cancel()
             scenario.close()
             preferences.edit().apply { if (previousTabs == null) remove("state") else putString("state", previousTabs) }.commit()
-            http.connectionPool.evictAll()
-            http.dispatcher.executorService.shutdown()
-            runBlocking {
-                runtime.pairedServers.forget(profile.id)
-                if (previous != null && runtime.pairedServers.snapshot(previous) != null) runtime.pairedServers.select(previous)
+            try {
+                // Later relay probes count live circuits; leave none behind.
+                runBlocking { withTimeout(10_000) { manager.state.first { it.phase == YaConnectionPhase.IDLE } } }
+                args.getString("yaProbeRelayStatusUrl")?.let { awaitRelayDrained(http, it) }
+            } finally {
+                http.connectionPool.evictAll()
+                http.dispatcher.executorService.shutdown()
+                runBlocking {
+                    runtime.pairedServers.forget(profile.id)
+                    if (previous != null && runtime.pairedServers.snapshot(previous) != null) runtime.pairedServers.select(previous)
+                }
             }
         }
+    }
+
+    /** Fails with the relay's counts if this app still holds a circuit or socket. */
+    private fun awaitRelayDrained(http: OkHttpClient, statusUrl: String) {
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
+        var mux = org.json.JSONObject()
+        while (System.nanoTime() < deadline) {
+            mux = http.newCall(Request.Builder().url(statusUrl).build()).execute().use {
+                org.json.JSONObject(checkNotNull(it.body).string()).getJSONObject("mux")
+            }
+            if (mux.getInt("liveCircuits") == 0 && mux.getInt("physicalSockets") == 0) return
+            Thread.sleep(100)
+        }
+        throw AssertionError("Relay still holds this app's connections after native went idle: $mux")
     }
 
     /**
