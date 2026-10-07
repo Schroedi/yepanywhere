@@ -819,6 +819,56 @@ test.describe("Full Relay Integration", () => {
     }
   });
 
+  test("right-click Switch Host lists recent hosts and routes to the pick", async ({
+    page,
+    remotePreviewURL,
+    relayWsURL,
+  }) => {
+    await page.setViewportSize({ width: 1000, height: 600 });
+    await loginViaRelay(page, remotePreviewURL, relayWsURL);
+    await page.evaluate((relayUrl: string) => {
+      const stored = JSON.parse(
+        localStorage.getItem("yep-anywhere-saved-hosts") ?? "{}",
+      );
+      stored.hosts.push({
+        id: "e2e-other-host",
+        displayName: "Windows box",
+        mode: "relay",
+        relayUrl,
+        relayUsername: "e2e-other-host",
+        srpUsername: "e2e-other-host",
+        lastConnected: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+      });
+      localStorage.setItem("yep-anywhere-saved-hosts", JSON.stringify(stored));
+    }, relayWsURL);
+
+    const switchHost = page.getByRole("button", { name: "Switch Host" });
+    const otherHost = page.getByRole("menuitem", { name: /Windows box/ });
+    for (const viewport of [
+      { width: 1000, height: 600 },
+      { width: 375, height: 812 },
+    ]) {
+      await page.setViewportSize(viewport);
+      if (!(await switchHost.isVisible())) {
+        await page.getByRole("button", { name: "Open sidebar" }).click();
+      }
+      await switchHost.click({ button: "right" });
+      await expect(otherHost).toBeVisible();
+      await expect(
+        page.getByRole("menuitem", { name: "All hosts…" }),
+      ).toBeVisible();
+      await recordUiCapture(page, `switch-host-menu-${viewport.width}`);
+      if (viewport.width > 375) await page.keyboard.press("Escape");
+    }
+
+    await otherHost.click();
+    // The other host has no saved session, so its gate asks to sign in.
+    await expect(
+      page.locator('[data-testid="relay-username-input"]'),
+    ).toHaveValue("e2e-other-host", { timeout: 15_000 });
+  });
+
   // This test verifies that sessions persist across page refresh via relay.
   test("session persists after page refresh (auto-resume)", async ({
     page,
