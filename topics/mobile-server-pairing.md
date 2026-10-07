@@ -11,6 +11,9 @@ Status: Approved architecture direction. This document fixes the product and
 ownership boundaries agreed on 2026-08-02 and revised to a WebView-first foreground on 2026-09-30. The unified security-client wire,
 continuity-key, audit, revocation, capability, and stable-release compatibility
 contract is approved in [`security-client-audit.md`](security-client-audit.md).
+On 2026-10-07 the WebView data bridge was decided for replacement by a shared
+resume credential; see
+[Decided replacement](#decided-replacement-shared-resume-credential-2026-10-07).
 
 Related:
 
@@ -500,12 +503,39 @@ app-assets code and is removed on document/navigation teardown. Mutable
 hosted-`latest` content never receives it and continues to authenticate with
 its own web-owned session.
 
-An independently authenticated bundled WebView remains a valid future mode or
-performance optimization. In that shape the WebView performs normal SRP itself
-and retains a distinct browser-scoped resume session after the user explicitly
-authenticates there. The baseline does not mint, delegate, or expose a child
-resume credential merely to avoid the second prompt. Any later delegated-token
-proposal requires its own security and compatibility review.
+### Decided replacement: shared resume credential (2026-10-07)
+
+The maintainer decided on 2026-10-07 to replace the WebView data bridge. It is
+not yet implemented; the bridge contract in this section and the next remains
+the shipped behavior until the replacement lands.
+
+The bundled WebView will receive the native profile's existing SRP resume
+credential over the control plane and connect through the ordinary web secure
+transport, resuming that same server session. A user never logs in a second
+time: a server rejection triggers native reauthentication, which hands the
+WebView the new credential. Native keeps its own connection for push
+enrollment, notification-open refresh, host management and foreground work, so
+native background work still never depends on a WebView.
+
+Security review: the bundled assets are signed application code (see Accepted
+Product Shape). A password saved in the WebView would grant full SRP login,
+which is strictly stronger than an expiring resume credential, so copying the
+credential crosses no new boundary. It carries the same script-injection
+exposure every browser login already accepts. Mutable hosted-`latest` content
+never receives it. The server needs no change: resume is a per-connection
+challenge proof against the stored session key, and concurrent connections
+already share one session from browser tabs. Sharing also consumes no second
+per-user session slot, and activity on either side refreshes the idle expiry.
+
+Why: the bridge made the WebView depend on a second connection state machine
+whose reconnect behavior diverged from the web transport. Native failures
+surfaced as synthetic server responses before the WebView learned of the
+reconnect (`gaps/android-native-unavailable-fake-503.md`). The bridge's
+benefits were no second login, no WebView-held credential, and one shared mux
+socket. The first is preserved by the handoff and the second was judged not to
+be a real boundary. When the bridge is removed, its design is retained as a
+retired-design record pinned to the last revision that contains it, so it can
+be revived if a credential-free WebView becomes a requirement.
 
 ### Implemented bridge contract
 
