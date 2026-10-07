@@ -219,10 +219,13 @@ jobs:
 
       # Do not starve the freshly booted launcher with Rust/NDK compilation.
       # Run 37219989321 left a Pixel Launcher ANR covering the live test UI.
+      # Use the live probe's exact variant throughout, including R8, so the
+      # later test:live command does not rebuild it beside the running emulator.
       - name: Build instrumented APKs before emulator startup
         working-directory: packages/android
         run: >-
           ./gradlew assembleBundledDebug assembleBundledDebugAndroidTest
+          -PyaNativeProbeCleartext=true -PyaNativeProbeMinify=true
           --warning-mode all --no-daemon
 
       - name: Enable KVM
@@ -255,6 +258,7 @@ jobs:
             -camera-back none
           script: >-
             cd packages/android && ./gradlew connectedBundledDebugAndroidTest
+            -PyaNativeProbeCleartext=true -PyaNativeProbeMinify=true
             --warning-mode all --no-daemon && cd ../.. && pnpm --filter
             @yep-anywhere/android test:live
 
