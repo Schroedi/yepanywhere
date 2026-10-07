@@ -72,7 +72,7 @@ large-data typing acceptance.
 
 ### Why the minute-long wait matters
 
-The original [wake outage gap](../../gaps/android-native-gives-up-after-wake-outage.md)
+The original wake outage report
 observed only 30 seconds after restoration and described permanent failure.
 Longer observation disproves that description for these runs. Native exhausts
 its quick retries and reports `FAILED`; the JavaScript native transport already
@@ -356,3 +356,40 @@ Source review also found a separate
 This repair covers request replies; subscription setup still needs its own
 reproduction and typed failure handling. No new subscription banner is claimed
 from source inspection alone.
+
+
+## Android recovery repair
+
+The approved next step preserves ordinary browser behavior and the existing
+native quick retry delays plus visible 60-second backstop. Android now carries
+an explicit recoverability flag through Rust, Kotlin and the WebView. Network
+exhaustion remains `reconnecting`; invalid native messages/proofs remain
+terminal without falsely requesting sign-in. Saved-route fallback still tries
+another route. A real Android default-network callback feeds the existing
+WebView recovery scheduler, with document-owned registration and teardown.
+
+New normal unit cases reproduce the old disconnected status and unwanted retry
+of verification failures, then verify slow-backstop timing, signal coalescing,
+suspension, credential retention and terminal failures. The former diagnostic
+red case now passes and is also covered in the normal suite. Rust tests retain
+verified route fallback and establish failure when no route verifies.
+
+The emulator acceptance distinguishes service restoration (no network event,
+passive slow probe) from toggling the emulator's actual network interfaces
+(platform recovery signal). The first full direct run passed all other cases,
+including network restoration, but exposed an incorrect new test selector:
+ConnectionBar renders its reconnecting state as `data-connection-status=connecting`.
+That test assertion was corrected without another runtime change; the failure
+and native phase trace are retained in `recovery-live-direct.log`. This is a
+test-authoring mistake, not an additional product escape.
+
+Full workspace tests, Kotlin unit tests, Rust tests, lint, formatter, TypeScript,
+console scan and both native-webview browser cases pass. The latter retain
+sequential typing coverage. No physical phone or iOS device was operated.
+Logs for this slice use the `recovery-` prefix in the ignored study directory.
+
+The corrected passive-wake acceptance passed in 89 seconds including setup,
+20 seconds asleep and eight seconds of outage after wake. The long passive
+wait is intentionally unchanged. A further Kotlin regression ensures requests
+after an already-connected source becomes terminal fail immediately instead of
+spinning on its previously completed readiness promise.

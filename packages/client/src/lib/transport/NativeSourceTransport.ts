@@ -54,6 +54,7 @@ export class NativeSourceTransport implements SourceTransport, Connection {
   private disposed = false;
   private phase = "CONNECTING";
   private bridgeClosed = false;
+  private explicitRecovery = false;
   private recovery: Promise<void> | null = null;
   private recoveryTimer: ReturnType<typeof setTimeout> | undefined;
   private lastRecovery = -Infinity;
@@ -94,18 +95,29 @@ export class NativeSourceTransport implements SourceTransport, Connection {
     );
     this.bridge.onEvent = (message) => {
       if (message.type === "state") {
-        const phase = String(message.phase);
+        let phase = String(message.phase);
+        if (typeof message.recoverable === "boolean")
+          this.explicitRecovery = true;
+        if (phase === "FAILED" && typeof message.recoverable === "boolean")
+          phase = message.recoverable ? "EXHAUSTED" : "TERMINAL_FAILED";
         if (phase === "SUSPENDED") {
           this.bridge.rejectPending(new ConnectionReconnectingError());
         }
         this.setPhase(
           navigator.onLine === false &&
-            !["REAUTHENTICATION_REQUIRED", "REVOKED", "SUSPENDED"].includes(
-              phase,
-            )
+            ![
+              "REAUTHENTICATION_REQUIRED",
+              "REVOKED",
+              "SUSPENDED",
+              "TERMINAL_FAILED",
+            ].includes(phase)
             ? "OFFLINE"
             : phase,
         );
+        return;
+      }
+      if (message.type === "networkAvailable") {
+        this.recoverIfNeeded(true);
         return;
       }
       if (message.type === "subscriptionError") {
@@ -151,7 +163,8 @@ export class NativeSourceTransport implements SourceTransport, Connection {
       !this.disposed &&
       !this.bridgeClosed &&
       !this.authenticationRequired &&
-      this.phase !== "SUSPENDED"
+      this.phase !== "SUSPENDED" &&
+      this.phase !== "TERMINAL_FAILED"
     );
   }
 
@@ -160,7 +173,7 @@ export class NativeSourceTransport implements SourceTransport, Connection {
       !this.canRecover() ||
       document.hidden ||
       navigator.onLine === false ||
-      !["FAILED", "OFFLINE"].includes(this.phase) ||
+      !["FAILED", "EXHAUSTED", "OFFLINE"].includes(this.phase) ||
       (!networkRestored && Date.now() - this.lastRecovery < 1000)
     )
       return;
@@ -174,7 +187,7 @@ export class NativeSourceTransport implements SourceTransport, Connection {
       !this.canRecover() ||
       document.hidden ||
       navigator.onLine === false ||
-      this.phase !== "FAILED"
+      !["FAILED", "EXHAUSTED"].includes(this.phase)
     )
       return;
     // Native owns its short retry cycle. After exhaustion, only visible demand
@@ -192,7 +205,7 @@ export class NativeSourceTransport implements SourceTransport, Connection {
         ? "ready"
         : phase === "CONNECTING" || phase === "IDLE"
           ? "connecting"
-          : phase === "RETRYING"
+          : phase === "RETRYING" || phase === "EXHAUSTED"
             ? "reconnecting"
             : "disconnected";
     const previous = this.snapshot.state;
@@ -226,7 +239,7 @@ export class NativeSourceTransport implements SourceTransport, Connection {
     await new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => {
         release();
-        reject(new Error("Native connection timed out"));
+        reject(new ConnectionReconnectingError());
       }, 15_000);
       const release = this.status.subscribe(() => {
         if (
@@ -506,7 +519,7 @@ export class NativeSourceTransport implements SourceTransport, Connection {
         },
         () => {
           if (this.canRecover() && this.phase !== "OFFLINE")
-            this.setPhase("FAILED");
+            this.setPhase(this.explicitRecovery ? "EXHAUSTED" : "FAILED");
         },
       )
       .finally(() => {

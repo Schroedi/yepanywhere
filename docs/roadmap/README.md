@@ -249,7 +249,11 @@ physical-phone acceptance evidence.
 The [WebView app implementation](../tactical/083-android-bundled-web-native-transport.md)
 reuses the existing native pairing and multi-host core and the web client's
 SourceTransport contract. It adds no server authentication protocol or child
-credential. The duplicate native dashboard and Conversation presentation are
+credential. Android now preserves typed request failures and keeps exhausted network
+recovery visibly reconnecting, with a native network-restored signal feeding
+the existing recovery scheduler. Browser recovery policy stays unchanged;
+subscription lifecycle and page catch-up acceptance are the next Android slices.
+The duplicate native dashboard and Conversation presentation are
 removed, with reusable decoder/projection helpers retained.
 
 The [Simple Client API experiment](../tactical/130-simple-client-api-and-three-client-demo.md)

@@ -35,6 +35,57 @@ import org.junit.Test
 
 class YaServerConnectionManagerTest {
     @Test
+    fun terminalFailureAfterReadinessRejectsNewDemandWithoutSpinning() = runBlocking {
+        val fixture = Fixture()
+        val transport = FakeTransport(fixture.credential)
+        fixture.connector.results.send(Result.success(transport))
+        val manager = fixture.manager()
+        val lease = manager.acquire()
+        try {
+            lease.subscribe("activity")
+            transport.incoming.send(JSONObject().put("type", "state").put("phase", "FAILED").put("recoverable", false))
+            withTimeout(2_000) { manager.state.first { it.phase == YaConnectionPhase.FAILED } }
+            val error = withTimeout(2_000) { runCatching { lease.request("GET", "/sessions") }.exceptionOrNull() }
+            assertTrue(error is YaConnectionUnavailableException)
+            assertEquals(1, fixture.connector.resumeCalls)
+        } finally { lease.releaseAndAwait(); manager.shutdownAndAwait() }
+    }
+
+    @Test
+    fun exhaustedNetworkRecoveryKeepsCredentialAndCanBeRestarted() = runBlocking {
+        val fixture = Fixture()
+        repeat(2) { fixture.connector.results.send(Result.failure(java.io.IOException("offline"))) }
+        val manager = fixture.manager(retryDelaysMs = listOf(0))
+        val lease = manager.acquire()
+        try {
+            val failed = withTimeout(2_000) { manager.state.first { it.phase == YaConnectionPhase.FAILED } }
+            assertTrue(failed.recoverable)
+            assertEquals(2, fixture.connector.resumeCalls)
+            assertFalse(fixture.repository.credentialCleared)
+            fixture.connector.results.send(Result.success(FakeTransport(fixture.credential)))
+            lease.reconnect()
+            assertEquals(YaConnectionPhase.CONNECTED, manager.state.value.phase)
+            assertEquals(3, fixture.connector.resumeCalls)
+        } finally { lease.releaseAndAwait(); manager.shutdownAndAwait() }
+    }
+
+    @Test
+    fun invalidNativeProofIsTerminalAndCannotBeRestartedByDemand() = runBlocking {
+        val fixture = Fixture()
+        fixture.connector.results.send(Result.failure(uniffi.ya_mobile_core.CoreException.InvalidMessage()))
+        val manager = fixture.manager(retryDelaysMs = listOf(0))
+        val lease = manager.acquire()
+        try {
+            val failed = withTimeout(2_000) { manager.state.first { it.phase == YaConnectionPhase.FAILED } }
+            assertFalse(failed.recoverable)
+            assertTrue(runCatching { lease.reconnect() }.isFailure)
+            assertTrue(runCatching { lease.request("GET", "/sessions") }.isFailure)
+            assertEquals(1, fixture.connector.resumeCalls)
+            assertFalse(fixture.repository.credentialCleared)
+        } finally { lease.releaseAndAwait(); manager.shutdownAndAwait() }
+    }
+
+    @Test
     fun requestErrorCrossesTheWebBridgeWithoutBecomingHttp() = runBlocking {
         val fixture = Fixture()
         val transport = FakeTransport(fixture.credential)

@@ -49,6 +49,7 @@ data class YaConnectionState(
     val routeId: String? = null,
     val retryAttempt: Int = 0,
     val errorMessage: String? = null,
+    val recoverable: Boolean = false,
 )
 
 data class YaApiResponse(
@@ -437,6 +438,11 @@ class YaServerConnectionManager(
             val waitForConnection = mutex.withLock {
                 check(leases.containsKey(leaseId)) { "Connection lease is released" }
                 connection?.transport?.let { return it }
+                val state = mutableState.value
+                if (state.phase in setOf(YaConnectionPhase.REAUTHENTICATION_REQUIRED, YaConnectionPhase.REVOKED) ||
+                    (state.phase == YaConnectionPhase.FAILED && !state.recoverable)) {
+                    throw YaConnectionUnavailableException(state.errorMessage ?: "Native connection ended")
+                }
                 startConnectionIfNeededLocked()
                 connectionReady
             }
@@ -450,6 +456,9 @@ class YaServerConnectionManager(
             check(leases.containsKey(leaseId)) { "Connection lease is released" }
             check(mutableState.value.phase !in setOf(YaConnectionPhase.REAUTHENTICATION_REQUIRED, YaConnectionPhase.REVOKED)) {
                 "This server requires authentication"
+            }
+            check(mutableState.value.phase != YaConnectionPhase.FAILED || mutableState.value.recoverable) {
+                "Native connection failed verification"
             }
             // Join an existing acquisition/retry instead of multiplying cycles.
             if (connectionJob != null && mutableState.value.phase in setOf(YaConnectionPhase.CONNECTING, YaConnectionPhase.RETRYING)) {
@@ -479,6 +488,8 @@ class YaServerConnectionManager(
 
     private fun startConnectionIfNeededLocked() {
         if (leases.isEmpty() || connection != null || connectionJob != null) return
+        if (mutableState.value.phase in setOf(YaConnectionPhase.REAUTHENTICATION_REQUIRED, YaConnectionPhase.REVOKED) ||
+            (mutableState.value.phase == YaConnectionPhase.FAILED && !mutableState.value.recoverable)) return
         connectionGeneration += 1
         val generation = connectionGeneration
         connectionReady = CompletableDeferred()
@@ -539,7 +550,10 @@ class YaServerConnectionManager(
                     return
                 } catch (error: YaRustTerminalException) {
                     if (error.phase == YaConnectionPhase.REAUTHENTICATION_REQUIRED) repository.clearCredential(profileId)
-                    failTerminal(generation, ready, error.phase, "Native connection ended; retry or sign in again", error)
+                    failTerminal(generation, ready, error.phase, "Native connection ended", error, error.recoverable)
+                    return
+                } catch (error: uniffi.ya_mobile_core.CoreException.InvalidMessage) {
+                    failTerminal(generation, ready, YaConnectionPhase.FAILED, "Native connection verification failed", error)
                     return
                 } catch (error: YaAllRoutesRejectedException) {
                     repository.clearCredential(profileId)
@@ -570,6 +584,7 @@ class YaServerConnectionManager(
                             YaConnectionPhase.FAILED,
                             "Could not connect to the paired server",
                             error,
+                            recoverable = true,
                         )
                         return
                     }
@@ -658,7 +673,7 @@ class YaServerConnectionManager(
                             mutableState.value = YaConnectionState(YaConnectionPhase.CONNECTED, routeId = route.id)
                         }
                     }
-                    "FAILED", "REAUTHENTICATION_REQUIRED" -> throw YaRustTerminalException(YaConnectionPhase.valueOf(message.getString("phase")))
+                    "FAILED", "REAUTHENTICATION_REQUIRED" -> throw YaRustTerminalException(YaConnectionPhase.valueOf(message.getString("phase")), message.optBoolean("recoverable"))
                 }
             }
             "requestError" -> {
@@ -745,11 +760,12 @@ class YaServerConnectionManager(
         phase: YaConnectionPhase,
         message: String,
         error: Throwable,
+        recoverable: Boolean = false,
     ) {
         mutex.withLock {
             if (connectionGeneration != generation) return
             connection = null
-            mutableState.value = YaConnectionState(phase = phase, errorMessage = message)
+            mutableState.value = YaConnectionState(phase = phase, errorMessage = message, recoverable = recoverable)
             failPendingLocked(YaConnectionUnavailableException(message, error))
             failConversationsLocked(error)
             ready.completeExceptionally(YaConnectionUnavailableException(message, error))

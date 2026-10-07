@@ -54,7 +54,7 @@ internal object YaRustTls {
     }
 }
 
-class YaRustTerminalException(val phase: YaConnectionPhase) : IllegalStateException("Native Rust connection ended")
+class YaRustTerminalException(val phase: YaConnectionPhase, val recoverable: Boolean = false) : IllegalStateException("Native Rust connection ended")
 
 /** Historical regression tag; request failures now use typed operation errors. */
 const val SYNTHETIC_RESPONSE_TAG = "YaSyntheticResponse"
@@ -183,10 +183,10 @@ internal class YaRustMessageTransport(
                     }
                     incoming.send(event)
                     if (event.optString("type") == "state" && event.optString("phase") in setOf("FAILED", "REAUTHENTICATION_REQUIRED")) {
-                        throw YaRustTerminalException(YaConnectionPhase.valueOf(event.getString("phase")))
+                        throw YaRustTerminalException(YaConnectionPhase.valueOf(event.getString("phase")), event.optBoolean("recoverable"))
                     }
                 }
-            } catch (error: CoreException) { finish(YaRustTerminalException(YaConnectionPhase.FAILED)) }
+            } catch (error: CoreException) { finish(YaRustTerminalException(YaConnectionPhase.FAILED, error is CoreException.Unavailable || error is CoreException.Closed || error is CoreException.Timeout)) }
             catch (error: Throwable) { finish(error) }
         }
         scope.launch {

@@ -21,6 +21,58 @@ afterEach(() => {
 });
 
 describe("native source transport", () => {
+  it("keeps Android retry exhaustion recoverable without changing the backstop", async () => {
+    const { host, transport } = await setup();
+    vi.useFakeTimers();
+    await host.emit({ type: "state", phase: "FAILED", recoverable: true });
+    expect(transport.status.getSnapshot().state).toBe("reconnecting");
+    await vi.advanceTimersByTimeAsync(59_999);
+    expect(host.commands).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(host.commands.map((command) => command.method)).toEqual([
+      "reconnect",
+    ]);
+    expect(transport.status.getSnapshot().state).toBe("ready");
+  });
+
+  it("uses native network restoration once and ignores it while suspended", async () => {
+    const { host, transport } = await setup();
+    await host.emit({ type: "state", phase: "SUSPENDED" });
+    await host.emit({ type: "networkAvailable" });
+    expect(host.commands).toHaveLength(0);
+    await host.emit({ type: "state", phase: "FAILED", recoverable: true });
+    let finish!: () => void;
+    host.handler = () =>
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+    await host.emit({ type: "networkAvailable" });
+    await host.emit({ type: "networkAvailable" });
+    await vi.waitFor(() => expect(host.commands).toHaveLength(1));
+    window.dispatchEvent(new Event("online"));
+    expect(host.commands).toHaveLength(1);
+    finish();
+    await vi.waitFor(() =>
+      expect(transport.status.getSnapshot().state).toBe("ready"),
+    );
+  });
+
+  it("does not retry a native verification failure or turn it into sign-in", async () => {
+    const { host, transport } = await setup();
+    vi.useFakeTimers();
+    const signIn = vi.fn();
+    transport.onAuthenticationRequired = signIn;
+    await host.emit({ type: "state", phase: "FAILED", recoverable: false });
+    await host.emit({ type: "networkAvailable" });
+    window.dispatchEvent(new Event("online"));
+    window.dispatchEvent(new Event("offline"));
+    document.dispatchEvent(new Event("visibilitychange"));
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(transport.status.getSnapshot().state).toBe("disconnected");
+    expect(host.commands).toHaveLength(0);
+    expect(signIn).not.toHaveBeenCalled();
+  });
+
   it("ignores an old native failure after the state event already retried its read", async () => {
     const { host, transport } = await setup();
     let reads = 0;

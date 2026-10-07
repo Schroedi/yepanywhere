@@ -4,8 +4,9 @@ Status: investigation started, 2026-10-07. The
 [browser/emulator study](../../docs/testing/source-lifecycle-study-2026-10-07.md)
 adds a real native comparison harness, visible error reproductions and a small
 red unit case. The first Android repair now preserves typed request errors and
-passes the direct/mux visible-503 reproductions. The shared conformance factory,
-exhausted recovery status and broader page catch-up work remain open.
+passes the direct/mux visible-503 reproductions. Android exhausted recovery now
+has an explicit recoverability contract and platform network signals. The
+shared conformance factory and broader page catch-up work remain open.
 
 ## Purpose
 
@@ -16,12 +17,12 @@ Not Ready, § Health And Recovery Ownership, § Recovery after a temporary
 outage), but no shared test runs a `SourceTransport` through it. The native
 data bridge originally answered with synthetic 503s while native reconnected,
 and nothing failed until users saw the banners. That request error path is now
-repaired; exhausted recovery still reports disconnected to its callers
-([wake outage gap](../android-native-gives-up-after-wake-outage.md)).
+repaired; exhausted Android network recovery now remains `reconnecting`.
 
-Make the lifecycle contract executable, improve web clients against it, and
-repair the bridge against the same suite, so that native remains the only SRP
-owner in the app.
+Make the lifecycle contract executable and bring Android up to the working
+browser baseline. The agreed October 7 follow-up keeps browser recovery
+behavior mostly unchanged; shared edits need a demonstrated defect and focused
+regression coverage. Native remains the only SRP owner in the app.
 
 ## Direction
 

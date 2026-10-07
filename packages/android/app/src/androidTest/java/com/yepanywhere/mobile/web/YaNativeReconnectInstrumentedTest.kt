@@ -32,7 +32,6 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
-import org.junit.Ignore
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -172,9 +171,8 @@ class YaNativeReconnectInstrumentedTest {
         session.assertRecoveredWithoutSyntheticErrors()
     }
 
-    // Red on an API 35 emulator (2/2): native stops in FAILED after three
-    // retries and the page stays offline. Un-ignore with the fix.
-    @Ignore("gaps/android-native-gives-up-after-wake-outage.md")
+    // Retry exhaustion remains visibly recoverable. This fixture changes server
+    // reachability, not Android connectivity, so recovery uses the slow backstop.
     @Test
     fun wakingBeforeTheNetworkReturnsShowsNoSyntheticServerErrors() = withLoadedSession("wake-outage", directOnly = true) { session ->
         // A phone out of a pocket: the screen is on before its network is back,
@@ -184,8 +182,35 @@ class YaNativeReconnectInstrumentedTest {
         Thread.sleep(20_000)
         session.wake()
         Thread.sleep(8_000)
+        await(session.scenario, "document.querySelector('[data-connection-status=connecting]') !== null")
+        assertTrue(session.manager.state.value.recoverable)
         session.probe("/__probe/outage?enabled=false")
-        session.assertRecoveredWithoutSyntheticErrors()
+        // Two measured passive runs took ~57 s after restoration. 120 s is
+        // 2x that observed maximum and includes the unchanged 60 s backstop.
+        session.assertRecoveredWithoutSyntheticErrors(timeoutSeconds = 120)
+    }
+
+    @Test
+    fun nativeNetworkRestorationRestartsAnExhaustedSource() {
+        assumeTrue("Radio controls belong only to the owned emulator", android.os.Build.HARDWARE == "ranchu")
+        withLoadedSession("network-restoration", directOnly = true) { session ->
+            try {
+                session.probe("/__probe/outage?enabled=true")
+                session.device.executeShellCommand("svc wifi disable")
+                session.device.executeShellCommand("svc data disable")
+                runBlocking { withTimeout(15_000) { session.manager.state.first { it.phase == YaConnectionPhase.FAILED } } }
+                assertTrue(session.manager.state.value.recoverable)
+                session.probe("/__probe/outage?enabled=false")
+                session.device.executeShellCommand("svc wifi enable")
+                session.device.executeShellCommand("svc data enable")
+                // No typing, page reload or synthetic JS online event. The
+                // real platform callback must recover before the 60 s timer.
+                session.assertRecoveredWithoutSyntheticErrors()
+            } finally {
+                session.device.executeShellCommand("svc wifi enable")
+                session.device.executeShellCommand("svc data enable")
+            }
+        }
     }
 
     // Refresh after exhausted wake recovery must not fabricate server errors.
@@ -249,8 +274,8 @@ class YaNativeReconnectInstrumentedTest {
             runBlocking { withTimeout(10_000) { manager.state.first { it.phase != YaConnectionPhase.CONNECTED } } }
         }
 
-        fun assertRecoveredWithoutSyntheticErrors() {
-            test.await(scenario, "document.body.textContent.includes('Preview message 50') && !document.querySelector('[data-connection-status]')")
+        fun assertRecoveredWithoutSyntheticErrors(timeoutSeconds: Long = 30) {
+            test.await(scenario, "document.body.textContent.includes('Preview message 50') && !document.querySelector('[data-connection-status]')", timeoutSeconds)
             // The page recorder covers the current document; native's log
             // covers every document, including ones a reload replaced.
             val synthetic = device.executeShellCommand("logcat -d -s $SYNTHETIC_RESPONSE_TAG:W").lines()

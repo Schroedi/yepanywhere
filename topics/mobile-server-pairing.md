@@ -632,8 +632,18 @@ Android native reconnect retains lease owners and subscription intents, joins
 an existing acquisition/retry, and can replace a stale transport after network
 restoration. The WebView requests a new bounded native cycle on visible demand,
 network restoration or a visible 60-second backstop after exhaustion. There is
-no hidden retry timer. Authentication rejection/revocation and a broken local
-bridge are distinct from network failure and do not enter that recovery loop.
+no hidden retry timer. Android explicitly marks exhausted network failures as
+recoverable; callers continue to see `reconnecting`, not terminal disconnect.
+An Android default-network-available callback joins the same WebView recovery
+scheduler as visibility, activity and online signals; it creates no second
+retry timer and does nothing for hidden or suspended documents. Service
+restoration without a network event can still wait for the 60-second backstop.
+Authentication rejection/revocation, failed message/proof verification and a
+broken local bridge do not enter that recovery loop. Verification failure does
+not itself request sign-in. Native route fallback still tries another saved
+route, but an unverified response cannot become mere retry exhaustion when no
+route authenticates. These changes retain the existing owner identity,
+credentials and server authority; no new principal or grant is introduced.
 Recovery updates the mounted page without a document reload.
 
 Bundled native pages support pull-down refresh beginning at the top of the page

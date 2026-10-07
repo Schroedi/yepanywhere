@@ -114,15 +114,12 @@ pnpm --filter @yep-anywhere/client exec vitest run \
   --config e2e/lifecycle-study/vitest.config.mjs
 ```
 
-The first command checks the fault controller. The second deliberately exits
-nonzero on the current source: retry exhaustion is exposed as `disconnected`
-instead of the promised `reconnecting`. Its other test establishes the
-60-second backstop. The fabricated-503 repair now has normal Kotlin and
-`NativeSourceTransport.test.ts` coverage, including error/state ordering,
-abandoned operations, mutation non-replay and genuine server 503 preservation.
-These explicit reproductions are outside ordinary `pnpm test`; they are not
-silently converted to passing expectations or retries. Move repaired acceptance
-cases into the normal suite as the relevant fixes land.
+The first command checks the fault controller. The second retains the original
+exhaustion reproduction against Android's explicit recoverability field; its
+acceptance checks now also run in the normal `NativeSourceTransport.test.ts`
+suite. The fabricated-503 repair has normal Kotlin and TypeScript coverage,
+including error/state ordering, abandoned operations, mutation non-replay and
+genuine server 503 preservation.
 
 The opt-in Android method `hostDrivenLifecycleStudy` owns pairing, the Activity,
 and cleanup. A bounded rendezvous file lets the host run the experiment while
