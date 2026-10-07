@@ -1,7 +1,8 @@
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
-// Explicit red reproductions. Excluded from ordinary pnpm test by e2e/**.
+// Historical reproductions; repaired cases also have normal unit coverage.
+// This opt-in configuration remains excluded from pnpm test by e2e/**.
 export default defineConfig({
   root: fileURLToPath(new URL("../..", import.meta.url)),
   resolve: { conditions: ["source"] },

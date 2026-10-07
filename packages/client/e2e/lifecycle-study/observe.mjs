@@ -50,7 +50,7 @@ export function installObserver() {
     subtree: true,
     characterData: true,
     attributes: true,
-    attributeFilter: ["class", "style", "hidden"],
+    attributeFilter: ["class", "style", "hidden", "data-connection-status"],
   });
   document.addEventListener("visibilitychange", sample);
   window.addEventListener("online", sample);

@@ -29,6 +29,7 @@ import kotlinx.coroutines.withTimeout
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.MediaType.Companion.toMediaType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
@@ -37,7 +38,7 @@ import org.junit.runner.RunWith
 
 /**
  * The bundled web app rides out native connection churn without showing server
- * errors the server never sent (gaps/android-native-unavailable-fake-503.md).
+ * errors the server never sent (topics/mobile-server-pairing.md).
  * Scenarios that use the probe server's direct-socket controls run on the
  * direct route only.
  */
@@ -148,10 +149,32 @@ class YaNativeReconnectInstrumentedTest {
 
     @Test
     fun wakingTheScreenShowsNoSyntheticServerErrors() = withLoadedSession("screen-wake") { session ->
-        session.device.sleep()
-        Thread.sleep(20_000)
-        session.wake()
-        session.assertRecoveredWithoutSyntheticErrors()
+        // Prime both pages, then change server data while the real foreground
+        // lease is absent. Session, cached Inbox and sidebar must agree on wake.
+        session.navigate("/inbox")
+        await(session.scenario, "!!document.querySelector('.inbox-toolbar') && document.querySelector('main').textContent.includes('Android conversation fixture')")
+        session.navigate(session.sessionPath)
+        session.awaitSession()
+        val document = evaluate(session.scenario, "performance.timeOrigin")
+        recordPageProblems(session.scenario)
+        val title = "Updated wake session"
+        try {
+            session.device.sleep()
+            runBlocking { withTimeout(10_000) { session.manager.state.first { it.phase == YaConnectionPhase.IDLE } } }
+            val message = session.probe("/__probe/append").getString("message")
+            session.updateMetadata(title, true)
+            Thread.sleep(20_000)
+            session.wake()
+            session.assertRecoveredWithoutSyntheticErrors()
+            await(session.scenario, "document.body.textContent.includes(${org.json.JSONObject.quote(message)}) && document.querySelector('header').textContent.includes('$title')")
+            session.navigate("/inbox")
+            await(session.scenario, "!!document.querySelector('.inbox-toolbar') && document.querySelector('main').textContent.includes('$title') && !document.querySelector('[data-connection-status]')")
+            await(session.scenario, """!!document.querySelector('[aria-label="Open sidebar"]')""")
+            evaluate(session.scenario, """document.querySelector('[aria-label="Open sidebar"]').click(); true""")
+            await(session.scenario, "document.querySelector('#sidebar-starred-list')?.textContent.includes('$title') === true")
+            assertEquals("Wake must preserve the mounted document", document, evaluate(session.scenario, "performance.timeOrigin"))
+            assertEquals("No transient errors or sign-in; native phases=${session.phases}", "\"[]\"", evaluate(session.scenario, "JSON.stringify(window.__pageProblems)"))
+        } finally { session.updateMetadata("Android conversation fixture", false) }
     }
 
     @Test
@@ -194,17 +217,24 @@ class YaNativeReconnectInstrumentedTest {
     fun nativeNetworkRestorationRestartsAnExhaustedSource() {
         assumeTrue("Radio controls belong only to the owned emulator", android.os.Build.HARDWARE == "ranchu")
         withLoadedSession("network-restoration", directOnly = true) { session ->
+            recordPageProblems(session.scenario)
             try {
                 session.probe("/__probe/outage?enabled=true")
                 session.device.executeShellCommand("svc wifi disable")
                 session.device.executeShellCommand("svc data disable")
+                await(session.scenario, "navigator.onLine === false")
                 runBlocking { withTimeout(15_000) { session.manager.state.first { it.phase == YaConnectionPhase.FAILED } } }
                 assertTrue(session.manager.state.value.recoverable)
+                session.navigate("/inbox")
+                await(session.scenario, "!!document.querySelector('[data-connection-status=connecting]')")
                 session.probe("/__probe/outage?enabled=false")
                 session.device.executeShellCommand("svc wifi enable")
                 session.device.executeShellCommand("svc data enable")
                 // No typing, page reload or synthetic JS online event. The
                 // real platform callback must recover before the 60 s timer.
+                await(session.scenario, "!!document.querySelector('.inbox-toolbar') && !document.querySelector('[data-connection-status]')")
+                assertEquals("Radio loss must not become a page error or sign-in", "\"[]\"", evaluate(session.scenario, "JSON.stringify(window.__pageProblems)"))
+                session.navigate(session.sessionPath)
                 session.assertRecoveredWithoutSyntheticErrors()
             } finally {
                 session.device.executeShellCommand("svc wifi enable")
@@ -256,6 +286,14 @@ class YaNativeReconnectInstrumentedTest {
     ) {
         fun probe(path: String) = http.newCall(Request.Builder().url("$base$path").post(ByteArray(0).toRequestBody()).build()).execute().use {
             assertTrue("Probe $path failed: ${it.code}", it.isSuccessful)
+            org.json.JSONObject(checkNotNull(it.body).string())
+        }
+
+        fun updateMetadata(title: String, starred: Boolean) {
+            val body = org.json.JSONObject().put("title", title).put("starred", starred).toString()
+            http.newCall(Request.Builder().url("$base/api/sessions/android-preview-session/metadata")
+                .header("X-Yep-Anywhere", "true").put(body.toRequestBody("application/json".toMediaType())).build())
+                .execute().use { assertTrue("Metadata fixture update failed: ${it.code}", it.isSuccessful) }
         }
 
         fun navigate(path: String) = test.navigate(scenario, path)
@@ -384,6 +422,23 @@ class YaNativeReconnectInstrumentedTest {
             Thread.sleep(100)
         }
         throw AssertionError("Relay still holds this app's connections after native went idle: $mux")
+    }
+
+    private fun recordPageProblems(scenario: ActivityScenario<MainActivity>) {
+        evaluate(scenario, """
+            (() => {
+              window.__pageProblems = [];
+              const sample = () => {
+                const errors = [...document.querySelectorAll('.error, [role="alert"], [class*="errorMessage"]')]
+                  .filter(e => e.checkVisibility({checkOpacity:true, checkVisibilityCSS:true}))
+                  .map(e => e.textContent.trim()).filter(Boolean);
+                if (errors.length || location.pathname.includes('/login'))
+                  window.__pageProblems.push({path:location.pathname, errors});
+              };
+              new MutationObserver(sample).observe(document.body, {subtree:true, childList:true, characterData:true});
+              window.addEventListener('popstate', sample); sample(); return true;
+            })()
+        """.trimIndent())
     }
 
     /**

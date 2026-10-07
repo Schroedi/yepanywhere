@@ -253,7 +253,8 @@ credential. Android now preserves typed request failures and keeps exhausted net
 recovery visibly reconnecting, with a native network-restored signal feeding
 the existing recovery scheduler. Browser recovery policy stays unchanged;
 subscription failures and cancellation now retain native semantics, with
-page catch-up acceptance the next Android slice.
+page catch-up acceptance covering session, Inbox, sidebar and retained drafts.
+The broader all-transport conformance suite remains follow-up work.
 The duplicate native dashboard and Conversation presentation are
 removed, with reusable decoder/projection helpers retained.
 

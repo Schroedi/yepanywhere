@@ -294,6 +294,41 @@ describe("native source transport", () => {
     );
   });
 
+  it.each(["before", "after"])(
+    "keeps Android radio loss recoverable when its contract arrives %s offline",
+    async (order) => {
+      const { host, transport } = await setup();
+      if (order === "before")
+        await host.emit({
+          type: "state",
+          phase: "CONNECTED",
+          recoverable: false,
+        });
+      const online = vi
+        .spyOn(navigator, "onLine", "get")
+        .mockReturnValue(false);
+      window.dispatchEvent(new Event("offline"));
+      if (order === "after")
+        await host.emit({
+          type: "state",
+          phase: "CONNECTED",
+          recoverable: false,
+        });
+      expect(transport.status.getSnapshot().state).toBe("reconnecting");
+      const request = transport.fetch("/projects");
+      const result = expect(request).resolves.toEqual({ ok: true });
+      await Promise.resolve();
+      expect(host.commands).toHaveLength(0);
+      online.mockReturnValue(true);
+      window.dispatchEvent(new Event("online"));
+      await result;
+      expect(host.commands.map((command) => command.method)).toEqual([
+        "reconnect",
+        "request",
+      ]);
+    },
+  );
+
   it("shows loss immediately and waits for network restoration before recovery", async () => {
     const { host, transport } = await setup();
     const online = vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);

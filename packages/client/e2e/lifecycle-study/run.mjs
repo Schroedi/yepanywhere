@@ -17,6 +17,7 @@ import {
 } from "../../scripts/artifact-capture.ts";
 import { createNetworkGate } from "./network-gate.mjs";
 import { installObserver } from "./observe.mjs";
+import { assessPageRecovery } from "./acceptance.mjs";
 
 const exec = promisify(execFile);
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
@@ -30,10 +31,17 @@ const client = options.client ?? "browser";
 const route = options.route ?? "direct";
 const surface = options.surface ?? "session";
 const fault = options.fault ?? "disconnect";
-const observationMs = Number(options["observe-ms"] ?? 90_000);
+const verify = options.verify === "true";
+// Passive recovery measured 49–65 s. Three minutes is ~3x the observed
+// maximum; verification exits after five healthy seconds (one stream retry cap).
+const observationMs = Number(
+  options["observe-ms"] ?? (verify ? 180_000 : 90_000),
+);
 const outageMs = Number(options["outage-ms"] ?? 16_000);
 const activity = options.activity ?? "none";
 if (
+  (options.verify !== undefined &&
+    !["true", "false"].includes(options.verify)) ||
   !["browser", "android"].includes(client) ||
   !["direct", "mux"].includes(route) ||
   !["session", "inbox"].includes(surface) ||
@@ -98,7 +106,8 @@ const result = {
   activity,
   started,
   hostStart: host(),
-  grade: "diagnostic; timings are not benchmark acceptance",
+  grade: "page invariants; timings are not benchmark acceptance",
+  verify,
   revision: (
     await exec("git", ["rev-parse", "HEAD"], { cwd: repo })
   ).stdout.trim(),
@@ -110,7 +119,12 @@ result.bundleHash = createHash("sha256")
   .update(await readFile(join(repo, "packages/client/dist-remote/remote.html")))
   .digest("hex");
 const harnessHash = createHash("sha256");
-for (const file of ["run.mjs", "observe.mjs", "network-gate.mjs"])
+for (const file of [
+  "run.mjs",
+  "observe.mjs",
+  "network-gate.mjs",
+  "acceptance.mjs",
+])
   harnessHash.update(await readFile(new URL(file, import.meta.url)));
 result.harnessHash = harnessHash.digest("hex");
 let relay, fixture, gate, staticServer, browser, page, cdp, instrument;
@@ -355,6 +369,10 @@ try {
     : "";
   const sessionPath = `${prefix}/projects/${projectId}/sessions/android-preview-session`;
   const target = surface === "session" ? sessionPath : `${prefix}/inbox`;
+  result.expectedPath = target;
+  result.expectedDraft =
+    "Draft survives outage" +
+    (activity === "typing" ? " while recovering" : "");
   await navigate(target);
   await page
     .locator(
@@ -422,6 +440,7 @@ try {
   // This measures autonomous recovery separately from activity-driven recovery.
   const deadline = Date.now() + observationMs;
   let captured = false;
+  let healthySince;
   while (Date.now() < deadline) {
     const state = await snapshot("observe");
     if (
@@ -429,10 +448,12 @@ try {
       !state.login &&
       !state.errors &&
       state.titleUpdated &&
-      (surface !== "session" || state.needle) &&
-      result.firstHealthyAt === undefined
-    )
-      result.firstHealthyAt = Date.now();
+      (surface !== "session" || state.needle)
+    ) {
+      result.firstHealthyAt ??= Date.now();
+      healthySince ??= Date.now();
+      if (verify && Date.now() - healthySince >= 5000) break;
+    } else healthySince = undefined;
     if (!captured && Date.now() - result.restoredAt >= 30_000) {
       await capture("after-30s");
       captured = true;
@@ -453,10 +474,6 @@ try {
     await capture("after-activity");
   }
   result.gate = gate.snapshot();
-  result.observer = await page.evaluate(() => ({
-    rows: window.__lifecycleStudy.rows,
-    keys: window.__lifecycleStudy.keys,
-  }));
   record({
     type: "sidebar-inspection",
     note: "Explicit interaction after passive recovery measurements",
@@ -469,6 +486,11 @@ try {
   await pause(1000);
   result.sidebar = await snapshot("sidebar-open");
   await capture("sidebar");
+  result.observer = await page.evaluate(() => ({
+    rows: window.__lifecycleStudy.rows,
+    keys: window.__lifecycleStudy.keys,
+  }));
+
   result.completed = true;
 } catch (error) {
   result.completed = false;
@@ -482,7 +504,17 @@ try {
     );
     await device("shell", "wm", "dismiss-keyguard").catch(() => {});
     await device("shell", "touch", `${deviceDir}/stop`).catch(() => {});
-    await Promise.race([instrumentDone, pause(15_000)]);
+    const stopDeadline = new AbortController();
+    try {
+      await Promise.race([
+        instrumentDone,
+        pause(15_000, undefined, { signal: stopDeadline.signal }),
+      ]);
+    } finally {
+      // A completed instrument run must not leave every matrix child alive
+      // for the remainder of its cleanup deadline.
+      stopDeadline.abort();
+    }
     if (instrument.exitCode === null) {
       instrument.kill();
       await device("shell", "am", "force-stop", "com.yepanywhere.mobile").catch(
@@ -502,14 +534,16 @@ try {
       `${deviceDir}/phases.json`,
       join(out, "native-phases.json"),
     ).catch(() => {});
-    await writeFile(
-      join(out, "native-errors.log"),
-      (
-        await device("logcat", "-d", "-s", "YaSyntheticResponse:W").catch(
-          () => ({ stdout: "unavailable" }),
-        )
-      ).stdout,
-    );
+    const nativeErrors = (
+      await device("logcat", "-d", "-s", "YaSyntheticResponse:W").catch(() => ({
+        stdout: "unavailable",
+      }))
+    ).stdout;
+    await writeFile(join(out, "native-errors.log"), nativeErrors);
+    result.nativeDiagnosticsAvailable = nativeErrors !== "unavailable";
+    result.nativeSyntheticErrors = nativeErrors
+      .split("\n")
+      .filter((line) => line.includes("Synthetic 503"));
   }
   await browser?.close().catch(() => {});
   for (const device of androidDevices) await device.close().catch(() => {});
@@ -540,6 +574,9 @@ try {
         ),
     );
   }
+  result.pageErrors = timeline.filter((event) => event.type === "page-error");
+  result.acceptance = assessPageRecovery(result);
+  if (verify && !result.acceptance.passed) process.exitCode = 1;
   result.hostEnd = host();
   result.finished = Date.now();
   await writeFile(join(out, "result.json"), JSON.stringify(result, null, 2));
@@ -559,6 +596,7 @@ try {
     JSON.stringify(
       {
         out,
+        acceptance: result.acceptance,
         completed: result.completed,
         error: result.error,
         recoveryMs: result.firstHealthyAt

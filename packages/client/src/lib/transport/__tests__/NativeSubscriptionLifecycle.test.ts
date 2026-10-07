@@ -151,6 +151,7 @@ it("keeps a real server rejection distinct and does not retry native verificatio
 
 it("keeps repeated reconnects within one native subscription and ignores late setup errors", async () => {
   const { host, transport } = await setup();
+  // Count ownership across 70 cycles without paying a 50 ms polling interval per cycle.
   const owned = new Set<string>();
   host.handler = (command) => {
     const id = (command.params as { subscriptionId: string }).subscriptionId;
@@ -164,11 +165,14 @@ it("keeps repeated reconnects within one native subscription and ignores late se
   });
   cleanup.push(() => stream.close());
   for (let cycle = 0; cycle < 70; cycle++) {
-    await vi.waitFor(() => expect(subscriptions(host)).toHaveLength(cycle + 1));
+    await vi.waitFor(
+      () => expect(subscriptions(host)).toHaveLength(cycle + 1),
+      { interval: 1 },
+    );
     expect(owned.size).toBe(1);
     const old = subscriptions(host).at(-1)!;
     await host.emit({ type: "state", phase: "RETRYING" });
-    await vi.waitFor(() => expect(owned.size).toBe(0));
+    await vi.waitFor(() => expect(owned.size).toBe(0), { interval: 1 });
     await host.emit({ type: "state", phase: "CONNECTED" });
     await host.emit({
       type: "subscriptionError",

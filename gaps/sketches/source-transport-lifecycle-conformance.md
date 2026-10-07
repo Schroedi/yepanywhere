@@ -6,7 +6,9 @@ adds a real native comparison harness, visible error reproductions and a small
 red unit case. The first Android repair now preserves typed request errors and
 passes the direct/mux visible-503 reproductions. Android exhausted recovery now
 has an explicit recoverability contract and platform network signals. The
-shared conformance factory and broader page catch-up work remain open.
+page acceptance matrix checks Inbox/session/sidebar catch-up, drafts, input
+acknowledgement and transient errors, with a sleep/wake case in normal Android
+CI. The shared all-transport conformance factory remains open.
 
 ## Purpose
 

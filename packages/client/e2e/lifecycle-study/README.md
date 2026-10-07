@@ -1,6 +1,6 @@
-# Browser and Android source lifecycle study
+# Browser and Android source lifecycle checks
 
-An **opt-in diagnostic**, not a passing CI acceptance test. It runs the built
+An **opt-in diagnostic with explicit page acceptance mode**. It runs the built
 remote web client or the real minified Android app against an owned fixture,
 with the same TCP fault controller and page observer. No runtime application
 code is replaced. Android uses its production Kotlin/UniFFI/Rust connection;
@@ -78,6 +78,44 @@ without clicking, typing, focusing or injecting `online`. It records a separate
 keyboard recovery attempt if the session remains stale or the bar remains.
 Sidebar inspection is an explicit interaction **after** passive measurement.
 
+## Verify Android page recovery
+
+After preparing the APKs above, one command runs five owned-emulator cases:
+direct/mux session reads interrupted in flight, direct Inbox disconnect, mux
+Inbox outage and direct session wake into an outage.
+
+```bash
+ANDROID_SERIAL=emulator-5554 pnpm exec node \
+  packages/client/e2e/lifecycle-study/verify-android.mjs
+```
+
+`YA_LIFECYCLE_CASES` can select comma-separated case names from that script.
+Each case owns a fresh server/relay, records its result and cleans up before
+the next. The runner finishes all selected cases and exits nonzero if any
+fails; it never retries a failed case. Logs and `matrix.json` share one new
+ignored artifact directory. The ordinary Android CI sleep/wake test separately
+checks session, primed Inbox and sidebar catch-up using the real native lease.
+The larger matrix remains opt-in until its CI runtime budget is agreed.
+
+For a single case, add `--verify=true` to `run.mjs`. Verification observes up to
+180 seconds by default (about 3x the measured 49–65 second passive recovery),
+but stops after five consecutive healthy seconds. That spans one maximum
+managed-stream retry interval. It is an observation/cleanup bound, not a
+promise that recovery should take three minutes.
+
+Acceptance requires automatic recovery within that window, the updated title
+and missed session message, an unchanged unsent draft, every sequentially typed
+character acknowledged within 100 ms, no observed transient error/login/empty
+page, and an updated sidebar when opened. It also requires completed native
+instrumentation and cleanup. Errors from old subscriptions cannot be excused
+merely because the final screenshot looks healthy. The observer still has the
+selector/visibility and small-fixture limitations described below.
+
+Every run records `acceptance.passed` and its failure reasons. Diagnostic mode
+keeps its existing completion exit status, so the standard browser baseline
+can be measured even when it exposes a known transient error. Verification
+mode makes those failures affect the exit status. It changes no app behavior.
+
 ## Read the evidence
 
 - `result.json`: recipe, source/build identity, host samples, outcomes, page
@@ -109,7 +147,8 @@ gating. Do not compare these timings as performance regressions across hosts.
 ## Lower-level reproduction
 
 ```bash
-node --test packages/client/e2e/lifecycle-study/network-gate.checks.mjs
+node --test packages/client/e2e/lifecycle-study/network-gate.checks.mjs \
+  packages/client/e2e/lifecycle-study/acceptance.checks.mjs
 pnpm --filter @yep-anywhere/client exec vitest run \
   --config e2e/lifecycle-study/vitest.config.mjs
 ```

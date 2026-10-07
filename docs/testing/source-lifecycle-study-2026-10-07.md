@@ -1,14 +1,15 @@
 # Browser and Android interruption study — 2026-10-07
 
-The reported Android error is reproducible on the session page with both a
+The original Android error was reproduced on the session page with both a
 direct connection and a relay. A second finding changes the diagnosis: Android
 does eventually recover from the wake/outage case, but can leave a visible page
 waiting nearly a minute. Typing after connectivity returns causes much faster
 recovery. The browser has its own temporary error messages in these experiments.
 
 The initial study below changed no production transport implementation and is
-not release acceptance. The first repair is recorded at the end of this report;
-the original observations remain the baseline. Native remains the Android
+not release acceptance. Repairs and explicit page acceptance are recorded below;
+the original observations remain the baseline. Android remains the focus and
+ordinary browser recovery policy is unchanged. Native remains the Android
 app's only authenticated connection.
 
 ## What was exercised
@@ -436,3 +437,96 @@ The subsequent full workspace run passed: 6,793 client assertions plus the
 server/shared/relay/push suites. The extra assertion preserves ordinary browser
 unsubscribe behavior. Lint, formatting, typechecking, console scan, Kotlin and
 Rust checks pass. The earlier browser cleanup failure remains an open gap.
+
+
+## Page acceptance and real network loss
+
+The study now has explicit `--verify=true` acceptance and a one-command,
+five-case Android matrix; see the runner README. It rejects a run even if its
+final screenshot is healthy when an observed error/login/empty-page transition
+occurred earlier. It also checks missed-message/title/sidebar catch-up, unchanged
+drafts, each sequential input character and the 100 ms acknowledgement limit,
+completed instrumentation, native error evidence and cleanup. The original
+recorded Android 503 run is rejected by these checks; the repaired captures pass.
+The matrix does not change normal browser behavior or silently retry failures.
+
+The existing normal Android sleep/wake test now primes Inbox, returns to the
+session, releases the real native foreground lease, and changes the transcript,
+title and star on the fixture server while asleep. On wake it verifies the
+session, cached Inbox and sidebar Starred section, the same mounted document,
+and absence of observed transient page errors/sign-in. This runs in existing
+Android live CI; the larger host-driven matrix remains opt-in.
+
+Review of the real-radio path found that WebView `offline` still mapped an
+explicitly recoverable Android source to terminal `disconnected`. A normal unit
+regression failed; the owned emulator with Wi-Fi and mobile data disabled also
+failed the corresponding status assertion while Inbox was opened offline
+(`pages-radio-emulator-red.log`). Android now keeps that state `reconnecting`
+and a pending read can join recovery. Tests cover the recovery contract arriving
+before or after the offline event. Legacy native hosts and ordinary browser
+transports retain their old mapping. The corrected real-radio/Inbox test and
+expanded sleep/wake test passed on the rebuilt app.
+
+The initial page-wake test also exposed a test-authoring selector mistake:
+SidebarLauncher is an anchor with button role, not a button element. The test
+now waits for and activates its actual accessible control. That failed run is
+retained in `pages-live-direct.log`; it is not a product escape. Its corrected
+direct and mux runs passed, including the stricter Starred-section assertion.
+
+Full workspace verification on the final runtime passed, including 6,795 client
+assertions. Focused native transport/subscription checks, harness fault-controller
+and acceptance-oracle checks, lint, formatting, typechecking and console scan
+also passed. The 70-cycle ownership test uses a short polling interval so it
+checks ownership without spending nearly its entire test budget on polling.
+
+### Escape accounting
+
+| Finding | First useful evidence | Regression now owned by |
+| --- | --- | --- |
+| Native request failures became fake server 503s | Emulator page reproduction | Kotlin connector/manager and NativeSourceTransport |
+| Exhausted network recovery appeared terminal | Emulator, then longer observation corrected the permanent-failure diagnosis | Kotlin manager, NativeSourceTransport, passive wake acceptance |
+| Abandoned subscriptions survived page reconnect | Source inspection and a failing unit reproduction | Native subscription lifecycle, Kotlin retirement and Rust overflow tests |
+| Real radio loss appeared terminal to callers | Unit regression, confirmed with emulator radios disabled | NativeSourceTransport and real-network/Inbox acceptance |
+
+The latter two were caught at the owning layer before emulator verification; they do
+not add emulator-only product escapes. There is still no proof here of complete
+lifecycle coverage, arbitrary large-data input performance, native IME latency
+on a physical device, or iOS device parity. The all-transport conformance factory
+and a possible desktop/JVM harness remain follow-ups. The existing native upload
+instrumentation uses its documented emulator timing allowance; the matrix's
+100 ms assertion concerns its debugger-delivered sequential WebView input.
+
+Hosted verification is separate: main CI for `d547c2dbf` failed in the unit-test
+job ([run](https://github.com/kzahel/yepanywhere/actions/runs/37671841739)). The
+public API exposes no failing-test detail and requires authentication for the
+logs; the requested personal GitHub wrapper is absent on this host. Its cause
+is not attributed to the local browser-cleanup finding without evidence.
+The runtime/SQLite workflow for that revision passed. Later CI runs were still
+queued/running during local verification; local success is not a claim of green
+hosted CI.
+
+
+### Final matrix evidence
+
+The rebuilt app passed all five cases in
+`tasks/source-lifecycle-study/2026-10-07T19-55-09-319Z-android-acceptance/matrix.json`.
+Each case retained its recipe, APK/bundle hashes, page transitions, captures,
+native phases/errors and instrumentation result. The earlier full matrix also
+passed before the final radio-specific correction; this run verifies the final
+runtime and harness together.
+
+| Case | Outcome | First healthy post-restoration observation |
+| --- | --- | --- |
+| Direct session, interrupted read | Pass | First sample |
+| Mux session, interrupted read | Pass | First sample |
+| Direct Inbox, socket disconnect | Pass | About 2 s |
+| Mux Inbox, service outage | Pass | About 49 s |
+| Direct session, wake into outage | Pass | About 57 s |
+
+Those are observations, not timing promises. Every case had no observed error,
+login or empty-page transition; session drafts survived and all 21 input
+characters were acknowledged below 100 ms. Sidebar captures showed the updated
+session in Starred. The independent final direct live invocation passed both
+real-radio/Inbox recovery and sleep/wake catch-up; the mux sleep/wake invocation
+passed too (`pages-final-live-direct.log`, `pages-final-live-mux.log`). No failed
+matrix case was retried or converted into a passing expectation.

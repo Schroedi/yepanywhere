@@ -648,7 +648,12 @@ restoration. The WebView requests a new bounded native cycle on visible demand,
 network restoration or a visible 60-second backstop after exhaustion. There is
 no hidden retry timer. Android explicitly marks exhausted network failures as
 recoverable; callers continue to see `reconnecting`, not terminal disconnect.
-An Android default-network-available callback joins the same WebView recovery
+Android manager state events include `recoverable`: on `FAILED`, true denotes
+network exhaustion and false denotes terminal failure. Its presence advertises
+this recovery contract to the bundled adapter; a WebView `offline` event then
+also remains `reconnecting`, and a demand read can wait for native readiness
+within its existing bound. Legacy native hosts without this field retain their
+existing mapping. An Android default-network-available callback joins the same WebView recovery
 scheduler as visibility, activity and online signals; it creates no second
 retry timer and does nothing for hidden or suspended documents. Service
 restoration without a network event can still wait for the 60-second backstop.
@@ -659,6 +664,12 @@ route, but an unverified response cannot become mere retry exhaustion when no
 route authenticates. These changes retain the existing owner identity,
 credentials and server authority; no new principal or grant is introduced.
 Recovery updates the mounted page without a document reload.
+For a retained session or Inbox view, recovery catches up messages and session
+metadata (including title/star changes made while asleep). A previously visited
+Inbox and the sidebar opened afterward agree with the recovered session. Unsent
+drafts survive the interruption. Temporary loss does not redirect to login or
+manufacture a server error; genuine server failures retain normal page error
+handling. These are page-level invariants in addition to socket readiness.
 
 Bundled native pages support pull-down refresh beginning at the top of the page
 or transcript, including pages that fit without overflow. Release after an

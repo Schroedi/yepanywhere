@@ -214,18 +214,21 @@ export class NativeSourceTransport implements SourceTransport, Connection {
   }
 
   private setPhase(phase: string): void {
-    // Repeated status events must not invalidate every source subscriber.
-    if (phase === this.phase) return;
-    this.phase = phase;
-    this.scheduleRecovery();
     const state =
       phase === "CONNECTED"
         ? "ready"
         : phase === "CONNECTING" || phase === "IDLE"
           ? "connecting"
-          : phase === "RETRYING" || phase === "EXHAUSTED"
+          : phase === "RETRYING" ||
+              phase === "EXHAUSTED" ||
+              (phase === "OFFLINE" && this.explicitRecovery)
             ? "reconnecting"
             : "disconnected";
+    // Android's explicit recovery contract may arrive after the offline event.
+    // Preserve unchanged snapshots, but do not keep a stale terminal mapping.
+    if (phase === this.phase && state === this.snapshot.state) return;
+    this.phase = phase;
+    this.scheduleRecovery();
     const previous = this.snapshot.state;
     this.snapshot = {
       kind: "secure",
