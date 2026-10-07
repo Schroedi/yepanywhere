@@ -159,7 +159,8 @@ pnpm --filter @yep-anywhere/client exec vitest run \
   --config e2e/lifecycle-study/vitest.config.mjs
 ```
 
-The first command checks the fault controller. The second retains the original
+The first command checks the fault controller and acceptance oracle; both also
+run in root `pnpm test` and ordinary CI. The second retains the original
 exhaustion reproduction against Android's explicit recoverability field; its
 acceptance checks now also run in the normal `NativeSourceTransport.test.ts`
 suite. The fabricated-503 repair has normal Kotlin and TypeScript coverage,
