@@ -24,6 +24,7 @@ import { getSettingsCategories } from "../../i18n-settings";
 import { MainContent, useNavigationLayout } from "../../layouts";
 import { SettingsBackupActions } from "./SettingsBackupActions";
 import { SettingsCategoryItem } from "./SettingsCategoryItem";
+import { SettingsClipboardTransfer } from "./SettingsClipboardTransfer";
 import { SettingsPane } from "./SettingsPane";
 import {
   SettingsSearchBar,
@@ -520,6 +521,7 @@ export function SettingsLayout() {
                     />
                   ))}
                   {canBackUpBrowserSettings && <SettingsBackupActions />}
+                  {principalResolved && <SettingsClipboardTransfer />}
                 </div>
               )}
             </div>
@@ -585,6 +587,7 @@ export function SettingsLayout() {
                 />
               ))}
               {canBackUpBrowserSettings && <SettingsBackupActions />}
+              {principalResolved && <SettingsClipboardTransfer />}
             </div>
           </nav>
           <div className="settings-content-panel">
