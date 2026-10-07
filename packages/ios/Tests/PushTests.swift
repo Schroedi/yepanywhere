@@ -47,7 +47,6 @@ private final class PushFixtureSession: NativeAuthenticatedSession {
       decoding: try JSONSerialization.data(withJSONObject: ["status": status, "body": body]),
       as: UTF8.self)
   }
-  func uploadChunk(payload: Data) async throws { throw BridgeFailure.closed }
   func nextEvent() async throws -> String { throw BridgeFailure.closed }
   func securityBinding() throws -> NativeSecurityBinding { throw BridgeFailure.closed }
   func close() {}

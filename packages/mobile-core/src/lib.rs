@@ -1,4 +1,5 @@
-//! Native-only owner sessions. The web bridge receives source operations only.
+//! Native-only owner sessions. Bundled web documents connect themselves with
+//! the profile's resume credential; this core serves native consumers.
 #[cfg(target_os = "android")]
 mod android;
 mod crypto;
@@ -90,7 +91,7 @@ pub async fn native_resume_stored(
     session::resume(options, &credential, Some(storage)).await
 }
 
-/// Candidates are native saved configuration, never supplied by the web bridge.
+/// Candidates are native saved configuration, never supplied by a web document.
 #[uniffi::export(async_runtime = "tokio")]
 pub async fn native_resume_routes_stored(
     routes: Vec<NativeRoute>,

@@ -39,7 +39,6 @@ impl Owner {
         let text = value.to_string();
         let coalesce = match value["type"].as_str() {
             Some("state") => Some("state".into()),
-            Some("upload_progress") => value["uploadId"].as_str().map(|id| format!("upload:{id}")),
             _ => None,
         };
         let mut events = self.events.lock().map_err(|_| Error::Closed)?;
@@ -74,23 +73,18 @@ impl Owner {
         Ok(())
     }
 }
-#[derive(Clone, PartialEq)]
-enum Kind {
-    Subscription,
-    Upload,
-}
+/// One owner's subscription, keyed by the wire id the source assigned it.
 #[derive(Clone)]
 struct Resource {
     owner: String,
     local: String,
-    kind: Kind,
 }
 struct Source {
     session: Arc<NativeSession>,
     first_route: String,
     owners: Mutex<HashMap<String, Weak<Owner>>>,
     resources: Mutex<HashMap<String, Resource>>,
-    cleanup: mpsc::Sender<(String, Kind)>,
+    cleanup: mpsc::Sender<String>,
     cancel: CancellationToken,
 }
 impl Drop for Source {
@@ -120,9 +114,9 @@ impl Source {
                 let event = tokio::select! {
                     _ = cancel.cancelled() => break,
                     cleanup = cleanups.recv() => {
-                        let Some((id, kind)) = cleanup else { break; };
-                        let (method, params) = match kind { Kind::Subscription => ("unsubscribe", json!({"subscriptionId":id})), Kind::Upload => ("uploadCancel", json!({"uploadId":id})) };
-                        tokio::select! { _ = cancel.cancelled() => break, _ = session.dispatch(method.into(), params.to_string()) => {} }
+                        let Some(id) = cleanup else { break; };
+                        let params = json!({"subscriptionId":id});
+                        tokio::select! { _ = cancel.cancelled() => break, _ = session.dispatch("unsubscribe".into(), params.to_string()) => {} }
                         continue;
                     },
                     event = session.next_event() => event,
@@ -132,32 +126,17 @@ impl Source {
                 };
                 match event.and_then(|text| parse(&text, crate::crypto::MAX_BYTES)) {
                     Ok(mut value) => {
-                        if let Some((wire, field)) = value["subscriptionId"]
-                            .as_str()
-                            .map(|id| (id.to_owned(), "subscriptionId"))
-                            .or_else(|| {
-                                value["uploadId"]
-                                    .as_str()
-                                    .map(|id| (id.to_owned(), "uploadId"))
-                            })
-                        {
+                        if let Some(wire) = value["subscriptionId"].as_str().map(str::to_owned) {
                             let resource =
                                 source.resources.lock().ok().and_then(|mut resources| {
                                     let resource = resources.get(&wire)?.clone();
-                                    if matches!(
-                                        value["type"].as_str(),
-                                        Some(
-                                            "subscriptionError"
-                                                | "upload_complete"
-                                                | "upload_error"
-                                        )
-                                    ) {
+                                    if value["type"] == "subscriptionError" {
                                         resources.remove(&wire);
                                     }
                                     Some(resource)
                                 });
                             if let Some(resource) = resource {
-                                value[field] = json!(resource.local);
+                                value["subscriptionId"] = json!(resource.local);
                                 let owner = source.owners.lock().ok().and_then(|owners| {
                                     owners.get(&resource.owner).and_then(Weak::upgrade)
                                 });
@@ -275,7 +254,7 @@ impl Source {
                 if resource.owner != owner.id {
                     return true;
                 }
-                let _ = self.cleanup.try_send((id.clone(), resource.kind.clone()));
+                let _ = self.cleanup.try_send(id.clone());
                 false
             });
         }
@@ -296,12 +275,12 @@ impl Source {
             self.shutdown();
         }
     }
-    fn resource(&self, owner: &str, local: &str, kind: Kind) -> Result<String> {
+    fn resource(&self, owner: &str, local: &str) -> Result<String> {
         self.resources
             .lock()
             .map_err(|_| Error::Closed)?
             .iter()
-            .find(|(_, r)| r.owner == owner && r.local == local && r.kind == kind)
+            .find(|(_, r)| r.owner == owner && r.local == local)
             .map(|(wire, _)| wire.clone())
             .ok_or(Error::InvalidMessage)
     }
@@ -309,7 +288,6 @@ impl Source {
 struct ResourceGuard {
     source: Weak<Source>,
     wire: String,
-    kind: Kind,
     armed: bool,
 }
 impl Drop for ResourceGuard {
@@ -319,9 +297,7 @@ impl Drop for ResourceGuard {
             && let Ok(mut resources) = source.resources.lock()
             && resources.remove(&self.wire).is_some()
         {
-            let _ = source
-                .cleanup
-                .try_send((self.wire.clone(), self.kind.clone()));
+            let _ = source.cleanup.try_send(self.wire.clone());
         }
     }
 }
@@ -362,41 +338,27 @@ impl NativeSourceLease {
     pub async fn dispatch(&self, method: String, params: String) -> Result<String> {
         self.open()?;
         let mut params = parse(&params, 512 * 1024)?;
-        let operation = match method.as_str() {
-            "subscribe" => Some(("subscriptionId", Kind::Subscription, true)),
-            "unsubscribe" => Some(("subscriptionId", Kind::Subscription, false)),
-            "uploadStart" => Some(("uploadId", Kind::Upload, true)),
-            "uploadEnd" | "uploadCancel" => Some(("uploadId", Kind::Upload, false)),
+        let subscribing = match method.as_str() {
+            "subscribe" => Some(true),
+            "unsubscribe" => Some(false),
             "request" => None,
             _ => return Err(Error::InvalidMessage),
         };
         let mut guard = None;
-        if let Some((field, kind, start)) = operation {
-            let local = crate::crypto::field(&params, field)?.to_owned();
+        if let Some(start) = subscribing {
+            let local = crate::crypto::field(&params, "subscriptionId")?.to_owned();
             check(!local.is_empty() && local.len() <= 128)?;
-            if kind == Kind::Upload {
-                Uuid::parse_str(&local).map_err(|_| Error::InvalidMessage)?;
-            }
             let wire = if start {
                 let mut resources = self.source.resources.lock().map_err(|_| Error::Closed)?;
                 check(
                     !resources
                         .values()
-                        .any(|r| r.owner == self.owner.id && r.local == local && r.kind == kind),
+                        .any(|r| r.owner == self.owner.id && r.local == local),
                 )?;
                 // Retiring resources retain admission until the cleanup actor
                 // consumes them. Rapid owner churn cannot overflow its queue.
                 if resources.len() + (128 - self.source.cleanup.capacity()) >= 68 {
                     return Err(Error::Overflow);
-                }
-                if kind == Kind::Upload {
-                    check(
-                        resources
-                            .values()
-                            .filter(|r| r.owner == self.owner.id && r.kind == Kind::Upload)
-                            .count()
-                            < 4,
-                    )?;
                 }
                 let wire = Uuid::new_v4().to_string();
                 resources.insert(
@@ -404,22 +366,18 @@ impl NativeSourceLease {
                     Resource {
                         owner: self.owner.id.clone(),
                         local,
-                        kind: kind.clone(),
                     },
                 );
                 wire
             } else {
-                self.source.resource(&self.owner.id, &local, kind.clone())?
+                self.source.resource(&self.owner.id, &local)?
             };
-            if start || method == "unsubscribe" || method == "uploadCancel" {
-                guard = Some(ResourceGuard {
-                    source: Arc::downgrade(&self.source),
-                    wire: wire.clone(),
-                    kind,
-                    armed: true,
-                });
-            }
-            params[field] = json!(wire);
+            guard = Some(ResourceGuard {
+                source: Arc::downgrade(&self.source),
+                wire: wire.clone(),
+                armed: true,
+            });
+            params["subscriptionId"] = json!(wire);
         }
         let result = tokio::select! { _ = self.owner.cancel.cancelled() => Err(Error::Closed), result = self.source.session.dispatch(method.clone(), params.to_string()) => result };
         if matches!(
@@ -438,7 +396,7 @@ impl NativeSourceLease {
             && let Some(guard) = &mut guard
         {
             guard.armed = false;
-            if method == "unsubscribe" || method == "uploadCancel" {
+            if method == "unsubscribe" {
                 self.source
                     .resources
                     .lock()
@@ -447,20 +405,6 @@ impl NativeSourceLease {
             }
         }
         result
-    }
-    pub async fn upload_chunk(&self, mut payload: Vec<u8>) -> Result<()> {
-        self.open()?;
-        check(payload.len() >= 24 && payload.len() <= 65536 + 24)?;
-        let local = Uuid::from_slice(&payload[..16])
-            .map_err(|_| Error::InvalidMessage)?
-            .to_string();
-        let wire = self.source.resource(&self.owner.id, &local, Kind::Upload)?;
-        payload[..16].copy_from_slice(
-            Uuid::parse_str(&wire)
-                .map_err(|_| Error::InvalidMessage)?
-                .as_bytes(),
-        );
-        tokio::select! { _ = self.owner.cancel.cancelled() => Err(Error::Closed), result = self.source.session.upload_chunk(payload) => result }
     }
     pub async fn next_event(&self) -> Result<String> {
         let _reader = self.reader.lock().await;

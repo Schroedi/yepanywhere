@@ -158,8 +158,7 @@ internal class YaRustMessageTransport(
     private val incoming = Channel<JSONObject>(32)
     private val closed = CompletableDeferred<Unit>()
     private val ended = AtomicBoolean(false)
-    private data class Work(val message: JSONObject?, val chunk: ByteArray?, val reply: CompletableDeferred<Unit>?)
-    private val work = Channel<Work>(32)
+    private val work = Channel<JSONObject>(32)
     private class RequestSlot { val cancelled = AtomicBoolean(false); @Volatile var job: Job? = null }
     private val requests = ConcurrentHashMap<String, RequestSlot>()
     override val credential: YaResumeCredential get() = YaRustCredential.decode(session.credentialData())
@@ -188,22 +187,15 @@ internal class YaRustMessageTransport(
         }
         scope.launch {
             try {
-                for (item in work) {
+                for (message in work) {
                     try {
-                        if (item.chunk != null) session.uploadChunk(item.chunk)
-                        else execute(checkNotNull(item.message))
-                        item.reply?.complete(Unit)
+                        execute(message)
                     } catch (error: Throwable) {
-                        item.reply?.completeExceptionally(error)
                         if (error is CancellationException) throw error
-                        if (item.reply == null && item.message != null) {
-                            val message = item.message
-                            when (message.optString("type")) {
-                                "subscribe" -> incoming.send(JSONObject().put("type", "response").put("id", message.getString("subscriptionId")).put("status", 400).put("body", JSONObject().put("error", "Native subscription rejected")))
-                                "upload_start", "staged_upload_start", "upload_end" -> incoming.send(JSONObject().put("type", "upload_error").put("uploadId", message.getString("uploadId")).put("error", "Native upload rejected"))
-                                "unsubscribe" -> Unit
-                                else -> throw error
-                            }
+                        when (message.optString("type")) {
+                            "subscribe" -> incoming.send(JSONObject().put("type", "response").put("id", message.getString("subscriptionId")).put("status", 400).put("body", JSONObject().put("error", "Native subscription rejected")))
+                            "unsubscribe" -> Unit
+                            else -> throw error
                         }
                     }
                 }
@@ -214,7 +206,7 @@ internal class YaRustMessageTransport(
         check(!ended.get())
         val id = message.optString("id").takeIf { message.optString("type") == "request" }
         if (id != null) { check(requests.size < 32); check(requests.putIfAbsent(id, RequestSlot()) == null) }
-        if (work.trySend(Work(JSONObject(message.toString()), null, null)).isFailure) {
+        if (work.trySend(JSONObject(message.toString())).isFailure) {
             if (id != null) requests.remove(id)
             error("Native command queue is full")
         }
@@ -239,9 +231,6 @@ internal class YaRustMessageTransport(
                 if (slot.cancelled.get()) job.cancel() else job.start()
             }
             "subscribe", "unsubscribe" -> session.dispatch(message.getString("type"), message.toString())
-            "upload_start", "staged_upload_start" -> session.dispatch("uploadStart", message.toString())
-            "upload_end" -> session.dispatch("uploadEnd", message.toString())
-            "upload_cancel" -> session.dispatch("uploadCancel", message.toString())
             else -> error("Unsupported native operation")
         }
     }
@@ -253,16 +242,6 @@ internal class YaRustMessageTransport(
         val headers = response.optJSONObject("headers")
         return YaApiResponse(response.getInt("status"), headers?.keys()?.asSequence()?.associateWith { headers.getString(it) }.orEmpty(), response.opt("body").takeUnless { it == JSONObject.NULL })
     }
-    override suspend fun sendUploadChunk(uploadId: String, offset: Long, chunk: ByteArray) {
-        val id = UUID.fromString(uploadId)
-        val payload = ByteBuffer.allocate(24 + chunk.size).putLong(id.mostSignificantBits).putLong(id.leastSignificantBits).putLong(offset).put(chunk).array()
-        val reply = CompletableDeferred<Unit>()
-        work.send(Work(null, payload, reply)); reply.await()
-    }
-    override suspend fun cancelUpload(uploadId: String) {
-        val reply = CompletableDeferred<Unit>()
-        work.send(Work(JSONObject().put("type", "upload_cancel").put("uploadId", uploadId), null, reply)); reply.await()
-    }
     override suspend fun receive(): JSONObject = incoming.receive()
     override suspend fun awaitClosed() { closed.await() }
     override suspend fun closeAndAwait() { cancel(); closed.await() }
@@ -270,7 +249,6 @@ internal class YaRustMessageTransport(
     private fun finish(error: Throwable) {
         if (ended.compareAndSet(false, true)) {
             session.release(); scope.cancel(); work.close(error); incoming.close(error)
-            while (true) { val item = work.tryReceive().getOrNull() ?: break; item.reply?.completeExceptionally(error) }
             requests.clear()
             (session as? Disposable)?.destroy(); retired(this); closed.complete(Unit)
         }
