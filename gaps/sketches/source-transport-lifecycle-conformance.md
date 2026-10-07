@@ -11,8 +11,9 @@ acknowledgement and transient errors, with a sleep/wake case in normal Android
 CI. The [second hardening round](../../docs/testing/android-lifecycle-hardening-2026-10-07.md)
 adds process death, real notification taps, repeated sleep, forced Doze,
 attachment-containing drafts and stock emulator Chrome comparisons. It records
-shared attachment-validation and native notification-routing escapes. The shared
-all-transport conformance factory remains open.
+shared attachment-validation and native notification-routing escapes, now
+repaired under unit regressions and real-device-path emulator acceptance. The
+shared all-transport conformance factory remains open.
 
 ## Purpose
 

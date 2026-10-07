@@ -124,9 +124,11 @@ background connection owner is introduced.
 
 Seven Kotlin cases cover exhaustion, disconnect during lookup, typed operation
 failure, terminal rejection, revocation during lookup, retired bindings and
-cancellation. The first repaired APK passes real online and offline taps, and a
-second process death while the offline tap is pending. The latter proves new
-PIDs and recovery of the saved action, not merely restoration of Inbox.
+cancellation. Both the first candidate and final minified APK pass real online and offline
+taps, and a second process death while the offline tap is pending. The latter proves new
+PIDs and recovery of the saved action, not merely restoration of Inbox. Final
+offline cases open the session about two and three seconds after restoring
+service. All 113 Android unit cases pass, including the seven new regressions.
 
 ## Harness limits and verification
 

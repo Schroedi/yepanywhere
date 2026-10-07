@@ -90,8 +90,10 @@ the viewer/download gap remain the next mobile release work.
   cleanup and page catch-up acceptance are implemented. The
   [second emulator hardening round](../testing/android-lifecycle-hardening-2026-10-07.md)
   repairs shared draft-attachment preservation after failed validation and
-  corrects missing fixture routes. Lost offline notification taps still block
-  handoff; the prior internal release was gated off by instrumentation.
+  corrects missing fixture routes. Offline notification taps now survive
+  recovery and process death, with unit and real-FCM emulator acceptance.
+  The broader regression matrix and fresh internal release remain pending;
+  the prior internal release was gated off by instrumentation.
   Native remains the sole app connection owner;
   the shared conformance suite and repairs are not yet complete.
 
