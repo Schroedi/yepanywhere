@@ -685,6 +685,7 @@ private fun uiErrorLabel(error: YaNativeUiError): String = when (error) {
     YaNativeUiError.AUTHENTICATION_FAILED -> stringResource(
         R.string.authentication_failed,
     )
+    YaNativeUiError.SERVER_UNAVAILABLE -> stringResource(R.string.server_unavailable)
     YaNativeUiError.CONNECTION_FAILED -> stringResource(R.string.connection_failed_message)
     YaNativeUiError.PUSH_FAILED -> stringResource(R.string.native_push_failed)
     YaNativeUiError.SERVER_UPDATE_REQUIRED -> stringResource(R.string.native_push_update_required)

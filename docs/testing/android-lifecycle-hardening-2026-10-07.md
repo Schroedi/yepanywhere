@@ -51,6 +51,7 @@ that distinction rather than claiming the tab restored automatically.
 | Eight direct session sleep/outage cycles | Pass; draft and one copy of each missed message retained; subscribers remain 17 | Automated emulator Chrome passes; subscribers remain 17 |
 | Eight relay Inbox cycles with a new title every time | Pass; subscribers return to 17 each cycle | Stock emulator Chrome passes; same stable subscriber count |
 | Three-minute forced deep idle, restore service and wake | Pass; catch-up about 0.8–1 s after waking | Recovery succeeds in about 36–38 s; the final stock-Chrome case fails initial typing before sleep, detailed below |
+| Full Android reboot with both radios disabled | Actual Release retains its unsent draft and selected session offline; after radio restoration, transcript appears in the 4.84 s observation | No full-browser/device-reboot comparison; cold-tab and same-device connection-failure controls are separate |
 | Draft-sync notice after a silent stall | Clears within the extended 30-second healthy observation | No stuck-sync defect established |
 | Real FCM, absent app process, asleep screen, online tap | Pass with corrected observer; opens the session and retains its draft | Web Push delivery/service-worker routing not exercised |
 | Same notification tapped while server sockets are refused | Fails 2/2 before repair: Inbox recovers but the destination is lost for the entire three-minute window | Cold URL reopening during outage is a partial comparison and recovers |
@@ -174,7 +175,7 @@ unavailable. Those limits are not evidence that a user's draft was erased.
 
 Workspace verification passes lint, formatting, type checking and all unit
 packages: shared 955, broker 45, relay 130, server 6,447 and client 6,804 tests.
-Android build/lint and 113 unit tests pass. The console-warning budget ratchets
+Android build/lint and 115 unit tests pass (113 before the final login-error regression). The console-warning budget ratchets
 down by two. The touched-CSS review defers extraction from the large legacy
 SessionPage/NewSessionForm styles; this change does not edit styles.
 
@@ -215,7 +216,12 @@ typing ceiling, job deadline or Release network policy changes. The
 [replacement release 505](https://github.com/kzahel/yepanywhere/actions/runs/37698935387)
 was deliberately canceled after the actual Release smoke exposed the system-bar
 contrast defect below. Its duplicate push-only verification was also canceled.
-A replacement candidate must pass both gates before any new Play publication. Three-minute forced idle, debugger-driven input and repeated
+Manual internal-release [run 509](https://github.com/kzahel/yepanywhere/actions/runs/37703083440)
+on `3dcbb7b9a` was also canceled before publication after the additional reboot
+setup exposed the native login error-label defect below. The final replacement
+must pass both Android gates. The superseded `c33fe7c6f`
+general run was canceled after its first browser shard passed with the recorded
+native-fixture composer retry. Its runtime/SQLite matrix completed successfully. Three-minute forced idle, debugger-driven input and repeated
 wake cycles can falsify important lifecycle assumptions, but cannot establish
 real modem handoff, manufacturer battery policy or overnight behavior. Those
 remain the final physical-phone checks after emulator defects are repaired.
@@ -254,6 +260,39 @@ permission test revokes the previously granted permission. The
 [test-repeatability gap](../../gaps/android-control-instrumentation-repeatability.md)
 records both; neither is silently converted into a passing attempt. No physical
 phone data was cleared or operated on.
+
+## Fresh-login network failures were mislabeled as authentication failures
+
+An additional actual-Release reboot setup failed native-form login twice.
+The instrumented login against the same public TLS fixture exposed
+`CoreException.Unavailable`. A host browser signed in successfully, while
+Chrome on the emulator reported “Failed to connect to relay server.” The
+emulator lacked a usable route until its radios were reset; this is not evidence
+that SRP credentials or the Release shrinker were broken.
+
+The Android form nonetheless reported “Could not authenticate with this
+server,” because its generic catch classified every failure that way. A
+controlled repeat with emulator Wi-Fi and mobile data disabled reproduced the
+same misleading notice. The owning UI-state unit regression fails before the
+repair. Known native unavailable, timeout and closed errors now produce
+“Could not reach this server. Check your connection and try again.” Genuine
+authentication/verification failures retain their existing treatment; no
+password retention, automatic login replay or transport policy is added.
+
+The rebuilt non-debuggable Release form passes the offline-message and
+password-clearing checks, then signs in normally after radio restoration.
+The standard web client already distinguishes this connection failure, so its
+behavior remains unchanged. Before/after captures and underlying native error
+are retained in `release-reboot/` and `release-final/` under the campaign's
+artifact directory.
+
+A subsequent full Android reboot uses a changed kernel boot ID as proof, with
+both radios disabled before restarting. The actual Release opens its saved
+session route and displays the unsent draft offline, without returning to
+login. Restoring Wi-Fi/data loads the same transcript while retaining the
+draft, observed after 4.84 seconds. This includes UIAutomator polling overhead
+and is not a timing benchmark. The fixture stays alive across reboot so the
+server resume state is unchanged. Final captures include the whole screen.
 
 ## Remaining issues by client
 

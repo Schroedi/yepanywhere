@@ -100,7 +100,9 @@ the viewer/download gap remain the next mobile release work.
   passes. Internal release 503 timed out rebuilding its live probe; replacement
   release 505 was canceled to include a system-bar contrast repair found by
   actual Release login testing. CI now prebuilds the same minified variant
-  used by instrumentation. Full-device captures supplement page observations.
+  used by instrumentation. Full-device captures supplement page observations. The actual Release also
+  retains its route and draft through an offline Android reboot. Native login
+  now labels known connection failures accurately instead of blaming authentication.
   Native remains the sole app connection owner.
   [Passive service-restoration latency](../../gaps/android-passive-service-restoration-slow-probe.md)
   remains a measured UX follow-up under the retained 60-second probe policy.
