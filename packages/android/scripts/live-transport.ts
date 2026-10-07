@@ -99,7 +99,18 @@ try {
       "com.yepanywhere.mobile",
       permission,
     ]);
-  for (const mux of publicRelay ? [true] : push ? [false] : [false, true]) {
+  // Iteration aids: YA_NATIVE_LIVE_MODES=direct|mux limits the route modes and
+  // YA_NATIVE_LIVE_CLASSES (comma-separated) replaces the class list.
+  const onlyModes = process.env.YA_NATIVE_LIVE_MODES?.split(",");
+  const onlyClasses = process.env.YA_NATIVE_LIVE_CLASSES?.split(",");
+  for (const mux of (publicRelay
+    ? [true]
+    : push
+      ? [false]
+      : [false, true]
+  ).filter(
+    (mode) => !onlyModes || onlyModes.includes(mode ? "mux" : "direct"),
+  )) {
     const relay =
       mux && !publicRelay
         ? await createRelayServer({
@@ -140,22 +151,25 @@ try {
         await device(["reverse", `tcp:${port}`, `tcp:${port}`]);
         reversed.push(port);
       }
-      const classes = publicRelay
-        ? ["com.yepanywhere.mobile.web.YaNativeWebAppInstrumentedTest"]
-        : push
-          ? [
-              "com.yepanywhere.mobile.notifications.NativePushBindingsInstrumentedTest",
-              "com.yepanywhere.mobile.notifications.NativePushLiveInstrumentedTest",
-            ]
-          : [
-              "com.yepanywhere.mobile.web.YaNativeWebAppInstrumentedTest",
-              ...(relay
-                ? []
-                : ["com.yepanywhere.mobile.ui.YaHostSwitchInstrumentedTest"]),
-              relay
-                ? "com.yepanywhere.mobile.connection.YaRustRuntimeInstrumentedTest"
-                : "com.yepanywhere.mobile.security.YaSecurityClientE2eInstrumentedTest",
-            ];
+      const classes =
+        onlyClasses ??
+        (publicRelay
+          ? ["com.yepanywhere.mobile.web.YaNativeWebAppInstrumentedTest"]
+          : push
+            ? [
+                "com.yepanywhere.mobile.notifications.NativePushBindingsInstrumentedTest",
+                "com.yepanywhere.mobile.notifications.NativePushLiveInstrumentedTest",
+              ]
+            : [
+                "com.yepanywhere.mobile.web.YaNativeWebAppInstrumentedTest",
+                "com.yepanywhere.mobile.web.YaNativeReconnectInstrumentedTest",
+                ...(relay
+                  ? []
+                  : ["com.yepanywhere.mobile.ui.YaHostSwitchInstrumentedTest"]),
+                relay
+                  ? "com.yepanywhere.mobile.connection.YaRustRuntimeInstrumentedTest"
+                  : "com.yepanywhere.mobile.security.YaSecurityClientE2eInstrumentedTest",
+              ]);
       const options = {
         class: classes.join(","),
         yaProbeWsUrl: fixture.endpoint,
@@ -213,10 +227,10 @@ try {
         await mkdir(reports, { recursive: true });
         await device(["pull", evidence, reports]);
       }
+      // Every class contributes at least one test; some contribute several.
+      const passed = Number(/^OK \((\d+) tests?\)/m.exec(output)?.[1] ?? 0);
       if (
-        !output.includes(
-          `OK (${classes.length} test${classes.length === 1 ? "" : "s"})`,
-        ) ||
+        passed < classes.length ||
         /FAILURES!!!|INSTRUMENTATION_FAILED/.test(output)
       ) {
         throw new Error(

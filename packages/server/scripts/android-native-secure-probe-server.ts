@@ -197,6 +197,14 @@ const projectGlossarySubscriptionManager =
 // Pad a real API response without burdening transcript rendering or adding a
 // production endpoint. This crosses the encrypted circuit and the WebView.
 const app = new Hono<{ Bindings: HttpBindings }>();
+// A test-controlled response delay keeps API requests in flight while a probe
+// drops the socket, so reconnect handling of pending requests is deterministic.
+let apiDelayMs = 0;
+app.use("/api/*", async (c, next) => {
+  if (apiDelayMs > 0 && c.req.path !== "/api/ws")
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, apiDelayMs));
+  await next();
+});
 app.get("/api/version", async (c) => {
   const response = await yaApp.fetch(c.req.raw, c.env);
   if (!conversationProbe || !response.ok) return response;
@@ -294,6 +302,10 @@ if (conversationProbe) {
     return c.json({ heldResumes });
   });
   app.get("/__probe/resume-hold", (c) => c.json({ heldResumes }));
+  app.post("/__probe/api-delay", (c) => {
+    apiDelayMs = Math.min(Math.max(Number(c.req.query("ms")) || 0, 0), 15_000);
+    return c.json({ apiDelayMs });
+  });
   app.post("/__probe/disconnect", (c) => {
     for (const socket of wss.clients) socket.close(1012, "Probe reconnect");
     return c.json({ ok: true });
