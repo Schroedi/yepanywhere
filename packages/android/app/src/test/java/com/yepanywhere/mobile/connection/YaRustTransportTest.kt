@@ -10,6 +10,26 @@ import uniffi.ya_mobile_core.NativeSecurityBinding
 import uniffi.ya_mobile_core.CoreException
 
 class YaRustTransportTest {
+    @Test fun subscriptionSetupFailuresKeepTheirNativeCodes() = runBlocking {
+        val failures = listOf(
+            CoreException.Unavailable() to "CONNECTION_UNAVAILABLE",
+            CoreException.Overflow() to "OVERFLOW",
+            CoreException.InvalidMessage() to "INVALID_MESSAGE",
+        )
+        for ((failure, code) in failures) {
+            val session = FakeSession().also { it.failure = failure }
+            val transport = YaRustMessageTransport(session, true) {}
+            try {
+                transport.send(JSONObject().put("type", "subscribe").put("subscriptionId", "failed").put("channel", "activity"))
+                val reply = withTimeout(2_000) { transport.receive() }
+                assertEquals("subscriptionError", reply.getString("type"))
+                assertEquals(code, reply.getString("errorCode"))
+                assertFalse(reply.has("status"))
+                assertFalse(session.closed)
+            } finally { transport.closeAndAwait() }
+        }
+    }
+
     @Test fun realHttpFailureRetainsStatusHeadersAndBody() = runBlocking {
         val session = FakeSession().also {
             it.response = """{"status":503,"headers":{"Retry-After":"30"},"body":{"error":"maintenance"}}"""

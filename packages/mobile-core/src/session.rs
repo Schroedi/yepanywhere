@@ -579,12 +579,15 @@ impl Actor {
             .filter(|value| value.to_string().len() <= 2048)
             .cloned()
             .unwrap_or(json!("Native subscription failed"));
-        let status = error["status"]
+        let mut bounded = json!({"type":"subscriptionError","subscriptionId":id,"error":detail});
+        if let Some(code) = error.get("errorCode").and_then(Value::as_str) {
+            bounded["errorCode"] = json!(code);
+        } else if let Some(status) = error["status"]
             .as_u64()
-            .filter(|status| *status <= 599)
-            .unwrap_or(502);
-        let bounded =
-            json!({"type":"subscriptionError","subscriptionId":id,"status":status,"error":detail});
+            .filter(|status| (400..=599).contains(status))
+        {
+            bounded["status"] = json!(status);
+        }
         self.lease
             .lagged
             .lock()
@@ -602,7 +605,7 @@ impl Actor {
             .map_err(|_| Error::Closed)?
             .push(&v)?;
         for id in retired {
-            self.retire_subscription(id.clone(), json!({"type":"subscriptionError","subscriptionId":id,"status":429,"error":"Native subscription consumer fell behind"}))?;
+            self.retire_subscription(id.clone(), json!({"type":"subscriptionError","subscriptionId":id,"errorCode":"OVERFLOW","error":"Native subscription consumer fell behind"}))?;
         }
         self.lease.wake.notify_one();
         Ok(())
@@ -629,7 +632,7 @@ impl Actor {
         for id in conversations {
             self.retire_subscription(
                 id,
-                json!({"status":502,"error":"Conversation connection interrupted"}),
+                json!({"errorCode":"CONNECTION_UNAVAILABLE","error":"Conversation connection interrupted"}),
             )?;
         }
         self.event(json!({"type":"state","phase":"RETRYING"}))?;
@@ -1218,6 +1221,9 @@ pub(crate) mod tests {
             error.contains("subscriptionError") && error.contains("lagging"),
             "{error}"
         );
+        let typed: Value = serde_json::from_str(&error).unwrap();
+        assert_eq!(typed["errorCode"], "OVERFLOW");
+        assert!(typed.get("status").is_none());
         assert!(
             session
                 .dispatch(

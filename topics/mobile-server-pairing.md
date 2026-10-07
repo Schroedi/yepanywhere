@@ -549,13 +549,27 @@ Browser profile metadata is not forwarded as native identity. Native alone
 restores subscriptions and owns bounded source reconnect. Speech and device
 signaling capabilities are absent until their native adapters are implemented.
 
-Android request failures that have no server response are operation errors,
+Android request and subscription failures that have no server response are operation errors,
 never invented HTTP statuses. Protocol-1 error replies keep the existing
 `error` text and add `errorCode`: `CONNECTION_UNAVAILABLE`, `TIMEOUT`, `OVERFLOW`,
 `INVALID_MESSAGE`, or `REAUTHENTICATION_REQUIRED`. The code, not message text,
 determines recovery. Unknown codes and older native replies without a code
 remain ordinary operation failures. This additive bundled-bridge field changes
 no server protocol or minimum server version; iOS may still send legacy text.
+
+Subscription setup replies and asynchronous `subscriptionError` events use the
+same `errorCode` vocabulary. Only a real server rejection supplies an HTTP
+`status`; native overload is `OVERFLOW`, and failed verification/authentication
+is non-retryable. A legacy error without a code stays an ordinary error rather
+than gaining an invented status.
+
+Closing a native-backed subscription retires its native intent even while the
+server socket is reconnecting. A native connection can restore only retained
+intents; managed web streams recreate their own abandoned subscriptions from
+the last consumed event ID. Retired IDs ignore late events and setup failures.
+An unsubscribe already queued behind native reconnect can reach the server
+after its socket resumes; this is bounded in-flight work, not a retained live
+subscription. Browser socket transports keep their existing teardown behavior.
 
 Only `CONNECTION_UNAVAILABLE` enters the client's existing reconnect retry path.
 An operation failure may arrive before the native state event: reads must wait

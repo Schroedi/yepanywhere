@@ -90,6 +90,8 @@ export class NativeSourceTransport implements SourceTransport, Connection {
         ensureConnected: () => this.ensureReady(),
         isConnected: () => this.snapshot.state === "ready",
         cancelRequest: (id) => this.bridge.cancelRequest(id),
+        cancelSubscription: (subscriptionId) =>
+          this.send({ type: "unsubscribe", subscriptionId }),
       },
       { logPrefix: "[NativeSource]", debugEnabled: () => false },
     );
@@ -121,12 +123,28 @@ export class NativeSourceTransport implements SourceTransport, Connection {
         return;
       }
       if (message.type === "subscriptionError") {
-        this.protocol.routeMessage({
-          type: "response",
-          id: String(message.subscriptionId),
-          status: Number(message.status) || 503,
-          body: { error: message.error },
-        });
+        const id = String(message.subscriptionId);
+        if (
+          typeof message.errorCode === "string" ||
+          !(Number(message.status) > 0)
+        ) {
+          this.failSubscription(
+            id,
+            typeof message.errorCode === "string"
+              ? new NativeOperationError(
+                  message.errorCode,
+                  String(message.error),
+                )
+              : new Error(String(message.error)),
+          );
+        } else {
+          this.protocol.routeMessage({
+            type: "response",
+            id,
+            status: Number(message.status),
+            body: { error: message.error },
+          });
+        }
         return;
       }
       if (
@@ -318,12 +336,7 @@ export class NativeSourceTransport implements SourceTransport, Connection {
             ...("coverage" in message ? { coverage: message.coverage } : {}),
           })
           .catch((error: Error) => {
-            this.protocol.routeMessage({
-              type: "response",
-              id: message.subscriptionId,
-              status: 503,
-              body: { error: error.message },
-            });
+            this.failSubscription(message.subscriptionId, error);
           });
         break;
       case "unsubscribe":
@@ -334,6 +347,20 @@ export class NativeSourceTransport implements SourceTransport, Connection {
       default:
         throw new Error("Unsupported native source operation");
     }
+  }
+
+  private failSubscription(id: string, error: Error): void {
+    // Late setup errors cannot change a newer subscription or ready state.
+    if (!this.protocol.subscriptions.has(id)) return;
+    const unavailable =
+      error instanceof NativeOperationError &&
+      error.code === "CONNECTION_UNAVAILABLE";
+    this.protocol.rejectSubscription(
+      id,
+      unavailable ? new ConnectionReconnectingError() : error,
+    );
+    if (unavailable && this.phase === "CONNECTED" && this.canRecover())
+      this.setPhase("RETRYING");
   }
 
   fetch<T>(path: string, init?: RequestInit): Promise<T> {

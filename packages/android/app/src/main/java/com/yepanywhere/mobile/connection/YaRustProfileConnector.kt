@@ -150,6 +150,14 @@ internal class YaRustCredentialPersistence(
         }.isSuccess
     }
 
+private fun CoreException.nativeFailure(): YaNativeOperationFailure = when (this) {
+    is CoreException.Unavailable, is CoreException.Closed -> YaNativeOperationFailure.CONNECTION_UNAVAILABLE
+    is CoreException.Timeout -> YaNativeOperationFailure.TIMEOUT
+    is CoreException.Overflow -> YaNativeOperationFailure.OVERFLOW
+    is CoreException.InvalidMessage -> YaNativeOperationFailure.INVALID_MESSAGE
+    is CoreException.ReauthenticationRequired -> YaNativeOperationFailure.REAUTHENTICATION_REQUIRED
+}
+
 /** Kotlin keeps platform demand; all protocol operations run in the Rust actor. */
 internal class YaRustMessageTransport(
     private val session: NativeSourceLeaseInterface,
@@ -177,7 +185,7 @@ internal class YaRustMessageTransport(
                 while (isActive) {
                     val event = JSONObject(session.nextEvent())
                     if (event.optString("type") == "state" && event.optString("phase") == "CONNECTED") resumed = true
-                    if (event.optString("type") == "subscriptionError") {
+                    if (event.optString("type") == "subscriptionError" && !event.has("errorCode") && event.optInt("status") > 0) {
                         event.put("type", "response").put("id", event.getString("subscriptionId"))
                             .put("body", JSONObject().put("error", event.opt("error")))
                     }
@@ -202,7 +210,10 @@ internal class YaRustMessageTransport(
                         if (item.reply == null && item.message != null) {
                             val message = item.message
                             when (message.optString("type")) {
-                                "subscribe" -> incoming.send(JSONObject().put("type", "response").put("id", message.getString("subscriptionId")).put("status", 400).put("body", JSONObject().put("error", "Native subscription rejected")))
+                                "subscribe" -> incoming.send(JSONObject().put("type", "subscriptionError")
+                                    .put("subscriptionId", message.getString("subscriptionId"))
+                                    .put("errorCode", (error as? CoreException)?.nativeFailure()?.name)
+                                    .put("error", error.message ?: "Native subscription failed"))
                                 "upload_start", "staged_upload_start", "upload_end" -> incoming.send(JSONObject().put("type", "upload_error").put("uploadId", message.getString("uploadId")).put("error", "Native upload rejected"))
                                 "unsubscribe" -> Unit
                                 else -> throw error
@@ -234,13 +245,7 @@ internal class YaRustMessageTransport(
                         incoming.send(response)
                     } catch (error: CancellationException) { throw error }
                     catch (error: CoreException) {
-                        val failure = when (error) {
-                            is CoreException.Unavailable, is CoreException.Closed -> YaNativeRequestFailure.CONNECTION_UNAVAILABLE
-                            is CoreException.Timeout -> YaNativeRequestFailure.TIMEOUT
-                            is CoreException.Overflow -> YaNativeRequestFailure.OVERFLOW
-                            is CoreException.InvalidMessage -> YaNativeRequestFailure.INVALID_MESSAGE
-                            is CoreException.ReauthenticationRequired -> YaNativeRequestFailure.REAUTHENTICATION_REQUIRED
-                        }
+                        val failure = error.nativeFailure()
                         // No server answered. Preserve an operation failure, never an HTTP status.
                         incoming.send(JSONObject().put("type", "requestError").put("id", id).put("code", failure.name))
                     } finally { requests.remove(id, slot) }

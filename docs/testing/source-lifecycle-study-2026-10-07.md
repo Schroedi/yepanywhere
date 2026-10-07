@@ -352,7 +352,7 @@ second connection owner, and does not claim iOS device or physical-phone
 acceptance.
 
 Source review also found a separate
-[subscription error encoding gap](../../gaps/native-subscription-errors-use-synthetic-statuses.md).
+subscription error encoding gap (repaired below).
 This repair covers request replies; subscription setup still needs its own
 reproduction and typed failure handling. No new subscription banner is claimed
 from source inspection alone.
@@ -393,3 +393,46 @@ The corrected passive-wake acceptance passed in 89 seconds including setup,
 wait is intentionally unchanged. A further Kotlin regression ensures requests
 after an already-connected source becomes terminal fail immediately instead of
 spinning on its previously completed readiness promise.
+
+
+## Android subscription repair
+
+The live-update follow-up reproduces native 503 substitution in normal unit
+coverage. A separate run against the previous RelayProtocol implementation
+fails because closing a subscription during reconnect sends no cancellation
+(`subscriptions-cancel-red.log`). Browser sockets rely on teardown for that;
+the persistent native bridge needs an explicit local cancellation callback.
+Ordinary browser teardown retains a dedicated regression check.
+
+The new native path cancels abandoned intent while disconnected, preserves
+native setup/overflow/verification codes, keeps actual server statuses, and
+recreates managed subscriptions from their last consumed event ID. Seventy
+unit-level reconnect cycles retain at most one native subscription for one
+consumer, and old events/errors cannot alter a replacement. Kotlin coverage
+verifies code preservation through the actual manager/WebView session and
+retirement before reconnection; Rust overflow coverage asserts no fake status.
+
+The rebuilt Android direct disconnect study
+`2026-10-07T19-16-20-490Z-android-direct-session-disconnect` recovered the title
+and appended message in about one second, preserved the unsent draft, showed
+no observed error/login transition, and showed the updated sidebar on opening.
+This remains a small-fixture diagnostic, not a large-data or physical-device
+claim. No additional product escape was needed to discover the cancellation
+bug: the owning-layer test caught it before the emulator verification.
+
+The corresponding mux study
+`2026-10-07T19-20-57-444Z-android-mux-session-disconnect` also recovered in about
+one second, retained the draft and sidebar title, and recorded no error/login
+transition. Full mux live acceptance passed, including the 100 MiB upload and
+typing scenario; both native-webview browser cases passed as well.
+
+The first full workspace run passed its 6,792 client assertions but one
+unrelated real-browser cleanup hook timed out. An isolated browser-close trace
+passed and left no owned Chromium process. The unresolved mechanism is retained
+in [the cleanup gap](../../gaps/browser-preview-height-cleanup-timeout.md);
+a passing repeat is not evidence that the underlying cleanup defect is fixed.
+
+The subsequent full workspace run passed: 6,793 client assertions plus the
+server/shared/relay/push suites. The extra assertion preserves ordinary browser
+unsubscribe behavior. Lint, formatting, typechecking, console scan, Kotlin and
+Rust checks pass. The earlier browser cleanup failure remains an open gap.

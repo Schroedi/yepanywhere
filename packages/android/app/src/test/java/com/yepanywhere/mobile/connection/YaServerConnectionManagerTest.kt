@@ -35,6 +35,35 @@ import org.junit.Test
 
 class YaServerConnectionManagerTest {
     @Test
+    fun nativeSubscriptionFailureRetiresIntentAndPreservesItsCodeAcrossTheBridge() = runBlocking {
+        val fixture = Fixture()
+        val transport = FakeTransport(fixture.credential)
+        fixture.connector.results.send(Result.success(transport))
+        val manager = fixture.manager()
+        val lease = manager.acquire()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        val emitted = CopyOnWriteArrayList<JSONObject>()
+        val web = YaWebTransportSession("document", lease, scope, { emitted += it }) {}
+        try {
+            web.dispatch(JSONObject().put("handle", "document").put("id", "setup").put("method", "subscribe")
+                .put("params", JSONObject().put("subscriptionId", "local").put("channel", "activity")))
+            val wire = transport.awaitSent("subscribe").getString("subscriptionId")
+            transport.incoming.send(JSONObject().put("type", "subscriptionError").put("subscriptionId", wire)
+                .put("errorCode", "OVERFLOW").put("error", "Too many subscriptions"))
+            withTimeout(2_000) { while (emitted.none { it.optString("type") == "subscriptionError" }) delay(1) }
+            val error = emitted.first { it.optString("type") == "subscriptionError" }
+            assertEquals("local", error.getString("subscriptionId"))
+            assertEquals("OVERFLOW", error.getString("errorCode"))
+            assertFalse(error.has("status"))
+            assertEquals(wire, transport.awaitSent("unsubscribe").getString("subscriptionId"))
+            val next = FakeTransport(fixture.credential)
+            fixture.connector.results.send(Result.success(next))
+            lease.reconnect()
+            assertTrue(next.sent.none { it.optString("type") == "subscribe" })
+        } finally { web.close(); scope.cancel(); manager.shutdownAndAwait() }
+    }
+
+    @Test
     fun terminalFailureAfterReadinessRejectsNewDemandWithoutSpinning() = runBlocking {
         val fixture = Fixture()
         val transport = FakeTransport(fixture.credential)

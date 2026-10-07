@@ -252,7 +252,8 @@ SourceTransport contract. It adds no server authentication protocol or child
 credential. Android now preserves typed request failures and keeps exhausted network
 recovery visibly reconnecting, with a native network-restored signal feeding
 the existing recovery scheduler. Browser recovery policy stays unchanged;
-subscription lifecycle and page catch-up acceptance are the next Android slices.
+subscription failures and cancellation now retain native semantics, with
+page catch-up acceptance the next Android slice.
 The duplicate native dashboard and Conversation presentation are
 removed, with reusable decoder/projection helpers retained.
 

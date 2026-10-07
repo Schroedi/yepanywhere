@@ -64,7 +64,7 @@ class YaApiException(val response: YaApiResponse) :
 class YaConnectionUnavailableException(message: String, cause: Throwable? = null) :
     IllegalStateException(message, cause)
 
-internal enum class YaNativeRequestFailure(val description: String) {
+internal enum class YaNativeOperationFailure(val description: String) {
     CONNECTION_UNAVAILABLE("Native connection unavailable"),
     TIMEOUT("Native request timed out"),
     OVERFLOW("Native request limit exceeded"),
@@ -72,7 +72,7 @@ internal enum class YaNativeRequestFailure(val description: String) {
     REAUTHENTICATION_REQUIRED("Native sign-in required"),
 }
 
-internal class YaNativeRequestException(val failure: YaNativeRequestFailure) :
+internal class YaNativeOperationException(val failure: YaNativeOperationFailure) :
     IllegalStateException(failure.description)
 
 class YaSubscriptionOverflowException :
@@ -630,8 +630,11 @@ class YaServerConnectionManager(
     }
 
     private suspend fun restoreSubscriptions(transport: YaMessageTransport) {
-        val messages = mutex.withLock { subscriptions.values.map(SubscriptionRecord::subscribeMessage) }
-        messages.forEach(transport::send)
+        mutex.withLock {
+            // A concurrent close must enqueue unsubscribe after restore, never
+            // before a stale snapshot recreates the abandoned wire subscription.
+            subscriptions.values.forEach { transport.send(it.subscribeMessage()) }
+        }
     }
 
     private suspend fun receiveMessages(generation: Long, routed: YaRoutedTransport) {
@@ -676,12 +679,20 @@ class YaServerConnectionManager(
                     "FAILED", "REAUTHENTICATION_REQUIRED" -> throw YaRustTerminalException(YaConnectionPhase.valueOf(message.getString("phase")), message.optBoolean("recoverable"))
                 }
             }
+            "subscriptionError" -> {
+                val valid = mutex.withLock { connectionGeneration == generation && connection?.transport === transport }
+                if (!valid) return
+                val code = message.optNullableString("errorCode")
+                val error = if (code != null) YaNativeOperationException(YaNativeOperationFailure.valueOf(code))
+                    else IllegalStateException(message.optString("error", "Native subscription failed"))
+                closeSubscription(message.getString("subscriptionId"), error)
+            }
             "requestError" -> {
                 val id = message.getString("id")
-                val failure = YaNativeRequestFailure.valueOf(message.getString("code"))
+                val failure = YaNativeOperationFailure.valueOf(message.getString("code"))
                 mutex.withLock {
                     if (connectionGeneration != generation || connection?.transport !== transport) return
-                    pendingRequests.remove(id)?.completeExceptionally(YaNativeRequestException(failure))
+                    pendingRequests.remove(id)?.completeExceptionally(YaNativeOperationException(failure))
                 }
             }
             "response" -> {
