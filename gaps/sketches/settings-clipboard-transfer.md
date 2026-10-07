@@ -8,9 +8,14 @@ but it deliberately excludes server-persisted settings, and it moves state
 between browsers of one server, not between servers.
 
 Sketch: a **Copy settings** / **Paste settings** pair that moves selected
-server settings sections through the clipboard.
+settings through the clipboard.
 
-- **Copy** opens a section checklist and writes one versioned JSON document
+- **Client settings only** is the likely intended boundary and the first
+  offered scope: the same allowlisted browser preference set that **Save from
+  this browser** transfers, plus the server-persisted `clientDefaults`. It
+  needs no section checklist and carries nothing host-bound, so it can ship
+  before the server-section mode below, possibly without it.
+- **Copy** in the wider scope opens a section checklist and writes one versioned JSON document
   (`{ kind: "ya-settings", version, sourceHostName, sections: {...} }`) to the
   clipboard. Unchecked sections are absent from the document, not nulled.
 - **Paste** reads the clipboard (or a pasted text field where clipboard read
@@ -25,9 +30,13 @@ server settings sections through the clipboard.
   compaction and replay, compose/turn-timestamp, heartbeat and wake turns,
   global instructions, agent context hints, provider options (Codex reasoning
   summary and plan tool, Claude additional models), speech audio retention.
-- **Host-bound sections are unchecked by default** because their values name
-  this machine's filesystem, network, or hardware and are usually wrong on
-  another host: file access roots, project directory storage, artifact viewer,
+- **Remote Access, Local Access, and Apps are not offered.** Each configures
+  how this host is reached or what it serves (relay identity, network binding
+  and allowed hosts, artifact delivery, static vhosts, app links), so a copy
+  is wrong on another server rather than merely suspect.
+- **Other host-bound sections are unchecked by default** because their values
+  name this machine's filesystem, network, or hardware and are usually wrong
+  on another host: file access roots, project directory storage, artifact viewer,
   static vhosts and apps, remote executors, ChromeOS hosts, allowed hosts,
   host identity, host awake, gateway service export paths and start commands,
   Ollama URL, `yaClientBaseUrl`, public share viewer base URL, speech backends
@@ -45,8 +54,8 @@ Open questions:
   (each field tagged portable, host-bound, or secret) so the exporter, the
   default checklist, and future settings cannot drift. A hand-maintained
   client list would silently export a new host path or secret.
-- Whether browser-preference transfer joins the same document as an optional
-  section, giving one cross-server path, or stays separate.
+- Whether the wider server-section mode is worth building once client-only
+  transfer exists, or whether server settings stay per host.
 - How paste reports a target server too old to accept a section's fields; a
   server capability is needed before the client offers paste for a section
   whose route an older server lacks.
