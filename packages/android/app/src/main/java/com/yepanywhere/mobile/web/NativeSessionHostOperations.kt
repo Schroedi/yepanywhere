@@ -70,8 +70,9 @@ class RuntimeNativeSessionSource(
  *
  * The document is never asked for a password. When native has no usable
  * credential it opens native host management, where the profile offers
- * sign-in, and leaves the request pending; the document is replaced when the
- * user returns.
+ * sign-in, and answers once sign-in stores a new credential. The tab-owning
+ * activity overlays management on the same document, so the answer reaches
+ * it; a replaced document drops the reply instead.
  */
 class NativeSessionHostOperations(
     private val scope: CoroutineScope,
@@ -80,6 +81,8 @@ class NativeSessionHostOperations(
     private val showSignIn: () -> Unit,
     private val pollIntervalMs: Long = 200,
     private val credentialWaitMs: Long = 25_000,
+    // Matches the document's reauthentication timeout: the user is signing in.
+    private val signInWaitMs: Long = 30 * 60_000,
     private val encodeKey: (ByteArray) -> String = { Base64.encodeToString(it, Base64.NO_WRAP) },
 ) : NativeHostOperations {
     override val features = listOf(CREDENTIAL_METHOD, REAUTHENTICATE_METHOD, SWITCH_METHOD)
@@ -112,7 +115,7 @@ class NativeSessionHostOperations(
 
     private fun launchOperation(
         complete: (NativeHostOperationResult) -> Unit,
-        operation: suspend () -> NativeHostOperationResult?,
+        operation: suspend () -> NativeHostOperationResult,
     ) {
         scope.launch {
             val result = try {
@@ -122,22 +125,20 @@ class NativeSessionHostOperations(
             } catch (_: Exception) {
                 NativeHostOperationResult.Error("unavailable", "Native session is unavailable")
             }
-            // Null means native sign-in is showing; the document is replaced.
-            if (result != null) complete(result)
+            complete(result)
         }
     }
 
-    private suspend fun credential(): NativeHostOperationResult? {
+    private suspend fun credential(): NativeHostOperationResult {
         val snapshot = settledSnapshot()
             ?: return NativeHostOperationResult.Error("unavailable", "Native session is still resuming")
         if (snapshot.resumeCredential == null || snapshot.profile.securityClient?.revoked == true) {
-            showSignIn()
-            return null
+            return signInFor(rejectedSessionId = null)
         }
         return NativeHostOperationResult.Success(credentialJson(snapshot))
     }
 
-    private suspend fun reauthenticate(rejectedSessionId: String): NativeHostOperationResult? {
+    private suspend fun reauthenticate(rejectedSessionId: String): NativeHostOperationResult {
         val current = settledSnapshot()
         val stored = current?.resumeCredential?.credential
         if (stored != null && stored.sessionId != rejectedSessionId) {
@@ -147,12 +148,29 @@ class NativeSessionHostOperations(
         // Native's own resume decides whether the session is really gone.
         return when (source.verifyResume()) {
             YaConnectionPhase.CONNECTED -> credential()
-            YaConnectionPhase.REAUTHENTICATION_REQUIRED, YaConnectionPhase.REVOKED -> {
-                showSignIn()
-                null
-            }
+            YaConnectionPhase.REAUTHENTICATION_REQUIRED, YaConnectionPhase.REVOKED ->
+                signInFor(rejectedSessionId)
             else -> NativeHostOperationResult.Error("unavailable", "Native connection is unavailable")
         }
+    }
+
+    /** Open native sign-in and answer with the credential it stores. */
+    private suspend fun signInFor(rejectedSessionId: String?): NativeHostOperationResult {
+        showSignIn()
+        val signedIn = withTimeoutOrNull(signInWaitMs) {
+            var snapshot = source.snapshot()
+            while (!holdsUsableCredential(snapshot, rejectedSessionId)) {
+                delay(pollIntervalMs)
+                snapshot = source.snapshot()
+            }
+            checkNotNull(snapshot)
+        } ?: return NativeHostOperationResult.Error("unavailable", "Native sign-in did not complete")
+        return NativeHostOperationResult.Success(credentialJson(signedIn))
+    }
+
+    private fun holdsUsableCredential(snapshot: YaPairedServerSnapshot?, rejectedSessionId: String?): Boolean {
+        val stored = snapshot?.resumeCredential?.credential ?: return false
+        return snapshot.profile.securityClient?.revoked != true && stored.sessionId != rejectedSessionId
     }
 
     /**

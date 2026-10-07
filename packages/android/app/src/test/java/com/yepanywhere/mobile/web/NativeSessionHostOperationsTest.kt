@@ -73,13 +73,18 @@ class NativeSessionHostOperationsTest {
     }
 
     @Test
-    fun missingCredentialOpensNativeSignInInsteadOfAnswering() = runBlocking {
+    fun missingCredentialOpensNativeSignInAndAnswersWithItsCredential() = runBlocking {
         val source = FakeSource(snapshot(null), YaConnectionPhase.IDLE)
         var signIns = 0
-        val result = invokeOrNull(operations(source) { signIns += 1 }, "session.credential")
+        val operations = operations(source) { signIns += 1 }
+        val pending = scope.async { invoke(operations, "session.credential") }
 
-        assertNull(result)
+        // Nothing is answered until native sign-in stores a credential.
+        assertNull(withTimeoutOrNull(100) { pending.await() })
         assertEquals(1, signIns)
+        source.snapshot = snapshot("signed-in")
+        val result = withTimeout(2_000) { pending.await() } as NativeHostOperationResult.Success
+        assertEquals("signed-in", result.result.getString("sessionId"))
     }
 
     @Test
@@ -102,15 +107,18 @@ class NativeSessionHostOperationsTest {
         val source = FakeSource(snapshot("session-1"))
         source.verifyResult = YaConnectionPhase.REAUTHENTICATION_REQUIRED
         var signIns = 0
-        val result = invokeOrNull(
-            operations(source) { signIns += 1 },
-            "session.reauthenticate",
-            JSONObject().put("rejectedSessionId", "session-1"),
-        )
+        val operations = operations(source) { signIns += 1 }
+        val pending = scope.async {
+            invoke(operations, "session.reauthenticate", JSONObject().put("rejectedSessionId", "session-1"))
+        }
 
-        assertNull(result)
+        // The rejected session still in storage is never handed back.
+        assertNull(withTimeoutOrNull(100) { pending.await() })
         assertEquals(1, source.verifications)
         assertEquals(1, signIns)
+        source.snapshot = snapshot("session-2")
+        val result = withTimeout(2_000) { pending.await() } as NativeHostOperationResult.Success
+        assertEquals("session-2", result.result.getString("sessionId"))
     }
 
     @Test
