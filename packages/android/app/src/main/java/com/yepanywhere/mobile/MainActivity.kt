@@ -96,6 +96,7 @@ class MainActivity : WebClientActivity() {
     private fun showManagementScreen() {
         if (managementView != null) return
         managementBack.isEnabled = hasSelectedTab
+        setPageForeground(false)
         managementView = androidx.compose.ui.platform.ComposeView(this).apply {
             setContent {
                 YepAnywhereTheme {
@@ -116,6 +117,7 @@ class MainActivity : WebClientActivity() {
         managementView = null
         managementBack.isEnabled = false
         createNewTab = false
+        setPageForeground(true)
     }
 
     override fun onSaveInstanceState(outState: Bundle) {

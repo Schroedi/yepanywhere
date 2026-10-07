@@ -84,17 +84,13 @@ final class LiveTests: XCTestCase {
     XCTAssertThrowsError(try sibling.securityBinding())
     XCTAssertNotNil(try store.credential(profile.id))
   }
-  func testFullBundledApplicationResumesTheNativeCredential() async throws {
+  func testFullBundledApplicationOverEncryptedRustSource() async throws {
     let (options, _) = try fixture()
     let session = try await nativeLogin(options: options, password: "native-fixture-password")
     let profile = HostProfile(
       id: UUID().uuidString, label: "Simulator host", endpoint: options.endpoint,
       username: options.username, lastConnected: Date())
-    // Native's one SRP login mints the session; the document resumes it.
-    let stored = try session.credentialData()
-    session.close()
-    let bridge = NativeBridge(profileID: profile.id)
-    bridge.sessionCredential = { try NativeSessionCredential.json(profile: profile, stored: stored) }
+    let bridge = NativeBridge(source: RustSource(profile: profile, session: session))
     let view = bridge.makeWebView(
       root: try XCTUnwrap(Bundle.main.url(forResource: "web", withExtension: nil)))
     view.configuration.userContentController.addUserScript(
@@ -119,14 +115,24 @@ final class LiveTests: XCTestCase {
     }
     XCTAssertTrue(body.contains("Projects"), body)
     XCTAssertFalse(bridge.closed)
+    // Projects can render before the independent version request completes.
+    // Hosted run 36884537650 reached Projects with only 5 frames delivered;
+    // allow 3x that run's 10.2s flow for the padded response to cross the bridge.
+    let chunkDeadline = Date().addingTimeInterval(30)
+    while bridge.framesSent <= 16 && !bridge.closed && Date() < chunkDeadline {
+      try await Task.sleep(nanoseconds: 50_000_000)
+    }
+    XCTAssertGreaterThan(
+      bridge.framesSent, 16, "The 1 MiB version response must cross chunked frames")
     let errors = try await view.evaluateJavaScript("window.qaErrors") as? [String] ?? []
     XCTAssertEqual(errors, [])
     let screenshot = XCTAttachment(image: try await view.capturedImage())
     screenshot.name = "ios-rust-projects"; screenshot.lifetime = .keepAlways; add(screenshot)
-    // The document holds the credential only in memory.
-    let storage =
-      try await view.evaluateJavaScript("JSON.stringify(localStorage)") as? String ?? ""
-    XCTAssertFalse(storage.contains("sessionKey")); XCTAssertFalse(storage.contains("sessionId"))
+    let secrets =
+      try await view.evaluateJavaScript(
+        "JSON.stringify({keys:Object.keys(window.yaNativeTransport),storage:JSON.stringify(localStorage)})"
+      ) as? String ?? ""
+    XCTAssertFalse(secrets.contains("base_key")); XCTAssertFalse(secrets.contains("session_id"))
     // Even a same-origin srcdoc must not be able to execute through parent.
     _ = try await view.evaluateJavaScript(
       "window.qaChildRan=false;const f=document.createElement('iframe');f.srcdoc='<script>parent.qaChildRan=true<\\/script>';document.body.append(f)"

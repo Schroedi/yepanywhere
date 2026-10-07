@@ -142,9 +142,8 @@ Constraints:
 - An HTTPS page cannot connect directly to an insecure `ws://` YA endpoint
   without weakening mixed-content protections. Relay or other `wss://`
   connections work naturally. Do not enable production-wide mixed content to
-  recover insecure direct connections; the bundled app document opens its own
-  socket, so a source-built client is the route if that use case becomes
-  necessary.
+  recover insecure direct connections; use a native transport bridge or a
+  source-built bundled client if that use case becomes necessary.
 - A cold launch can fail when the host is unavailable or the cache has been
   evicted. The app should present an honest retry/offline state.
 - Hosted client releases must preserve the stable-server capability gates and
@@ -291,8 +290,8 @@ equivalent scan must be bounded to a visible owner, advertise no credentials,
 sessions, or installation identity, and attach a route automatically only after
 resume proves continuity with the selected profile. Without resume, full SRP
 and explicit user selection establish the route. Native direct traffic may use
-that authenticated route; native hands it to the bundled web client among the
-routes of the credential the document resumes.
+that authenticated route; the bundled web client normally consumes it through
+an independent WebView lease on the Kotlin connection manager.
 
 ## iOS Compatibility
 

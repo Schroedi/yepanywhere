@@ -38,6 +38,9 @@ impl Events {
             .flatten();
         let coalesce = match v["type"].as_str() {
             Some("state") => Some("state".to_owned()),
+            Some("upload_progress" | "upload_complete" | "upload_error") => {
+                v["uploadId"].as_str().map(|id| format!("upload:{id}"))
+            }
             _ => None,
         };
         if let Some(key) = &coalesce {
@@ -144,18 +147,18 @@ mod tests {
         );
     }
     #[test]
-    fn state_coalesces_without_saturating_control_capacity() {
+    fn upload_progress_coalesces_without_saturating_control_capacity() {
         let mut events = Events::default();
         for n in 0..300 {
             events
-                .push(&json!({"type":"state","phase":"RETRYING","attempt":n}))
+                .push(&json!({"type":"upload_progress","uploadId":"owned","n":n}))
                 .unwrap();
         }
         events
-            .push(&json!({"type":"state","phase":"CONNECTED"}))
+            .push(&json!({"type":"upload_complete","uploadId":"owned"}))
             .unwrap();
         assert_eq!(events.queue.len(), 1);
-        assert!(events.pop().unwrap().contains("CONNECTED"));
+        assert!(events.pop().unwrap().contains("upload_complete"));
         assert_eq!(events.bytes, 0);
     }
 }

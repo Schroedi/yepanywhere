@@ -348,6 +348,7 @@ async fn resume_candidates(
 }
 enum Command {
     Dispatch(String, Value, oneshot::Sender<Result<String>>),
+    Upload(Vec<u8>, oneshot::Sender<Result<()>>),
 }
 #[derive(Clone, uniffi::Record)]
 pub struct NativeSecurityBinding {
@@ -477,6 +478,14 @@ impl NativeSession {
             .map_err(|_| Error::Overflow)?;
         tokio::select! { _ = self.lease.cancel.cancelled() => Err(Error::Closed), result = timeout(Duration::from_secs(30), rx) => result.map_err(|_| Error::Timeout)?.map_err(|_| Error::Closed)? }
     }
+    pub async fn upload_chunk(&self, payload: Vec<u8>) -> Result<()> {
+        check(payload.len() >= 24 && payload.len() <= 65536 + 24)?;
+        let (tx, rx) = oneshot::channel();
+        self.commands
+            .try_send(Command::Upload(payload, tx))
+            .map_err(|_| Error::Overflow)?;
+        tokio::select! { _ = self.lease.cancel.cancelled() => Err(Error::Closed), result = timeout(Duration::from_secs(30), rx) => result.map_err(|_| Error::Timeout)?.map_err(|_| Error::Closed)? }
+    }
     pub async fn next_event(&self) -> Result<String> {
         let _reader = self.event_reader.lock().await;
         loop {
@@ -509,6 +518,11 @@ struct Pending {
     reply: oneshot::Sender<Result<String>>,
     deadline: Instant,
 }
+struct Upload {
+    wire_id: Uuid,
+    offset: u64,
+    size: u64,
+}
 struct Actor {
     routes: Vec<NativeRoute>,
     options: SessionOptions,
@@ -520,6 +534,7 @@ struct Actor {
     storage: Option<Arc<dyn crate::CredentialPersistence>>,
     pending: HashMap<String, Pending>,
     subscriptions: HashMap<String, Value>,
+    uploads: HashMap<String, Upload>,
 }
 impl Actor {
     fn new(
@@ -545,6 +560,7 @@ impl Actor {
             storage,
             pending: HashMap::new(),
             subscriptions: HashMap::new(),
+            uploads: HashMap::new(),
         }
     }
     fn retire_subscription(&mut self, id: String, error: Value) -> Result<()> {
@@ -590,6 +606,12 @@ impl Actor {
     fn fail_pending(&mut self) {
         for (_, p) in self.pending.drain() {
             let _ = p.reply.send(Err(Error::Unavailable));
+        }
+        let ids = self.uploads.drain().map(|(id, _)| id).collect::<Vec<_>>();
+        for id in ids {
+            let _ = self.event(
+                json!({"type":"upload_error","uploadId":id,"error":"Connection interrupted"}),
+            );
         }
     }
     async fn reconnect(&mut self) -> Result<()> {
@@ -725,6 +747,38 @@ impl Actor {
     }
     async fn command(&mut self, c: Command) -> Result<()> {
         match c {
+            Command::Upload(mut payload, reply) => {
+                let id = Uuid::from_slice(&payload[..16])
+                    .map_err(|_| Error::InvalidMessage)?
+                    .to_string();
+                let offset = u64::from_be_bytes(
+                    payload[16..24]
+                        .try_into()
+                        .map_err(|_| Error::InvalidMessage)?,
+                );
+                let Some(upload) = self.uploads.get_mut(&id) else {
+                    let _ = reply.send(Err(Error::InvalidMessage));
+                    return Ok(());
+                };
+                if offset != upload.offset || offset + (payload.len() - 24) as u64 > upload.size {
+                    let _ = reply.send(Err(Error::InvalidMessage));
+                    return Ok(());
+                }
+                upload.offset += (payload.len() - 24) as u64;
+                payload[..16].copy_from_slice(upload.wire_id.as_bytes());
+                let mut inner = vec![2];
+                inner.extend_from_slice(&payload);
+                let result = self
+                    .secure
+                    .wire
+                    .encrypted_send(&inner, &self.secure.key)
+                    .await;
+                let failed = result.is_err();
+                let _ = reply.send(result);
+                if failed {
+                    self.reconnect().await?;
+                }
+            }
             Command::Dispatch(method, mut p, mut reply) => {
                 if reply.is_closed() {
                     return Ok(());
@@ -777,6 +831,46 @@ impl Actor {
                             check(self.subscriptions.remove(&id).is_some())?;
                             p["type"] = json!("unsubscribe");
                             self.secure.send(&p).await?;
+                            Ok(None)
+                        }
+                        "uploadStart" => {
+                            check(self.uploads.len() < 4)?;
+                            let id = field(&p, "uploadId")?.to_owned();
+                            let _ = Uuid::parse_str(&id).map_err(|_| Error::InvalidMessage)?;
+                            check(
+                                !self.uploads.contains_key(&id)
+                                    && matches!(
+                                        field(&p, "type")?,
+                                        "upload_start" | "staged_upload_start"
+                                    ),
+                            )?;
+                            let wire_id = Uuid::new_v4();
+                            let size = p["size"].as_u64().ok_or(Error::InvalidMessage)?;
+                            check(size <= 100 * 1024 * 1024)?;
+                            p["uploadId"] = json!(wire_id.to_string());
+                            self.secure.send(&p).await?;
+                            self.uploads.insert(
+                                id,
+                                Upload {
+                                    wire_id,
+                                    offset: 0,
+                                    size,
+                                },
+                            );
+                            Ok(None)
+                        }
+                        "uploadEnd" | "uploadCancel" => {
+                            let id = field(&p, "uploadId")?.to_owned();
+                            let upload = self.uploads.get(&id).ok_or(Error::InvalidMessage)?;
+                            if method == "uploadEnd" {
+                                check(upload.offset == upload.size)?;
+                            }
+                            p["uploadId"] = json!(upload.wire_id.to_string());
+                            p["type"] = json!("upload_end");
+                            self.secure.send(&p).await?;
+                            if method == "uploadCancel" {
+                                self.uploads.remove(&id);
+                            }
                             Ok(None)
                         }
                         "reconnect" => {
@@ -841,6 +935,22 @@ impl Actor {
                     } else {
                         self.event(v)?;
                     }
+                }
+            }
+            "upload_progress" | "upload_complete" | "upload_error" => {
+                let wire_id = field(&v, "uploadId")?;
+                if let Some(id) = self
+                    .uploads
+                    .iter()
+                    .find(|(_, u)| u.wire_id.to_string() == wire_id)
+                    .map(|(id, _)| id.clone())
+                {
+                    let terminal = v["type"] != "upload_progress";
+                    v["uploadId"] = json!(id);
+                    if terminal {
+                        self.uploads.remove(&id);
+                    }
+                    self.event(v)?;
                 }
             }
             "pong" => {}

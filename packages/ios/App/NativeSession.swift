@@ -8,6 +8,7 @@ extension NativeSession {
 
 protocol NativeAuthenticatedSession: AnyObject {
   func dispatch(method: String, params: String) async throws -> String
+  func uploadChunk(payload: Data) async throws
   func nextEvent() async throws -> String
   func securityBinding() throws -> NativeSecurityBinding
   func close()

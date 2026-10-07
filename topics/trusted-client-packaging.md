@@ -65,7 +65,7 @@ launcher resource.
 The selected foreground is the bundled full web UI, with native login and host
 management. A duplicate native dashboard or Conversation renderer is not a
 release prerequisite. Hosted-latest retains independent web authentication and
-never receives the bundled document's native credential operations.
+never receives the privileged bundled native transport.
 
 Android host management exposes the publisher privacy policy at
 `https://graehlarts.com/privacy.html#yepanywhere` before pairing or login,
@@ -78,18 +78,21 @@ browser extensions. It may legitimately read and modify YA application data.
 The native host still remains exact-origin and method-scoped as inexpensive
 defense in depth.
 
-An already authenticated user enters the complete application without a
-second web login: native hands the signed bundled document the profile's
-resume credential over the exact-origin control channel, held in memory only,
-and the document connects through the ordinary web transport. This is trusted
-code receiving a credential weaker than a saved password would be; the
-contract and security review are in
-[mobile-server-pairing § Bundled Web Client Transport](mobile-server-pairing.md#bundled-web-client-transport).
+The bundled client normally uses a native data-plane adapter so an already
+authenticated Android user enters the complete application without a second
+web login. The adapter exposes high-level
+source operations over a bounded exact-origin channel; Kotlin keeps SRP and
+resume material private and arbitrates concurrent Compose, foreground-service,
+and WebView leases. Binary uploads remain chunked and flow-controlled rather
+than copied into one bridge message.
 
 Still unresolved are the stable public asset update/signing policy and the
-remaining storage/rotation acceptance across release-device builds. Native
-installation and push-management secrets remain app-private and are not web
-credentials; the document never receives the password.
+remaining storage/rotation acceptance across release-device builds. An
+independently authenticated
+WebView remains a possible future performance or isolation mode, but it uses
+normal explicit SRP and its own browser-scoped resume session. The baseline
+does not mint or hand off a child credential. Native installation and
+push-management secrets remain app-private and are not web credentials.
 
 ## Android Internal CI Delivery
 

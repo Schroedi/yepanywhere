@@ -16,16 +16,13 @@ not imply that the entire profile is constant-time or independently audited.
 
 Tokio owns one bounded authenticated session actor per native profile.
 NativeRuntime serializes profile acquisition; NativeSourceLease gives each
-native consumer separate subscriptions, event queues and cancellation.
-A consumer releases only its own demand; the final owner closes the source. Concurrent eligible
+consumer separate subscriptions, uploads, event queues and cancellation.
+A document releases only its own demand; the final owner closes the source. Concurrent eligible
 relay sources share a physical mux socket with independently bounded circuits;
 retiring or overflowing one circuit preserves healthy peers. It handles encrypted
-requests, subscriptions, resume and three bounded reconnect attempts.
-The final circuit closes its socket and cancels its work. Bundled web documents
-do not use this core: native hands them the profile's resume credential and
-they connect through the web transport
-([contract](../../topics/mobile-server-pairing.md#bundled-web-client-transport)).
-Direct routes and eligible relay mux
+requests, subscriptions, uploads, resume and three bounded reconnect attempts.
+The final circuit closes its socket and cancels its work. No web login or key
+material is part of the source bridge. Direct routes and eligible relay mux
 routes use the same authentication; unavailable mux setup falls back to the
 exact configured legacy relay endpoint. Explicit custom URLs remain authoritative.
 TLS uses rustls with the platform verifier and OS certificate trust. Android
@@ -94,9 +91,8 @@ clearing application data. Only that debug build opts into cleartext fixtures;
 Release network policy is unchanged. It owns two disposable servers, a relay
 and exact adb reverse mappings, and removes those mappings/processes on exit.
 It checks security continuity/revocation, existing credential resume, route
-fallback, independent mux hosts, and the bundled WebView resuming the native
-credential, including sequential typing during a 100 MiB upload over its own
-web transport. The Kotlin crypto/backend remains differential test
+fallback, independent mux hosts, the bundled WebView and sequential typing
+during a 100 MiB upload. The Kotlin crypto/backend remains differential test
 code only; production credentials and session work use Rust.
 
 The initial native apps support owner login. Limited-user sign-in, OPAQUE,

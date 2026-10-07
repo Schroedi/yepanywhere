@@ -16,6 +16,10 @@ interface YaMessageTransport {
         get() = null
 
     fun send(message: JSONObject)
+    suspend fun sendUploadChunk(uploadId: String, offset: Long, chunk: ByteArray) {
+        error("Binary uploads are unavailable on this transport")
+    }
+    suspend fun cancelUpload(uploadId: String) { send(JSONObject().put("type", "upload_end").put("uploadId", uploadId)) }
     suspend fun receive(): JSONObject
     suspend fun awaitClosed()
     suspend fun closeAndAwait()

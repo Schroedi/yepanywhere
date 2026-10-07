@@ -35,7 +35,7 @@ import { RemoteCompatibilityNotices } from "./components/RemoteCompatibilityNoti
 import { StorageFilesystemBanner } from "./components/StorageFilesystemBanner";
 import { StartupShell } from "./components/StartupShell";
 import { ClientSummarySourceBinding } from "./contexts/ClientSummarySourceBinding";
-import { NativeCredentialConnectionProvider } from "./contexts/NativeCredentialConnectionProvider";
+import { NativeConnectionProvider } from "./contexts/NativeConnectionProvider";
 import {
   HostIdentityProvider,
   useHostIdentity,
@@ -53,7 +53,6 @@ import { useCanAdministerHost } from "./hooks/useActingPrincipal";
 import { useNeedsAttentionBadge } from "./hooks/useNeedsAttentionBadge";
 import { signInRequiredState } from "./hooks/useSignInRequiredNotice";
 import { requiresResumeLogin } from "./lib/connection/remoteErrors";
-import { nativeHost } from "./lib/nativeHost";
 import { useSyncNotifyInAppSetting } from "./hooks/useNotifyInApp";
 import { primeProviderCache } from "./hooks/useProviders";
 import {
@@ -384,43 +383,15 @@ function RemoteAppInner({ children }: Props) {
  * - SchemaValidationProvider (localStorage only, no connection needed)
  * - Connection-independent hooks (notify sync, log collection)
  */
-type ApplicationConnectionMode = "pending" | "credential" | "web";
-
-/**
- * Bundled app documents connect with the native profile's credential when the
- * native host offers it. Browsers, hosted app builds, and native shells that
- * do not offer it use the ordinary web login.
- */
 function ApplicationConnectionProvider({ children }: Props) {
-  const { t } = useI18n();
-  const [mode, setMode] = useState<ApplicationConnectionMode>(() =>
-    window.yaNative ? "pending" : "web",
+  const channel = window.yaNativeTransport;
+  return channel ? (
+    <NativeConnectionProvider channel={channel}>
+      {children}
+    </NativeConnectionProvider>
+  ) : (
+    <RemoteConnectionProvider>{children}</RemoteConnectionProvider>
   );
-  useEffect(() => {
-    if (mode !== "pending") return;
-    let active = true;
-    void nativeHost.session.supported().then((supported) => {
-      if (active) setMode(supported ? "credential" : "web");
-    });
-    return () => {
-      active = false;
-    };
-  }, [mode]);
-
-  switch (mode) {
-    case "pending":
-      return (
-        <StartupShell phase="connection">{t("reconnecting")}</StartupShell>
-      );
-    case "credential":
-      return (
-        <NativeCredentialConnectionProvider>
-          {children}
-        </NativeCredentialConnectionProvider>
-      );
-    case "web":
-      return <RemoteConnectionProvider>{children}</RemoteConnectionProvider>;
-  }
 }
 
 export function RemoteApp({ children }: Props) {

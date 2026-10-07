@@ -54,6 +54,58 @@ async fn unchanged_server_login_resume_requests_and_teardown() {
         .unwrap()
         .unwrap();
     assert!(event.contains("test-activity"));
+    // The unchanged server uses upload_end for both completion and abort.
+    // More than four sequential cancellations must release the native slots.
+    for i in 0..6 {
+        let id = uuid::Uuid::new_v4();
+        let start = serde_json::json!({"type":"staged_upload_start","uploadId":id.to_string(),"filename":"fixture.txt","size":4,"mimeType":"text/plain"});
+        session
+            .dispatch("uploadStart".into(), start.to_string())
+            .await
+            .unwrap();
+        let event = tokio::time::timeout(std::time::Duration::from_secs(10), session.next_event())
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(event.contains(&id.to_string()), "{event}");
+        let mut chunk = id.as_bytes().to_vec();
+        chunk.extend_from_slice(&0_u64.to_be_bytes());
+        chunk.extend_from_slice(if i % 2 == 0 { b"ab" } else { b"abcd" });
+        session.upload_chunk(chunk.clone()).await.unwrap();
+        session
+            .dispatch(
+                "uploadCancel".into(),
+                serde_json::json!({"uploadId":id.to_string()}).to_string(),
+            )
+            .await
+            .unwrap();
+        assert!(session.upload_chunk(chunk).await.is_err());
+    }
+    let id = uuid::Uuid::new_v4();
+    session.dispatch("uploadStart".into(), serde_json::json!({"type":"staged_upload_start","uploadId":id.to_string(),"filename":"fixture.txt","size":4,"mimeType":"text/plain"}).to_string()).await.unwrap();
+    let mut chunk = id.as_bytes().to_vec();
+    chunk.extend_from_slice(&0_u64.to_be_bytes());
+    chunk.extend_from_slice(b"abcd");
+    session.upload_chunk(chunk).await.unwrap();
+    session
+        .dispatch(
+            "uploadEnd".into(),
+            serde_json::json!({"uploadId":id.to_string()}).to_string(),
+        )
+        .await
+        .unwrap();
+    loop {
+        let event = tokio::time::timeout(std::time::Duration::from_secs(10), session.next_event())
+            .await
+            .unwrap()
+            .unwrap();
+        let event: serde_json::Value = serde_json::from_str(&event).unwrap();
+        if event["uploadId"] == id.to_string() && event["type"] != "upload_progress" {
+            assert_eq!(event["type"], "upload_complete", "{event}");
+            assert_eq!(event["stagedRef"]["size"], 4);
+            break;
+        }
+    }
     let credential = session.credential_data().unwrap();
     session.close();
     assert!(
@@ -269,6 +321,17 @@ async fn profile_leases_scope_resources_and_preserve_sibling_demand() {
         )
         .await
         .unwrap();
+    let upload = uuid::Uuid::new_v4();
+    let start = serde_json::json!({"type":"staged_upload_start","uploadId":upload.to_string(),"filename":"lease.txt","size":4,"mimeType":"text/plain"});
+    alpha
+        .dispatch("uploadStart".into(), start.to_string())
+        .await
+        .unwrap();
+    let mut chunk = upload.as_bytes().to_vec();
+    chunk.extend_from_slice(&0_u64.to_be_bytes());
+    chunk.extend_from_slice(b"ab");
+    assert!(sibling.upload_chunk(chunk.clone()).await.is_err());
+    alpha.upload_chunk(chunk).await.unwrap();
     alpha.release();
     assert!(alpha.credential_data().is_err());
     assert!(
@@ -281,6 +344,23 @@ async fn profile_leases_scope_resources_and_preserve_sibling_demand() {
             .unwrap()
             .contains("200")
     );
+    // Released owner uploads must return capacity rather than pin native slots.
+    for _ in 0..6 {
+        let id = uuid::Uuid::new_v4();
+        let mut start = start.clone();
+        start["uploadId"] = serde_json::json!(id.to_string());
+        sibling
+            .dispatch("uploadStart".into(), start.to_string())
+            .await
+            .unwrap();
+        sibling
+            .dispatch(
+                "uploadCancel".into(),
+                serde_json::json!({"uploadId":id.to_string()}).to_string(),
+            )
+            .await
+            .unwrap();
+    }
     runtime.retire_profile("owned-profile".into());
     assert!(sibling.credential_data().is_err());
     let resumed = runtime

@@ -2,21 +2,9 @@ export const NATIVE_HOST_PROTOCOL = 1 as const;
 export const NATIVE_NOTIFICATION_STATUS_FEATURE = "notifications.status";
 export const NATIVE_NOTIFICATION_PERMISSION_FEATURE =
   "notifications.requestPermission";
-/**
- * The bundled document connects with the native profile's resume credential.
- * Native advertises these only to signed bundled code; see
- * topics/mobile-server-pairing.md § Bundled Web Client Transport.
- */
-export const NATIVE_SESSION_CREDENTIAL_FEATURE = "session.credential";
-export const NATIVE_SESSION_REAUTHENTICATE_FEATURE = "session.reauthenticate";
-export const NATIVE_HOST_SWITCH_FEATURE = "host.switch";
 const MAX_MESSAGE_BYTES = 16 * 1024;
 const DEFAULT_TIMEOUT_MS = 1_500;
 const DEFAULT_PERMISSION_TIMEOUT_MS = 2 * 60_000;
-// Native may have to resume its own connection before it can answer.
-const DEFAULT_CREDENTIAL_TIMEOUT_MS = 30_000;
-// Reauthentication waits for the user to complete native sign-in.
-const DEFAULT_REAUTHENTICATE_TIMEOUT_MS = 30 * 60_000;
 
 export interface NativeHostDescriptor {
   protocol: typeof NATIVE_HOST_PROTOCOL;
@@ -32,27 +20,6 @@ export interface NativeNotificationStatus {
   channel: "enabled" | "disabled" | "not_supported";
   installation: "ready" | "update_pending" | "not_registered" | "unavailable";
   notificationsEnabled: boolean;
-}
-
-/** One way to reach the profile's server, in the order native prefers. */
-export type NativeSessionRoute =
-  | { kind: "relay"; wsUrl: string; relayUsername: string }
-  | { kind: "direct"; wsUrl: string };
-
-/**
- * The native profile's live resume credential. It is held only in memory by
- * the document that requested it and is never written to web storage.
- */
-export interface NativeSessionCredential {
-  profileId: string;
-  label: string;
-  username: string;
-  sessionId: string;
-  /** Base64-encoded 32-byte base session key. */
-  sessionKey: string;
-  resumeProtocolVersion?: number;
-  /** Routes to try in order; the first is native's preferred route. */
-  routes: NativeSessionRoute[];
 }
 
 interface NativeHostRawMessageEvent {
@@ -80,8 +47,6 @@ interface NativeHostClientOptions {
   getChannel?: () => NativeHostRawChannel | undefined;
   timeoutMs?: number;
   permissionTimeoutMs?: number;
-  credentialTimeoutMs?: number;
-  reauthenticateTimeoutMs?: number;
   lifecycleTarget?: Pick<Window, "addEventListener" | "removeEventListener">;
 }
 
@@ -89,8 +54,6 @@ export class NativeHostClient {
   private readonly getChannel: () => NativeHostRawChannel | undefined;
   private readonly timeoutMs: number;
   private readonly permissionTimeoutMs: number;
-  private readonly credentialTimeoutMs: number;
-  private readonly reauthenticateTimeoutMs: number;
   private readonly lifecycleTarget?: Pick<
     Window,
     "addEventListener" | "removeEventListener"
@@ -105,10 +68,6 @@ export class NativeHostClient {
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.permissionTimeoutMs =
       options.permissionTimeoutMs ?? DEFAULT_PERMISSION_TIMEOUT_MS;
-    this.credentialTimeoutMs =
-      options.credentialTimeoutMs ?? DEFAULT_CREDENTIAL_TIMEOUT_MS;
-    this.reauthenticateTimeoutMs =
-      options.reauthenticateTimeoutMs ?? DEFAULT_REAUTHENTICATE_TIMEOUT_MS;
     this.lifecycleTarget = options.lifecycleTarget ?? globalThis.window;
     this.lifecycleTarget?.addEventListener("pagehide", this.handlePageHide);
   }
@@ -151,46 +110,6 @@ export class NativeHostClient {
         this.permissionTimeoutMs,
       ),
     );
-  }
-
-  /** Whether native hands this document its resume credential. */
-  async supportsSessionCredential(): Promise<boolean> {
-    const descriptor = await this.describe();
-    return (
-      descriptor?.features.includes(NATIVE_SESSION_CREDENTIAL_FEATURE) ?? false
-    );
-  }
-
-  async sessionCredential(): Promise<NativeSessionCredential> {
-    return parseSessionCredential(
-      await this.request(
-        NATIVE_SESSION_CREDENTIAL_FEATURE,
-        undefined,
-        this.credentialTimeoutMs,
-      ),
-    );
-  }
-
-  /**
-   * Report that the server rejected `rejectedSessionId`. Native answers with
-   * its current credential when that is already a different session (another
-   * document or native consumer reauthenticated first); otherwise it shows
-   * native sign-in and resolves with the replacement.
-   */
-  async reauthenticate(
-    rejectedSessionId: string,
-  ): Promise<NativeSessionCredential> {
-    return parseSessionCredential(
-      await this.request(
-        NATIVE_SESSION_REAUTHENTICATE_FEATURE,
-        { rejectedSessionId },
-        this.reauthenticateTimeoutMs,
-      ),
-    );
-  }
-
-  async switchHost(): Promise<void> {
-    await this.request(NATIVE_HOST_SWITCH_FEATURE);
   }
 
   dispose(): void {
@@ -352,54 +271,6 @@ function parseNotificationStatus(value: unknown): NativeNotificationStatus {
   };
 }
 
-function parseSessionCredential(value: unknown): NativeSessionCredential {
-  if (
-    !isRecord(value) ||
-    !isNonEmptyString(value.profileId) ||
-    typeof value.label !== "string" ||
-    !isNonEmptyString(value.username) ||
-    !isNonEmptyString(value.sessionId) ||
-    !isNonEmptyString(value.sessionKey) ||
-    (value.resumeProtocolVersion !== undefined &&
-      !Number.isInteger(value.resumeProtocolVersion)) ||
-    !Array.isArray(value.routes) ||
-    value.routes.length === 0
-  ) {
-    throw new Error("Native session credential is invalid");
-  }
-  return {
-    profileId: value.profileId,
-    label: value.label,
-    username: value.username,
-    sessionId: value.sessionId,
-    sessionKey: value.sessionKey,
-    ...(value.resumeProtocolVersion !== undefined
-      ? { resumeProtocolVersion: value.resumeProtocolVersion as number }
-      : {}),
-    routes: value.routes.map(parseSessionRoute),
-  };
-}
-
-function parseSessionRoute(value: unknown): NativeSessionRoute {
-  if (isRecord(value) && isNonEmptyString(value.wsUrl)) {
-    if (value.kind === "relay" && isNonEmptyString(value.relayUsername)) {
-      return {
-        kind: "relay",
-        wsUrl: value.wsUrl,
-        relayUsername: value.relayUsername,
-      };
-    }
-    if (value.kind === "direct") {
-      return { kind: "direct", wsUrl: value.wsUrl };
-    }
-  }
-  throw new Error("Native session route is invalid");
-}
-
-function isNonEmptyString(value: unknown): value is string {
-  return typeof value === "string" && value.length > 0;
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -418,27 +289,4 @@ export const nativeHost = {
       return client?.requestNotificationPermission() ?? Promise.resolve(null);
     },
   },
-  session: {
-    supported(): Promise<boolean> {
-      return client?.supportsSessionCredential() ?? Promise.resolve(false);
-    },
-    credential(): Promise<NativeSessionCredential> {
-      return requireClient().sessionCredential();
-    },
-    reauthenticate(
-      rejectedSessionId: string,
-    ): Promise<NativeSessionCredential> {
-      return requireClient().reauthenticate(rejectedSessionId);
-    },
-  },
-  host: {
-    switch(): Promise<void> {
-      return requireClient().switchHost();
-    },
-  },
 };
-
-function requireClient(): NativeHostClient {
-  if (!client) throw new Error("Native host is unavailable");
-  return client;
-}
