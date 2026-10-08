@@ -7,6 +7,15 @@ preceding request/subscription/recovery repairs. The extended harness first
 landed in `0f24af3ad`. Native remains the app's only SRP owner. Standard web
 reconnection policy remains unchanged.
 
+This round repairs four user-visible problems: draft attachments disappearing or
+showing false warnings after interrupted validation, offline notification taps
+losing their destination, unreadable Android status icons, and connection
+failures being described as rejected login credentials. Each repair has a
+regression at its owning layer and a real-app emulator check. All seven extended
+Android lifecycle cases pass; the matched browser results retain their failures
+below. The remaining Android passive-recovery delay and physical-device checks
+are explicit limits of this evidence.
+
 ## Method and acceptance
 
 The [lifecycle runner](../../packages/client/e2e/lifecycle-study/README.md) uses
@@ -200,7 +209,10 @@ passes all 24 jobs on `8610677ef`, with three browser retries: native-fixture
 composer readiness, Project App handoff, and initial follow-scroll position.
 Their gaps remain open. Later general CI `37698697131` fails the known Project
 App handoff after both retries and the recorded fake-Codex shell-probe waiter.
-Those failures remain distinct from native acceptance. The fixture correction also passes
+Those failures remain distinct from native acceptance. Final source
+`c3d828c98` passes all 24 jobs in [general CI 37704844755](https://github.com/kzahel/yepanywhere/actions/runs/37704844755),
+with one Project App handoff retry, and all 12
+[runtime/SQLite jobs](https://github.com/kzahel/yepanywhere/actions/runs/37704844623). The fixture correction also passes
 [iOS CI](https://github.com/kzahel/yepanywhere/actions/runs/37690486734).
 Android [verification 502](https://github.com/kzahel/yepanywhere/actions/runs/37691081079)
 passes build/lint/package inspection and the complete hosted WebView
@@ -219,7 +231,23 @@ contrast defect below. Its duplicate push-only verification was also canceled.
 Manual internal-release [run 509](https://github.com/kzahel/yepanywhere/actions/runs/37703083440)
 on `3dcbb7b9a` was also canceled before publication after the additional reboot
 setup exposed the native login error-label defect below. The final replacement
-must pass both Android gates. The superseded `c33fe7c6f`
+must pass both Android gates. Replacement [run 511](https://github.com/kzahel/yepanywhere/actions/runs/37704886933)
+on `c3d828c98` passed build/lint/package inspection and pre-emulator shrinking,
+then failed before executing app tests because Maven Central returned HTTP 429
+for instrumentation-host dependencies. Publication was skipped; the
+[dependency-preparation gap](../../gaps/android-ci-instrumentation-dependency-rate-limit.md)
+retains the evidence. Attempt 2 cleared dependency setup and passed ordinary
+instrumentation and all 17 reported direct live cases (497.575 seconds, including
+fixture assumptions). Live preparation reused the APKs in 14 seconds with 62 of
+64 tasks up-to-date, confirming the pre-emulator build repair. The job then
+reached its 30-minute limit during the relay group and published nothing.
+Because that group buffered output until completion, the last running test is
+unknown; no relay pass or product-failure diagnosis is claimed. The runner now
+streams instrumentation output while retaining it for the unchanged result
+checks. The aggregate job allowance is 40 minutes, retaining individual test
+deadlines, the 100 ms typing gate and all app assertions. The
+[remaining hosted-relay gap](../../gaps/android-ci-relay-live-acceptance-exceeds-job-budget.md)
+requires a complete replacement run. The superseded `c33fe7c6f`
 general run was canceled after its first browser shard passed with the recorded
 native-fixture composer retry. Its runtime/SQLite matrix completed successfully. Three-minute forced idle, debugger-driven input and repeated
 wake cycles can falsify important lifecycle assumptions, but cannot establish

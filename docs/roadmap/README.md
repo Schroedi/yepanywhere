@@ -100,9 +100,20 @@ the viewer/download gap remain the next mobile release work.
   passes. Internal release 503 timed out rebuilding its live probe; replacement
   release 505 was canceled to include a system-bar contrast repair found by
   actual Release login testing. CI now prebuilds the same minified variant
-  used by instrumentation. Full-device captures supplement page observations. The actual Release also
+  used by instrumentation. Full-device captures supplement page observations.
+  The actual Release also
   retains its route and draft through an offline Android reboot. Native login
   now labels known connection failures accurately instead of blaming authentication.
+  Final source `c3d828c98` passes all 24 general CI jobs (one recorded browser
+  retry) and all 12 runtime/SQLite jobs. Internal release 511 passed its build
+  gate, then hit a Maven Central dependency-download 429 before app tests;
+  [the infrastructure gap](../../gaps/android-ci-instrumentation-dependency-rate-limit.md)
+  records that failed attempt. Its second attempt passed ordinary and direct
+  instrumentation but reached the 30-minute job limit during relay tests.
+  Live test output now streams immediately, and the combined build/emulator
+  job has 40 minutes with unchanged per-test deadlines and app assertions.
+  [Hosted relay acceptance](../../gaps/android-ci-relay-live-acceptance-exceeds-job-budget.md)
+  and internal publication still require the replacement run.
   Native remains the sole app connection owner.
   [Passive service-restoration latency](../../gaps/android-passive-service-restoration-slow-probe.md)
   remains a measured UX follow-up under the retained 60-second probe policy.

@@ -29,3 +29,7 @@ Found 2026-10-07 while checking CI during Android lifecycle hardening.
 retries at the same session App iframe assertion (`project-app.spec.ts:448`),
 with 194 other shard cases passing. This remains open independently of the
 Android lifecycle repairs; no timeout or assertion was relaxed.
+
+Final-source general CI `37704844755` on `c3d828c98` passes all 24 jobs,
+with this same Project App case passing on retry. The other browser shard
+passes without retries. Successful completion does not close this gap.

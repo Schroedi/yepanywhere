@@ -18,7 +18,11 @@ if (publicRelay && push)
   );
 let serial: string | undefined;
 const children = new Set<ReturnType<typeof spawn>>();
-async function run(command: string, args: string[], capture = false) {
+async function run(
+  command: string,
+  args: string[],
+  capture: boolean | "tee" = false,
+) {
   return await new Promise<string>((done, fail) => {
     const child = spawn(command, args, {
       cwd: android,
@@ -29,9 +33,11 @@ async function run(command: string, args: string[], capture = false) {
     let text = "";
     child.stdout?.on("data", (data) => {
       text += data;
+      if (capture === "tee") process.stdout.write(data);
     });
     child.stderr?.on("data", (data) => {
       text += data;
+      if (capture === "tee") process.stderr.write(data);
     });
     child.once("error", fail);
     child.once("close", (code) => {
@@ -42,7 +48,7 @@ async function run(command: string, args: string[], capture = false) {
     });
   });
 }
-async function device(args: string[], capture = false) {
+async function device(args: string[], capture: boolean | "tee" = false) {
   return run(adb, ["-s", checkSerial(), ...args], capture);
 }
 function checkSerial() {
@@ -213,9 +219,8 @@ try {
           ...args,
           "com.yepanywhere.mobile.test/androidx.test.runner.AndroidJUnitRunner",
         ],
-        true,
+        "tee",
       );
-      console.log(output);
       // Keep launcher-recovery evidence even when the YA checks then pass.
       const hasEvidence = await device(["shell", "test", "-d", evidence], true)
         .then(() => true)

@@ -159,7 +159,10 @@ jobs:
     name: WebView instrumentation
     needs: verify-android-app
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Run 37704886933/attempts/2 spent ~13 minutes preparing the APK/emulator
+    # and 8m18s in passing direct tests, then reached 30m during relay tests.
+    # Keep per-test deadlines unchanged; allow bounded whole-job headroom.
+    timeout-minutes: 40
 
     steps:
       - name: Checkout
