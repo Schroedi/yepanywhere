@@ -172,5 +172,8 @@ everything pending.
   [provider refresh](../../topics/provider-refresh.md) audit and the
   known-good STT snapshot respectively.
 
+Renovate 44's validator requires Node.js `^24.11.0`; use that runtime for
+this tooling even when the application uses another supported Node version.
 Before changing `renovate.json`, run
-`npx --package=renovate -- renovate-config-validator --strict`.
+`npx --yes --package=renovate@44 -- renovate-config-validator --strict`.
+Revisit the validator major/runtime when the hosted app moves to a new major.
