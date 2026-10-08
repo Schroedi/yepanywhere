@@ -444,3 +444,5 @@
 - service-tier - Codex Fast/Standard selection at launch, live change, and Session Info display.
 
 - source-transport-lifecycle-conformance - One sleep, wake and reconnect suite for every source transport, including the native bridge.
+
+- relay-artifact-frame - Scripted HTML artifacts over the encrypted relay through a same-site service-worker content origin.

@@ -348,6 +348,11 @@ automatically support arbitrary navigation, workers, storage, WebSockets, or
 multi-file apps. Optional Tailscale and Cloudflare transport changes
 reachability, not this isolation requirement.
 
+A proposed hybrid frames a static, same-site content origin whose service
+worker obtains every byte from the trusted client over the encrypted relay. It
+was spiked in Chrome and is not implemented; see
+[`gaps/sketches/relay-artifact-frame.md`](../gaps/sketches/relay-artifact-frame.md).
+
 ## Open Decisions
 
 - The direct and hosted untrusted-content hostnames/registrable domains and how
