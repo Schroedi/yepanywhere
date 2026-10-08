@@ -5,6 +5,8 @@ import kotlinx.coroutines.channels.Channel
 import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
+import java.util.concurrent.atomic.AtomicInteger
+import uniffi.ya_mobile_core.Disposable
 import uniffi.ya_mobile_core.NativeSourceLeaseInterface
 import uniffi.ya_mobile_core.NativeSecurityBinding
 import uniffi.ya_mobile_core.CoreException
@@ -97,16 +99,67 @@ class YaRustTransportTest {
             assertTrue(queued.await().isFailure)
         }
     }
-    private class FakeSession : NativeSourceLeaseInterface {
+    @Test fun closeWaitsForRequestCoroutineBeforeDestroyingItsLease() = runBlocking {
+        val gate = CompletableDeferred<Unit>()
+        val session = FakeSession().also { it.dispatchGate = gate }
+        val retired = AtomicInteger()
+        val transport = YaRustMessageTransport(session, true) { retired.incrementAndGet() }
+        try {
+            transport.send(JSONObject().put("type", "request").put("id", "draining")
+                .put("method", "GET").put("path", "/draining"))
+            withTimeout(5_000) { session.started.await() }
+            val closing = async(start = CoroutineStart.UNDISPATCHED) { transport.closeAndAwait() }
+            assertTrue(session.closed)
+            assertFalse(session.destroyed)
+            assertFalse(closing.isCompleted)
+            gate.complete(Unit)
+            withTimeout(5_000) { closing.await() }
+            assertTrue(session.destroyed)
+            assertEquals(1, session.releases.get())
+            assertEquals(1, session.destroys.get())
+            assertEquals(1, retired.get())
+            transport.closeAndAwait()
+            assertEquals(1, session.destroys.get())
+        } finally { gate.complete(Unit); transport.closeAndAwait() }
+    }
+    @Test fun closeWaitsForDirectCallerAndRejectsNewNativeCalls() = runBlocking {
+        val gate = CompletableDeferred<Unit>()
+        val session = FakeSession().also { it.dispatchGate = gate }
+        val transport = YaRustMessageTransport(session, true) {}
+        try {
+            val caller = async(start = CoroutineStart.UNDISPATCHED) { transport.directRequest("GET", "/draining", null) }
+            withTimeout(5_000) { session.started.await() }
+            val closing = async(start = CoroutineStart.UNDISPATCHED) { transport.closeAndAwait() }
+            assertTrue(session.closed)
+            assertFalse(session.destroyed)
+            assertFalse(closing.isCompleted)
+            assertTrue(runCatching { transport.directRequest("GET", "/late", null) }.exceptionOrNull() is CancellationException)
+            assertTrue(runCatching { transport.routeId }.exceptionOrNull() is CancellationException)
+            assertTrue(runCatching { transport.credential }.exceptionOrNull() is CancellationException)
+            assertTrue(runCatching { transport.securityBinding }.exceptionOrNull() is CancellationException)
+            assertEquals(1, session.dispatches.get())
+            gate.complete(Unit)
+            withTimeout(5_000) { assertEquals(200, caller.await().status); closing.await() }
+            assertTrue(session.destroyed)
+            assertEquals(1, session.destroys.get())
+        } finally { gate.complete(Unit); transport.closeAndAwait() }
+    }
+    private class FakeSession : NativeSourceLeaseInterface, Disposable {
         val started = CompletableDeferred<Unit>()
         val cancelled = CompletableDeferred<Unit>()
         private val events = Channel<String>()
-        var closed = false
+        @Volatile var closed = false
+        @Volatile var destroyed = false
+        val releases = AtomicInteger()
+        val destroys = AtomicInteger()
+        val dispatches = AtomicInteger()
+        var dispatchGate: CompletableDeferred<Unit>? = null
         var holdUploads = false
         var failure: CoreException? = null
         var response = "{\"status\":200,\"headers\":{},\"body\":{}}"
         val uploadStarted = CompletableDeferred<Unit>()
-        override fun release() { closed = true }
+        override fun release() { releases.incrementAndGet(); closed = true }
+        override fun destroy() { destroys.incrementAndGet(); destroyed = true }
         override fun routeId() = "fixture-route"
         override fun credentialData() = YaRustCredential.encode(YaResumeCredential("fixture-owner", "fixture-session", ByteArray(32), 3))
         override fun securityBinding() = NativeSecurityBinding("fixture-session", "fixture-nonce")
@@ -115,6 +168,14 @@ class YaRustTransportTest {
             if (holdUploads) { uploadStarted.complete(Unit); awaitCancellation() }
         }
         override suspend fun dispatch(method: String, params: String): String {
+            dispatches.incrementAndGet()
+            dispatchGate?.let { gate ->
+                started.complete(Unit)
+                // Model native entry/drain that cannot stop at the cancellation
+                // request itself. Destruction must await the lifetime boundary.
+                withContext(NonCancellable) { gate.await() }
+                check(!destroyed) { "NativeSourceLease object has already been destroyed" }
+            }
             failure?.let { throw it }
             if (JSONObject(params).optString("path") == "/held") {
                 started.complete(Unit)

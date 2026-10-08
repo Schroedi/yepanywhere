@@ -884,6 +884,14 @@ authenticates the saved identity on every attempt and persists the highest proof
 version before consumers. Authenticated reconnect stays limited to three attempts;
 Kotlin does not add another retry cycle after Rust exhausts them.
 
+Android transport retirement rejects new native operations before releasing
+its lease. It cancels owned requests, event reads and queued work; the native
+wrapper remains alive until admitted calls and transport coroutines have
+drained, including direct requests from external callers. `closeAndAwait`
+returns only after that teardown finishes. Refresh, document replacement and
+host switching must never dispatch through a destroyed lease or terminate the
+app because of late work from the retired document.
+
 Android connection setup accepts callers on the UI dispatcher: full login,
 profile pairing and resume perform their native future polling and protected
 credential persistence off the main thread. OS certificate and revocation

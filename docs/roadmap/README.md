@@ -110,6 +110,11 @@ the viewer/download gap remain the next mobile release work.
   [Maven dependency 429](../../gaps/android-ci-instrumentation-dependency-rate-limit.md)
   remains an infrastructure follow-up, with its failed attempt preserved.
   Native remains the sole app connection owner.
+  October 8 dependency maintenance reproduced a native lease teardown race
+  during repeated refresh. Android retirement now rejects late native calls
+  and drains admitted work before destroying its lease; deterministic JVM
+  regressions cover owned requests and external direct callers. Fresh hosted
+  minified WebView acceptance remains the gate for the pending Renovate merges.
   [Passive service-restoration latency](../../gaps/android-passive-service-restoration-slow-probe.md)
   remains a measured UX follow-up under the retained 60-second probe policy.
   The shared transport-unit conformance factory remains follow-up work;
