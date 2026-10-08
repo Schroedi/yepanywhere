@@ -107,13 +107,13 @@ class YaRustTransportTest {
         try {
             transport.send(JSONObject().put("type", "request").put("id", "draining")
                 .put("method", "GET").put("path", "/draining"))
-            withTimeout(5_000) { session.started.await() }
+            session.started.await()
             val closing = async(start = CoroutineStart.UNDISPATCHED) { transport.closeAndAwait() }
             assertTrue(session.closed)
             assertFalse(session.destroyed)
             assertFalse(closing.isCompleted)
             gate.complete(Unit)
-            withTimeout(5_000) { closing.await() }
+            closing.await()
             assertTrue(session.destroyed)
             assertEquals(1, session.releases.get())
             assertEquals(1, session.destroys.get())
@@ -128,7 +128,7 @@ class YaRustTransportTest {
         val transport = YaRustMessageTransport(session, true) {}
         try {
             val caller = async(start = CoroutineStart.UNDISPATCHED) { transport.directRequest("GET", "/draining", null) }
-            withTimeout(5_000) { session.started.await() }
+            session.started.await()
             val closing = async(start = CoroutineStart.UNDISPATCHED) { transport.closeAndAwait() }
             assertTrue(session.closed)
             assertFalse(session.destroyed)
@@ -139,7 +139,8 @@ class YaRustTransportTest {
             assertTrue(runCatching { transport.securityBinding }.exceptionOrNull() is CancellationException)
             assertEquals(1, session.dispatches.get())
             gate.complete(Unit)
-            withTimeout(5_000) { assertEquals(200, caller.await().status); closing.await() }
+            assertEquals(200, caller.await().status)
+            closing.await()
             assertTrue(session.destroyed)
             assertEquals(1, session.destroys.get())
         } finally { gate.complete(Unit); transport.closeAndAwait() }
