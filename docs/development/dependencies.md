@@ -142,12 +142,26 @@ PRs open weekly, at most five at a time, after a release is 3 days old;
 security fixes skip both waits. The Dependency Dashboard issue lists
 everything pending.
 
+- Routine runtime updates are grouped for manual review: stable npm
+  web/server dependencies (plus 0.x patches), Android libraries, stable Go
+  bridge modules, and Rust crate patches. Provider SDKs and Tauri retain
+  their separate audit/group boundaries. Android build tools and Go
+  language/toolchain directives stay outside the library groups.
+- Major upgrades and 0.x minor upgrades require dashboard approval before
+  creating a PR and never automerge. Request migrations individually;
+  approving the entire pending queue defeats that boundary.
 - Renovate automerges only non-major devDependency updates at 1.0 or later
   and non-major GitHub Actions updates and digest pins. Everything else waits
   for review.
 - `platformAutomerge` is off: `main` has no required status checks, so
   GitHub's native automerge could merge a PR with failing checks. Renovate
   merges only after every check on the branch passes.
+- Initial GitHub Action digest pins skip the release-age wait: they freeze
+  references that already float to those commits. Renovate ages pins against
+  the newest matching release, which can otherwise leave a frequently
+  releasing Action unpinned indefinitely. Version upgrades and subsequent
+  digest updates retain the 3-day wait. See
+  [Renovate's pinDigest guidance](https://docs.renovatebot.com/key-concepts/minimum-release-age/#pindigest-updates).
 - Workflow runtime inputs (`node-version`, `go-version`, `toolchain`,
   `java-version`) are not updated; CI deliberately runs at the supported
   Node floor.
