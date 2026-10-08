@@ -96,29 +96,25 @@ the viewer/download gap remain the next mobile release work.
   pass, including direct/relay outages, eight-cycle catch-up, process death,
   real FCM and interrupted uploads. Matched Chrome runs retain an intermittent
   initial-typing failure and an unhandled upload rejection as separate gaps;
-  standard web recovery policy stays unchanged. Android verification 502
-  passes. Internal release 503 timed out rebuilding its live probe; replacement
-  release 505 was canceled to include a system-bar contrast repair found by
-  actual Release login testing. CI now prebuilds the same minified variant
-  used by instrumentation. Full-device captures supplement page observations.
-  The actual Release also
-  retains its route and draft through an offline Android reboot. Native login
-  now labels known connection failures accurately instead of blaming authentication.
-  Final source `c3d828c98` passes all 24 general CI jobs (one recorded browser
-  retry) and all 12 runtime/SQLite jobs. Internal release 511 passed its build
-  gate, then hit a Maven Central dependency-download 429 before app tests;
-  [the infrastructure gap](../../gaps/android-ci-instrumentation-dependency-rate-limit.md)
-  records that failed attempt. Its second attempt passed ordinary and direct
-  instrumentation but reached the 30-minute job limit during relay tests.
-  Live test output now streams immediately, and the combined build/emulator
-  job has 40 minutes with unchanged per-test deadlines and app assertions.
-  [Hosted relay acceptance](../../gaps/android-ci-relay-live-acceptance-exceeds-job-budget.md)
-  and internal publication still require the replacement run.
+  standard web recovery policy stays unchanged. Full-device captures now cover
+  Android system icons as well as the WebView. The actual Release retains its
+  route and draft through an offline Android reboot, and native login labels
+  connection failures accurately. CI prebuilds the exact minified probe before
+  the emulator, streams test progress and gives the aggregate job 40 minutes
+  with unchanged per-test deadlines and app assertions. The final
+  [Android run 513](https://github.com/kzahel/yepanywhere/actions/runs/37712235822)
+  passes build and complete direct/relay acceptance, then publishes internal
+  `0.1.2-ci.513.1` / code `61301` from `a079aa3f9`. Play confirms availability
+  to internal testers. All 24 general CI and 12 runtime/SQLite jobs pass;
+  two browser retries remain recorded in the report. The earlier
+  [Maven dependency 429](../../gaps/android-ci-instrumentation-dependency-rate-limit.md)
+  remains an infrastructure follow-up, with its failed attempt preserved.
   Native remains the sole app connection owner.
   [Passive service-restoration latency](../../gaps/android-passive-service-restoration-slow-probe.md)
   remains a measured UX follow-up under the retained 60-second probe policy.
   The shared transport-unit conformance factory remains follow-up work;
-  physical update, modem, overnight and keyboard checks follow release gates.
+  physical update, modem, overnight and keyboard checks are the next acceptance
+  step using the available internal build.
 
 - Signed macOS and Windows desktop releases already exist. The
   [desktop release QA log](../testing/desktop-release-qa-log.md) records

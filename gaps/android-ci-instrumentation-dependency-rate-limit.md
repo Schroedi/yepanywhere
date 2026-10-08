@@ -22,6 +22,8 @@ evidence. Rerunning only failed jobs is inappropriate for this publishing
 workflow: its version and artifact names include the attempt number, so the
 candidate must be rebuilt and verified together. Attempt 2 cleared dependency
 setup and executed app tests; its separate whole-job timeout does not erase
-the first attempt's external download failure.
+the first attempt's external download failure. Replacement run `37712235822`
+(513) passes both Android gates and publishes successfully; the external
+dependency-preparation weakness remains follow-up work.
 
 Found 2026-10-08 during final internal-release verification.

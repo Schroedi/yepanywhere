@@ -226,9 +226,20 @@ as `0.1.2-ci.473.1` / code `57301`, from `72fbb38fc`. Both Android verification
 gates and publication passed. Play confirms **Available to internal testers**;
 the `published` internal-track receipt names that source commit and its SHA-256
 matches the signed upload. CI repairs covered an emulator Pixel Launcher ANR
-and WebView link names exposed as content descriptions. The separate general
-browser suite retains the
-[mockup caption-icon assertion defect](../../../gaps/mockup-export-caption-icon-count.md).
+and WebView link names exposed as content descriptions. The separate browser caption-icon assertion was subsequently corrected in
+[`3f54af6cd`](https://github.com/kzahel/yepanywhere/commit/3f54af6cd).
+
+The October 8 Android lifecycle hardening build is available to internal
+testers as `0.1.2-ci.513.1` / code `61301`, from `a079aa3f9`.
+[Run 37712235822](https://github.com/kzahel/yepanywhere/actions/runs/37712235822)
+passed build/lint/package inspection and complete hosted direct/relay
+instrumentation before publishing. Its receipt reports `published` on
+`internal`, names that source commit, and confirms Play's returned SHA-256
+matches the signed candidate. Play confirms **Available to internal testers**.
+The [experiment report](../../testing/android-lifecycle-hardening-2026-10-07.md)
+records local Release/reboot acceptance, matched browser comparisons, failed CI
+attempts and the remaining physical update/network/overnight/keyboard checks.
+Public tracks and tester membership were unchanged.
 
 The main-only GitHub `android-internal` environment holds the existing upload
 key as `ANDROID_UPLOAD_KEYSTORE_BASE64`, `ANDROID_UPLOAD_STORE_PASSWORD` and

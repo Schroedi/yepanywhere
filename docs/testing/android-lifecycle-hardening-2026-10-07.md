@@ -14,7 +14,8 @@ failures being described as rejected login credentials. Each repair has a
 regression at its owning layer and a real-app emulator check. All seven extended
 Android lifecycle cases pass; the matched browser results retain their failures
 below. The remaining Android passive-recovery delay and physical-device checks
-are explicit limits of this evidence.
+are explicit limits of this evidence. Internal Play build `0.1.2-ci.513.1`
+(code `61301`) is now available after the complete hosted Android gates passed.
 
 ## Method and acceptance
 
@@ -230,8 +231,7 @@ was deliberately canceled after the actual Release smoke exposed the system-bar
 contrast defect below. Its duplicate push-only verification was also canceled.
 Manual internal-release [run 509](https://github.com/kzahel/yepanywhere/actions/runs/37703083440)
 on `3dcbb7b9a` was also canceled before publication after the additional reboot
-setup exposed the native login error-label defect below. The final replacement
-must pass both Android gates. Replacement [run 511](https://github.com/kzahel/yepanywhere/actions/runs/37704886933)
+setup exposed the native login error-label defect below. Replacement [run 511](https://github.com/kzahel/yepanywhere/actions/runs/37704886933)
 on `c3d828c98` passed build/lint/package inspection and pre-emulator shrinking,
 then failed before executing app tests because Maven Central returned HTTP 429
 for instrumentation-host dependencies. Publication was skipped; the
@@ -245,14 +245,39 @@ Because that group buffered output until completion, the last running test is
 unknown; no relay pass or product-failure diagnosis is claimed. The runner now
 streams instrumentation output while retaining it for the unchanged result
 checks. The aggregate job allowance is 40 minutes, retaining individual test
-deadlines, the 100 ms typing gate and all app assertions. The
-[remaining hosted-relay gap](../../gaps/android-ci-relay-live-acceptance-exceeds-job-budget.md)
-requires a complete replacement run. The superseded `c33fe7c6f`
+deadlines, the 100 ms typing gate and all app assertions.
+[Run 513](https://github.com/kzahel/yepanywhere/actions/runs/37712235822) on CI-only
+follow-up `a079aa3f9` passes both Android gates: direct live acceptance reports
+17 tests in 474.372 seconds and relay acceptance reports 16 in 331.842 seconds
+(these counts include fixture assumptions). The complete instrumentation job
+takes 29m54s, showing how little margin the previous 30-minute allowance left.
+No application hang is established by the earlier cutoff or by an incomplete
+live log view. Application code is unchanged from `c3d828c98`. The follow-up passes local lint, formatting, type
+checks, eight publication-policy tests and a real-child-process streaming check
+(early output, complete capture, quiet capture, failure propagation and cleanup).
+The follow-up passes all 24 [general CI jobs](https://github.com/kzahel/yepanywhere/actions/runs/37712171641)
+and all 12 [runtime/SQLite jobs](https://github.com/kzahel/yepanywhere/actions/runs/37712171597).
+Its first browser shard reports one
+[large-draft typing retry](../../gaps/browser-large-draft-typing-latency-in-ci.md):
+150.2 ms against the unchanged 100 ms limit, then a passing retry. This is
+retained separately from the emulator Chrome observation. The second shard
+passes with a [version-route interception retry](../../gaps/browser-right-pane-version-intercept-reset.md)
+(`route.fetch: read ECONNRESET`), also retained. The superseded `c33fe7c6f`
 general run was canceled after its first browser shard passed with the recorded
 native-fixture composer retry. Its runtime/SQLite matrix completed successfully. Three-minute forced idle, debugger-driven input and repeated
 wake cycles can falsify important lifecycle assumptions, but cannot establish
 real modem handoff, manufacturer battery policy or overnight behavior. Those
 remain the final physical-phone checks after emulator defects are repaired.
+
+Run 513 subsequently publishes `0.1.2-ci.513.1` / code `61301` from
+`a079aa3f950cd868d8d22d5988eb9efa6e97e367`. The retained receipt reports
+`published` on `internal`; the publisher verified Play's returned SHA-256
+against the signed candidate (`b10a33dfbadc18b390363c210526cac271e5fd8516016b7dbf070692c3d9db05`).
+Google Play confirms **Available to internal testers** for code `61301`. The
+receipt and full console capture are retained with the campaign. No public
+track or tester membership was changed. Both owned emulators and all owned
+fixture processes were stopped; the temporary Release AVD was removed. The
+existing CI AVD was preserved, and the attached physical phone was not operated.
 
 ## Release smoke exposed missing system-bar coverage
 
@@ -336,7 +361,7 @@ browser recovery. Keep the real-app emulator harness, extend owning-layer
 regressions for each new escape, and use physical testing for the remaining
 hardware and platform-policy boundaries.
 
-## Physical checks after the release gates pass
+## Physical-device handoff
 
 1. Update through the internal Play track and confirm saved hosts, unsent text
    and staged attachments survive the update.
