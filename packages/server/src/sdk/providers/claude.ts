@@ -969,7 +969,7 @@ export function mergeClaudeModels(models: ModelInfo[]): ModelInfo[] {
   // capability metadata on the stable family aliases. This catalog projection
   // is independent of launch spelling: bare `opus` already launches the
   // current Opus generation with the same 1M window.
-  return merged
+  const folded = merged
     .filter((model) => model.id !== "opus[1m]" && model.id !== "sonnet[1m]")
     .map((model) => {
       if (model.id === "opus") {
@@ -996,6 +996,20 @@ export function mergeClaudeModels(models: ModelInfo[]): ModelInfo[] {
       }
       return model;
     });
+
+  // Since Claude Code 2.1.283 the catalog also lists concrete previous
+  // versions (`claude-opus-4-8`, `claude-sonnet-5`, ...). The stable aliases
+  // speak for the current ones, so these rows are previous models: marked
+  // additional and moved last, for the opt-in projection to show only when
+  // selected. They stay in the list so a selected one keeps its live
+  // capabilities.
+  const isPrevious = (model: ModelInfo) => model.id.startsWith("claude-");
+  return [
+    ...folded.filter((model) => !isPrevious(model)),
+    ...folded
+      .filter(isPrevious)
+      .map((model) => ({ ...model, catalogGroup: "additional" as const })),
+  ];
 }
 
 async function withTimeout<T>(

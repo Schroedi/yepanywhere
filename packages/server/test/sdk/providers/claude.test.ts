@@ -530,9 +530,40 @@ describe("ClaudeProvider model list", () => {
       description: "Fable 5.1 · Most capable for your hardest tasks",
     });
     expect(models.find((model) => model.id === "claude-fable-5")).toMatchObject(
-      { name: "Fable 5", resolvedModel: "claude-fable-5" },
+      {
+        name: "Fable 5",
+        resolvedModel: "claude-fable-5",
+        catalogGroup: "additional",
+      },
     );
     expect(models.map((model) => model.id)).not.toContain("claude-fable-5-1");
+  });
+
+  it("marks the concrete previous versions additional and lists them last", () => {
+    // Claude Code 2.1.293's catalog, abridged: aliases, then concrete rows.
+    const models = mergeClaudeModels([
+      { id: "default", name: "Default", description: "Opus 5.5" },
+      { id: "sonnet", name: "Sonnet 5.5", description: "Sonnet 5.5" },
+      {
+        id: "claude-haiku-4-5-20251001",
+        name: "Haiku 4.5",
+        description: "Fastest for quick answers",
+      },
+      { id: "claude-sonnet-5", name: "Sonnet 5", description: "Sonnet 5" },
+      { id: "haiku", name: "Haiku 5.5", description: "Haiku 5.5" },
+    ]);
+
+    const previous = models.filter(
+      (model) => model.catalogGroup === "additional",
+    );
+    expect(previous.map((model) => model.id)).toEqual([
+      "claude-haiku-4-5-20251001",
+      "claude-sonnet-5",
+    ]);
+    expect(models.slice(-2)).toEqual(previous);
+    expect(models.find((model) => model.id === "haiku")?.catalogGroup).toBe(
+      undefined,
+    );
   });
 
   it("merges the live Opus 5 extended row into the stable opus alias", () => {

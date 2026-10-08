@@ -1133,10 +1133,13 @@ Current source refresh, 2026-10-08 (Claude Code 2.1.293 / SDK 0.3.293):
   5.5" (`claude-haiku-5-5`) and now reports effort `low`–`max`, adaptive
   thinking and auto mode; `sonnet` is "Sonnet 5.5" (`claude-sonnet-5-5`); and
   `fable` is a native alias. The concrete rows add `claude-haiku-4-5-20251001`
-  and `claude-sonnet-5`, which `mergeClaudeModels()` still passes through as
-  primary rows (`gaps/claude-live-catalog-lists-previous-models.md`).
-  `plugin-authoring` and `plugin-types` leave the command list; `/goal` and
-  `/loop` remain native.
+  and `claude-sonnet-5`. `mergeClaudeModels()` now marks every concrete
+  `claude-*` row it does not fold as additional, and the direct catalog shows
+  them only when opted in ([older-claude-models](older-claude-models.md)). The
+  registry gains `claude-fable-5`, `claude-opus-5` and `claude-sonnet-5`. The
+  2.1.283 gap is closed, narrowed to the family-only keying in
+  `gaps/claude-reported-model-keyed-by-family.md`. `plugin-authoring` and
+  `plugin-types` leave the command list; `/goal` and `/loop` remain native.
   The usage response has the same field paths, live and declared.
 - Paid probes on the bundled executable (authorized): `haiku`,
   `claude-haiku-5-5` and `haiku[1m]` run as Haiku 5.5 at a 1M window with
@@ -1157,9 +1160,9 @@ Current source refresh, 2026-10-08 (Claude Code 2.1.293 / SDK 0.3.293):
   `claude-sdk-schema` without failures.
 
 Status: Claude Code 2.1.293 / SDK 0.3.293 package, declared surfaces, resume
-truncation guard, model discovery, context windows, pricing, commands, usage,
-and persisted-schema coverage are refreshed. The previous-model chooser
-placement still awaits a decision.
+truncation guard, model discovery and previous-model placement, context
+windows, pricing, commands, usage, and persisted-schema coverage are
+refreshed.
 
 Previous source refresh, 2026-09-26 (Claude Code 2.1.283 / SDK 0.3.283):
 

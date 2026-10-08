@@ -142,7 +142,9 @@ shell-startup and test-hermeticity rules for the local `BASH_ENV` bridge.
   experience. Previous concrete versions and custom exact ids appear only
   after a server-persisted, individual opt-in in Providers settings; projected
   entries carry additional-catalog metadata so model choosers can group them
-  separately.
+  separately. This holds for the concrete previous versions the live catalog
+  itself lists: they are hidden until opted in, not passed through as primary
+  rows ([older-claude-models](older-claude-models.md)).
 - Removing a previous-model entry from YA's maintained registry must not erase
   an existing saved selection. Preserve its exact provider id and saved label
   as an unlisted/custom entry until the user removes it. Never silently replace
