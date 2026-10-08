@@ -82,7 +82,7 @@
     "eslint-cssicorn": "0.1.0",
     "husky": "^9.1.7",
     "postcss": "^8.5.23",
-    "postcss-selector-parser": "7.1.4",
+    "postcss-selector-parser": "7.1.6",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   },
