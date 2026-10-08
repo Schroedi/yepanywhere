@@ -679,10 +679,15 @@ async function* withCleanup<T>(
  * "Usage credits required for 1M context"), so it once kept a separate 200K
  * entry. Sonnet 5 lifted that gate: a live probe on this account runs
  * `--model sonnet` as `claude-sonnet-5[1m]` at a 1,000,000 window on the
- * standard tier with no error. The "Sonnet 5" label is pinned in the
+ * standard tier with no error. The "Sonnet 5.5" label is pinned in the
  * description (the name stays the generic "Sonnet") rather than taken from the
  * SDK, because older `supportedModels()` responses reported the `sonnet` alias
  * as "Sonnet 4.6" even when it routed to Sonnet 5 at runtime.
+ *
+ * SDK 0.3.293 resolves `sonnet` to Sonnet 5.5, and a live probe ran both
+ * `sonnet` and `sonnet[1m]` at a 1,000,000 window, so the rewrite no longer
+ * adds capability. It stays because removing it changes the launch spelling
+ * existing sessions resume with, which is a separate decision.
  *
  * Opus deliberately stays bare. SDK 0.3.280 resolves bare `opus` to Opus 5.5
  * with a 1M context window, so rewriting the stable alias adds no capability
@@ -696,7 +701,7 @@ const CLAUDE_LAUNCH_MODEL_ALIASES: Record<string, string> = {
 const ALWAYS_EXTENDED_DESCRIPTIONS: Record<string, string> = {
   opus: "Opus 5.5 with the full 1M-token context window",
   sonnet:
-    "Sonnet 5 with the full 1M-token context window · newer tokenizer bills ~30% more tokens",
+    "Sonnet 5.5 with the full 1M-token context window · newer tokenizer bills ~30% more tokens",
 };
 
 /** Normalize only aliases whose launch spelling still changes behavior. */
@@ -758,7 +763,8 @@ const CLAUDE_MODELS_FALLBACK: ModelInfo[] = [
     id: "haiku",
     name: "Haiku",
     description: "Fastest model for simple tasks",
-    contextWindow: getModelContextWindow("haiku", "claude"),
+    // SDK 0.3.293 resolves `haiku` to Haiku 5.5, which runs at 1M.
+    contextWindow: getModelContextWindow("claude-haiku-5-5", "claude"),
   },
   {
     id: "opusplan",

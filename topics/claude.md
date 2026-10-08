@@ -116,10 +116,11 @@ shell-startup and test-hermeticity rules for the local `BASH_ENV` bridge.
   than appearing as a duplicate or losing adaptive-thinking, fast-mode, auto,
   or effort support. A live catalog may instead report plain `opus`; merge it
   over the stable fallback without discarding fallback-only defaults. Canonical
-  Claude 5 Opus and Sonnet ids, including minor-version ids such as
-  `claude-opus-5-5`, are 1M models. The auth/probe-failure fallback must describe
-  the current Opus generation and retain the provider-native capability
-  controls that are known without a handshake.
+  Claude 5 Opus, Sonnet and Haiku ids, including minor-version ids such as
+  `claude-opus-5-5` and `claude-haiku-5-5`, are 1M models; Haiku 4.5 stays
+  200K. The auth/probe-failure fallback must describe the current Opus
+  generation and retain the provider-native capability controls that are known
+  without a handshake. <!-- verified: SDK 0.3.293 paid probes 2026-10-08 -->
 - When the live catalog spells the current Fable model as a concrete extended
   id such as `claude-fable-5-1[1m]`, YA transfers its live capabilities to the
   stable `fable` selection rather than showing a duplicate concrete row.

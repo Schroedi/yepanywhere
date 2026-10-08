@@ -702,7 +702,11 @@ this install and how much.
     tokens (prompt classes ×2, output ×1.5), while **Anthropic prices its full
     1M window flat** — it removed its own over-200k premium on 2026-03-13, so
     `sonnet[1m]`, `opus[1m]` and `fable[1m]` cost exactly what their short
-    requests cost. A record carries the tier only when it is the long one, so an
+    requests cost. **A model may carry its own tier, which overrides its
+    provider's**: Haiku 5.5, Anthropic's published exception, reprices every
+    class ×5 above 100k prompt tokens, and the recorder reads the threshold of
+    the model that served the request, so a Haiku 5.5 subagent in an Opus
+    session is tiered as Haiku. A record carries the tier only when it is the long one, so an
     install on a provider without one pays nothing for the distinction, and a
     long-context flag on such a provider changes no price. **A turn total is
     recorded at the standard tier**, since its sum names no single request;

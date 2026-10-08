@@ -367,7 +367,7 @@ export const CLAUDE_EXTENDED_CONTEXT_WINDOW = 1_000_000;
  * Known context window sizes for different models.
  *
  * Claude models:
- * - Claude 5.x Fable / Opus / Sonnet canonical ids: 1M
+ * - Claude 5.x Fable / Opus / Sonnet / Haiku canonical ids: 1M
  * - Opus / Sonnet / Haiku standard aliases: 200K
  * - Explicit "[1m]" Claude variants: 1M
  * - Sonnet 3.5: 200K
@@ -410,6 +410,8 @@ const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
  * - "claude-opus-5-5" → opus → 1M
  * - "claude-fable-5" → fable → 1M
  * - "claude-sonnet-5" → sonnet → 1M
+ * - "claude-haiku-5-5" → haiku → 1M
+ * - "claude-haiku-4-5-20251001" → haiku → 200K
  * - "claude-sonnet-4-20250514" → sonnet → 200K
  * - "sonnet[1m]" → sonnet → 1M
  * - "claude-3-5-sonnet-20241022" → sonnet → 200K
@@ -436,7 +438,7 @@ export function getModelContextWindow(
     return CLAUDE_EXTENDED_CONTEXT_WINDOW;
   }
 
-  if (/(?:^|[./])claude-(?:opus|sonnet)-5(?:-\d+)?$/.test(lowerModel)) {
+  if (/(?:^|[./])claude-(?:opus|sonnet|haiku)-5(?:-\d+)?$/.test(lowerModel)) {
     return CLAUDE_EXTENDED_CONTEXT_WINDOW;
   }
 
