@@ -1,6 +1,6 @@
 # Roadmap
 
-Last updated: 2026-10-07.
+Last updated: 2026-10-08.
 
 This is Yep Anywhere's canonical product-priority overview. Keep initiative
 status, the next action, and major blockers here; keep implementation steps in
@@ -113,8 +113,17 @@ the viewer/download gap remain the next mobile release work.
   October 8 dependency maintenance reproduced a native lease teardown race
   during repeated refresh. Android retirement now rejects late native calls
   and drains admitted work before destroying its lease; deterministic JVM
-  regressions cover owned requests and external direct callers. Fresh hosted
-  minified WebView acceptance remains the gate for the pending Renovate merges.
+  regressions cover owned requests and external direct callers. Fresh
+  [hosted Android acceptance](https://github.com/kzahel/yepanywhere/actions/runs/37730248677)
+  passes the full minified direct/relay suite, including repeated refresh.
+  Dedicated physical-phone acceptance on the same repair passes direct and
+  100 MiB relay uploads plus repeated refresh in both modes. Real sequential
+  typing acknowledges all 29 characters without drops, with 26.5/25.7 ms
+  maxima under the unchanged physical-device 100 ms gate and zero transport
+  overflows. Hosted software rendering uses the existing 2,000 ms emulator
+  budget; it does not establish the physical typing requirement. The separate
+  [CI ADB connection loss](../../gaps/android-ci-live-adb-connection-loss.md)
+  remains an infrastructure diagnosis follow-up.
   [Passive service-restoration latency](../../gaps/android-passive-service-restoration-slow-probe.md)
   remains a measured UX follow-up under the retained 60-second probe policy.
   The shared transport-unit conformance factory remains follow-up work;
