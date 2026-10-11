@@ -1746,7 +1746,44 @@ describe("NewSessionForm", () => {
     fireEvent.click(dropdownOption("routerPool", "Work"));
     expect(selectedDropdownValue("routerPool")).toBe("work");
     expect(screen.queryByLabelText("routerModel")).toBeNull();
-    expect(screen.queryByTestId("filter-routerAccount")).toBeNull();
+    // A router that lists no policies still offers the pool default.
+    expect(selectedDropdownValue("routerAccount")).toBe("policy:round-robin");
+    fireEvent.change(screen.getByPlaceholderText("newSessionPlaceholder"), {
+      target: { value: "hello" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "newSessionStartAction" }),
+    );
+    await waitFor(() => expect(mockStartSession).toHaveBeenCalledTimes(1));
+    const options = mockStartSession.mock.calls[0]?.[2];
+    expect(options).toMatchObject({
+      provider: "claude",
+      routerPoolId: "work",
+      model: "claude-opus-4-8",
+      thinking: "on:high",
+    });
+    expect(options.routerPolicy).toBeUndefined();
+    expect(options.routerAccountId).toBeUndefined();
+  });
+
+  it("pins a picked account in an automatic pool with the manual policy", async () => {
+    versionState.version = { capabilities: ["agent-auth-router"] };
+    modelSettingsState.thinkingMode = "on";
+    serverSettingsState.isLoading = false;
+    render(
+      <NewSessionForm
+        projectId="project-1"
+        selectedProject={chooserProjects[0]}
+        projects={[...chooserProjects]}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Claude" }));
+    openAdvancedOptions();
+    fireEvent.click(screen.getAllByRole("button", { name: "Opus 4.8" })[0]!);
+    await screen.findByTestId("filter-routerPool");
+    fireEvent.click(dropdownOption("routerPool", "Work"));
+    fireEvent.click(dropdownOption("routerAccount", "routerAccountNumber"));
+    expect(selectedDropdownValue("routerAccount")).toBe("routed-account");
     fireEvent.change(screen.getByPlaceholderText("newSessionPlaceholder"), {
       target: { value: "hello" },
     });
@@ -1755,10 +1792,9 @@ describe("NewSessionForm", () => {
     );
     await waitFor(() => expect(mockStartSession).toHaveBeenCalledTimes(1));
     expect(mockStartSession.mock.calls[0]?.[2]).toMatchObject({
-      provider: "claude",
       routerPoolId: "work",
-      model: "claude-opus-4-8",
-      thinking: "on:high",
+      routerPolicy: "manual",
+      routerAccountId: "routed-account",
     });
   });
 

@@ -52,7 +52,8 @@ export interface SessionMetadata {
     poolId?: string;
     poolName?: string;
     accountDisplayName?: string;
-    policy?: "manual" | "round-robin" | "most-remaining";
+    policy?: string;
+    policyLabel?: string;
     reason?: string;
     observedAt?: string;
     id: string;

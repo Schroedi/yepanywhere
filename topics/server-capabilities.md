@@ -40,12 +40,14 @@ meaning. Standing maintainer compatibility authorization applies. See
 
 ## Most remaining router policy
 
-`agent-auth-router-most-remaining` (permanent optional ID 117) adds negotiated
-`routerPolicy: "most-remaining"`, supported-policy/admission-refresh metadata and
-cached ranking evidence. Both YA support and AAR `most-remaining-v1` are required
-before displaying the option. The optional 2026-10-04 corpus v0.9.0–v0.9.2 lacks
-AAR routes; without the bit, preserve Manual/Round robin and disable unsupported
-pool defaults with upgrade guidance. No existing capability changes meaning.
+`agent-auth-router-most-remaining` (permanent optional ID 117) originally added
+negotiated `routerPolicy: "most-remaining"`. Since 2026-10-11 (still unreleased,
+introduced in 0.9.4) it means the server passes AAR's own `supportedPolicies`
+and English `policies` labels through and accepts any router policy id as a
+per-session `routerPolicy` override, plus admission-refresh metadata and cached
+ranking evidence. The client offers whatever the server reports; a server
+without the bit may refuse an override at launch. The optional 2026-10-04
+corpus v0.9.0–v0.9.2 lacks AAR routes. No released capability changes meaning.
 See [the router contract](agent-auth-router.md#most-remaining-and-admission-refresh).
 
 ## Source Of Truth

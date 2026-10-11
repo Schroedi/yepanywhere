@@ -61,6 +61,8 @@ interface Info {
   routerId: string;
   inferenceOrigin: string;
   capabilities: string[];
+  supportedPolicies?: string[];
+  policies?: { id: string; label: string }[];
 }
 export interface RouterAccount {
   displayName?: string;
@@ -525,23 +527,12 @@ export class AgentAuthRouter {
           "Manage accounts, pools and grants in Agent Auth Router.",
           "operation-rejected",
         );
-      if (
-        (body as { policy?: string }).policy === "most-remaining" &&
-        !info.capabilities.includes("most-remaining-v1")
-      )
-        throw new RouterUnavailable(
-          409,
-          "Update AAR to use Most remaining.",
-          "unsupported",
-        );
       const result = await routerRequest<T>(c.socketPath, path, c.token, body);
+      // The router's own policy list and labels pass through unchanged.
       if (path === "/v1/overview" || path === "/v1/overview/refresh")
         return {
           ...withCliModels(result, info),
           canManagePools: !ownerManaged,
-          supportedPolicies: info.capabilities.includes("most-remaining-v1")
-            ? ["manual", "round-robin", "most-remaining"]
-            : ["manual", "round-robin"],
           admissionRefresh: info.capabilities.includes("admission-refresh-v1"),
         };
       return result;
@@ -691,16 +682,6 @@ export class AgentAuthRouter {
           "Update AAR to use pools.",
           "unsupported",
         );
-      if (
-        !existing &&
-        policy === "most-remaining" &&
-        !info.capabilities.includes("most-remaining-v1")
-      )
-        throw new RouterUnavailable(
-          409,
-          "Update AAR to use Most remaining.",
-          "unsupported",
-        );
       await this.flushCancellations(c);
       let allocation = existing
         ? this.state.allocations[existing.id]
@@ -817,10 +798,10 @@ export class AgentAuthRouter {
             ...(allocation.poolId
               ? {
                   poolId: allocation.poolId,
-                  supportedPolicies: [
+                  // Routers before 2026-10-11 admit only policies a client lists.
+                  supportedPolicies: info.supportedPolicies ?? [
                     "manual",
                     "round-robin",
-                    "most-remaining",
                   ],
                   policy: allocation.policy,
                   accountId: allocation.requestedAccountId,
@@ -862,6 +843,9 @@ export class AgentAuthRouter {
               poolName:
                 existing?.poolName ?? (await this.poolLabel(c, pinnedPoolId)),
               policy: selected.policy,
+              policyLabel: routerLabel(
+                info.policies?.find((p) => p.id === selected.policy)?.label,
+              ),
               reason: selected.reason,
               observedAt: selected.observedAt,
             },

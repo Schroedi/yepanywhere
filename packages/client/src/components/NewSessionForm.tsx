@@ -1366,12 +1366,17 @@ export function NewSessionForm({
   const selectedRouterPool = routerDiscovery.data?.pools.find(
     (p) => p.id === routerSelection?.poolId,
   );
+  // A picked account always pins with "manual"; otherwise the chosen policy
+  // or the pool default decides. A Manual default with one fitting account
+  // needs no pick.
   const routerAccountId =
-    selectedRouterPool?.policy === "manual"
-      ? compatibleMembers.length === 1
-        ? compatibleMembers[0]?.id
-        : routerSelection?.accountId
-      : undefined;
+    routerSelection?.accountId ||
+    (!routerSelection?.policy &&
+    selectedRouterPool?.policy === "manual" &&
+    compatibleMembers.length === 1
+      ? compatibleMembers[0]?.id
+      : undefined);
+  const routerPolicy = routerAccountId ? "manual" : routerSelection?.policy;
   const routedModel = resolveRouterModel(
     selectedModel,
     accountModels,
@@ -1388,8 +1393,9 @@ export function NewSessionForm({
         routedModel &&
         !routerDiscovery.error &&
         compatibleMembers.length &&
-        (selectedRouterPool?.policy !== "manual" ||
-          compatibleMembers.some((a) => a.id === routerAccountId))
+        (routerAccountId
+          ? compatibleMembers.some((a) => a.id === routerAccountId)
+          : (routerPolicy ?? selectedRouterPool?.policy) !== "manual")
       )
     : (!selectedProvider || selectedProviderRuntime?.installed === true) &&
       selectedProviderCatalogCurrent &&
@@ -2933,6 +2939,7 @@ export function NewSessionForm({
                 ...(routerSelection.poolId
                   ? {
                       routerPoolId: routerSelection.poolId,
+                      ...(routerPolicy ? { routerPolicy } : {}),
                     }
                   : {}),
               }
@@ -3215,6 +3222,7 @@ export function NewSessionForm({
       routerSelection,
       routedModel,
       routerAccountId,
+      routerPolicy,
       routerThinking,
       clientSummarySourceKey,
       supportsInstalledMachineControl,

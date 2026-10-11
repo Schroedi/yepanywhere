@@ -307,13 +307,14 @@ export const SERVER_CAPABILITIES = {
       index: CAPABILITY_ID_ALLOCATIONS.agentAuthRouterMostRemaining.id,
     },
     description:
-      "Negotiates Most remaining with AAR and reports admission refresh and policy evidence.",
+      "Passes AAR's own policy list and labels through, accepts any router policy as a per-session override, and reports admission refresh and policy evidence.",
     clientFallback:
-      "Keep Manual and Round robin; hide Most remaining and refuse unsupported pool defaults with upgrade guidance.",
+      "Offer the policies the server reports; a server without this bit may refuse an override at launch.",
     serverContract: {
-      requestFields: ["routerPolicy: most-remaining"],
+      requestFields: ["routerPolicy"],
       responseFields: [
         "supportedPolicies",
+        "policies",
         "admissionRefresh",
         "selection.decisions.evidence",
       ],

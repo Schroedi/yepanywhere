@@ -22,10 +22,17 @@ const cleanups: (() => Promise<void>)[] = [];
 afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
 });
+const ROUTER_POLICIES = [
+  { id: "manual", label: "Manual" },
+  { id: "round-robin", label: "Round robin" },
+  { id: "weekly-pace", label: "Weekly pace" },
+];
 async function fixture(
   pools = false,
   ownerManaged = false,
   mostRemaining = false,
+  /** A router that lists and labels its own policies (AAR 2026-10-11). */
+  policyList = false,
 ) {
   const root = await mkdtemp(join(tmpdir(), "yar-"));
   cleanups.push(() => rm(root, { recursive: true, force: true }));
@@ -70,6 +77,12 @@ async function fixture(
             ...(ownerManaged ? ["router-owned-pools-v1"] : []),
             ...(cliModels ? ["catalog-cli-models-v1"] : []),
           ],
+          ...(policyList
+            ? {
+                supportedPolicies: ROUTER_POLICIES.map((p) => p.id),
+                policies: ROUTER_POLICIES,
+              }
+            : {}),
         }),
       );
     if (revoked) {
@@ -103,6 +116,12 @@ async function fixture(
             : [],
           observedAt: "2026-10-03T08:00:00Z",
           quotaFreshSeconds: 120,
+          ...(policyList
+            ? {
+                supportedPolicies: ROUTER_POLICIES.map((p) => p.id),
+                policies: ROUTER_POLICIES,
+              }
+            : {}),
         }),
       );
     if (req.url === "/v1/disconnect") revoked = true;
@@ -755,39 +774,40 @@ describe.skipIf(process.platform === "win32")("router pool ownership", () => {
 });
 
 describe.skipIf(process.platform === "win32")(
-  "Most remaining negotiation",
+  "router policy pass-through",
   () => {
-    it("refuses older AAR before allocating and keeps legacy policy discovery", async () => {
-      const f = await fixture(true);
-      await f.connector.connect(f.socketPath);
-      expect((await f.connector.overview()).supportedPolicies).toEqual([
-        "manual",
-        "round-robin",
-      ]);
-      await expect(
-        f.connector.launch(
-          "new",
-          "codex",
-          "fixture-model",
-          undefined,
-          "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
-          "most-remaining",
-        ),
-      ).rejects.toThrow("Update AAR");
-      expect(f.requests.some((r) => r.path === "/v1/pools/prepare")).toBe(
-        false,
-      );
-      await expect(
-        f.connector.overview({ policy: "most-remaining" }),
-      ).rejects.toThrow("Update AAR");
-    });
-    it("advertises admission refresh and explicitly negotiates new pool selection", async () => {
-      const f = await fixture(true, true, true);
+    it("offers the router's policies and labels and sends any policy it lists", async () => {
+      const f = await fixture(true, true, true, true);
       await f.connector.connect(f.socketPath);
       expect(await f.connector.overview()).toMatchObject({
-        supportedPolicies: ["manual", "round-robin", "most-remaining"],
+        supportedPolicies: ["manual", "round-robin", "weekly-pace"],
+        policies: ROUTER_POLICIES,
         admissionRefresh: true,
       });
+      await f.connector.launch(
+        "new",
+        "codex",
+        "fixture-model",
+        undefined,
+        "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        "weekly-pace",
+      );
+      expect(
+        f.requests.find((r) => r.path === "/v1/pools/prepare")?.body,
+      ).toMatchObject({
+        policy: "weekly-pace",
+        supportedPolicies: ["manual", "round-robin", "weekly-pace"],
+      });
+      // The fixture router answers round-robin; its label is kept on the pin.
+      expect(f.metadata.getMetadata("new")?.routerBinding).toMatchObject({
+        policy: "round-robin",
+        policyLabel: "Round robin",
+      });
+    });
+    it("leaves policy decisions to an older router that lists none", async () => {
+      const f = await fixture(true);
+      await f.connector.connect(f.socketPath);
+      expect((await f.connector.overview()).supportedPolicies).toBeUndefined();
       await f.connector.launch(
         "new",
         "codex",
@@ -800,7 +820,7 @@ describe.skipIf(process.platform === "win32")(
         f.requests.find((r) => r.path === "/v1/pools/prepare")?.body,
       ).toMatchObject({
         policy: "most-remaining",
-        supportedPolicies: ["manual", "round-robin", "most-remaining"],
+        supportedPolicies: ["manual", "round-robin"],
       });
     });
   },
