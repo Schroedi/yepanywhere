@@ -27,11 +27,16 @@ test("provider selector is usable before aggregate discovery finishes", async ({
     ).toBeVisible();
     await page.keyboard.press("Escape");
     const field = page.locator(".new-session-form textarea");
+    // Worker-owned services retain earlier cases' server drafts. This case
+    // measures discovery/input independence, not draft recovery.
+    await field.fill("");
     await field.click();
-    await field.pressSequentially("provider discovery is pending", {
-      delay: 25,
-    });
-    await expect(field).toHaveValue("provider discovery is pending");
+    let typed = "";
+    for (const character of "provider discovery is pending") {
+      typed += character;
+      await field.pressSequentially(character);
+      await expect(field).toHaveValue(typed, { timeout: 100 });
+    }
     for (const viewport of [
       { width: 1000, height: 600 },
       { width: 375, height: 812 },
