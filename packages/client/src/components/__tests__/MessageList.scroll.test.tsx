@@ -74,6 +74,74 @@ describe("MessageList scroll and follow", () => {
     expect(container.scrollTop).toBe(100);
   });
 
+  it("lets slow upward scrolling inside the bottom slack escape follow", () => {
+    const observers: ResizeObserverCallback[] = [];
+    class CapturingResizeObserver {
+      constructor(callback: ResizeObserverCallback) {
+        observers.push(callback);
+      }
+      observe() {}
+      disconnect() {}
+    }
+    Object.defineProperty(window, "ResizeObserver", {
+      configurable: true,
+      value: CapturingResizeObserver,
+    });
+    const { container } = render(
+      <MessageList messages={[assistantMessage("assistant-1", "streaming")]} />,
+    );
+    let scrollHeight = 1000;
+    Object.defineProperties(container, {
+      scrollHeight: { configurable: true, get: () => scrollHeight },
+      clientHeight: { configurable: true, value: 500 },
+      scrollTop: { configurable: true, value: 500, writable: true },
+    });
+    const rectFor = (top: number, height: number): DOMRect =>
+      ({
+        top,
+        bottom: top + height,
+        height,
+        left: 0,
+        right: 400,
+        width: 400,
+        x: 0,
+        y: top,
+        toJSON: () => ({}),
+      }) as DOMRect;
+    container.getBoundingClientRect = () => rectFor(0, 500);
+    const lastLine = container.querySelector(".message-list")
+      ?.lastElementChild as HTMLElement | null;
+    expect(lastLine).toBeTruthy();
+    // The last line ends 16px above the viewport bottom (container padding)
+    // when pinned, so the first few px of an upward scroll keep it visible.
+    (lastLine as HTMLElement).getBoundingClientRect = () =>
+      rectFor(400 + scrollHeight - 500 - container.scrollTop, 84);
+    const grow = (px: number) =>
+      act(() => {
+        scrollHeight += px;
+        for (const callback of observers) {
+          callback([], {} as ResizeObserver);
+        }
+      });
+    grow(100);
+    expect(container.scrollTop).toBe(600);
+
+    // Each slow wheel step moves a few px before streaming growth arrives.
+    for (const step of [1, 2, 3]) {
+      fireEvent.wheel(container, { deltaY: -100 });
+      container.scrollTop -= 5;
+      fireEvent.scroll(container);
+      grow(50);
+      expect(container.scrollTop).toBe(600 - 5 * step);
+    }
+
+    // Returning to the live edge by scrolling down resumes following.
+    container.scrollTop = scrollHeight - 500;
+    fireEvent.scroll(container);
+    grow(50);
+    expect(container.scrollTop).toBe(scrollHeight - 500);
+  });
+
   it("focuses the transcript after a native scrollbar gesture", () => {
     const { container } = render(
       <MessageList

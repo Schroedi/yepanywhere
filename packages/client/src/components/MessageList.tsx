@@ -1692,6 +1692,11 @@ export const MessageList = memo(function MessageList({
   const isProgrammaticScrollRef = useRef(false);
   const lastHeightRef = useRef(0);
   const lastFollowScrollTopRef = useRef(0);
+  // Lowest scrollTop since the reader released follow, or null when follow was
+  // last engaged. Bottom geometry re-acquires follow only after the reader moves
+  // back down from it, so a slow upward scroll that is still inside the bottom
+  // slack accumulates instead of being re-pinned one step at a time.
+  const readerReleaseLowScrollTopRef = useRef<number | null>(null);
   const touchStartYRef = useRef<number | null>(null);
   // A primary-button press on transcript content that interrupted follow,
   // with where it started, so a plain click can resume following.
@@ -1902,6 +1907,7 @@ export const MessageList = memo(function MessageList({
       }
       lastHeightRef.current = container.scrollHeight;
       lastFollowScrollTopRef.current = top;
+      readerReleaseLowScrollTopRef.current = null;
       setIsScrolledToBottom(true);
       reportFollowingBottom(true);
       scrollPositionTimestampMsRef.current = null;
@@ -1992,6 +1998,7 @@ export const MessageList = memo(function MessageList({
       clearProgrammaticScrollRelease();
       clearFollowUpScrollTimer();
       clearForcedCurrentScrollTimers();
+      readerReleaseLowScrollTopRef.current = null;
       if (container) {
         lastHeightRef.current = container.scrollHeight;
       }
@@ -2004,6 +2011,16 @@ export const MessageList = memo(function MessageList({
       clearForcedCurrentScrollTimers,
       reportFollowingBottom,
     ],
+  );
+
+  // Navigation and selection stops leave bottom geometry free to re-acquire
+  // follow; an upward scroll gesture must first be undone by moving back down.
+  const stopFollowingForUpwardScroll = useCallback(
+    (container: HTMLElement) => {
+      stopFollowingForUserScroll(container);
+      readerReleaseLowScrollTopRef.current = container.scrollTop;
+    },
+    [stopFollowingForUserScroll],
   );
 
   const forceScrollToCurrent = useCallback(
@@ -4310,7 +4327,7 @@ export const MessageList = memo(function MessageList({
         container.scrollTop <
           lastFollowScrollTopRef.current - FOLLOW_BOTTOM_TOLERANCE_PX;
       if (movedUpFromFollowWrite) {
-        stopFollowingForUserScroll(container);
+        stopFollowingForUpwardScroll(container);
       } else if (!atBottom) {
         scrollToBottom(container);
       } else {
@@ -4324,23 +4341,37 @@ export const MessageList = memo(function MessageList({
       return;
     }
 
-    shouldAutoScrollRef.current = atBottom;
-    thinkingDeltaFollowAllowedRef.current = atBottom;
-    if (atBottom) {
+    // After a reader release, bottom geometry alone is not a return: a smooth
+    // wheel step's first frames, or a slow drag, can still show the last line.
+    const releaseLow = readerReleaseLowScrollTopRef.current;
+    let returnedDown = true;
+    if (releaseLow !== null) {
+      readerReleaseLowScrollTopRef.current = Math.min(
+        releaseLow,
+        container.scrollTop,
+      );
+      returnedDown =
+        container.scrollTop > releaseLow + FOLLOW_BOTTOM_TOLERANCE_PX;
+    }
+    const follow = atBottom && returnedDown;
+    shouldAutoScrollRef.current = follow;
+    thinkingDeltaFollowAllowedRef.current = follow;
+    if (follow) {
+      readerReleaseLowScrollTopRef.current = null;
       lastFollowScrollTopRef.current = container.scrollTop;
       setNewOutputBelowVisible(false);
     } else {
       clearForcedCurrentScrollTimers();
     }
-    setIsScrolledToBottom(atBottom);
-    reportFollowingBottom(atBottom);
+    setIsScrolledToBottom(follow);
+    reportFollowingBottom(follow);
     scheduleSettledScrollState();
   }, [
     clearForcedCurrentScrollTimers,
     reportFollowingBottom,
     scheduleSettledScrollState,
     scrollToBottom,
-    stopFollowingForUserScroll,
+    stopFollowingForUpwardScroll,
   ]);
 
   // Attach scroll listener to parent container
@@ -4371,7 +4402,7 @@ export const MessageList = memo(function MessageList({
 
     const handleWheel = (event: WheelEvent) => {
       if (event.deltaY < 0 && !isInteractiveScrollTarget(event.target)) {
-        stopFollowingForUserScroll(container);
+        stopFollowingForUpwardScroll(container);
       }
     };
 
@@ -4388,7 +4419,7 @@ export const MessageList = memo(function MessageList({
         currentY - startY > TOUCH_SCROLL_CANCEL_THRESHOLD_PX &&
         !isInteractiveScrollTarget(event.target)
       ) {
-        stopFollowingForUserScroll(container);
+        stopFollowingForUpwardScroll(container);
       }
     };
 
@@ -4418,7 +4449,7 @@ export const MessageList = memo(function MessageList({
       }
       const rect = container.getBoundingClientRect();
       if (event.clientX >= rect.right - scrollbarWidth) {
-        stopFollowingForUserScroll(container);
+        stopFollowingForUpwardScroll(container);
         // Native scrollbar focus differs across browser/platform pairs. Make
         // the explicit transcript gesture own subsequent native page keys
         // instead of leaving them attached to the composer or document body.
@@ -4470,7 +4501,7 @@ export const MessageList = memo(function MessageList({
         event.key === "Home" ||
         (event.key === " " && event.shiftKey)
       ) {
-        stopFollowingForUserScroll(container);
+        stopFollowingForUpwardScroll(container);
       }
       if (
         !event.repeat &&
@@ -4520,7 +4551,12 @@ export const MessageList = memo(function MessageList({
         keyboardOlderLoadFrameRef.current = null;
       }
     };
-  }, [inert, scrollToBottom, stopFollowingForUserScroll]);
+  }, [
+    inert,
+    scrollToBottom,
+    stopFollowingForUpwardScroll,
+    stopFollowingForUserScroll,
+  ]);
   useTranscriptDragSelection(containerRef, isInteractiveScrollTarget, inert);
 
   // Follow both content changes and space reserved by composer-adjacent panels.
