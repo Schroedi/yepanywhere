@@ -221,6 +221,10 @@ real application but does not import source modules or depend on development
 behavior. Retain Vite for source-entry/component and dev-server contracts.
 Remote relay, frozen-share layout and artifact gateway fixtures likewise use
 the invocation's `remotePreviewURL` when they require no source imports or HMR.
+The in-process Project App fixture also serves the invocation's built client;
+only its project's live-preview process needs Vite/HMR. It mounts real auth and
+server-settings services so principal resolution can admit the Apps settings
+pane. Unknown API requests return 404 instead of falling through to SPA HTML.
 The artifact gateway keeps a distinct viewer hostname, private relay and HTTPS
 artifact origin; its file route must return the remote shell rather than raw
 artifact HTML. Private fixtures can read the shared preview port without

@@ -19,13 +19,23 @@ fixture; inspect the retained stderr before attributing the instruction case.
 No assertion or timeout was relaxed. The run's teardown and process sweep
 completed cleanly. The separate relay check and final quick checks passed.
 
-These are distinct from the previously reported
-[App pane handoff failure](project-app-session-handoff-misses-pane-in-ci.md),
-which reached a new session but lost its iframe. Reproduce these four cases
+These are distinct from the previously reported App pane handoff failure,
+which reached a new session but lost its iframe. Reproduce these cases
 with their isolated fixtures before changing application behavior.
 
 Found 2026-10-09 during New Session startup regression verification.
 Contributing-model: 6-astra.
+
+## Narrowed 2026-10-11
+
+CI 38129869711's inventory trace establishes that the fixture never mounted
+`/api/settings`: the SPA fallback returned HTML, leaving acting-principal
+resolution pending and withholding the Apps pane. The fixture now mounts real
+settings/auth services and serves the invocation's built frontend. This also
+removes cold session-route transforms that consumed the handoff assertion.
+The inventory and handoff cases pass focused local verification with unchanged
+assertions. The inventory and handoff findings are resolved; the instruction,
+live-preview/sandbox and row-height findings still require their own evidence.
 
 ## Recheck 2026-10-10
 

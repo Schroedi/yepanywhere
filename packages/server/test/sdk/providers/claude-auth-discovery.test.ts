@@ -7,7 +7,12 @@ vi.mock("node:child_process", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:child_process")>();
   return {
     ...actual,
-    execFile: Object.assign(vi.fn(), { [promisify.custom]: authCommand }),
+    execFile: Object.assign(vi.fn(), {
+      [promisify.custom]: (path: string, args: string[], options: object) =>
+        args[0] === "--version"
+          ? Promise.resolve({ stdout: "Claude Code fixture" })
+          : authCommand(path, args, options),
+    }),
   };
 });
 
@@ -18,6 +23,8 @@ describe("Claude catalog authentication discovery", () => {
   beforeEach(() => {
     vi.stubEnv("CLAUDE_CODE_EXECUTABLE", process.execPath);
     vi.stubEnv("ANTHROPIC_API_KEY", "");
+    // Hosted runners have no shell Claude; login discovery probes --version.
+    vi.stubEnv("PATH", "");
     authCommand.mockReset();
   });
 
