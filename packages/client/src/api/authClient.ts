@@ -1,3 +1,4 @@
+import { forgetRetainedResumes } from "../lib/rejectedResumeStorage";
 import { fetchJSON } from "./sourceApiFetch";
 
 export interface AuthStatus {
@@ -55,10 +56,12 @@ export const authApi = {
       body: JSON.stringify(username ? { password, username } : { password }),
     }),
 
-  logout: () =>
-    fetchJSON<{ success: boolean }>("/auth/logout", {
+  logout: () => {
+    forgetRetainedResumes();
+    return fetchJSON<{ success: boolean }>("/auth/logout", {
       method: "POST",
-    }),
+    });
+  },
 
   changePassword: (newPassword: string) =>
     fetchJSON<{ success: boolean }>("/auth/change-password", {

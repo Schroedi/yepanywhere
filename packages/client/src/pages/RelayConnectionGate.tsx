@@ -18,11 +18,7 @@ import {
   type AutoResumeError,
   useRemoteConnection,
 } from "../contexts/RemoteConnectionContext";
-import {
-  clearHostSession,
-  getHostById,
-  getHostByRelayUsername,
-} from "../lib/hostStorage";
+import { getHostById, getHostByRelayUsername } from "../lib/hostStorage";
 import { ConnectedAppContent } from "../RemoteApp";
 import { useI18n } from "../i18n";
 
@@ -169,9 +165,6 @@ export function RelayConnectionGate() {
             host.relayUsername ?? targetRelayUsername,
             host.relayUrl,
           );
-          if (requiresResumeLogin(autoResumeError.reason)) {
-            clearHostSession(host.id);
-          }
           setError(autoResumeError);
           setState("error");
         });

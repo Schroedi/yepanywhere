@@ -1,3 +1,4 @@
+import { mutateResumeCredentials } from "../lib/rejectedResumeStorage";
 /**
  * DirectLoginPage - Direct connection form for remote access via SecureConnection.
  *
@@ -103,7 +104,7 @@ export function DirectLoginPage() {
           srpUsername: username.trim(),
         });
       if (!existing) {
-        saveHost(host);
+        await mutateResumeCredentials(() => saveHost(host));
       }
       rememberedHostId = host.id;
       setCurrentHostId(host.id);

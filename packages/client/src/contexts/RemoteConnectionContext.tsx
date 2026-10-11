@@ -28,12 +28,11 @@ import {
   SecureConnection,
   type StoredSession,
 } from "../lib/connection/SecureConnection";
+import { mutateResumeCredentials } from "../lib/rejectedResumeStorage";
 import { openRelayClientSocket } from "../lib/connection/RelayClientSocket";
 import type { Connection } from "../lib/connection/types";
 import { SecureSourceTransport } from "../lib/transport";
 import {
-  clearRelayHostSession,
-  clearHostSession,
   getHostByDirectWsUrl,
   getHostById,
   getHostByRelayUsername,
@@ -53,7 +52,6 @@ import { useResumeRecovery } from "../hooks/useResumeRecovery";
 import {
   canRetryResume,
   categorizeResumeError,
-  requiresResumeLogin,
   type AutoResumeErrorReason,
 } from "../lib/connection/remoteErrors";
 export type { AutoResumeErrorReason } from "../lib/connection/remoteErrors";
@@ -198,28 +196,6 @@ function updateStoredSession(session: StoredSession): void {
   }
 }
 
-function clearStoredSession(): void {
-  try {
-    const stored = loadStoredCredentials();
-    if (stored?.session) {
-      delete stored.session;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
-    }
-  } catch {
-    // Ignore storage errors
-  }
-}
-
-function clearStaleResumeSession(stored: StoredCredentials | null): void {
-  clearStoredSession();
-  if (stored?.mode === "relay" && stored.relayUsername) {
-    clearRelayHostSession(stored.relayUsername);
-  } else if (stored?.wsUrl) {
-    const host = getHostByDirectWsUrl(stored.wsUrl);
-    if (host) clearHostSession(host.id);
-  }
-}
-
 function clearStoredCredentials(): void {
   try {
     localStorage.removeItem(STORAGE_KEY);
@@ -345,9 +321,6 @@ export function RemoteConnectionProvider({ children }: Props) {
     const reason = categorizeResumeError(error);
     const currentStored = storedRef.current;
     const isRelay = currentStored?.mode === "relay";
-    if (requiresResumeLogin(reason)) {
-      clearStaleResumeSession(currentStored);
-    }
     setAutoResumeError({
       reason,
       mode: isRelay ? "relay" : "direct",
@@ -466,13 +439,12 @@ export function RemoteConnectionProvider({ children }: Props) {
     (attempt: number, session: StoredSession) => {
       if (!isCurrentConnectionAttempt(attempt)) return;
       console.log("[RemoteConnection] Storing session for resumption");
-      updateStoredSession(session);
-
-      const hostId = currentHostIdRef.current;
-      if (hostId) {
-        console.log("[RemoteConnection] Also updating hostStorage for", hostId);
-        updateHostSession(hostId, session);
-      }
+      return mutateResumeCredentials(() => {
+        if (!isCurrentConnectionAttempt(attempt)) return;
+        updateStoredSession(session);
+        const hostId = currentHostIdRef.current;
+        if (hostId) updateHostSession(hostId, session);
+      });
     },
     [isCurrentConnectionAttempt],
   );
@@ -510,11 +482,15 @@ export function RemoteConnectionProvider({ children }: Props) {
         // callback can update them. The callback fires during SRP handshake, before
         // conn.fetch() returns.
         if (rememberMe) {
-          saveCredentials(wsUrl, username, savedSession);
+          await mutateResumeCredentials(() => {
+            if (isCurrentConnectionAttempt(attempt))
+              saveCredentials(wsUrl, username, savedSession);
+          });
         }
 
         // Create and authenticate connection
         const callbacks = {
+          isAttemptCurrent: () => isCurrentConnectionAttempt(attempt),
           onSessionEstablished: rememberMe
             ? (session: StoredSession) =>
                 handleSessionEstablished(attempt, session)
@@ -580,6 +556,7 @@ export function RemoteConnectionProvider({ children }: Props) {
           currentStored.session,
           password,
           {
+            isAttemptCurrent: () => isCurrentConnectionAttempt(attempt),
             onSessionEstablished: (session) =>
               handleSessionEstablished(attempt, session),
             onDisconnect: handleDisconnect,
@@ -671,13 +648,16 @@ export function RemoteConnectionProvider({ children }: Props) {
 
         // Store credentials if rememberMe
         if (rememberMe) {
-          saveCredentials(relayUrl, srpUsername, session);
-          const stored = loadStoredCredentials();
-          if (stored) {
-            stored.mode = "relay";
-            stored.relayUsername = relayUsername;
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
-          }
+          await mutateResumeCredentials(() => {
+            if (!isCurrentConnectionAttempt(attempt)) return;
+            saveCredentials(relayUrl, srpUsername, session);
+            const stored = loadStoredCredentials();
+            if (stored) {
+              stored.mode = "relay";
+              stored.relayUsername = relayUsername;
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+            }
+          });
         }
 
         // Create SecureConnection using the existing WebSocket
@@ -688,6 +668,7 @@ export function RemoteConnectionProvider({ children }: Props) {
             ws,
             session,
             {
+              isAttemptCurrent: () => isCurrentConnectionAttempt(attempt),
               onSessionEstablished: rememberMe
                 ? (establishedSession) =>
                     handleSessionEstablished(attempt, establishedSession)
@@ -702,6 +683,7 @@ export function RemoteConnectionProvider({ children }: Props) {
             srpUsername,
             srpPassword,
             {
+              isAttemptCurrent: () => isCurrentConnectionAttempt(attempt),
               onSessionEstablished: rememberMe
                 ? (establishedSession) =>
                     handleSessionEstablished(attempt, establishedSession)
@@ -724,6 +706,10 @@ export function RemoteConnectionProvider({ children }: Props) {
           throw new ConnectionAttemptSupersededError();
         }
 
+        if (!isCurrentConnectionAttempt(attempt)) {
+          conn.close();
+          throw new ConnectionAttemptSupersededError();
+        }
         // Attach the source transport before connected routes render.
         publishConnection(conn);
       } catch (err) {
@@ -868,6 +854,7 @@ export function RemoteConnectionProvider({ children }: Props) {
             ws,
             storedSession,
             {
+              isAttemptCurrent: () => isCurrentConnectionAttempt(attempt),
               onSessionEstablished: (session) =>
                 handleSessionEstablished(attempt, session),
               onDisconnect: handleDisconnect,
@@ -880,6 +867,7 @@ export function RemoteConnectionProvider({ children }: Props) {
           setCurrentDirectUrl(currentStored.wsUrl);
           // Direct mode: just create connection and resume
           conn = SecureConnection.forResumeOnly(storedSession, {
+            isAttemptCurrent: () => isCurrentConnectionAttempt(attempt),
             onSessionEstablished: (session) =>
               handleSessionEstablished(attempt, session),
             onDisconnect: handleDisconnect,
@@ -904,17 +892,24 @@ export function RemoteConnectionProvider({ children }: Props) {
           const relayUsername = currentStored.relayUsername;
 
           if (relayUrl && relayUsername) {
-            const host = upsertRelayHost({
-              relayUrl,
-              relayUsername,
-              srpUsername: currentStored.username,
-              session: storedSession,
+            await mutateResumeCredentials(() => {
+              if (!isCurrentConnectionAttempt(attempt)) return;
+              const host = upsertRelayHost({
+                relayUrl,
+                relayUsername,
+                srpUsername: currentStored.username,
+                session: storedSession,
+              });
+              setCurrentHostId(host.id);
             });
-            setCurrentHostId(host.id);
           }
         } else if (currentStored.wsUrl) {
           const host = getHostByDirectWsUrl(currentStored.wsUrl);
           setCurrentHostId(host?.id ?? null);
+        }
+        if (!isCurrentConnectionAttempt(attempt)) {
+          conn.close();
+          throw new ConnectionAttemptSupersededError();
         }
         // Attach the source transport before connected routes render.
         publishConnection(conn);
@@ -935,9 +930,6 @@ export function RemoteConnectionProvider({ children }: Props) {
         const reason = categorizeResumeError(err);
         const isRelay = currentStored.mode === "relay";
 
-        if (requiresResumeLogin(reason)) {
-          clearStaleResumeSession(currentStored);
-        }
         setAutoResumeError({
           reason,
           mode: isRelay ? "relay" : "direct",

@@ -3,6 +3,8 @@ import {
   type RelaySocketFactory,
 } from "./connection/SecureConnection";
 import { openRelayClientSocket } from "./connection/RelayClientSocket";
+import { getResumeError } from "./connection/resumeErrors";
+import { mutateResumeCredentials } from "./rejectedResumeStorage";
 import { updateHostSession, type SavedHost } from "./hostStorage";
 
 export class MultiHostSignInRequiredError extends Error {
@@ -14,6 +16,9 @@ export class MultiHostSignInRequiredError extends Error {
 
 export function isSavedHostSignInRequiredError(error: unknown): boolean {
   if (error instanceof MultiHostSignInRequiredError) return true;
+  const resume = getResumeError(error);
+  if (resume)
+    return resume.kind === "rejected" || resume.kind === "incompatible";
   const message = error instanceof Error ? error.message : String(error);
   const normalized = message.toLowerCase();
   return (
@@ -40,8 +45,11 @@ export async function connectSavedHost(
 
   const callbacks = {
     onDisconnect,
+    isAttemptCurrent: () => !signal.aborted,
     onSessionEstablished: (nextSession: typeof session) => {
-      updateHostSession(host.id, nextSession);
+      return mutateResumeCredentials(() => {
+        if (!signal.aborted) updateHostSession(host.id, nextSession);
+      });
     },
   };
 

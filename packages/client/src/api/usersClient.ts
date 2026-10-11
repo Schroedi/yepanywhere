@@ -6,6 +6,7 @@ import type {
   TemplateCreationGrant,
   UsageReport,
 } from "@yep-anywhere/shared";
+import { forgetRetainedResumes } from "../lib/rejectedResumeStorage";
 import { fetchJSON } from "./sourceApiFetch";
 
 /** Fields the superuser may set when creating or editing a limited user. */
@@ -61,9 +62,11 @@ export const usersApi = {
     }),
 
   /** End the acting identity; the reply says where this client should go. */
-  logoutUser: () =>
-    fetchJSON<{
+  logoutUser: () => {
+    forgetRetainedResumes();
+    return fetchJSON<{
       success: boolean;
       redirect: "relay-login" | "direct-login" | "stay";
-    }>("/users/logout", { method: "POST" }),
+    }>("/users/logout", { method: "POST" });
+  },
 };

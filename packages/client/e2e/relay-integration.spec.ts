@@ -32,6 +32,7 @@ import {
   waitForRelayStatus,
 } from "./fixtures.js";
 
+import type {} from "../src/lib/resumeDebugger.js";
 import { recordUiCapture } from "./support/ui-capture.js";
 
 // Test credentials
@@ -1244,6 +1245,151 @@ test.describe("Full Relay Integration", () => {
       samples.every((sample) => sample.present && sample.ms <= 100),
       JSON.stringify(samples),
     ).toBe(true);
+  });
+
+  test("retained rejected resume can be probed without replacing the live source", async ({
+    page,
+    remotePreviewURL,
+    relayWsURL,
+  }) => {
+    let rejectOnce = false;
+    let resumeAttempts = 0;
+    let probeClosed = false;
+    const socketStates: { closed: boolean }[] = [];
+    const nonces: string[] = [];
+    await page.routeWebSocket(relayWsURL, (socket) => {
+      const server = socket.connectToServer();
+      const state = { closed: false };
+      socketStates.push(state);
+      let probe = false;
+      socket.onMessage((message) => {
+        if (typeof message === "string") {
+          const msg = JSON.parse(message) as {
+            type?: string;
+            clientNonce?: string;
+          };
+          if (msg.type === "srp_resume_init") {
+            resumeAttempts++;
+            nonces.push(msg.clientNonce ?? "");
+            if (rejectOnce) {
+              rejectOnce = false;
+              socket.send(
+                JSON.stringify({
+                  type: "srp_invalid",
+                  reason: "invalid_proof",
+                }),
+              );
+              return;
+            }
+            probe = true;
+          }
+        }
+        server.send(message);
+      });
+      socket.onClose((code, reason) => {
+        state.closed = true;
+        if (probe) probeClosed = true;
+        server.close({ code, reason });
+      });
+    });
+    await loginViaRelay(page, remotePreviewURL, relayWsURL);
+    await page.goto(remoteRelayUrl(remotePreviewURL, "settings/development"));
+    const toggle = page.getByRole("checkbox", {
+      name: "Retain rejected SRP sessions for debugging",
+    });
+    await toggle.locator("..").click();
+    await expect(toggle).toBeChecked();
+    for (const [name, size] of [
+      ["desktop", { width: 1000, height: 600 }],
+      ["phone", { width: 375, height: 812 }],
+    ] as const) {
+      await page.setViewportSize(size);
+      await page
+        .getByText("Retain rejected SRP sessions for debugging", {
+          exact: true,
+        })
+        .evaluate((element) => {
+          element
+            .closest("[data-settings-item]")
+            ?.scrollIntoView({ block: "center", behavior: "instant" });
+        });
+      await expect
+        .poll(() =>
+          toggle.evaluate((element) => {
+            const row = element.closest("[data-settings-item]");
+            if (!row) return false;
+            row.scrollIntoView({ block: "center", behavior: "instant" });
+            const bounds = row.getBoundingClientRect();
+            return bounds.top >= 50 && bounds.bottom <= window.innerHeight;
+          }),
+        )
+        .toBe(true);
+      await recordUiCapture(page, `srp-retention-development-${name}`, size);
+    }
+    rejectOnce = true;
+    await page.reload();
+    await expect(page.getByTestId("relay-login-form")).toBeVisible();
+    const retainedId = await page.evaluate(
+      () => window.__YA_RESUME_DEBUG__?.list()[0]?.id,
+    );
+    expect(retainedId).toBeTruthy();
+    const afterRejection = resumeAttempts;
+    await page.reload();
+    await expect(page.getByTestId("relay-login-form")).toBeVisible();
+    expect(resumeAttempts).toBe(afterRejection);
+    expect(
+      await page.evaluate(() => window.__YA_RESUME_DEBUG__?.list().length),
+    ).toBe(1);
+    // Restore access with a new password session while keeping the refused copy.
+    await page.getByTestId("srp-password-input").fill(TEST_SRP_PASSWORD);
+    await page.getByTestId("login-button").click();
+    await expect(page.getByTestId("relay-login-form")).not.toBeVisible();
+    await page.goto(remoteRelayUrl(remotePreviewURL, "settings"));
+    const search = page.getByRole("searchbox", { name: "Search settings" });
+    await expect(search).toBeVisible();
+    const before = await page.evaluate(() => ({
+      url: location.href,
+      credentials: localStorage.getItem("yep-anywhere-remote-credentials"),
+      hosts: localStorage.getItem("yep-anywhere-saved-hosts"),
+    }));
+    const count = resumeAttempts;
+    const liveSockets = socketStates.filter((socket) => !socket.closed);
+    expect(liveSockets.length).toBeGreaterThan(0);
+    probeClosed = false;
+    const result = await page.evaluate(
+      (id) => window.__YA_RESUME_DEBUG__?.probe(id ?? ""),
+      retainedId,
+    );
+    expect(result).toEqual({ outcome: "authenticated" });
+    expect(resumeAttempts).toBe(count + 1);
+    expect(new Set(nonces).size).toBe(nonces.length);
+    await expect.poll(() => probeClosed).toBe(true);
+    expect(liveSockets.every((socket) => !socket.closed)).toBe(true);
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    expect(
+      await page.evaluate(() => ({
+        url: location.href,
+        credentials: localStorage.getItem("yep-anywhere-remote-credentials"),
+        hosts: localStorage.getItem("yep-anywhere-saved-hosts"),
+      })),
+    ).toEqual(before);
+    await expect(search).toBeVisible();
+    expect(
+      await page.evaluate(() => window.__YA_RESUME_DEBUG__?.list().length),
+    ).toBe(1);
+    await page.goto(remoteRelayUrl(remotePreviewURL, "settings/development"));
+    await page
+      .getByRole("checkbox", {
+        name: "Retain rejected SRP sessions for debugging",
+      })
+      .locator("..")
+      .click();
+    expect(
+      await page.evaluate(() => ({
+        helper: typeof window.__YA_RESUME_DEBUG__,
+        retained: localStorage.getItem("yep-anywhere-rejected-srp-resume-v1"),
+      })),
+    ).toEqual({ helper: "undefined", retained: null });
   });
 
   test("old relay resume rejection explains why fresh login is needed", async ({

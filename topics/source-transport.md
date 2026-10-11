@@ -422,8 +422,13 @@ the original cause. Authentication policy never depends on finding words like
 "session", "auth", or "invalid" in an error's display message. A server-side
 `server_error` is retryable and is not credential rejection.
 
-An explicit applicable rejection or proven incompatibility removes the obsolete
-resume credential and shows an explanation before the user chooses login.
+An explicit applicable rejection or proven incompatibility removes only the
+attempted session from active storage and shows the existing sign-in explanation.
+A plaintext pre-authentication `srp_invalid` is a received refusal, not
+authenticated proof that the credential is permanently invalid. Credential
+retirement belongs to SecureConnection, including password fallback, not to UI
+catch handlers reading mutable host state. Superseded attempts cannot retire a
+newer login or another endpoint/principal's session.
 Timeouts show that the server did not respond and the session was retained.
 Proof verification, protocol downgrade and malformed resume responses refuse
 connection, preserve the credential, explain the failure, and stop automatic
@@ -435,6 +440,52 @@ redirect to login.
 These are frontend policy changes over existing messages and proof checks; no
 new server capability or minimum version is required. The existing protocol-2
 grace and authenticated protocol pinning remain unchanged.
+
+### Optional rejected-session diagnosis
+
+Settings → Development → **Retain rejected SRP sessions for debugging** is a
+browser-local, default-off opt-in independent of Browser Diagnostics. It and its
+description are the only UI additions. When enabled and Web Locks is available,
+retirement first writes the attempted base key and authenticated protocol pin to
+`yep-anywhere-rejected-srp-resume-v1`. No automatic resume reader consults this
+separate store, including older cached clients. Without cross-tab coordination,
+retention is unavailable and emits a diagnostic event; normal retirement continues.
+
+Retain one credential per exact mode, endpoint, relay server name and SRP identity,
+at most eight overall, for 72 hours from first quarantine of that credential.
+Repeated failures and probes do not extend expiry. Each record holds at most eight
+safe observations: attempt/session IDs, phase, event kind, build, protocol pin,
+timestamps and elapsed time. Diagnostic event endpoints omit URL userinfo, query
+and fragment. Keys, proofs, passwords, frames and arbitrary exception text never
+enter these structured events, debugger results or portable settings backups.
+Prune on startup and reads/writes; a closed or suspended origin cannot physically
+delete data until it runs again. Timeouts, unknown errors and verification failures
+do not quarantine or change active-session policy.
+
+Active authentication writes and retirement coordinate through the same Web Lock.
+Transitions re-read and compare exact scope and session ID before clearing the
+global and saved-host copies. Explicit erasure writes a generation tombstone
+before queued cleanup; in-flight attempts cannot resurrect the diagnostic key.
+Cooperation applies to current clients; cached older versions cannot participate
+in new locking/erasure rules. Fresh password login keeps the archive. Host removal,
+explicit logout, disabling retention and debugger deletion erase diagnostic
+material; Switch Host remains navigation. Logout conservatively purges this
+origin's entire diagnostic archive.
+
+While opted in, `window.__YA_RESUME_DEBUG__` provides `list()`, `probe(id)`,
+`cancel(id)` and `forget(id)` for console/CDP use, including on login routes.
+Listing returns safe metadata only. Probing allows one attempt per scope, uses
+fresh nonces and the existing protocol pinning/server-proof verifier, verifies an
+encrypted `/auth/status` request, and closes the temporary connection in `finally`.
+It never publishes a source, replaces active credentials or navigates. Erasure,
+disabling and cancellation abort probes and invalidate late evidence. The helper
+is removed when retention is disabled. See the [debugging runbook](../docs/development/debugging.md#rejected-srp-resume-credentials).
+
+Browser Diagnostics queues the bounded structured `SrpResume` events through its
+existing upload path when enabled. Server-local `srp_resume_refused` events name
+the init/proof phase and known reason (missing/expired session, identity/nonce or
+challenge mismatch, expired challenge, invalid/malformed proof, timestamp skew).
+Public refusals stay generic; no new protocol or minimum server version is required.
 
 ## Managed Streams
 

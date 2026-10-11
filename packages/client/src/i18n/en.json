@@ -3481,6 +3481,8 @@
   "developmentRelayMonitorOpen": "Open Relay Monitor",
   "developmentRelayDebugTitle": "Relay Debug Logging",
   "developmentRelayDebugDescription": "Log relay requests and responses to the browser console. Useful for debugging connection timeouts.",
+  "developmentRetainRejectedSrpTitle": "Retain rejected SRP sessions for debugging",
+  "developmentRetainRejectedSrpDescription": "Keep rejected resume credentials for up to 72 hours, inspected and retried through the browser debugger. They may still authenticate. Disabling deletes retained copies. Requires Web Locks; expiry is pruned when this browser origin runs.",
   "developmentDiagnosticsTitle": "Browser Diagnostics",
   "developmentDiagnosticsDescription": "Capture browser logs, uncaught errors, and lightweight telemetry for debugging.",
   "developmentServiceWorkerTitle": "Service Worker",

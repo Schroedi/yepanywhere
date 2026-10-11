@@ -6,6 +6,11 @@
  */
 
 import type { StoredSession } from "./connection/SecureConnection";
+import {
+  forgetRetainedResumes,
+  mutateResumeCredentials,
+  scopeForHost,
+} from "./rejectedResumeStorage";
 import { SAVED_HOSTS_KEY } from "./storageKeys";
 import { generateUUID } from "./uuid";
 
@@ -166,8 +171,15 @@ export function clearRelayHostSession(relayUsername: string): void {
 /** Remove a host by ID */
 export function removeHost(id: string): void {
   const data = loadSavedHosts();
+  const host = data.hosts.find((h) => h.id === id);
+  if (host) forgetRetainedResumes(scopeForHost(host), undefined, true);
   data.hosts = data.hosts.filter((h) => h.id !== id);
   saveSavedHosts(data);
+  void mutateResumeCredentials(() => {
+    const latest = loadSavedHosts();
+    latest.hosts = latest.hosts.filter((h) => h.id !== id);
+    saveSavedHosts(latest);
+  });
 }
 
 /** Find a host by relay username */
