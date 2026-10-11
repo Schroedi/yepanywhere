@@ -39,6 +39,8 @@ export interface SessionMenuProps {
   onClone?: () => void | Promise<void>;
   /** Why Clone is visible but unavailable on this server. */
   cloneUnavailableMessage?: string;
+  /** Menu label while Clone is unavailable; defaults to the server-update label. */
+  cloneUnavailableLabel?: string;
   /** Clone waits for the current provider response to complete. */
   cloneDisabled?: boolean;
   /** Called to request compaction in the current session */
@@ -105,6 +107,7 @@ export function SessionMenu({
   onOpenNewTab,
   onClone,
   cloneUnavailableMessage,
+  cloneUnavailableLabel,
   cloneDisabled = false,
   onCompact,
   compactDisabled = false,
@@ -496,7 +499,7 @@ export function SessionMenu({
           {isCloning
             ? t("sessionMenuCloning")
             : cloneUnavailableMessage
-              ? t("sessionMenuCloneUpdateRequired")
+              ? (cloneUnavailableLabel ?? t("sessionMenuCloneUpdateRequired"))
               : t("sessionMenuClone")}
         </button>
       )}

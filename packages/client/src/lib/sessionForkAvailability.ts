@@ -6,6 +6,7 @@ import {
 } from "@yep-anywhere/shared";
 
 export type SessionForkUnavailableReason =
+  | "routed-session"
   | "provider-unsupported"
   | "server-missing-fork-intents"
   | "server-missing-codex-lineage";
@@ -27,7 +28,12 @@ export function getUnifiedSessionForkAvailability(
   version: ServerCapabilitySource | null | undefined,
   providerSupportsFork: boolean | null | undefined,
   provider: string | null | undefined,
+  /** Pinned to an Agent Auth Router account, whose pin a child cannot inherit yet. */
+  routed = false,
 ): SessionForkAvailability {
+  if (routed) {
+    return { available: false, reason: "routed-session" };
+  }
   if (providerSupportsFork !== true) {
     return { available: false, reason: "provider-unsupported" };
   }

@@ -1,6 +1,7 @@
 import type { AppContentBlock, ProviderName } from "@yep-anywhere/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api/client";
+import { useI18n } from "../i18n";
 import type { BtwAsideTranscriptTurn } from "../components/BtwAsidePane";
 import { getBtwSplitRouting, getBtwToolbarMode } from "../lib/btwAsideRouting";
 import {
@@ -70,6 +71,8 @@ export interface UseBtwAsidesOptions {
   liveModel: string | undefined;
   sessionModel: string | undefined;
   sessionExecutor: string | undefined;
+  /** The session is pinned to an Agent Auth Router account. */
+  routed?: boolean;
   parentSessionId: string | null | undefined;
   showToast: ShowToast;
   onNavigateToParentAside: (href: string) => void;
@@ -296,11 +299,15 @@ export function useBtwAsides({
   liveModel,
   sessionModel,
   sessionExecutor,
+  routed = false,
   parentSessionId,
   showToast,
   onNavigateToParentAside,
 }: UseBtwAsidesOptions) {
-  const supportsBtwAsides = providerSupportsBtwAsideFork(effectiveProvider);
+  // A routed session's aside could not inherit its router account pin.
+  const { t } = useI18n();
+  const supportsBtwAsides =
+    !routed && providerSupportsBtwAsideFork(effectiveProvider);
   const [btwAsides, setBtwAsides] = useState<BtwAside[]>([]);
   const [focusedBtwAsideId, setFocusedBtwAsideId] = useState<string | null>(
     null,
@@ -530,7 +537,9 @@ export function useBtwAsides({
     (text: string): boolean => {
       if (!supportsBtwAsides) {
         showToast(
-          "/btw asides are available only for providers with a wired fork path.",
+          routed
+            ? t("routedSessionSuccessorsUnavailable")
+            : "/btw asides are available only for providers with a wired fork path.",
           "error",
         );
         return false;
@@ -569,7 +578,7 @@ export function useBtwAsides({
       void runBtwAsideTurn(aside, trimmed, true);
       return true;
     },
-    [runBtwAsideTurn, showToast, supportsBtwAsides],
+    [routed, runBtwAsideTurn, showToast, supportsBtwAsides, t],
   );
 
   useEffect(() => {

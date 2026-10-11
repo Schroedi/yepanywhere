@@ -162,6 +162,8 @@ import type {
 import {
   ForkSettingsPersistenceError,
   ResumeCompactionError,
+  RoutedSessionUnsupportedError,
+  routedSessionUnsupportedMessage,
   RetryableSessionLaunchError,
   SessionConfigurationConflictError,
   SessionMessageRejectedError,
@@ -2107,6 +2109,12 @@ function extractContextUsageFromSDKMessages(
 
 export function createSessionsRoutes(deps: SessionsDeps): Hono {
   const routes = new Hono();
+  // Successors of a router-pinned session would launch without its pin and
+  // run on the owner's direct provider login; refuse them up front.
+  const isRoutedSession = (sessionId: string): boolean =>
+    Boolean(
+      deps.sessionMetadataService?.getMetadata?.(sessionId)?.routerBinding,
+    );
   const recordCreationProvenance = async (
     sessionId: string,
     value: unknown,
@@ -5577,6 +5585,12 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
   routes.post("/projects/:projectId/sessions/:sessionId/restart", async (c) => {
     const projectId = c.req.param("projectId");
     const sessionId = c.req.param("sessionId");
+    if (isRoutedSession(sessionId)) {
+      return c.json(
+        { error: routedSessionUnsupportedMessage("Restart and handoff") },
+        409,
+      );
+    }
 
     if (!isUrlProjectId(projectId)) {
       return c.json({ error: "Invalid project ID format" }, 400);
@@ -5812,7 +5826,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
             error:
               error instanceof Error ? error.message : "Transcript fork failed",
           },
-          500,
+          error instanceof RoutedSessionUnsupportedError ? 409 : 500,
         );
       }
 
@@ -6086,6 +6100,12 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     async (c) => {
       const projectId = c.req.param("projectId");
       const sessionId = c.req.param("sessionId");
+      if (isRoutedSession(sessionId)) {
+        return c.json(
+          { error: routedSessionUnsupportedMessage("Handoff") },
+          409,
+        );
+      }
       if (!isUrlProjectId(projectId)) {
         return c.json({ error: "Invalid project ID format" }, 400);
       }
@@ -7053,6 +7073,12 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
   routes.post("/projects/:projectId/sessions/:sessionId/fork", async (c) => {
     const projectId = c.req.param("projectId");
     const sessionId = c.req.param("sessionId");
+    if (isRoutedSession(sessionId)) {
+      return c.json(
+        { error: routedSessionUnsupportedMessage("Fork and clone") },
+        409,
+      );
+    }
 
     if (!isUrlProjectId(projectId)) {
       return c.json({ error: "Invalid project ID format" }, 400);
@@ -7265,6 +7291,10 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         },
         "Transcript fork failed",
       );
+      // A binding written after the early check still gets a clean refusal.
+      if (error instanceof RoutedSessionUnsupportedError) {
+        return c.json({ error: error.message }, 409);
+      }
       return c.json(
         hasIntentFields && !(error instanceof ForkSettingsPersistenceError)
           ? {
@@ -7372,6 +7402,12 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
   routes.post("/projects/:projectId/sessions/:sessionId/retitle", async (c) => {
     const projectId = c.req.param("projectId");
     const sessionId = c.req.param("sessionId");
+    if (isRoutedSession(sessionId)) {
+      return c.json(
+        { error: routedSessionUnsupportedMessage("Title generation") },
+        409,
+      );
+    }
 
     if (!isUrlProjectId(projectId)) {
       return c.json({ error: "Invalid project ID format" }, 400);
@@ -7593,6 +7629,12 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     async (c) => {
       const projectId = c.req.param("projectId");
       const sessionId = c.req.param("sessionId");
+      if (isRoutedSession(sessionId)) {
+        return c.json(
+          { error: routedSessionUnsupportedMessage("Fork with summary") },
+          409,
+        );
+      }
 
       if (!isUrlProjectId(projectId)) {
         return c.json({ error: "Invalid project ID format" }, 400);
@@ -9006,16 +9048,14 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
 
   // POST /api/projects/:projectId/sessions/:sessionId/clone - Clone a session
   routes.post("/projects/:projectId/sessions/:sessionId/clone", async (c) => {
-    if (
-      deps.sessionMetadataService?.getMetadata(c.req.param("sessionId"))
-        ?.routerBinding
-    )
-      return c.json(
-        { error: "Clone of routed sessions is not supported yet" },
-        409,
-      );
     const projectId = c.req.param("projectId");
     const sessionId = c.req.param("sessionId");
+    if (isRoutedSession(sessionId)) {
+      return c.json(
+        { error: routedSessionUnsupportedMessage("Clone and asides") },
+        409,
+      );
+    }
 
     // Validate projectId format at API boundary
     if (!isUrlProjectId(projectId)) {

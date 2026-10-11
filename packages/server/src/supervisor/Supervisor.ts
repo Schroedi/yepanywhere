@@ -671,6 +671,23 @@ function agentServerEnvironment(
   return access ? { [AGENT_SERVER_TOKEN_ENV]: access.token } : undefined;
 }
 
+/**
+ * A successor (fork, clone, helper) of a session pinned to an Agent Auth
+ * Router account. Refused until the child can inherit its own binding
+ * (docs/tactical/150-ya-owned-session-ids.md step 8), so it never runs on the
+ * owner's direct provider login.
+ */
+export class RoutedSessionUnsupportedError extends Error {
+  constructor(action: string) {
+    super(routedSessionUnsupportedMessage(action));
+    this.name = "RoutedSessionUnsupportedError";
+  }
+}
+
+export function routedSessionUnsupportedMessage(action: string): string {
+  return `${action} is not available for sessions that use an Agent Auth Router account yet: a new session cannot inherit this session's account pin. Start a new session instead.`;
+}
+
 export class ForkSettingsPersistenceError extends Error {
   constructor(
     readonly sessionId: string,
@@ -3475,9 +3492,7 @@ export class Supervisor {
     if (
       this.sessionMetadataService?.getMetadata(options.sessionId)?.routerBinding
     )
-      throw new Error(
-        "Fork and clone of routed sessions are not supported yet",
-      );
+      throw new RoutedSessionUnsupportedError("Fork and clone");
     if (typeof provider.forkSession !== "function") {
       throw new Error(`${provider.name} does not support transcript fork`);
     }

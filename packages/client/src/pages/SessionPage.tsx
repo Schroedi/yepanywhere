@@ -1035,6 +1035,8 @@ function SessionPageContent({
   const lastSentComposerSubmissionRef = useRef<SentComposerSubmission | null>(
     null,
   );
+  // Successors of a router-pinned session cannot inherit its account pin yet.
+  const routedSession = Boolean(session?.routerBinding);
   const {
     asideComposerRef,
     asideDraft,
@@ -1078,6 +1080,7 @@ function SessionPageContent({
     liveModel: effectiveModelConfig?.model,
     sessionModel: session?.model,
     sessionExecutor: session?.executor,
+    routed: routedSession,
     parentSessionId: isBtwAsideSession({
       parentSessionId: session?.parentSessionId,
       parentSessionKind: session?.parentSessionKind,
@@ -1507,13 +1510,16 @@ function SessionPageContent({
     versionInfo,
     currentProviderInfo?.supportsForkSession,
     effectiveProvider,
+    routedSession,
   );
   const supportsForkFromTurn = forkAvailability.available;
-  const forkUnavailableMessage =
-    !forkAvailability.available &&
-    forkAvailability.reason === "server-missing-codex-lineage"
+  const forkUnavailableMessage = forkAvailability.available
+    ? undefined
+    : forkAvailability.reason === "server-missing-codex-lineage"
       ? t("codexForkServerUpdateRequired")
-      : undefined;
+      : forkAvailability.reason === "routed-session"
+        ? t("routedSessionSuccessorsUnavailable")
+        : undefined;
   const forkAfterDisabled =
     status.owner === "external" ||
     processState === "in-turn" ||
@@ -2455,7 +2461,9 @@ function SessionPageContent({
       if (slashTurn.command === "btw" && !supportsBtwAsides) {
         draftControlsRef.current?.setDraft(text);
         showToast(
-          "/btw asides are available only for providers with a wired fork path.",
+          routedSession
+            ? t("routedSessionSuccessorsUnavailable")
+            : "/btw asides are available only for providers with a wired fork path.",
           "error",
         );
         return null;
@@ -3024,11 +3032,14 @@ function SessionPageContent({
       if (
         requiresHandoffAfterClaudeResumeError(finalError, effectiveProvider)
       ) {
-        setShowHandoffModal(true);
+        // A routed session cannot hand off yet, so offer no handoff modal.
+        if (!routedSession) setShowHandoffModal(true);
         showToast(
-          errorMsg.includes("API error: 409")
-            ? CLAUDE_HANDOFF_REQUIRED_MESSAGE
-            : errorMsg,
+          routedSession
+            ? t("routedSessionHandoffRequired")
+            : errorMsg.includes("API error: 409")
+              ? CLAUDE_HANDOFF_REQUIRED_MESSAGE
+              : errorMsg,
           "error",
         );
       } else {
@@ -3527,11 +3538,14 @@ function SessionPageContent({
       if (
         requiresHandoffAfterClaudeResumeError(finalError, effectiveProvider)
       ) {
-        setShowHandoffModal(true);
+        // A routed session cannot hand off yet, so offer no handoff modal.
+        if (!routedSession) setShowHandoffModal(true);
         showToast(
-          errorMsg.includes("API error: 409")
-            ? CLAUDE_HANDOFF_REQUIRED_MESSAGE
-            : errorMsg,
+          routedSession
+            ? t("routedSessionHandoffRequired")
+            : errorMsg.includes("API error: 409")
+              ? CLAUDE_HANDOFF_REQUIRED_MESSAGE
+              : errorMsg,
           "error",
         );
       } else {
@@ -5339,7 +5353,9 @@ function SessionPageContent({
         requestId,
         status: "error",
         submittedTurnText,
-        error: t("sessionRetitleUnsupported"),
+        error: routedSession
+          ? t("routedSessionSuccessorsUnavailable")
+          : t("sessionRetitleUnsupported"),
       });
       return;
     }
@@ -6293,6 +6309,11 @@ function SessionPageContent({
                     }
                     onClone={supportsForkFromTurn ? cloneSession : undefined}
                     cloneUnavailableMessage={forkUnavailableMessage}
+                    cloneUnavailableLabel={
+                      routedSession
+                        ? t("sessionMenuCloneUnavailable")
+                        : undefined
+                    }
                     cloneDisabled={forkAfterDisabled}
                     onConfigureProjectSettings={
                       supportsProjectSessionDefaults
@@ -6316,7 +6337,7 @@ function SessionPageContent({
                     }
                     onRestoreWarnings={handleRestorePendingElsewhereWarning}
                     onHandoff={
-                      effectiveProvider
+                      effectiveProvider && !routedSession
                         ? () => setShowHandoffModal(true)
                         : undefined
                     }
@@ -6562,7 +6583,7 @@ function SessionPageContent({
           />
         )}
 
-        {showHandoffModal && effectiveProvider && (
+        {showHandoffModal && effectiveProvider && !routedSession && (
           <RestartSessionModal
             projectId={projectId}
             sessionId={actualSessionId}
@@ -6781,7 +6802,9 @@ function SessionPageContent({
                         forkAfterUserMessageDisabled={forkAfterDisabled}
                         forkUnavailableMessage={forkUnavailableMessage}
                         onCopyUserMessage={copyUserMessage}
-                        onHandoffFromUserMessage={handoffFromUserMessage}
+                        onHandoffFromUserMessage={
+                          routedSession ? undefined : handoffFromUserMessage
+                        }
                         markdownAugments={markdownAugments}
                         activeToolApproval={activeToolApproval}
                         hasOlderMessages={pagination?.hasOlderMessages}

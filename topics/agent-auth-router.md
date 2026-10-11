@@ -242,8 +242,19 @@ an isolation boundary against that user's own local files.
   the same pin before provider launch.
 - Local macOS/Linux owner launches only. Windows control transport, remote
   executors and YA project-write sandboxes are refused.
-- Clone/fork, YA recap/title helper sessions and project queue selection are
-  refused for routed sessions in this slice. Native child work stays inside
+- Clone/fork, /btw and question asides, restart/handoff, YA recap/title
+  helper sessions and project queue selection are refused for routed sessions
+  in this slice, because their new session could not inherit the pin and
+  would otherwise run on the owner's direct login. The fork, clone,
+  fork-summary, restart, stale-handoff and retitle routes return 409 with that
+  reason before doing any work. The session view shows Clone as "Clone (not
+  available)" and the turn fork actions as unavailable, with the reason as
+  their tooltip; it hides title generation, asides and both Handoff entries
+  (session menu and turn notch). A routed Claude session whose transcript
+  needs handoff to continue gets a toast to start a new session instead of
+  the handoff dialog. Fork and clone inheritance is
+  [plan 150](../docs/tactical/150-ya-owned-session-ids.md) step 8;
+  restart and handoff, which start a fresh session, need a separate decision. Native child work stays inside
   its routed provider process. One-turn Codex effort modifiers are refused
   until their effort catalog is account-scoped; they must not probe the direct
   account. The new-session form uses provider-default reasoning; explicit

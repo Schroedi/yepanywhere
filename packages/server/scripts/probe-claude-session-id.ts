@@ -34,6 +34,7 @@ import {
   query,
   type Options,
   type SDKMessage,
+  type SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 
 const run = promisify(execFile);
@@ -307,8 +308,10 @@ async function main() {
         abortController.signal.addEventListener("abort", () => resolve()),
       );
       for await (const message of query({
-        prompt: (async function* () {
+        // Never yields a prompt: the stream ends when the probe aborts.
+        prompt: (async function* (): AsyncGenerator<SDKUserMessage> {
           await never;
+          yield* [];
         })(),
         options: {
           cwd,

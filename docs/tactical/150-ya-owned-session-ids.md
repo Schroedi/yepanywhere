@@ -24,13 +24,16 @@ rather than adding a branch beside one:
 ## Motivation
 
 Cloning a session pinned by the [Agent Auth Router](../../topics/agent-auth-router.md)
-fails. The session menu's Clone posts `/fork` with
-`forkKind: "clone-latest-complete"`, `Supervisor.forkSession` throws a plain
-`Error` for routed sessions (`Supervisor.ts:3471`), and the fork route reports
-every throw as a 500. The refusal is deliberate: inheriting a pin on fork and
-clone is deferred as step 3 of [plan 143](143-agent-auth-router-integration.md).
-Correcting the status code and hiding Clone for routed sessions is a separate
-small fix and does not depend on this plan.
+failed with a 500: the session menu's Clone posted `/fork`, and
+`Supervisor.forkSession` threw a plain `Error` for routed sessions. The refusal
+is deliberate: inheriting a pin on fork and clone is deferred as step 3 of
+[plan 143](143-agent-auth-router-integration.md). Since 2026-10-11 every
+successor route of a routed session (fork, clone, fork-summary, restart,
+stale-handoff, retitle) returns 409 before doing any work, and the client
+shows those actions as unavailable or hides them; see
+[the router topic](../../topics/agent-auth-router.md#supported-slice-and-limits).
+The same review found restart/handoff had not been refused at all and would
+have run its replacement on the owner's direct login.
 
 Inheritance is hard because of how YA identifies sessions. The session id is
 the provider's transcript id, and per-session facts are metadata keyed by that
@@ -233,8 +236,16 @@ and
 
 ### 5 — mint ids first for new Codex sessions
 
-- **Schema.** Add provider and native-id columns to `session_metadata`, with an
-  index on (provider, native id).
+- **Schema.** Add real `provider` and `native_id` columns to
+  `session_metadata` (not fields inside the JSON), with
+  `UNIQUE (provider, native_id)`. Native ids are fresh provider UUIDs (in the
+  Claude file name and each line's `sessionId`; in the Codex rollout file name
+  and its `session_meta` record), so a duplicate means one transcript claimed
+  by two YA sessions, which the constraint refuses at write time. This keeps
+  today's behavior, where copies of one transcript in several scan roots or an
+  executor's remote and local copies are one session. When profiles (plan 133)
+  or multiple roots can hold genuinely separate copies, widen the key to
+  include the home; that is a cheap index migration, deferred until then.
 - **Launch.** Mint the id and write the row before `thread/start`. Record the
   thread id in the native-id column when it arrives.
 - **Inbound translation.** Route the Codex scanner, rollout watcher and reader
@@ -279,10 +290,14 @@ reduces to:
 - **Codex fork.** Run it through the routed launch, not `getCodexEnv()`.
 - **Failed launches.** Cancel a rejected uncommitted child binding. Today
   `AgentAuthRouter.launch` cancels only when the session had no binding.
-- **Remove the refusals** in `Supervisor.forkSession` and the `/clone` route.
+- **Remove the refusals** for fork and clone: `Supervisor.forkSession`, the
+  `/fork`, `/clone` and `/fork-summary` route guards, and the client's
+  `routed-session` fork availability and aside gate.
 
-Helper sessions (recap, title) remain refused for routed sessions unless that
-plan decides otherwise.
+Restart, handoff and stale-handoff start a fresh session rather than a fork,
+so this step does not lift their refusal; carrying the pin into a replacement
+session is a separate decision. Helper sessions (recap, title) remain refused
+for routed sessions unless that plan decides otherwise.
 
 ## Explicitly out of scope
 
