@@ -10,8 +10,9 @@
 //   PROBE_ROUTER_POOL=<pool-id> node packages/server/scripts/probe-ya-session-id.mjs
 //
 // PROBE_EXECUTOR runs the session through that SSH host alias. PROBE_ROUTER_POOL
-// pairs the throwaway YA with the local Agent Auth Router; grant the printed
-// integration that pool when prompted (the probe waits), and revoke it after.
+// pairs the throwaway YA with the local Agent Auth Router; grant the new
+// integration that pool when prompted (the probe waits). The probe disconnects,
+// which revokes the integration, when it finishes.
 import assert from "node:assert/strict";
 import { execFile, spawn } from "node:child_process";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
@@ -287,30 +288,40 @@ try {
     );
   }
 
-  // 4. Clone (menu path) and /clone.
-  const clone = await api(
-    "POST",
-    `/projects/${projectId}/sessions/${sessionId}/fork`,
-    {
-      forkKind: "clone-latest-complete",
-    },
-  ).catch((error) => ({ error: error.message }));
-  if (routerPool) {
-    // Inheriting a pin on clone is plan 150 step 8; until then it is refused.
+  // 4. Clone through the menu path (/fork) and the aside path (/clone, which
+  // copies Claude transcripts itself). Routed copies get their own binding.
+  const parentBinding = routerPool
+    ? (await api("GET", `/projects/${projectId}/sessions/${sessionId}`)).session
+        ?.routerBinding
+    : undefined;
+  for (const [label, path, body] of [
+    ["menu Clone", "fork", { forkKind: "clone-latest-complete" }],
+    ["aside /clone", "clone", {}],
+  ]) {
+    const clone = await api(
+      "POST",
+      `/projects/${projectId}/sessions/${sessionId}/${path}`,
+      body,
+    ).catch((error) => ({ error: error.message }));
     record(
-      "routed clone is refused, not run on another account",
-      Boolean(clone.error) && /not supported/i.test(clone.error),
-      clone.error?.replace(/^.*→ /, "").slice(0, 200) ?? clone.sessionId,
-    );
-  } else {
-    record(
-      "menu Clone creates a child transcript",
+      `${label} creates a child transcript`,
       Boolean(clone.sessionId) &&
         transcripts().includes(`${clone.sessionId}.jsonl`),
-      clone.error?.slice(0, 160) ?? clone.sessionId,
+      clone.error?.slice(0, 200) ?? clone.sessionId,
     );
-  }
-  if (clone.sessionId && !routerPool) {
+    if (!clone.sessionId) continue;
+    if (routerPool) {
+      const binding = (
+        await api("GET", `/projects/${projectId}/sessions/${clone.sessionId}`)
+      ).session?.routerBinding;
+      record(
+        `${label} child has its own binding for the same account`,
+        Boolean(binding?.id) &&
+          binding.id !== parentBinding?.id &&
+          binding.accountId === parentBinding?.accountId,
+        `child ${binding?.id} parent ${parentBinding?.id} account ${binding?.accountId}`,
+      );
+    }
     const beforeChild = assistantTexts(clone.sessionId).length;
     await api(
       "POST",
@@ -327,9 +338,20 @@ try {
       /plum/i,
     );
     record(
-      "clone keeps the parent's context",
+      `${label} child keeps the parent's context`,
       true,
       childReply.trim().slice(0, 40),
+    );
+    await waitIdle(clone.sessionId);
+  }
+  if (routerPool) {
+    const after = (
+      await api("GET", `/projects/${projectId}/sessions/${sessionId}`)
+    ).session?.routerBinding;
+    record(
+      "parent keeps its own binding",
+      after?.id === parentBinding?.id,
+      after?.id,
     );
   }
 } catch (error) {

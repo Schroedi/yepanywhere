@@ -1,5 +1,10 @@
-import type { AgentAuthRouter } from "../services/AgentAuthRouter.js";
+import {
+  type AgentAuthRouter,
+  RouterUnavailable,
+} from "../services/AgentAuthRouter.js";
 import { randomUUID } from "node:crypto";
+import { readdir, rm } from "node:fs/promises";
+import { join } from "node:path";
 import {
   DEFAULT_PROMPT_CACHE_KEEPALIVE_INACTIVITY_MINUTES,
   type CacheMissBillingSettings,
@@ -43,6 +48,7 @@ import type {
 import type { ToolResultMediaStore } from "../media/ToolResultMediaStore.js";
 import type { NotificationService } from "../notifications/index.js";
 import {
+  CLAUDE_PROJECTS_DIR,
   getProjectName,
   type ProjectDisplayNameResolver,
 } from "../projects/paths.js";
@@ -664,6 +670,29 @@ export interface SupervisorOptions {
 
 export type { SessionDoneResult };
 
+/**
+ * Remove a just-forked transcript. Codex reports its rollout path; Claude's
+ * fork lands as `<id>.jsonl` in one Claude project directory, and session
+ * ids are unique UUIDs, so every project directory is checked.
+ */
+async function discardForkedTranscript(
+  sessionId: string,
+  filePath: string | undefined,
+): Promise<void> {
+  if (filePath) {
+    await rm(filePath, { force: true });
+    return;
+  }
+  const projects = await readdir(CLAUDE_PROJECTS_DIR).catch(() => []);
+  await Promise.all(
+    projects.map((project) =>
+      rm(join(CLAUDE_PROJECTS_DIR, project, `${sessionId}.jsonl`), {
+        force: true,
+      }),
+    ),
+  );
+}
+
 /** The provider environment that hands a launch its operator API token. */
 function agentServerEnvironment(
   access: AgentServerAccess | undefined,
@@ -672,18 +701,10 @@ function agentServerEnvironment(
 }
 
 /**
- * A successor (fork, clone, helper) of a session pinned to an Agent Auth
- * Router account. Refused until the child can inherit its own binding
- * (docs/tactical/150-ya-owned-session-ids.md step 8), so it never runs on the
- * owner's direct provider login.
+ * Why a successor that starts a fresh session (restart, handoff, a helper)
+ * is refused for a router-pinned session: that session would launch without
+ * the pin, on the owner's direct provider login.
  */
-export class RoutedSessionUnsupportedError extends Error {
-  constructor(action: string) {
-    super(routedSessionUnsupportedMessage(action));
-    this.name = "RoutedSessionUnsupportedError";
-  }
-}
-
 export function routedSessionUnsupportedMessage(action: string): string {
   return `${action} is not available for sessions that use an Agent Auth Router account yet: a new session cannot inherit this session's account pin. Start a new session instead.`;
 }
@@ -3489,10 +3510,6 @@ export class Supervisor {
     if (!provider) {
       throw new Error("provider is not available");
     }
-    if (
-      this.sessionMetadataService?.getMetadata(options.sessionId)?.routerBinding
-    )
-      throw new RoutedSessionUnsupportedError("Fork and clone");
     if (typeof provider.forkSession !== "function") {
       throw new Error(`${provider.name} does not support transcript fork`);
     }
@@ -3542,6 +3559,7 @@ export class Supervisor {
         ? this.sessionMetadataService?.getPendingRewind?.(options.sessionId)
             ?.cutMessageId
         : undefined;
+    this.assertRouterBindingInheritable(options.sessionId);
     const fork = await provider.forkSession({
       sessionId: options.sessionId,
       cwd: options.projectPath,
@@ -3552,6 +3570,9 @@ export class Supervisor {
       launchSettings,
     });
     registerForkedSessionFile(provider.name, fork.sessionId, fork.filePath);
+    await this.inheritRouterBinding(options.sessionId, fork.sessionId, () =>
+      discardForkedTranscript(fork.sessionId, fork.filePath),
+    );
     // The new transcript is written by us. Announce it so file-activity
     // watchers do not read our own write as another program owning the
     // session (the amber external-writer warning).
@@ -3565,6 +3586,69 @@ export class Supervisor {
       sessionSandbox,
       launchSettings,
     };
+  }
+
+  /**
+   * Refuse a copy of a router-pinned session whose pin a child could not
+   * inherit, before any transcript is written.
+   */
+  assertRouterBindingInheritable(sourceSessionId: string): void {
+    if (
+      !this.sessionMetadataService?.getMetadata(sourceSessionId)?.routerBinding
+    )
+      return;
+    if (!this.agentAuthRouter)
+      throw new RouterUnavailable(409, "Router integration unavailable");
+    this.agentAuthRouter.assertInheritable(sourceSessionId);
+  }
+
+  /**
+   * Pin a new copy of a router-pinned session to the same account through its
+   * own binding. Call right after the copy exists: until this returns, the
+   * child has no pin. A copy that cannot keep the account is discarded with
+   * `discard`, so it can never launch on the owner's direct login.
+   */
+  async inheritRouterBinding(
+    sourceSessionId: string,
+    childSessionId: string,
+    discard: () => Promise<void>,
+  ): Promise<void> {
+    if (
+      !this.sessionMetadataService?.getMetadata(sourceSessionId)?.routerBinding
+    )
+      return;
+    try {
+      if (!this.agentAuthRouter)
+        throw new RouterUnavailable(409, "Router integration unavailable");
+      await this.agentAuthRouter.inheritBinding(
+        sourceSessionId,
+        childSessionId,
+      );
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      const discarded = await discard().then(
+        () => true,
+        () => false,
+      );
+      getLogger().error(
+        {
+          event: "routed_copy_binding_failed",
+          sourceSessionId,
+          childSessionId,
+          discarded,
+          error: reason,
+        },
+        discarded
+          ? "A copy of a router-pinned session could not inherit its account and was discarded"
+          : "A copy of a router-pinned session could not inherit its account, and discarding it failed",
+      );
+      throw new RouterUnavailable(
+        409,
+        `The copy could not keep this session's router account${
+          discarded ? ", so it was discarded" : ""
+        }. ${reason}`,
+      );
+    }
   }
 
   async resolveForkLaunchSettings(

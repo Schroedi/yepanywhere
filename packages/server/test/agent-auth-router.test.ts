@@ -192,6 +192,9 @@ async function fixture(
     ) => {
       rejectPrepare = reason;
     },
+    acceptPoolPrepare: () => {
+      rejectPrepare = false;
+    },
     loseCommit: () => {
       failCommit = true;
     },
@@ -654,6 +657,119 @@ describe.skipIf(process.platform === "win32")("pool launch recovery", () => {
     await expect(
       restarted.launch("pooled", "codex", "fixture-model"),
     ).rejects.toThrow("cancelled");
+  });
+  it("gives a copy its own manual binding for the parent's account", async () => {
+    const f = await fixture(true);
+    await f.connector.connect(f.socketPath);
+    const pool = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
+    const parent = await f.connector.launch(
+      "parent",
+      "codex",
+      "fixture-model",
+      undefined,
+      pool,
+      "round-robin",
+    );
+    f.connector.assertInheritable("parent");
+    await f.connector.inheritBinding("parent", "child");
+    const parentRef = f.metadata.getMetadata("parent")?.routerBinding;
+    const childRef = f.metadata.getMetadata("child")?.routerBinding;
+    expect(childRef).toMatchObject({
+      accountId: "account",
+      poolId: pool,
+      policy: "manual",
+    });
+    expect(childRef?.id).not.toBe(parentRef?.id);
+    // No router call until the child first launches.
+    const preparesBefore = f.requests.filter(
+      (r) => r.path === "/v1/pools/prepare",
+    ).length;
+    expect(preparesBefore).toBe(1);
+
+    const child = await f.connector.launch("child", "codex", "fixture-model");
+    expect(child?.accountId).toBe("account");
+    expect(child?.bindingId).toBe(childRef?.id);
+    expect(child?.token).not.toBe(parent?.token);
+    const childPrepare = f.requests.filter(
+      (r) => r.path === "/v1/pools/prepare",
+    )[1]?.body;
+    expect(childPrepare).toMatchObject({
+      id: childRef?.id,
+      poolId: pool,
+      policy: "manual",
+      accountId: "account",
+    });
+    expect(
+      f.requests.filter(
+        (r) => r.path === "/v1/bindings/commit" && r.body.id === childRef?.id,
+      ),
+    ).toHaveLength(1);
+    // The parent keeps its own pin and token.
+    const resumedParent = await f.connector.launch(
+      "parent",
+      "codex",
+      "fixture-model",
+    );
+    expect(resumedParent?.token).toBe(parent?.token);
+  });
+  it("keeps an inherited binding retryable when the router rejects its first launch", async () => {
+    const f = await fixture(true);
+    await f.connector.connect(f.socketPath);
+    await f.connector.launch(
+      "parent",
+      "codex",
+      "fixture-model",
+      undefined,
+      "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      "round-robin",
+    );
+    await f.connector.inheritBinding("parent", "child");
+    const childId = f.metadata.getMetadata("child")?.routerBinding?.id;
+    f.rejectPoolPrepare(
+      "manual account is not eligible; refresh pool overview",
+    );
+    await expect(
+      f.connector.launch("child", "codex", "fixture-model"),
+    ).rejects.toThrow("not eligible");
+    expect(
+      f.requests.some(
+        (r) => r.path === "/v1/bindings/cancel" && r.body.id === childId,
+      ),
+    ).toBe(false);
+    f.acceptPoolPrepare();
+    const retried = await f.connector.launch("child", "codex", "fixture-model");
+    expect(retried?.bindingId).toBe(childId);
+  });
+  it("fails closed without metadata storage", async () => {
+    const f = await fixture(true);
+    const bare = new AgentAuthRouter(f.root);
+    await expect(bare.inheritBinding("parent", "child")).rejects.toThrow(
+      "metadata unavailable",
+    );
+  });
+  it("refuses to copy a pin it cannot keep, leaving the copy unable to launch", async () => {
+    const f = await fixture(true);
+    await f.connector.connect(f.socketPath);
+    await f.connector.launch(
+      "parent",
+      "codex",
+      "fixture-model",
+      undefined,
+      "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      "round-robin",
+    );
+    await f.connector.cancel("parent");
+    expect(() => f.connector.assertInheritable("parent")).toThrow(
+      "lost its router binding",
+    );
+    // A copy made anyway is pinned to a binding that does not exist.
+    await expect(f.connector.inheritBinding("parent", "child")).rejects.toThrow(
+      "lost its router binding",
+    );
+    expect(f.metadata.getMetadata("child")?.routerBinding).toBeDefined();
+    await expect(
+      f.connector.launch("child", "codex", "fixture-model"),
+    ).rejects.toThrow("cannot use a different account");
   });
   it("keeps account and pool labels for recovery while the pin stays the ids", async () => {
     const f = await fixture(true);

@@ -242,20 +242,35 @@ an isolation boundary against that user's own local files.
   the same pin before provider launch.
 - Local macOS/Linux owner launches only. Windows control transport, remote
   executors and YA project-write sandboxes are refused.
-- Clone/fork, /btw and question asides, restart/handoff, YA recap/title
-  helper sessions and project queue selection are refused for routed sessions
-  in this slice, because their new session could not inherit the pin and
-  would otherwise run on the owner's direct login. The fork, clone,
-  fork-summary, restart, stale-handoff and retitle routes return 409 with that
-  reason before doing any work. The session view shows Clone as "Clone (not
-  available)" and the turn fork actions as unavailable, with the reason as
-  their tooltip; it hides title generation, asides and both Handoff entries
-  (session menu and turn notch). A routed Claude session whose transcript
-  needs handoff to continue gets a toast to start a new session instead of
-  the handoff dialog. Fork and clone inheritance is
-  [plan 150](../docs/tactical/150-ya-owned-session-ids.md) step 8;
-  restart and handoff, which start a fresh session, need a separate decision. Native child work stays inside
-  its routed provider process. One-turn Codex effort modifiers are refused
+- Clone and fork copy the parent's account. Menu Clone, turn forks, and
+  /btw and question asides make the transcript copy as before, then give the
+  copy its own binding: a separate allocation and token for the parent's
+  account, prepared with the Manual policy at the copy's first launch, never a
+  reselection. A copy is refused before any transcript is written when the
+  parent's binding is cancelled, missing, from another router or still has no
+  account. If inheritance fails after the copy exists, the copy's transcript is
+  deleted and the request returns 409, logged as `routed_copy_binding_failed`;
+  the copy's metadata is written before its allocation, so a copy that
+  survives a failed deletion refuses to launch. A router rejection at the
+  copy's first launch stays retryable, like any pinned resume. Only a crash in
+  the moment between writing the transcript copy and writing its metadata can
+  leave a copy without a pin. Verified live on 2026-10-11 through a Claude
+  pool; Codex copies follow the same path, and `thread/fork` itself needs no
+  network, though see
+  [`gaps/routed-codex-calls-chatgpt-with-direct-login.md`](../gaps/routed-codex-calls-chatgpt-with-direct-login.md).
+- Restart/handoff, fork with summary, YA recap/title helper sessions and
+  project queue selection are refused for routed sessions in this slice,
+  because they start a fresh session, or call the provider directly as the
+  fork summary's generator does, without the pin, on the owner's direct login.
+  The restart, stale-handoff, fork-summary and retitle routes return 409 with
+  that reason before doing any work. The session view hides fork with
+  summary, title generation and both Handoff entries (session menu and turn
+  notch); a routed Claude session whose
+  transcript needs handoff to continue gets a toast to start a new session
+  instead of the handoff dialog. Carrying the pin into a replacement session
+  is a separate decision.
+- Native child work stays inside its routed provider process. One-turn Codex
+  effort modifiers are refused
   until their effort catalog is account-scoped; they must not probe the direct
   account. The new-session form uses provider-default reasoning; explicit
   API effort values remain subject to provider support.
@@ -326,9 +341,11 @@ follow-ups. The original candidate descriptions below are historical.
    a visible selection explanation. Preserve model scopes, freshness checks,
    atomic startup reservations and existing session pins. Percentages describe
    relative headroom, not absolute token capacity or equal account entitlements.
-3. **Clone and helper inheritance.** Extend supported fork/clone, title and
-   recap paths to inherit the parent's account through distinct, separately
-   revocable child bindings. Recheck current grants and compose with
+3. **Clone and helper inheritance.** Fork and clone inheritance shipped
+   2026-10-11 (above). Remaining: fork summaries, title and recap helpers
+   (summary generation must accept a router launch), and whether
+   restart/handoff replacements keep the pin. Extend them to inherit the
+   parent's account through distinct, separately revocable child bindings. Recheck current grants and compose with
    [successor settings inheritance](../docs/tactical/140-clone-session-settings-inheritance.md).
    Prove cancellation, restart and revocation without account reselection or
    direct-provider fallback. Unsupported paths remain explicitly refused until

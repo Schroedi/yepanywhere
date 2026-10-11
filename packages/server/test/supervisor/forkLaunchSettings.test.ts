@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
@@ -168,6 +168,100 @@ describe("fork launch settings", () => {
       });
     }
   }
+
+  it("checks a routed source's pin before copying and pins the copy after", async () => {
+    await metadata.updateMetadata("source", {
+      routerBinding: {
+        id: "parent-binding",
+        routerId: "router",
+        accountId: "account",
+        provider: "claude",
+      },
+    });
+    const order: string[] = [];
+    const router = {
+      assertInheritable: vi.fn(() => order.push("check")),
+      inheritBinding: vi.fn(async () => {
+        order.push("inherit");
+      }),
+    };
+    const forkSession = vi.fn(async () => {
+      order.push("fork");
+      return { sessionId: "child" };
+    });
+    const supervisor = new Supervisor({
+      provider: { name: "claude", forkSession } as unknown as AgentProvider,
+      sessionMetadataService: metadata,
+      agentAuthRouter: router as never,
+    });
+    owners.push(supervisor);
+    await supervisor.forkSession({
+      sessionId: "source",
+      projectPath: dataDir,
+      providerName: "claude",
+    });
+    expect(order).toEqual(["check", "fork", "inherit"]);
+    expect(router.inheritBinding).toHaveBeenCalledWith("source", "child");
+
+    // A pin that cannot be kept stops the copy before any transcript exists.
+    router.assertInheritable.mockImplementation(() => {
+      throw new Error("lost its router binding");
+    });
+    await expect(
+      supervisor.forkSession({
+        sessionId: "source",
+        projectPath: dataDir,
+        providerName: "claude",
+      }),
+    ).rejects.toThrow("lost its router binding");
+    expect(forkSession).toHaveBeenCalledOnce();
+  });
+
+  it("discards a copy that cannot inherit the routed source's account", async () => {
+    await metadata.updateMetadata("source", {
+      routerBinding: {
+        id: "parent-binding",
+        routerId: "router",
+        accountId: "account",
+        provider: "codex",
+      },
+    });
+    const rollout = join(dataDir, "rollout-child.jsonl");
+    await writeFile(rollout, "{}\n");
+    const supervisor = new Supervisor({
+      provider: {
+        name: "codex",
+        forkSession: vi.fn(async () => ({
+          sessionId: "child",
+          filePath: rollout,
+        })),
+      } as unknown as AgentProvider,
+      sessionMetadataService: metadata,
+      agentAuthRouter: {
+        assertInheritable: () => {},
+        inheritBinding: async () => {
+          throw new Error("metadata write failed");
+        },
+      } as never,
+    });
+    owners.push(supervisor);
+    const error = vi.spyOn(getLogger(), "error").mockImplementation(() => {});
+    await expect(
+      supervisor.forkSession({
+        sessionId: "source",
+        projectPath: dataDir,
+        providerName: "codex",
+      }),
+    ).rejects.toThrow(/could not keep .* so it was discarded/);
+    expect(error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: "routed_copy_binding_failed",
+        discarded: true,
+      }),
+      expect.any(String),
+    );
+    await expect(readFile(rollout)).rejects.toMatchObject({ code: "ENOENT" });
+  });
 
   it("replaces only explicit thinking and keeps a frozen source for summary targets", async () => {
     const { supervisor } = owner("claude");

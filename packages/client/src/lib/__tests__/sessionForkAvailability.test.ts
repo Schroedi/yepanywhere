@@ -19,18 +19,6 @@ describe("supportsUnifiedSessionFork", () => {
     expect(supportsUnifiedSessionFork(undefined, true)).toBe(false);
   });
 
-  it("refuses a router-pinned session on an otherwise capable server", () => {
-    const capableServer = {
-      capabilities: [SESSION_FORK_TURN_INTENTS_CAPABILITY],
-    };
-    expect(
-      getUnifiedSessionForkAvailability(capableServer, true, "claude", true),
-    ).toEqual({ available: false, reason: "routed-session" });
-    expect(
-      getUnifiedSessionForkAvailability(capableServer, true, "claude", false),
-    ).toEqual({ available: true });
-  });
-
   it("requires reference-backed history support for Codex providers", () => {
     const oldServer = {
       capabilities: [SESSION_FORK_TURN_INTENTS_CAPABILITY],

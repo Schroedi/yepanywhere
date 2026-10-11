@@ -3,7 +3,8 @@
 Topic: optional-sqlite
 
 Status: stage 1 (steps 1–2) implemented 2026-10-11. Stage 2: step 3 passed
-and step 4 implemented and verified 2026-10-11; steps 5–8 not started.
+and step 4 implemented and verified 2026-10-11; step 8's goal shipped
+separately (below); steps 5–7 not started and now optional cleanup.
 Referenced from the [roadmap](../roadmap/README.md) "Node 22 and built-in
 SQLite" row.
 
@@ -280,6 +281,21 @@ and
   every server in the core horizon has stage 2, then delete them in one commit.
 
 ### 8 — inherit router pins on fork and clone
+
+**Implemented 2026-10-11 without stage 2.** Fork and clone copies stay
+immediate, as the maintainer required, so the child's id still comes from
+the provider. `Supervisor.forkSession` and the `/clone` route check the
+parent's binding before copying (`assertRouterBindingInheritable`) and attach
+a child binding right after (`inheritRouterBinding` →
+`AgentAuthRouter.inheritBinding`), writing the child's metadata before its
+allocation. A copy whose inheritance fails is deleted and the request
+returns 409. The remaining window is a crash between the copy and that
+metadata write. Fork with summary stays refused: its generator runs through
+`provider.generateSummary`, which takes no router launch. `thread/fork` needed no router credentials: it succeeds with
+all network refused (see
+[`gaps/routed-codex-calls-chatgpt-with-direct-login.md`](../../gaps/routed-codex-calls-chatgpt-with-direct-login.md)
+for the app-server's other calls). Stage 2 would close that window; it is no
+longer required for this feature. The original design follows.
 
 With step 6 in place, [plan 143](143-agent-auth-router-integration.md) step 3
 reduces to:

@@ -1035,7 +1035,9 @@ function SessionPageContent({
   const lastSentComposerSubmissionRef = useRef<SentComposerSubmission | null>(
     null,
   );
-  // Successors of a router-pinned session cannot inherit its account pin yet.
+  // Copies of a router-pinned session inherit its account; successors that
+  // start a fresh session (handoff, title helper) or call the provider
+  // directly (fork with summary) cannot yet.
   const routedSession = Boolean(session?.routerBinding);
   const {
     asideComposerRef,
@@ -1080,7 +1082,6 @@ function SessionPageContent({
     liveModel: effectiveModelConfig?.model,
     sessionModel: session?.model,
     sessionExecutor: session?.executor,
-    routed: routedSession,
     parentSessionId: isBtwAsideSession({
       parentSessionId: session?.parentSessionId,
       parentSessionKind: session?.parentSessionKind,
@@ -1510,16 +1511,15 @@ function SessionPageContent({
     versionInfo,
     currentProviderInfo?.supportsForkSession,
     effectiveProvider,
-    routedSession,
   );
   const supportsForkFromTurn = forkAvailability.available;
-  const forkUnavailableMessage = forkAvailability.available
-    ? undefined
-    : forkAvailability.reason === "server-missing-codex-lineage"
+  const forkUnavailableMessage =
+    !forkAvailability.available &&
+    forkAvailability.reason === "server-missing-codex-lineage"
       ? t("codexForkServerUpdateRequired")
-      : forkAvailability.reason === "routed-session"
-        ? t("routedSessionSuccessorsUnavailable")
-        : undefined;
+      : undefined;
+  // Title generation runs a helper session, which cannot keep a router pin.
+  const supportsTitleGeneration = supportsForkFromTurn && !routedSession;
   const forkAfterDisabled =
     status.owner === "external" ||
     processState === "in-turn" ||
@@ -2461,9 +2461,7 @@ function SessionPageContent({
       if (slashTurn.command === "btw" && !supportsBtwAsides) {
         draftControlsRef.current?.setDraft(text);
         showToast(
-          routedSession
-            ? t("routedSessionSuccessorsUnavailable")
-            : "/btw asides are available only for providers with a wired fork path.",
+          "/btw asides are available only for providers with a wired fork path.",
           "error",
         );
         return null;
@@ -5348,13 +5346,13 @@ function SessionPageContent({
       displayTitle,
       generatedTitleLength,
     );
-    if (!supportsForkFromTurn) {
+    if (!supportsTitleGeneration) {
       setRetitleState({
         requestId,
         status: "error",
         submittedTurnText,
         error: routedSession
-          ? t("routedSessionSuccessorsUnavailable")
+          ? t("routedSessionTitleUnavailable")
           : t("sessionRetitleUnsupported"),
       });
       return;
@@ -5518,7 +5516,7 @@ function SessionPageContent({
     }
 
     handleGenerateAndApplyTitle();
-    if (supportsForkFromTurn) {
+    if (supportsTitleGeneration) {
       draftControlsRef.current?.confirmInputClear();
     } else {
       draftControlsRef.current?.restoreFromStorage();
@@ -6246,7 +6244,7 @@ function SessionPageContent({
                         <polyline points="6 9 12 15 18 9" />
                       </svg>
                     </button>
-                    {supportsForkFromTurn && generatedTitleEnabled && (
+                    {supportsTitleGeneration && generatedTitleEnabled && (
                       <button
                         type="button"
                         className="session-title-generate-trigger"
@@ -6303,17 +6301,12 @@ function SessionPageContent({
                     onToggleRead={handleToggleRead}
                     onRename={handleStartEditingTitle}
                     onGenerateTitle={
-                      supportsForkFromTurn
+                      supportsTitleGeneration
                         ? handleGenerateAndApplyTitle
                         : undefined
                     }
                     onClone={supportsForkFromTurn ? cloneSession : undefined}
                     cloneUnavailableMessage={forkUnavailableMessage}
-                    cloneUnavailableLabel={
-                      routedSession
-                        ? t("sessionMenuCloneUnavailable")
-                        : undefined
-                    }
                     cloneDisabled={forkAfterDisabled}
                     onConfigureProjectSettings={
                       supportsProjectSessionDefaults
@@ -6795,7 +6788,7 @@ function SessionPageContent({
                             : undefined
                         }
                         onForkAfterSummaryUserMessage={
-                          supportsForkFromTurn
+                          supportsForkFromTurn && !routedSession
                             ? beginForkAfterSummary
                             : undefined
                         }

@@ -19,14 +19,13 @@ afterEach(async () => {
 });
 
 /**
- * A router-pinned session's successors would launch without its pin and run
- * on the owner's direct login, so every successor route refuses with 409
- * before doing any work (docs/tactical/150-ya-owned-session-ids.md step 8).
+ * Successors that start a fresh session (restart, handoff, title helper) or
+ * call the provider directly (fork with summary) would run without a
+ * router-pinned source's pin, on the owner's direct login, so they refuse
+ * with 409 before doing any work. Fork and clone copies inherit the pin.
  */
 describe("routed session successors", () => {
   it.each([
-    ["fork", { forkKind: "clone-latest-complete" }, /Fork and clone/],
-    ["clone", {}, /Clone and asides/],
     ["fork-summary", {}, /Fork with summary/],
     ["stale-handoff", {}, /Handoff/],
     ["restart", { restartMode: "handoff" }, /Restart and handoff/],

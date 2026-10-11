@@ -46,7 +46,8 @@ import {
   type ClearloopService,
 } from "../services/ClearloopService.js";
 import { turnIndexOf } from "../sessions/turn-index.js";
-import { mkdir } from "node:fs/promises";
+import { mkdir, rm } from "node:fs/promises";
+import { join } from "node:path";
 import { hostname } from "node:os";
 import { performance } from "node:perf_hooks";
 import { Hono } from "hono";
@@ -162,12 +163,12 @@ import type {
 import {
   ForkSettingsPersistenceError,
   ResumeCompactionError,
-  RoutedSessionUnsupportedError,
   routedSessionUnsupportedMessage,
   RetryableSessionLaunchError,
   SessionConfigurationConflictError,
   SessionMessageRejectedError,
 } from "../supervisor/Supervisor.js";
+import { RouterUnavailable } from "../services/AgentAuthRouter.js";
 import type { QueuedResponse } from "../supervisor/WorkerQueue.js";
 import type {
   ContentBlock,
@@ -5826,7 +5827,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
             error:
               error instanceof Error ? error.message : "Transcript fork failed",
           },
-          error instanceof RoutedSessionUnsupportedError ? 409 : 500,
+          error instanceof RouterUnavailable ? 409 : 500,
         );
       }
 
@@ -7073,12 +7074,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
   routes.post("/projects/:projectId/sessions/:sessionId/fork", async (c) => {
     const projectId = c.req.param("projectId");
     const sessionId = c.req.param("sessionId");
-    if (isRoutedSession(sessionId)) {
-      return c.json(
-        { error: routedSessionUnsupportedMessage("Fork and clone") },
-        409,
-      );
-    }
 
     if (!isUrlProjectId(projectId)) {
       return c.json({ error: "Invalid project ID format" }, 400);
@@ -7291,8 +7286,8 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         },
         "Transcript fork failed",
       );
-      // A binding written after the early check still gets a clean refusal.
-      if (error instanceof RoutedSessionUnsupportedError) {
+      // A copy of a pinned session that could not keep its account.
+      if (error instanceof RouterUnavailable) {
         return c.json({ error: error.message }, 409);
       }
       return c.json(
@@ -7629,6 +7624,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     async (c) => {
       const projectId = c.req.param("projectId");
       const sessionId = c.req.param("sessionId");
+      // Its summary step calls the provider directly, without the pin.
       if (isRoutedSession(sessionId)) {
         return c.json(
           { error: routedSessionUnsupportedMessage("Fork with summary") },
@@ -9050,12 +9046,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
   routes.post("/projects/:projectId/sessions/:sessionId/clone", async (c) => {
     const projectId = c.req.param("projectId");
     const sessionId = c.req.param("sessionId");
-    if (isRoutedSession(sessionId)) {
-      return c.json(
-        { error: routedSessionUnsupportedMessage("Clone and asides") },
-        409,
-      );
-    }
 
     // Validate projectId format at API boundary
     if (!isUrlProjectId(projectId)) {
@@ -9100,6 +9090,8 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         : undefined;
 
     try {
+      // A copy of a router-pinned session must be able to keep its account.
+      deps.supervisor.assertRouterBindingInheritable(sessionId);
       // Get session directory from project
       const sessionDir = project.sessionDir;
       if (!sessionDir) {
@@ -9224,6 +9216,13 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       } else {
         result = await cloneClaudeSession(sessionDir, sessionId);
       }
+      // The Codex path forks through the Supervisor, which already did this.
+      if (!shouldCloneFromCodex) {
+        const copyId = result.newSessionId;
+        await deps.supervisor.inheritRouterBinding(sessionId, copyId, () =>
+          rm(join(sessionDir, `${copyId}.jsonl`), { force: true }),
+        );
+      }
       if (cloneSettings) {
         await deps.supervisor.recordForkLaunchSettings(
           result.newSessionId,
@@ -9270,7 +9269,10 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to clone session";
-      return c.json({ error: message }, 500);
+      return c.json(
+        { error: message },
+        error instanceof RouterUnavailable ? 409 : 500,
+      );
     }
   });
 
