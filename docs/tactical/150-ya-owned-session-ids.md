@@ -4,7 +4,8 @@ Topic: optional-sqlite
 
 Status: stage 1 (steps 1–2) implemented 2026-10-11. Stage 2: step 3 passed
 and step 4 implemented and verified 2026-10-11; step 8's goal shipped
-separately (below); steps 5–7 not started and now optional cleanup.
+separately (below); steps 5–7 deferred 2026-10-11, see
+[Deferral of steps 5–7](#deferral-of-steps-57).
 Referenced from the [roadmap](../roadmap/README.md) "Node 22 and built-in
 SQLite" row.
 
@@ -234,6 +235,31 @@ The executor run exposed two existing sync defects, recorded as
 [`gaps/remote-executor-sync-needs-gnu-rsync.md`](../../gaps/remote-executor-sync-needs-gnu-rsync.md)
 and
 [`gaps/remote-executor-sync-ignores-claude-config-dir.md`](../../gaps/remote-executor-sync-ignores-claude-config-dir.md).
+
+### Deferral of steps 5–7
+
+Deferred by the maintainer on 2026-10-11; do not pick these up as required
+work.
+
+- **Their motivating need is met another way.** Routed clone was the reason
+  for minting a child's id before copying. Clone copies stay immediate, and
+  the child inherits its pin right after the copy, failing closed (step 8).
+- **Only Claude accepts a caller-chosen id.** Codex (`thread/start`),
+  OpenCode (`ses_…` from its server), Gemini and Grok (ACP `session/new`) and
+  pi all assign their own session ids. Steps 5–7 would therefore need a
+  YA-id ↔ provider-id translation at every provider boundary for every
+  provider but Claude, not just Codex.
+- **Translation does not remove complexity; it moves it.** The provisional
+  rename happens once, at startup. Translation instead adds a lookup to every
+  scanner, watcher, reader, resume and CLI-resume path.
+
+What steps 5–7 would still buy: closing the crash window between a copy and
+its pin, deleting the rename code, and recording session facts before launch.
+Revisit only if a feature needs that last property, such as per-session
+profiles ([plan 133](133-provider-profile-directories.md)) or managed remote
+runners. Until then, Claude sessions keep one id from creation (step 4) and
+other providers rename once at startup, as before. The steps below are kept
+as the design to start from.
 
 ### 5 — mint ids first for new Codex sessions
 
