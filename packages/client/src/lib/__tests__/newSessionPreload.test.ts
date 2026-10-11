@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { createHash } from "node:crypto";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { runInNewContext } from "node:vm";
@@ -12,7 +12,10 @@ import { newSessionPreloadPlugin } from "../../../vite-plugin-new-session-preloa
 it.each(["/", "/nested/"])(
   "preloads only the new-session static graph under %s",
   async (base) => {
-    const root = await mkdtemp(resolve(tmpdir(), "ya-route-preload-"));
+    // Rollup resolves module IDs through macOS's /tmp -> /private/tmp symlink.
+    const root = await realpath(
+      await mkdtemp(resolve(tmpdir(), "ya-route-preload-")),
+    );
     try {
       await mkdir(resolve(root, "src/layouts"), { recursive: true });
       await mkdir(resolve(root, "src/pages"), { recursive: true });
