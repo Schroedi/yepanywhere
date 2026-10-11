@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { chmod, mkdtemp, readFile, rm } from "node:fs/promises";
+import { chmod, mkdtemp, rm } from "node:fs/promises";
 import http from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -9,7 +9,6 @@ import { afterEach, describe, expect, it } from "vitest";
 import { decideLimitedRoute } from "../src/auth/limitedUserPolicy.js";
 import { createSessionsRoutes } from "../src/routes/sessions.js";
 import { createAgentAuthRouterRoutes } from "../src/routes/agent-auth-router.js";
-import { SessionMetadataService } from "../src/metadata/SessionMetadataService.js";
 import { AgentAuthRouter } from "../src/services/AgentAuthRouter.js";
 import { structuredErrorHandler } from "../src/middleware/error-handler.js";
 import {
@@ -17,9 +16,15 @@ import {
   codexRouterEnvironment,
   claudeRouterEnvironment,
 } from "../src/sdk/providers/router-transport.js";
+import {
+  closeTestDiscoveryDatabases,
+  createTestSessionMetadataService,
+  openTestDiscoveryDatabase,
+} from "./utils/session-metadata-database.js";
 
 const cleanups: (() => Promise<void>)[] = [];
 afterEach(async () => {
+  closeTestDiscoveryDatabases();
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
 });
 const ROUTER_POLICIES = [
@@ -170,7 +175,7 @@ async function fixture(
         server.close(() => resolve());
       }),
   );
-  const metadata = new SessionMetadataService({ dataDir: root });
+  const metadata = createTestSessionMetadataService(root);
   await metadata.initialize();
   const connector = new AgentAuthRouter(root, metadata);
   return {
@@ -332,7 +337,7 @@ describe.skipIf(process.platform === "win32")(
         "account",
       );
       await f.metadata.remapSessionId("provisional", "canonical");
-      const freshMetadata = new SessionMetadataService({ dataDir: f.root });
+      const freshMetadata = createTestSessionMetadataService(f.root);
       await freshMetadata.initialize();
       const fresh = new AgentAuthRouter(f.root, freshMetadata);
       const resumed = await fresh.launch("canonical", "codex", "fixture-model");
@@ -343,9 +348,13 @@ describe.skipIf(process.platform === "win32")(
         createHash("sha256").update(first!.token).digest("hex"),
       );
       expect(JSON.stringify(f.connector.summary())).not.toContain(first!.token);
-      expect(
-        await readFile(join(f.root, "session-metadata.json"), "utf8"),
-      ).not.toContain(first!.token);
+      const persistedMetadata = openTestDiscoveryDatabase(f.root)
+        .prepare("SELECT metadata FROM session_metadata")
+        .all<{ metadata: string }>()
+        .map((row) => row.metadata)
+        .join("\n");
+      expect(persistedMetadata).toContain('"accountId":"account"');
+      expect(persistedMetadata).not.toContain(first!.token);
       await expect(
         fresh.launch("canonical", "codex", "fixture-model", "different"),
       ).rejects.toThrow("pin cannot change");

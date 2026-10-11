@@ -75,7 +75,7 @@ Server state is stored in a data directory (default: `~/.yep-anywhere/`). This i
 - `logs/` - Server logs
 - `indexes/` - Session index cache
 - `uploads/` - Uploaded files
-- `session-metadata.json` - Custom titles, archive/starred status
+- `discovery.sqlite` - Session metadata (custom titles, archive/starred status) and other durable SQLite state
 - `notifications.json` - Last-seen timestamps
 - `push-subscriptions.json` - Web push subscriptions
 - `vapid.json` - VAPID keys for push

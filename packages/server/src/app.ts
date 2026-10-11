@@ -290,10 +290,7 @@ import type { SpeechBackendInstallService } from "./services/voice/speechBackend
 import { createSecurityClientRoutes } from "./routes/security-clients.js";
 import { createNativePushRoutes } from "./routes/native-push.js";
 import type { NativePushService } from "./push/NativePushService.js";
-import {
-  DiscoverySqliteService,
-  type SqliteMode,
-} from "./storage/discovery-sqlite.js";
+import { DiscoverySqliteService } from "./storage/discovery-sqlite.js";
 import {
   createVersionRoutes,
   type VersionRouteOptions,
@@ -500,7 +497,12 @@ export interface AppOptions {
   getCatalogFamilies?: () => readonly ProviderCatalogFamily[];
   /** Data directory for persistent state (for onboarding state) */
   dataDir?: string;
-  sqliteMode?: SqliteMode;
+  /**
+   * The server's required SQLite database. When omitted, the app opens its own
+   * below `dataDir` and closes it on dispose; a passed service stays owned by
+   * the caller, which shares it with session metadata.
+   */
+  discoverySqlite?: DiscoverySqliteService;
   /** NetworkBindingService for runtime binding configuration */
   networkBindingService?: NetworkBindingService;
   /**
@@ -801,20 +803,15 @@ export function createApp(options: AppOptions): AppResult {
           );
         })
     : Promise.resolve();
-  const discoverySqlite = new DiscoverySqliteService({
-    dataDir: effectiveDataDir,
-    mode: options.sqliteMode ?? "auto",
-    onError: (error) =>
-      console.warn("[DiscoverySqlite] Storage failed:", error),
-  });
-  const draftDatabase = discoverySqlite.getDatabase();
+  const ownsDiscoverySqlite = !options.discoverySqlite;
+  const discoverySqlite =
+    options.discoverySqlite ??
+    new DiscoverySqliteService({ dataDir: effectiveDataDir });
   let draftStore: DraftStore | undefined;
-  if (draftDatabase) {
-    try {
-      draftStore = new DraftStore(draftDatabase);
-    } catch (error) {
-      console.warn("[DraftSync] Storage unavailable:", error);
-    }
+  try {
+    draftStore = new DraftStore(discoverySqlite.getDatabase());
+  } catch (error) {
+    console.warn("[DraftSync] Storage unavailable:", error);
   }
   const draftCleanup = draftStore
     ? setInterval(() => {
@@ -1474,7 +1471,7 @@ export function createApp(options: AppOptions): AppResult {
       await vocabularyLearning?.close();
       if (draftCleanup) clearInterval(draftCleanup);
       draftStore?.close();
-      discoverySqlite.close();
+      if (ownsDiscoverySqlite) discoverySqlite.close();
       await retainedCollections?.dispose();
       await projectQueueScheduler?.dispose();
       await artifactServer.close();
@@ -2866,7 +2863,7 @@ export function createApp(options: AppOptions): AppResult {
       }),
     );
   const issueDatabase = discoverySqlite.getDatabase();
-  if (issueDatabase && options.serverSettingsService) {
+  if (options.serverSettingsService) {
     const catalog = retainedCollections;
     const settings = options.serverSettingsService;
     const readerFor = async (
@@ -2976,12 +2973,11 @@ export function createApp(options: AppOptions): AppResult {
     );
     indexer.configure();
   }
-  // The learned vocabulary keeps its own SQLite file beside discovery's, so it
-  // needs the three facts discovery readiness already establishes: this runtime
-  // has a SQLite driver, the owner did not set `YEP_SQLITE=off`, and the data
-  // directory is local disk rather than a share
+  // The learned vocabulary keeps its own SQLite file beside discovery's. The
+  // server only starts once discovery has opened, which establishes the facts
+  // it needs: a SQLite driver and a data directory on local disk
   // (topics/pluggable-speech-recognition.md § Keyterm Biasing).
-  if (discoverySqlite.getStatus().state === "ready") {
+  {
     const catalog = retainedCollections;
     const store = new VocabularyStore(effectiveDataDir);
     const keyterms = new VocabularyKeyterms(store, effectiveDataDir);

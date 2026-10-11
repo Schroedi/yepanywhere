@@ -6,7 +6,7 @@ import type {
   ProviderName,
 } from "@yep-anywhere/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { SessionMetadataService } from "../../src/metadata/SessionMetadataService.js";
+import type { SessionMetadataService } from "../../src/metadata/SessionMetadataService.js";
 import { getLogger } from "../../src/logging/logger.js";
 import { MessageQueue } from "../../src/sdk/messageQueue.js";
 import type { AgentProvider } from "../../src/sdk/providers/types.js";
@@ -19,6 +19,10 @@ import {
   type SessionsDeps,
 } from "../../src/routes/sessions.js";
 import { encodeProjectId } from "../../src/projects/paths.js";
+import {
+  closeTestDiscoveryDatabases,
+  createTestSessionMetadataService,
+} from "../utils/session-metadata-database.js";
 
 const source: EffectiveSessionLaunchSettings = {
   schemaVersion: 1,
@@ -37,13 +41,14 @@ describe("fork launch settings", () => {
 
   beforeEach(async () => {
     dataDir = await mkdtemp(join(tmpdir(), "fork-settings-"));
-    metadata = new SessionMetadataService({ dataDir });
+    metadata = createTestSessionMetadataService(dataDir);
     await metadata.initialize();
     await metadata.recordEffectiveLaunchSettings("source", source);
   });
   afterEach(async () => {
     for (const owner of owners.splice(0)) await dispose(owner);
     vi.restoreAllMocks();
+    closeTestDiscoveryDatabases();
     await rm(dataDir, { recursive: true, force: true });
   });
 
@@ -137,7 +142,7 @@ describe("fork launch settings", () => {
         expect(metadata.getMetadata("source")).toEqual(original);
 
         for (let turn = 0; turn < 2; turn++) {
-          const restored = new SessionMetadataService({ dataDir });
+          const restored = createTestSessionMetadataService(dataDir);
           await restored.initialize();
           const resumed = owner(providerName, restored);
           const process = await resumed.supervisor.resumeSession(

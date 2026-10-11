@@ -62,6 +62,10 @@ import {
 import { updateAllowedHosts } from "./middleware/allowed-hosts.js";
 import { initFileAccess, updateFileAccess } from "./middleware/file-access.js";
 import { NotificationService } from "./notifications/index.js";
+import {
+  DiscoverySqliteService,
+  DiscoveryStorageError,
+} from "./storage/discovery-sqlite.js";
 import { ProjectGlossarySubscriptionManager } from "./projects/projectGlossarySubscriptionManager.js";
 import { ProjectWorktreeSubscriptionManager } from "./projects/projectWorktreeSubscriptionManager.js";
 import { projectPathCacheDiagnostics } from "./projects/projectPathIndex.js";
@@ -604,6 +608,18 @@ if (process.env.NO_BACKEND_RELOAD === "true") {
   sourceWatcher.start();
 }
 
+// The SQLite database is required: session metadata lives there, so a server
+// that cannot open it does not start (topics/optional-sqlite.md).
+const discoverySqlite = (() => {
+  try {
+    return new DiscoverySqliteService({ dataDir: config.dataDir });
+  } catch (error) {
+    if (!(error instanceof DiscoveryStorageError)) throw error;
+    console.error(`[Startup] ${error.message}`);
+    process.exit(1);
+  }
+})();
+
 // Create and initialize services (all use config.dataDir for state)
 const notificationService = new NotificationService({
   eventBus,
@@ -611,6 +627,7 @@ const notificationService = new NotificationService({
 });
 const sessionMetadataService = new SessionMetadataService({
   dataDir: config.dataDir,
+  database: discoverySqlite.getDatabase(),
 });
 const projectMetadataService = new ProjectMetadataService({
   dataDir: config.dataDir,
@@ -1167,7 +1184,7 @@ async function startServer() {
     desktopAuthToken: config.desktopAuthToken,
     desktopBootstrapService,
     desktopRuntime: config.desktopRuntime,
-    sqliteMode: config.sqliteMode,
+    discoverySqlite,
     remoteAccessService,
     remoteSessionService,
     securityClientService,

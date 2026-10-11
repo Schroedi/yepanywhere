@@ -10,6 +10,7 @@ import { createStaticRoutes } from "../../server/src/frontend/static";
 import { MockServerClaudeProvider } from "../../server/src/sdk/mock";
 import { ProjectMetadataService } from "../../server/src/metadata/ProjectMetadataService";
 import { SessionMetadataService } from "../../server/src/metadata/SessionMetadataService";
+import { DiscoverySqliteService } from "../../server/src/storage/discovery-sqlite";
 import { LimitedUsersService } from "../../server/src/auth/LimitedUsersService";
 import { AuthService } from "../../server/src/auth/AuthService";
 import { ServerSettingsService } from "../../server/src/services/ServerSettingsService";
@@ -21,6 +22,7 @@ const requireServer = createRequire(join(clientRoot, "../server/package.json"));
 const requireClient = createRequire(join(clientRoot, "package.json"));
 const { getRequestListener } = requireServer("@hono/node-server");
 let instance: ReturnType<typeof createApp>;
+let discovery: DiscoverySqliteService | undefined;
 let listener: ReturnType<typeof createServer>;
 let directory: string;
 let base: string;
@@ -48,7 +50,11 @@ test.beforeAll(async () => {
   const metadata = new ProjectMetadataService({ dataDir });
   await metadata.initialize();
   await metadata.addProject(projectId, project, "archer");
-  const sessionMetadata = new SessionMetadataService({ dataDir });
+  discovery = new DiscoverySqliteService({ dataDir });
+  const sessionMetadata = new SessionMetadataService({
+    dataDir,
+    database: discovery.getDatabase(),
+  });
   await sessionMetadata.initialize();
   const limitedUsers = new LimitedUsersService({ dataDir });
   await limitedUsers.initialize();
@@ -69,6 +75,7 @@ test.beforeAll(async () => {
     serverSettingsService: settings,
     authService: auth,
     dataDir,
+    discoverySqlite: discovery,
     projectsDir: join(directory, "sessions"),
     projectMetadataService: metadata,
   });
@@ -123,6 +130,7 @@ test.afterAll(async () => {
       listener.close((error) => (error ? reject(error) : ready())),
     );
   }
+  discovery?.close();
   if (directory) await rm(directory, { recursive: true });
 });
 
