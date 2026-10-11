@@ -2518,6 +2518,7 @@ export class Supervisor {
           Boolean(sessionSandbox) || Boolean(modelSettings?.executor),
         )),
         resumeSessionId,
+        newSessionId: resumeSessionId ? undefined : tempSessionId,
         resumeSessionAt: truncation.resumeSessionAt,
         resumeDropsTurn: truncation.resumeDropsTurn,
         permissionMode: effectiveMode,
@@ -2838,6 +2839,7 @@ export class Supervisor {
         desktopControlOrigin: modelSettings?.desktopControlOrigin,
         cwd: projectPath,
         resumeSessionId,
+        newSessionId: resumeSessionId ? undefined : tempSessionId,
         ...(await this.instructionLaunchOptions(
           activeProvider.name,
           resumeSessionId,

@@ -2421,6 +2421,8 @@ export class ClaudeProvider implements AgentProvider {
         options: {
           cwd: effectiveCwd,
           resume: options.resumeSessionId,
+          // Claude writes a new session under YA's id (plan 150 step 4).
+          sessionId: options.resumeSessionId ? undefined : options.newSessionId,
           resumeSessionAt: options.resumeSessionAt,
           ...(options.resumeSessionAt && options.resumeDropsTurn
             ? { resumeDropsTurn: options.resumeDropsTurn }

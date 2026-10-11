@@ -2,7 +2,8 @@
 
 Topic: optional-sqlite
 
-Status: stage 1 (steps 1–2) implemented 2026-10-11. Stage 2 not started.
+Status: stage 1 (steps 1–2) implemented 2026-10-11. Stage 2: step 3 passed
+and step 4 implemented and verified 2026-10-11; steps 5–8 not started.
 Referenced from the [roadmap](../roadmap/README.md) "Node 22 and built-in
 SQLite" row.
 
@@ -185,6 +186,22 @@ Before any production change, verify against the pinned Agent SDK:
 
 If any check fails, stop and revise this plan before step 4.
 
+**Result (2026-10-11).** `packages/server/scripts/probe-claude-session-id.ts`
+passed all 12 checks against SDK 0.3.296 and CLI 2.1.291 in a throwaway
+`CLAUDE_CONFIG_DIR`: new sessions, fresh-process resume, CLI resume, launch
+forks under a chosen child id, sliced launch forks through `resumeSessionAt`,
+and refusal of an id already in use or of `sessionId` with `resume` but no
+`forkSession`. Two findings shape step 6:
+
+- A launch fork keeps the parent's message uuids; the standalone
+  `forkSession()` remaps all of them. Anything that keys by message uuid across
+  sessions must expect shared uuids from launch forks.
+- A launch fork writes nothing until it sends a turn. Clone sends none, so
+  turnless clones keep using the standalone `forkSession()`, whose random id
+  YA cannot choose. Under stage 2 a Claude clone therefore has a native id
+  different from its YA id, as Codex sessions do, and needs the native-id
+  column from step 5. Forks that send a turn can use the launch fork.
+
 ### 4 — mint ids first for new Claude sessions
 
 - **Launch.** Mint the id, write the row with launch facts (provider, model
@@ -194,6 +211,25 @@ If any check fails, stop and revise this plan before step 4.
 - **Process.** For these launches, `Process` no longer changes its session id.
   An id reported by the provider that differs from the minted one is an error,
   not a rename.
+
+**Implemented 2026-10-11** as a `newSessionId` launch option that Supervisor
+sets to its minted id for every new session and that the Claude provider
+passes as `sessionId`. The rename path stays for providers that ignore it;
+turning a mismatch into an error waits until Codex (step 5) no longer renames.
+`packages/server/scripts/probe-ya-session-id.mjs` ran the built server on a
+throwaway profile with Haiku turns:
+
+| Variant | Result |
+| --- | --- |
+| Local | 6/6: one id from start through restart, resume, CLI resume and Clone; no remap logged |
+| Agent Auth Router pool | 5/5: same, with the binding on the minted id; routed Clone still refused (step 8) |
+| Remote executor (loopback SSH, remote CLI 2.1.236) | 5/5 after working around two sync gaps, below |
+| Project-write sandbox | Not run: the host sandbox is Linux-only |
+
+The executor run exposed two existing sync defects, recorded as
+[`gaps/remote-executor-sync-needs-gnu-rsync.md`](../../gaps/remote-executor-sync-needs-gnu-rsync.md)
+and
+[`gaps/remote-executor-sync-ignores-claude-config-dir.md`](../../gaps/remote-executor-sync-ignores-claude-config-dir.md).
 
 ### 5 — mint ids first for new Codex sessions
 

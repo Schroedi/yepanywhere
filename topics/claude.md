@@ -243,12 +243,17 @@ shell-startup and test-hermeticity rules for the local `BASH_ENV` bridge.
   Anthropic prompt-cache keepalive remains unavailable. Provider selection is
   the routing boundary: a Gateway model stays on the configured gateway, while
   regular Claude models stay on Anthropic's normal transport.
-- The provisional YA session id used before Claude SDK initialization must
-  remap its persisted metadata to the canonical Claude session id when the
-  provider reports it. Explicit persisted provider identity takes precedence
-  over transcript model-name heuristics, so a non-Claude model routed through
-  the Claude harness remains `claude-gateway` rather than being mislabeled as
-  `claude-ollama`.
+- A new Claude session launched by YA uses the id YA minted for it: YA passes
+  it as the Agent SDK's `sessionId`, so the init message, the transcript file
+  and every YA surface share one id from creation, locally, through a remote
+  executor and through the Agent Auth Router (plan 150 step 4, verified
+  2026-10-11 with SDK 0.3.296, CLI 2.1.291 and remote CLI 2.1.236). Resumes
+  pass no new id. If the provider ever reports a different id, the
+  provisional YA session id must still remap its persisted metadata to the
+  canonical Claude session id. Explicit persisted provider identity takes
+  precedence over transcript model-name heuristics, so a non-Claude model
+  routed through the Claude harness remains `claude-gateway` rather than being
+  mislabeled as `claude-ollama`.
 - `claude-ollama` remains a readable/resumable legacy provider during its
   deprecation grace period, with no automatic migration. Hide it from provider
   and model menus when neither Ollama settings nor persisted
