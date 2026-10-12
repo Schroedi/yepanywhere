@@ -1955,6 +1955,29 @@ describe("MessageInput", () => {
     expect(onStop).not.toHaveBeenCalled();
   });
 
+  it("cancels correction with ArrowDown only once the composer is empty", () => {
+    const onCancelCorrection = vi.fn();
+    render(
+      <MessageInput
+        onSend={vi.fn()}
+        draftKey="correction-arrow-down-test"
+        supportsPermissionMode={false}
+        supportsThinkingToggle={false}
+        correctionActive
+        onCancelCorrection={onCancelCorrection}
+      />,
+    );
+    const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
+
+    fireEvent.change(textarea, { target: { value: "edited text" } });
+    fireEvent.keyDown(textarea, { key: "ArrowDown" });
+    expect(onCancelCorrection).not.toHaveBeenCalled();
+
+    fireEvent.change(textarea, { target: { value: "" } });
+    fireEvent.keyDown(textarea, { key: "ArrowDown" });
+    expect(onCancelCorrection).toHaveBeenCalledOnce();
+  });
+
   describe("composer recall drawer", () => {
     const turnRecall = {
       entries: [

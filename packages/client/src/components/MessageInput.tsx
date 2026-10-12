@@ -2935,6 +2935,24 @@ export function MessageInput({
       return;
     }
 
+    // ↓ on an emptied composer undoes the ↑ recall: leave correction mode
+    // rather than leaving its banner to wrap the next fresh message.
+    if (
+      e.key === "ArrowDown" &&
+      !e.ctrlKey &&
+      !e.metaKey &&
+      !e.shiftKey &&
+      !e.altKey &&
+      correctionActive &&
+      onCancelCorrection &&
+      !text.trim() &&
+      attachments.length === 0
+    ) {
+      e.preventDefault();
+      onCancelCorrection();
+      return;
+    }
+
     if (
       e.key.toLowerCase() === "p" &&
       e.ctrlKey &&
