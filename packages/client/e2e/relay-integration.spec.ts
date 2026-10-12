@@ -1535,7 +1535,7 @@ test.describe("Full Relay Integration", () => {
     await expect(page.getByTestId("host-picker-error")).toHaveCount(0);
   });
 
-  test("fresh relay login updates stale saved host relay URL", async ({
+  test("fresh relay login preserves a saved host at a different endpoint", async ({
     page,
     remotePreviewURL,
     relayWsURL,
@@ -1576,8 +1576,13 @@ test.describe("Full Relay Integration", () => {
     const savedHosts = await page.evaluate(() =>
       JSON.parse(localStorage.getItem("yep-anywhere-saved-hosts") ?? "{}"),
     );
-    expect(savedHosts.hosts[0]?.relayUrl).toBe(relayWsURL);
-    expect(savedHosts.hosts[0]?.session).toBeDefined();
+    expect(savedHosts.hosts[0]?.relayUrl).toBe(
+      "wss://relay.yepanywhere.com/ws",
+    );
+    const authenticated = savedHosts.hosts.find(
+      (host: { relayUrl: string }) => host.relayUrl === relayWsURL,
+    );
+    expect(authenticated?.session).toBeDefined();
   });
 
   test("mock project visible through relay connection", async ({

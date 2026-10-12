@@ -773,3 +773,57 @@ runtime's transport until callers migrate.
 - [`docs/project/ws-auth-state-model.md`](../docs/project/ws-auth-state-model.md)
   and [`docs/project/relay-design.md`](../docs/project/relay-design.md) remain
   the detailed auth/relay transport references.
+
+### Browser tab credential ownership
+
+Saved-host records are the authoritative browser resume credentials. Each
+credential is bound to its transport mode, endpoint, relay server name (when
+applicable), and SRP identity; source/cache identity remains separate from this
+authentication scope. A relay URL resumes the host named in that URL. Direct
+and unqualified navigation retain a tab-local host selection, while the
+origin-wide last-host preference selects only an initial destination.
+
+Authentication attempts capture their host, scope, and credential generation
+before asynchronous acquisition. Successful resume may update only that
+captured record. A newer password login, identity change, logout, rejection, or
+host removal prevents older attempts from replacing or resurrecting its saved
+credential. Concurrent resumes cannot lower an authenticated protocol pin.
+A rejection or disconnect notice belongs to the attempted scope, independently
+of the host subsequently selected by the UI.
+
+The legacy single-connection record remains a compatibility mirror for cached
+clients. Current clients prefer the saved-host credential, and import legacy
+credentials only when identity and direct endpoint agree with their envelope.
+A mixed legacy record cannot override a valid saved host. Updating its session
+requires the exact captured scope and last mirrored session; another tab's
+reconnect cannot attach a session to the mirror's unrelated destination. A
+verified password fallback may replace an absent session after rejection,
+provided its authoritative authentication intent remains current. Switch Host
+changes tab selection without erasing another tab's credential. Explicit web
+logout erases only the credential generation owned by that tab; native login
+and credential storage remain owned by the installed application's transport.
+
+Cross-tab generation ordering applies to cooperating current clients. Cached
+older clients do not participate in these checks and should be refreshed; their
+legacy single-connection mirror is never authoritative for current saved hosts.
+Persistence and erasure remain best effort when browser storage is unavailable.
+
+Verified session establishment distinguishes full password authentication from
+resume. A resumed key is saved only while its exact session remains active;
+received refusal cannot be undone by a delayed resume callback. A connection
+still holding its password may store a newly verified full-SRP fallback under
+the same authentication intent. Explicit erasure and newer password attempts
+invalidate that intent, so fallback cannot undo logout or replace a newer login.
+
+The active browser connection publishes the exact source key to route binding.
+A temporary login without a matching saved host uses an in-memory runtime key
+bound to its full authentication scope, including principal. Sharing a relay
+name or direct endpoint with a saved host cannot borrow that host's transport
+or caches. Temporary login creates no saved host or credential. Native source
+binding remains owned by the installed shell.
+
+Recovery retains the attempted authentication scope and runtime ownership.
+Automatic and explicit retry may use only credentials from that scope; a
+same-name host under another endpoint or principal cannot substitute for a
+temporary login. When that scope has no saved credential, explicit sign-in
+retains its relay endpoint and principal rather than selecting a saved account.

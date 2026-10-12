@@ -1,3 +1,4 @@
+import { eraseTabCredential } from "../lib/hostStorage";
 import type {
   ActingPrincipal,
   LimitedUserLock,
@@ -62,11 +63,16 @@ export const usersApi = {
     }),
 
   /** End the acting identity; the reply says where this client should go. */
-  logoutUser: () => {
+  logoutUser: async () => {
     forgetRetainedResumes();
-    return fetchJSON<{
-      success: boolean;
-      redirect: "relay-login" | "direct-login" | "stay";
-    }>("/users/logout", { method: "POST" });
+    // Bind the request to the current source before waiting for another tab's lock.
+    const [, response] = await Promise.all([
+      eraseTabCredential(),
+      fetchJSON<{
+        success: boolean;
+        redirect: "relay-login" | "direct-login" | "stay";
+      }>("/users/logout", { method: "POST" }),
+    ]);
+    return response;
   },
 };

@@ -281,7 +281,7 @@ describe("rejected SRP credential ownership", () => {
   it("host removal purges its archive and invalidates in-flight attempts", async () => {
     await reject();
     const generation = resumeGeneration();
-    removeHost("host");
+    await removeHost("host");
     await reject(generation);
     expect(listRetainedResumes()).toHaveLength(0);
   });

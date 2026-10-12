@@ -140,6 +140,8 @@ export interface RelayConnectionConfig {
   openSocket?: RelaySocketFactory;
 }
 
+export type SessionEstablishmentKind = "password" | "resume";
+
 export interface SecureConnectionCallbacks {
   /** Prevent superseded attempts from retiring credentials. */
   isAttemptCurrent?: () => boolean;
@@ -147,7 +149,10 @@ export interface SecureConnectionCallbacks {
   diagnosticProbe?: boolean;
   onResumeObservation?: (event: ResumeObservation) => void;
   /** Session established (for storing session data). */
-  onSessionEstablished?: (session: StoredSession) => void | Promise<void>;
+  onSessionEstablished?: (
+    session: StoredSession,
+    kind: SessionEstablishmentKind,
+  ) => void | Promise<void>;
   /** Connection lost (for UI state updates). */
   onDisconnect?: (error: Error) => void;
   /** SRP authentication or resumption succeeded. */
@@ -235,6 +240,7 @@ export class SecureConnection implements Connection {
   // Callback when session is established (for storing session data)
   private onSessionEstablished?: (
     session: StoredSession,
+    kind: SessionEstablishmentKind,
   ) => void | Promise<void>;
 
   // Callback when connection is lost (for UI state updates)
@@ -927,7 +933,7 @@ export class SecureConnection implements Connection {
           this.ws.onmessage = (event) => this.enqueueInboundMessage(event.data);
         }
 
-        await this.onSessionEstablished?.(this.storedSession);
+        await this.onSessionEstablished?.(this.storedSession, "resume");
         this.sendCapabilities();
         this.connectionManager?.markConnected();
         this.onAuthenticated?.();
@@ -1471,7 +1477,7 @@ export class SecureConnection implements Connection {
         sessionKey: sessionKeyBase64,
         resumeProtocolVersion: authenticatedResumeProtocolVersion,
       };
-      await this.onSessionEstablished?.(this.storedSession);
+      await this.onSessionEstablished?.(this.storedSession, "password");
 
       this.sendCapabilities();
       this.connectionManager?.markConnected();

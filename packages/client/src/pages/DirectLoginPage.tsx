@@ -95,7 +95,10 @@ export function DirectLoginPage() {
     let rememberedHostId: string | null = null;
     if (rememberMe) {
       const existing = loadSavedHosts().hosts.find(
-        (h) => h.mode === "direct" && h.wsUrl === wsUrl,
+        (h) =>
+          h.mode === "direct" &&
+          h.wsUrl === wsUrl &&
+          h.srpUsername === username.trim(),
       );
       const host =
         existing ??

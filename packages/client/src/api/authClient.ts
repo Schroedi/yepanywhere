@@ -1,3 +1,4 @@
+import { eraseTabCredential } from "../lib/hostStorage";
 import { forgetRetainedResumes } from "../lib/rejectedResumeStorage";
 import { fetchJSON } from "./sourceApiFetch";
 
@@ -56,11 +57,14 @@ export const authApi = {
       body: JSON.stringify(username ? { password, username } : { password }),
     }),
 
-  logout: () => {
+  logout: async () => {
     forgetRetainedResumes();
-    return fetchJSON<{ success: boolean }>("/auth/logout", {
-      method: "POST",
-    });
+    // Bind the request to the current source before waiting for another tab's lock.
+    const [, response] = await Promise.all([
+      eraseTabCredential(),
+      fetchJSON<{ success: boolean }>("/auth/logout", { method: "POST" }),
+    ]);
+    return response;
   },
 
   changePassword: (newPassword: string) =>

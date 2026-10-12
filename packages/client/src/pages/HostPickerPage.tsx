@@ -175,10 +175,10 @@ export function HostPickerPage() {
 
   // Delete a host
   const handleDeleteHost = useCallback(
-    (hostId: string, e: React.MouseEvent) => {
+    async (hostId: string, e: React.MouseEvent) => {
       e.stopPropagation();
       if (confirm(t("hostPickerRemoveConfirm"))) {
-        removeHost(hostId);
+        await removeHost(hostId);
         setHosts((prev) => prev.filter((h) => h.id !== hostId));
       }
     },
