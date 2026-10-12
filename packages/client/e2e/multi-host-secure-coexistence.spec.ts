@@ -325,7 +325,8 @@ test("separate host tabs retain scoped credentials through reconnect and restora
   remotePreviewURL,
 }) => {
   if (!harness) throw new Error("Multi-host harness did not start");
-  const [alpha, beta] = harness.hosts;
+  const { projectId, sessionId, hosts } = harness;
+  const [alpha, beta] = hosts;
   if (!alpha || !beta) throw new Error("Two hosts are required");
   await provisionHarnessHosts(page, remoteClientURL, harness);
   const fixtureCredentials = await page.evaluate(() =>
@@ -338,7 +339,8 @@ test("separate host tabs retain scoped credentials through reconnect and restora
     if (saved) localStorage.setItem("yep-anywhere-saved-hosts", saved);
   }, fixtureCredentials);
   const routes = [alpha, beta].map(
-    (host) => `${remotePreviewURL}/-/relay/${host.username}/settings`,
+    (host) =>
+      `${remotePreviewURL}/-/relay/${host.username}/projects/${projectId}/sessions/${sessionId}`,
   );
   const sockets: import("@playwright/test").WebSocketRoute[] = [];
   const messages: string[] = [];
@@ -363,23 +365,23 @@ test("separate host tabs retain scoped credentials through reconnect and restora
       await lifecycle?.send("Page.setWebLifecycleState", { state: "active" });
       await lifecycle?.detach();
     }
-    const search = page.getByRole("searchbox", { name: "Search settings" });
-    await expect(search).toBeVisible();
+    const composer = page.locator("textarea[data-composer-input]");
+    const draft = "Draft for Alpha";
+    await expect(composer).toBeVisible();
     await page.bringToFront();
-    await search.focus();
+    await composer.focus();
     await page.evaluate(async () => {
       await document.fonts.ready;
       await new Promise<void>((resolve) =>
         requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
       );
     });
-    await search.evaluate((element) => {
-      const input = element as HTMLInputElement;
+    await composer.evaluate((element) => {
+      const input = element as HTMLTextAreaElement;
       let started = 0;
       const samples: Array<{ ms: number; present: boolean }> = [];
       input.addEventListener("keydown", () => {
         started = performance.now();
-        document.dispatchEvent(new Event("visibilitychange"));
       });
       input.addEventListener("input", () => {
         const expected = input.value;
@@ -399,8 +401,11 @@ test("separate host tabs retain scoped credentials through reconnect and restora
     await sockets
       .at(-1)!
       .close({ code: 1012, reason: "Cross-tab reconnect regression" });
-    await page.evaluate(() => window.dispatchEvent(new Event("online")));
-    await search.pressSequentially("theme color", { delay: 25 });
+    await page.evaluate(() => {
+      window.dispatchEvent(new Event("online"));
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await composer.pressSequentially(draft, { delay: 25 });
     await expect
       .poll(
         () =>
@@ -409,21 +414,23 @@ test("separate host tabs retain scoped credentials through reconnect and restora
           ).length,
       )
       .toBe(count + 1);
-    await expect(search).toHaveValue("theme color");
+    await expect(composer).toHaveValue(draft);
     await expect
       .poll(
         async () =>
-          JSON.parse((await search.getAttribute("data-typing-samples")) ?? "[]")
-            .length,
+          JSON.parse(
+            (await composer.getAttribute("data-typing-samples")) ?? "[]",
+          ).length,
       )
-      .toBe(11);
+      .toBe(draft.length);
     const samples = JSON.parse(
-      (await search.getAttribute("data-typing-samples")) ?? "[]",
+      (await composer.getAttribute("data-typing-samples")) ?? "[]",
     ) as Array<{ ms: number; present: boolean }>;
     expect(
       samples.every((sample) => sample.present && sample.ms <= 100),
       JSON.stringify(samples),
     ).toBe(true);
+    await expect(other.locator("textarea[data-composer-input]")).toBeEmpty();
     // This assertion fails on the original updater: Alpha's reconnect used
     // to attach its session to Beta's shared legacy connection record.
     const ownership = await other.evaluate(() => {
@@ -468,14 +475,13 @@ test("separate host tabs retain scoped credentials through reconnect and restora
       [page, alpha],
       [other, beta],
     ] as const) {
-      await tab.goto(
-        `${remotePreviewURL}/-/relay/${host.username}/projects/${harness.projectId}/sessions/${harness.sessionId}`,
-      );
       await expect(tab.locator(".session-page")).toContainText(
         host.expectedFixtureText,
       );
       await expect(tab.getByTestId("relay-login-form")).toHaveCount(0);
     }
+    await expect(composer).toHaveValue(draft);
+    await expect(other.locator("textarea[data-composer-input]")).toBeEmpty();
     if (process.env.YEP_E2E_UI_CAPTURE_DIR) {
       for (const [name, viewport] of [
         ["desktop", { width: 1000, height: 600 }],
