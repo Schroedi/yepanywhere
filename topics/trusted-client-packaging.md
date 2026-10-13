@@ -205,6 +205,14 @@ cannot inject into or debug its pages, and its storage belongs to it alone.
   artifact previews and direct (LAN) hosts. The update path is the store
   item; until a signed-update policy exists the store account is the trust
   root.
+- **Publication.** The extension has its own three-part store version in
+  `packages/browser-extension/package.json`, independent of server versions.
+  `extension-v<version>` must match it and produces an audited, tested upload
+  ZIP in a draft GitHub release. Manual CI dispatch produces the same package
+  artifact. Neither submits to the Chrome Web Store. The ZIP preserves the
+  public-key-derived id, contains all scripts locally, and requests only the
+  permissions listed above. Store assets and the privacy policy live in
+  [store preparation](../docs/distribution/chrome-extension/README.md).
 
 ## Deferred Verification Setup
 

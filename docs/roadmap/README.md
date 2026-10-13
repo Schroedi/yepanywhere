@@ -354,11 +354,15 @@ entry. The store draft id and public key are reserved, and exact extension
 origin admission is deployed on the default public relay with 26 passing
 public upgrade/CORS probes. The client builds as an unpacked extension,
 reaches the relay, survives reloads and is signed in to a real host in the
-maintainer's Chrome; the remaining logged-in checks (typing latency, reload on
-session and Settings pages) are next. A side panel listing the sessions that mention the GitHub or Jira item
+maintainer's Chrome. Publication acceptance in a clean Chromium profile now
+covers session/Settings reload, saved-login browser restart and sequential
+typing within 100 ms during relay transcript updates. A side panel listing the sessions that mention the GitHub or Jira item
 in the current tab (exact server lookup across saved hosts), automatic lookup
 with a toolbar badge on user-granted sites, and a Browser extension settings
 pane are implemented and accepted locally and in the maintainer's Chrome.
+A public 0.1.0 listing, actual screenshots, privacy disclosures and an audited
+CI ZIP/draft-release workflow are prepared; hosted release acceptance and the
+manual Web Store submission remain next.
 This experiment does not displace release delivery.
 
 These remain candidates behind publishing and continuous delivery, not a

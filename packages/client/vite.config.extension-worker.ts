@@ -28,7 +28,7 @@ export default defineConfig((env) => {
       outDir: resolve(__dirname, "../browser-extension/dist"),
       emptyOutDir: false,
       copyPublicDir: false,
-      sourcemap: true,
+      sourcemap: false,
       lib: {
         entry: resolve(__dirname, "src/extension/background.ts"),
         formats: ["es"],

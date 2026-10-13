@@ -3,7 +3,14 @@
 // first.
 
 import { execFileSync } from "node:child_process";
-import { copyFile, readFile, rename, rm, writeFile } from "node:fs/promises";
+import {
+  cp,
+  copyFile,
+  readFile,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -19,16 +26,21 @@ const identity = JSON.parse(
   ),
 );
 
-// Chrome versions are one to four integers; v0.9.2-814-g1234 becomes 0.9.2.814.
-const described = execFileSync(
-  "git",
-  ["describe", "--tags", "--always", "--match", "v[0-9]*.[0-9]*.[0-9]*"],
-  { cwd: repoRoot, encoding: "utf8" },
-).trim();
-const match = /^v(\d+)\.(\d+)\.(\d+)(?:-(\d+)-g[0-9a-f]+)?/.exec(described);
-const version = match
-  ? [match[1], match[2], match[3], match[4] ?? "0"].map(Number).join(".")
-  : "0.0.0.0";
+// The extension has its own store versions, independent of YA server tags.
+const { version } = JSON.parse(
+  await readFile(resolve(packageRoot, "package.json"), "utf8"),
+);
+if (
+  !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version) ||
+  version.split(".").some((part) => Number(part) > 65535) ||
+  version.split(".").every((part) => Number(part) === 0)
+) {
+  throw new Error("Expected a nonzero three-part Chrome store version");
+}
+const revision = execFileSync("git", ["rev-parse", "HEAD"], {
+  cwd: repoRoot,
+  encoding: "utf8",
+}).trim();
 
 await rename(resolve(dist, "remote.html"), resolve(dist, "index.html"));
 // Web-host files the extension does not use. The web app manifest would also
@@ -39,22 +51,32 @@ for (const name of ["sw.js", "_headers", "debug-streaming.html"]) {
 for (const name of ["options.html", "options.js"]) {
   await copyFile(resolve(packageRoot, "src", name), resolve(dist, name));
 }
+await cp(resolve(packageRoot, "src/icons"), resolve(dist, "icons"), {
+  recursive: true,
+});
+const icons = Object.fromEntries(
+  [16, 32, 48, 128].map((size) => [size, `icons/icon-${size}.png`]),
+);
 
 const manifest = {
   manifest_version: 3,
   name: "Yep Anywhere",
-  description: "Supervise your coding agents from the browser.",
+  description:
+    "Supervise coding agents on your servers and find related sessions beside GitHub issues, pull requests and Jira tickets.",
   version,
-  version_name: described.replace(/^v/, ""),
+  version_name: `${version} (${revision.slice(0, 9)})`,
   key: identity.key,
-  icons: { 128: "icon-192.png" },
+  icons,
   action: {
     default_title: "Yep Anywhere",
-    default_icon: { 128: "icon-192.png" },
+    default_icon: icons,
   },
   background: { service_worker: "background.js", type: "module" },
   side_panel: { default_path: "sidepanel.html" },
   options_page: "options.html",
+  content_security_policy: {
+    extension_pages: "script-src 'self'; object-src 'self'",
+  },
   // None of these shows an install warning (docs/tactical/151 design rule).
   // activeTab lets a toolbar click read that one page's address.
   permissions: ["sidePanel", "storage", "activeTab"],
@@ -66,4 +88,4 @@ await writeFile(
   resolve(dist, "manifest.json"),
   `${JSON.stringify(manifest, null, 2)}\n`,
 );
-console.log(`Extension ${version} (${described}) assembled in ${dist}`);
+console.log(`Extension ${version} (${revision}) assembled in ${dist}`);

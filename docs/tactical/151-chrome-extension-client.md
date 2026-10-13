@@ -9,7 +9,9 @@ the public relay and survives reloads. Steps 7–10 (shared saved hosts, exact
 issue lookup, the side panel, and options with automatic lookup) are
 implemented and accepted locally and in the maintainer's Chrome against a
 real host (recorded under each step). Remaining step 6 checks, the deferred
-slices and publishing (step 11) are open.
+slices and store submission (step 11) are open. Publication preparation is
+implemented: independent extension version 0.1.0, audited upload ZIP, public
+listing assets and CI draft-release packaging.
 
 ## Objective
 
@@ -453,6 +455,31 @@ Acceptance 2026-10-13:
   lookup with granted site access was not exercised there.
 
 ### 11 — publish to the store
+
+Publication preparation implemented 2026-10-13 for a public listing.
+[Store preparation](../distribution/chrome-extension/README.md) owns upload
+commands, independent extension versioning, assets, listing/privacy copy and
+reviewer-access instructions. `extension-v0.1.0` invokes the dedicated CI
+workflow to create a draft GitHub release with the ZIP, SHA-256 and source
+revision; manual dispatch produces downloadable artifacts. Neither path
+uploads or submits to CWS.
+
+The audit checks the packaged identity, manifest permissions, local/external
+script entry points, absence of maps/private files, and exact icon sizes.
+CI extracts and exercises the actual ZIP with its unchanged store manifest;
+the automatic badge uses a separate owned-site-grant fixture. The isolated
+clean profile passes session/Settings reload, saved-login browser restart and
+35 sequential composer characters at a 7.9 ms maximum while real transcript
+updates cross the relay, after 100 history rows. Four 1280×800 store captures
+show the actual client and native side panel against public YA issues and
+explicitly labeled demo sessions, with green-Y promotion assets.
+The native Chrome for Testing profile and fixture services are reaped.
+
+Local root lint, format, typecheck and unit suites pass, as do the dedicated
+harness typecheck and extension acceptance. The known Node 26 tsx loader
+deprecation remains in its existing tooling gap; CI uses supported Node 22.
+Hosted draft-release acceptance is pending. Web Store submission/publication
+remains the maintainer's final step.
 
 Decide visibility (private to testers or unlisted), version numbering relative
 to YA releases, and whether CI produces the store zip. Publishing a new

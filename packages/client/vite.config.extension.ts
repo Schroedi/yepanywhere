@@ -71,6 +71,7 @@ export default defineConfig((env) => {
       ...remote.build,
       outDir: resolve(__dirname, "../browser-extension/dist"),
       emptyOutDir: true,
+      sourcemap: false,
       rollupOptions: {
         ...remote.build?.rollupOptions,
         // play.html hosts public-share frames, which the extension omits.

@@ -1,0 +1,107 @@
+name: Chrome Extension
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['extension-v*']
+  pull_request:
+    paths:
+      - 'packages/browser-extension/**'
+      - 'packages/client/src/extension/**'
+      - 'packages/client/scripts/extension-acceptance.mts'
+      - 'packages/client/vite.config.extension*.ts'
+      - 'docs/distribution/chrome-extension/**'
+      - '.github/workflows/browser-extension.yml'
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22.16.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Check release version
+        id: version
+        run: |
+          version=$(node -p "JSON.parse(require('fs').readFileSync('packages/browser-extension/package.json')).version")
+          if [[ "$GITHUB_REF_TYPE" == tag && "$GITHUB_REF_NAME" != "extension-v$version" ]]; then
+            echo "Tag must match the extension package version." >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Build and audit store ZIP
+        run: pnpm --filter @yep-anywhere/browser-extension package:store
+      - name: Typecheck the acceptance harness
+        run: pnpm --filter @yep-anywhere/browser-extension typecheck:acceptance
+      - name: Install test Chromium
+        run: pnpm --filter @yep-anywhere/client exec playwright install --with-deps chromium
+      - name: Extract the actual upload candidate
+        run: |
+          python3 -m zipfile -e "packages/browser-extension/release/yep-anywhere-chrome-${{ steps.version.outputs.version }}.zip" /tmp/ya-extension-candidate
+      - name: Accept the exact store manifest
+        env:
+          YA_EXTENSION_DIST: /tmp/ya-extension-candidate
+        run: pnpm --filter @yep-anywhere/browser-extension acceptance --store-assets
+      - name: Check automatic badge with an owned site grant
+        env:
+          YA_EXTENSION_DIST: /tmp/ya-extension-candidate
+        run: pnpm --filter @yep-anywhere/browser-extension acceptance
+      - name: Upload store package
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: yep-anywhere-chrome-${{ steps.version.outputs.version }}
+          path: packages/browser-extension/release/*
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload listing assets and copy
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: chrome-web-store-listing
+          path: docs/distribution/chrome-extension/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Keep acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: chrome-extension-acceptance-${{ github.run_attempt }}
+          path: .artifacts/extension-acceptance/
+          include-hidden-files: true
+          if-no-files-found: ignore
+
+  draft-release:
+    if: startsWith(github.ref, 'refs/tags/extension-v')
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          pattern: yep-anywhere-chrome-*
+          path: release
+          merge-multiple: true
+      - name: Create draft release for manual Web Store upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          cat > /tmp/release-notes.md <<'NOTES'
+          Chrome Web Store upload candidate. Upload the inner `yep-anywhere-chrome-*.zip`, not the GitHub artifact container.
+
+          The package bundles the client, side panel and worker, with the pinned store identity. SHA-256 and source revision are attached. CI verifies relay login, lookup, navigation, settings persistence and the automatic badge against owned fixtures. No Web Store upload or review submission is performed by this workflow.
+          NOTES
+          gh release create "$GITHUB_REF_NAME" release/* --verify-tag --draft \
+            --title "Yep Anywhere Chrome ${GITHUB_REF_NAME#extension-v}" \
+            --notes-file /tmp/release-notes.md
