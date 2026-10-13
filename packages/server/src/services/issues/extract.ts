@@ -1,5 +1,7 @@
 /** Deterministic references; no tracker calls, registry prerequisite or Git access. */
 
+import { issueUrl } from "@yep-anywhere/shared";
+
 /**
  * Version of the extraction rules in this file. Every evidence row records the
  * version that produced it, so rows written before a rules change can be told
@@ -20,60 +22,7 @@ export interface IssueReference {
   end: number;
 }
 
-export function issueUrl(
-  value: string,
-): Omit<IssueReference, "start" | "end" | "title"> | null {
-  if (value.length > 4096) return null;
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    return null;
-  }
-  if (
-    !["https:", "http:"].includes(url.protocol) ||
-    url.username ||
-    url.password
-  )
-    return null;
-  const host = url.host.toLowerCase();
-  const github = url.pathname.match(
-    /^\/([^/]+)\/([^/]+)\/(issues|pull)\/([1-9]\d*)(?:\/.*)?$/,
-  );
-  if (
-    github &&
-    (url.hostname === "github.com" ||
-      github[3] === "pull" ||
-      url.hostname.startsWith("github."))
-  ) {
-    const repository = `${github[1]}/${github[2]}`.toLowerCase();
-    const number = github[4];
-    const kind = github[3] === "pull" ? "pr" : "issue";
-    return {
-      key: `${repository}#${number}`,
-      identity: `github:${host}:${repository}:${number}`,
-      url: `${url.protocol}//${host}/${repository}/${github[3]}/${number}`,
-      provider: "github",
-      kind,
-    };
-  }
-  const jira = url.pathname.match(
-    /^(.*?)\/browse\/([A-Z][A-Z0-9_]*-[1-9]\d*)\/?$/i,
-  );
-  if (jira) {
-    const key = jira[2]!.toUpperCase();
-    // Jira deployments can use a context path; it participates in tenant identity.
-    const base = `${host}${jira[1]}`;
-    return {
-      key,
-      identity: `jira:${base}:${key}`,
-      url: `${url.protocol}//${base}/browse/${key}`,
-      provider: "jira",
-      kind: "issue",
-    };
-  }
-  return null;
-}
+export { issueUrl };
 
 /**
  * Whether a link label only names its item — `#42`, `repo#42`, `PR #42`, the

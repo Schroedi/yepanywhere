@@ -9,6 +9,7 @@ import type { IssueIndexer } from "../services/issues/IssueIndexer.js";
 import type { IssueCredentials } from "../services/issues/credentials.js";
 import type { IssueConfirmer } from "../services/issues/confirm.js";
 import { issueUrl } from "../services/issues/extract.js";
+import { issueLookupUrl } from "@yep-anywhere/shared";
 
 /** Rejects a confirmation block rather than storing a half-configured one. */
 function confirmation(
@@ -161,9 +162,17 @@ export function createIssueRoutes(
     const query = c.req.query("q") ?? "";
     const supportedSorts: IssueSort[] = ["activity", "mentioned", "number"];
     const sort = c.req.query("sort") ?? "key";
+    // An exact lookup names one item by any URL a browser shows for it. A
+    // `ref` that names nothing matches nothing rather than falling back to q.
+    const refValue = c.req.query("ref");
+    const ref =
+      refValue === undefined
+        ? undefined
+        : (issueLookupUrl(refValue)?.identity ?? "unrecognized:");
     if (
       !p ||
       query.length > 4096 ||
+      (refValue?.length ?? 0) > 4096 ||
       (sort !== "key" && !supportedSorts.includes(sort as IssueSort))
     )
       return c.json({ error: "Invalid search or pagination" }, 400);
@@ -177,11 +186,13 @@ export function createIssueRoutes(
       {
         sort: sort as IssueSort | "key",
         sessionActivity: sort === "key" ? [] : await sessionCatalog(),
+        identity: ref,
       },
     );
     return c.json({
       supportedSorts,
       sort,
+      ...(ref === undefined ? {} : { ref }),
       items,
       coverage: indexer.coverage(),
       nextOffset: items.length === p.size ? p.start + p.size : null,

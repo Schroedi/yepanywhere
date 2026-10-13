@@ -721,6 +721,8 @@ export class IssueStore {
     options: {
       sort?: IssueSort | "key";
       sessionActivity?: readonly { sessionId: string; updatedAt: string }[];
+      /** Canonical identity: match exactly this item, ignoring `query`. */
+      identity?: string;
     } = {},
   ): IssueItem[] {
     // Only these fixed clauses enter SQL. Sort the complete filtered aggregate
@@ -761,7 +763,7 @@ export class IssueStore {
       (SELECT c.state FROM issue_confirmations c WHERE c.ref_key=items.ref_key
         ORDER BY CASE c.state WHEN 'confirmed' THEN 0 WHEN 'rejected' THEN 1 WHEN 'unreachable' THEN 2 ELSE 3 END LIMIT 1) AS confirm_state,
       (SELECT c.title FROM issue_confirmations c WHERE c.ref_key=items.ref_key AND c.state='confirmed' AND c.title IS NOT NULL LIMIT 1) AS confirm_title
-      FROM numbered items WHERE ref_key LIKE ? ESCAPE '\\' OR title LIKE ? ESCAPE '\\' OR url LIKE ? ESCAPE '\\' ORDER BY ${order},ref_key,context,id LIMIT ? OFFSET ?`,
+      FROM numbered items WHERE CASE WHEN ?<>'' THEN id=? ELSE ref_key LIKE ? ESCAPE '\\' OR title LIKE ? ESCAPE '\\' OR url LIKE ? ESCAPE '\\' END ORDER BY ${order},ref_key,context,id LIMIT ? OFFSET ?`,
       JSON.stringify(
         (options.sessionActivity ?? []).map(({ sessionId, updatedAt }) => ({
           sessionId,
@@ -773,6 +775,8 @@ export class IssueStore {
       project,
       session,
       session,
+      options.identity ?? "",
+      options.identity ?? "",
       escaped(query),
       escaped(query),
       escaped(query),

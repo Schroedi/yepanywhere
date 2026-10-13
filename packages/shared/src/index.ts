@@ -1624,6 +1624,8 @@ export {
 export {
   DEFAULT_ISSUE_SETTINGS,
   DEFAULT_JIRA_KEY_BLOCKLIST,
+  issueLookupUrl,
+  issueUrl,
 } from "./issues.js";
 export type {
   IssueSettings,
@@ -1641,6 +1643,7 @@ export type {
   IssueSession,
   IssueSessionsResult,
   KnownJiraProject,
+  IssueUrlReference,
 } from "./issues.js";
 
 export {

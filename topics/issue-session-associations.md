@@ -25,7 +25,15 @@ normalized text is available. Compressed Codex sources cannot be read by this
 background adapter.
 
 Search uses literal, case-insensitive substrings of stored keys, URLs and titles.
-Pasting a full URL finds its canonical record. Search and evidence pages default
+Pasting a full URL finds its canonical record. An exact lookup, `GET /api/issues?ref=<url>`,
+matches only the item whose canonical identity the URL names, from any URL a
+browser shows for it: GitHub subpaths such as `/files`, either the `issues/`
+or `pull/` path for the same number, and Jira board or backlog URLs carrying
+`selectedIssue`. The response echoes that identity as `ref`. A `ref` that
+names no tracker item matches nothing rather than falling back to `q`.
+Clients send `q` with `ref` and keep only items whose `id` equals the
+identity, so a server that predates `ref` still answers exactly, except for
+an item stored under the other GitHub path. Search and evidence pages default
 to 50 rows and accept at most 100. Project/session filters apply before the limit.
 The browser content scrolls vertically within the app while its page header
 remains visible. Long result lists, pagination controls, and association evidence
