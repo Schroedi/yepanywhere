@@ -1,0 +1,10 @@
+{
+  "name": "@yep-anywhere/browser-extension",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:extension": "pnpm --filter @yep-anywhere/shared build && pnpm --filter @yep-anywhere/client exec vite build --config vite.config.extension.ts && node ./scripts/assemble.mjs",
+    "assemble": "node ./scripts/assemble.mjs"
+  }
+}

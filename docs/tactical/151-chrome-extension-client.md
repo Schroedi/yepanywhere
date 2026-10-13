@@ -3,8 +3,10 @@
 Topic: chrome-extension-client
 
 Status: in progress 2026-10-13, experimental. Store identity is reserved as
-a draft and relay origin support is deployed and publicly verified; client
-packaging remains pending.
+a draft and relay origin support is deployed and publicly verified. The
+client spike (steps 3–5) builds, loads unpacked under the store id, reaches
+the public relay and survives reloads; logged-in verification (step 6) is
+next.
 
 ## Objective
 
@@ -135,6 +137,16 @@ Client login and typing acceptance remains step 6 after client packaging.
   failing.
 - Keep `BrowserRouter`; reload is handled in step 5.
 
+Spiked 2026-10-13 as `packages/client/vite.config.extension.ts`. It reuses
+the remote config and adds one post-order HTML transform, ahead of the CSP
+plugin, that moves each inline classic script (theme bootstrap, pre-boot
+composer) into its own file at the same position, so both still run during
+parse. The CSP plugin then emits `script-src 'self'` with no hashes, and the
+meta policy is kept as defense in depth. The web manifest link is dropped and
+`play.html` (public-share frames) is not built. The hosted remote build is
+unchanged. The bundle needs no `eval` or WebAssembly: `tweetnacl` and
+`tssrp6a` are plain JavaScript, so the default Manifest V3 policy suffices.
+
 ### 4 — package the extension
 
 - New `packages/browser-extension` workspace: Manifest V3 `manifest.json` with
@@ -145,6 +157,19 @@ Client login and typing acceptance remains step 6 after client packaging.
 - A build script that runs the step 3 build and assembles a loadable
   directory and a store zip.
 
+Spiked 2026-10-13. `pnpm --filter @yep-anywhere/browser-extension
+build:extension` builds into `packages/browser-extension/dist`, renames
+`remote.html` to `index.html`, removes web-host files (`sw.js`, `_headers`,
+the web manifest), and writes `manifest.json` with the key from
+[`identity.json`](../distribution/chrome-extension/identity.json). The
+version is `git describe` as four integers (`v0.9.2-814-g…` → `0.9.2.814`),
+with the full description as `version_name`. The manifest requests no
+permissions; `chrome.tabs.query` on the extension's own URLs works without
+one, so the toolbar action focuses an existing app tab. The package has no
+build script under the name `build`, so `pnpm -r build` and CI do not run
+it, and root typecheck skips it as it skips the Android package. The store
+zip is not produced yet.
+
 ### 5 — make reloads and deep links work
 
 First check whether the extension's background worker can answer navigations
@@ -153,6 +178,13 @@ If it can, that is the cleanest fallback and may also host streamed downloads
 later. Otherwise, the background worker watches for failed navigations to
 non-file extension paths and redirects to `index.html?route=<path>`, and the
 app replaces the URL with that route before the router starts.
+
+Verified 2026-10-13: it can. The background worker's `fetch` handler answers
+same-origin navigations whose path has no file extension with
+`/index.html`, and Chrome then keeps the requested URL. In Playwright's
+Chromium with the unpacked build, `/`, `/login` and
+`/-/relay/<user>/projects` each loaded with status 200 and routed normally;
+`/` opens the host picker. The redirect fallback is not needed.
 
 ### 6 — verify against real hosts
 
@@ -170,6 +202,23 @@ Load the unpacked build (pinned id) with the deployed relay and confirm:
 
 Record which features are knowingly unavailable (push, streamed downloads,
 relay artifact frames) rather than letting them fail obscurely.
+
+Progress 2026-10-13:
+
+- From the extension origin, a relay login for a nonexistent server name
+  opened `wss://relay.yepanywhere.com/ws` and received
+  `{"type":"client_error","reason":"unknown_username"}`, so the deployed
+  relay admits the origin end to end. No credential was used.
+- The unpacked build is loaded in the maintainer's Chrome under the store id
+  `dgeameddpnggdeenoekpiaacfghdodch`; the toolbar action opens the host
+  picker and refocuses that tab on later clicks.
+- Machine Control's browser debugger cannot attach to the extension's page
+  ("Cannot access a chrome-extension:// URL of different extension"). That is
+  the isolation this plan relies on, observed directly; verification of the
+  logged-in client therefore uses desktop capture rather than page
+  automation.
+- Pending: login with a real password (the maintainer types it), resume,
+  session viewing, typing latency, reload on session and Settings pages.
 
 ### 7 — open YA in the side panel
 
