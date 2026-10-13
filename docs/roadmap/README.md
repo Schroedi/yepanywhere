@@ -346,6 +346,12 @@ refusal and exact-instance cleanup. Remaining provider/platform cells are listed
 in the owning [topic](../../topics/optional-computer-control.md). This separately
 authorized work does not displace release delivery above.
 
+The maintainer proposed an experimental
+[Chrome extension client](../tactical/151-chrome-extension-client.md) on
+2026-10-13: the full web client served from an extension origin over the
+public relay, starting with a stable store id and a relay origin allowlist
+entry. It is not yet implemented and does not displace release delivery.
+
 These remain candidates behind publishing and continuous delivery, not a
 ranked or approved implementation queue. Recheck current code and owning
 documents before defining work.

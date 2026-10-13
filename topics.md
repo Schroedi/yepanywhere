@@ -452,3 +452,5 @@
 - new-session-tab-boot-latency - Full new-session controls within 500 ms, with current cached state and correct draft restoration.
 
 - ya-owned-session-ids - Required SQLite session metadata, then YA-minted session ids so per-session facts exist before any provider call (plan 150).
+
+- chrome-extension-client - Full YA web client served from a Chrome extension over the public relay; extension-origin relay allowlist, side panel, later issue/PR lookup (plan 151).
