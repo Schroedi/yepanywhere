@@ -214,13 +214,25 @@ function IssueMenuRow({
   );
   // A plain href in both branches keeps the browser's own middle-click and
   // modifier-click handling: a left click navigates, anything else opens a tab.
+  // Only the navigating click closes the menu, so several references can be
+  // opened into tabs from one opening.
+  const onClick = (event: React.MouseEvent) => {
+    if (
+      event.button === 0 &&
+      !event.metaKey &&
+      !event.ctrlKey &&
+      !event.shiftKey &&
+      !event.altKey
+    )
+      onSelect();
+  };
   return item.url ? (
     <a
       className={styles.item}
       role="menuitem"
       href={item.url}
       rel="noreferrer"
-      onClick={onSelect}
+      onClick={onClick}
       {...tooltipProps}
     >
       {content}
@@ -230,7 +242,7 @@ function IssueMenuRow({
       className={styles.item}
       role="menuitem"
       to={fallbackHref}
-      onClick={onSelect}
+      onClick={onClick}
       {...tooltipProps}
     >
       {content}

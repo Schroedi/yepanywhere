@@ -118,6 +118,20 @@ describe("SessionIssuesLink", () => {
     expect(row.getAttribute("target")).toBeNull();
   });
 
+  it("stays open for new-tab clicks and closes for a navigating one", async () => {
+    state.fetch.mockResolvedValue(result(2));
+    renderLink();
+    await openMenu("2 issues and pull requests associated with this session");
+    // jsdom does not navigate; the menu's own response is what is under test.
+    const row = () => screen.getAllByRole("menuitem")[0]!;
+    row().addEventListener("click", (event) => event.preventDefault());
+    fireEvent.click(row(), { metaKey: true });
+    fireEvent.click(row(), { ctrlKey: true });
+    expect(screen.getByRole("menu")).toBeTruthy();
+    fireEvent.click(row());
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
   it("describes a row before it is clicked", async () => {
     state.fetch.mockResolvedValue({
       items: [item(7, { sessionCount: 3, unresolved: true, kind: "pr" })],

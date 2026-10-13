@@ -89,7 +89,8 @@ this session. The header first asks without a sort; a server advertising
 the key-ordered page was full, so the page it reads holds the latest mentions.
 Each row links at its tracker URL when one is known and at the same filtered
 list otherwise, so a left click follows the reference and a middle or
-modifier click opens it in a new tab. Hovering or focusing a row describes it
+modifier click opens it in a new tab. Only the navigating click closes the
+menu, so several references can be opened into tabs in turn. Hovering or focusing a row describes it
 before the click: full title, key, provider, kind, how many sessions mention
 it, whether its tracker context is still unresolved, and where the click
 leads. Because indexing this session's own text starts when the
