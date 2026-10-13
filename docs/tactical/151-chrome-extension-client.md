@@ -3,8 +3,8 @@
 Topic: chrome-extension-client
 
 Status: in progress 2026-10-13, experimental. Store identity is reserved as
-a draft and relay origin support is implemented; client packaging remains
-pending.
+a draft and relay origin support is deployed and publicly verified; client
+packaging remains pending.
 
 ## Objective
 
@@ -95,7 +95,7 @@ the dotfiles runbook.
 
 ### 2 — let the relay accept the extension origin
 
-Implemented 2026-10-13. Exact extension origins use the validated spelling
+Completed 2026-10-13. Exact extension origins use the validated spelling
 because the standard URL parser reports `null` for this scheme. The
 registered id is included in production defaults; explicit
 `RELAY_ALLOWED_ORIGINS` still replaces those defaults. Local coverage includes
@@ -104,8 +104,15 @@ Relay suite: 136 tests passed, including 11 origin HTTP/WebSocket integration
 cases (about one second for the whole relay suite). Root lint, format,
 typecheck and unit suites pass. The root checks still emit the known
 [tsx loader warning](../../gaps/tsx-loader-deprecation-warning.md); changing
-the shared cross-platform loader is separate tooling work. Public relay
-deployment verification is pending.
+the shared cross-platform loader is separate tooling work.
+
+The public default relay was deployed through the private dotfiles relay-only
+script from source `2d1c87eb1`; only the relay service restarted. Public TLS
+health and 26 origin probes pass: registered-id admission on `/ws` and `/mux`,
+GET/OPTIONS CORS, other-id/malformed/other-scheme/opaque-origin rejection, and
+retained hosted-web and missing-Origin access. Private infrastructure and the
+US relay availability limitation are recorded in the dotfiles runbook.
+Client login and typing acceptance remains step 6 after client packaging.
 
 - Extend the origin policy with exact `chrome-extension://<id>` rules. Accept
   only that scheme and only a well-formed id (32 characters `a`–`p`); no

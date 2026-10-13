@@ -1,6 +1,6 @@
 # Roadmap
 
-Last updated: 2026-10-08.
+Last updated: 2026-10-13.
 
 This is Yep Anywhere's canonical product-priority overview. Keep initiative
 status, the next action, and major blockers here; keep implementation steps in
@@ -351,8 +351,9 @@ The maintainer proposed an experimental
 2026-10-13: the full web client served from an extension origin over the
 public relay, starting with a stable store id and a relay origin allowlist
 entry. The store draft id and public key are reserved, and exact extension
-origin admission is implemented. Public relay deployment is being verified;
-the client build, reload handling and real-host acceptance remain next.
+origin admission is deployed on the default public relay with 26 passing
+public upgrade/CORS probes. The client build, reload handling and real-host
+acceptance remain next.
 This experiment does not displace release delivery.
 
 These remain candidates behind publishing and continuous delivery, not a
