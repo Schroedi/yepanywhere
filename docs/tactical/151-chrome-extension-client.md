@@ -2,8 +2,9 @@
 
 Topic: chrome-extension-client
 
-Status: proposed 2026-10-13, experimental. The maintainer is registering the
-Chrome Web Store item to obtain a stable extension id; no implementation yet.
+Status: in progress 2026-10-13, experimental. Store identity is reserved as
+a draft and relay origin support is implemented; client packaging remains
+pending.
 
 ## Objective
 
@@ -39,7 +40,8 @@ panel, background worker, tab-aware actions) as later slices.
 
 Recorded 2026-10-13 against `b16af8b22`.
 
-- **The relay refuses extension origins.** `/ws` and `/mux` upgrades check
+- **The relay refused extension origins at the recorded baseline.** `/ws`
+  and `/mux` upgrades check
   `Origin` (`packages/relay/src/index.ts:227`) against
   `DEFAULT_RELAY_ALLOWED_ORIGINS` (`yepanywhere.com`, `*.yepanywhere.com`,
   `ya.graehl.org`) or `RELAY_ALLOWED_ORIGINS`. `parseRule` accepts only
@@ -77,12 +79,33 @@ Recorded 2026-10-13 against `b16af8b22`.
 
 ### 1 — register the store item and pin the extension id
 
-Create the Chrome Web Store item (maintainer, on another machine) and record
-its id and public key. The manifest's `key` field carries that public key so
-unpacked development builds get the same id as the published item. Record the
-id in this plan and in the relay defaults (step 2).
+Completed 2026-10-13 using Machine Control in the signed-in Chrome profile.
+The **Yep Anywhere** item is a draft, version `0.0.1`, with extension id
+`dgeameddpnggdeenoekpiaacfghdodch`. A minimal Manifest V3 registration ZIP
+requests no permissions and displays an implementation-pending page. It has
+not been submitted for review or published.
+
+The store public key is recorded in
+[`identity.json`](../distribution/chrome-extension/identity.json). Its SHA-256
+derives the recorded extension id. Copy its `key` into the eventual manifest
+so unpacked development builds share the store identity, following
+[Chrome's key instructions](https://developer.chrome.com/docs/extensions/reference/manifest/key).
+The private publisher/dashboard inventory and deployment evidence belong in
+the dotfiles runbook.
 
 ### 2 — let the relay accept the extension origin
+
+Implemented 2026-10-13. Exact extension origins use the validated spelling
+because the standard URL parser reports `null` for this scheme. The
+registered id is included in production defaults; explicit
+`RELAY_ALLOWED_ORIGINS` still replaces those defaults. Local coverage includes
+`/ws`, `/mux`, HTTP GET and OPTIONS, exact-id isolation, and malformed origins.
+Relay suite: 136 tests passed, including 11 origin HTTP/WebSocket integration
+cases (about one second for the whole relay suite). Root lint, format,
+typecheck and unit suites pass. The root checks still emit the known
+[tsx loader warning](../../gaps/tsx-loader-deprecation-warning.md); changing
+the shared cross-platform loader is separate tooling work. Public relay
+deployment verification is pending.
 
 - Extend the origin policy with exact `chrome-extension://<id>` rules. Accept
   only that scheme and only a well-formed id (32 characters `a`–`p`); no

@@ -6,6 +6,35 @@
 
 Topic: relay-origin-and-share-gating
 
+## Relay Browser Origin Admission
+
+The relay applies the same allowlist to `/ws` and `/mux` upgrades and HTTP
+CORS, including preflights. Present disallowed WebSocket origins receive 403
+before upgrade; disallowed HTTP origins receive no CORS allow-origin header.
+Missing WebSocket `Origin` remains allowed for server, CLI and native clients.
+An empty, opaque `null`, or malformed origin is refused by a restricted policy.
+
+Production defaults admit `https://yepanywhere.com`, its HTTPS subdomains,
+`https://ya.graehl.org`, and the experimental Chrome client origin
+`chrome-extension://dgeameddpnggdeenoekpiaacfghdodch`. Chrome extension entries
+must use that exact scheme and a lowercase 32-character id in `a`–`p`.
+Extension wildcards, credentials, ports, paths (including a trailing slash),
+queries, fragments and other extension schemes are refused. Admitting one
+extension never admits another extension or an opaque `null` origin.
+
+`RELAY_ALLOWED_ORIGINS` is a comma-separated override, replacing the defaults
+when nonempty. It supports exact HTTP(S) origins, HTTP(S) wildcard subdomains
+and exact Chrome extension origins. Existing explicit `*` allow-all behavior
+is retained; an unset or blank value uses production defaults. Adding a
+production extension does not widen an operator's explicit allowlist.
+
+Origin admission reduces browser abuse and provides reachability; it creates
+no principal, credential or grant. Non-browser callers can spoof Origin.
+Normal Remote Access continues to authenticate through SRP and encrypt through
+NaCl. The store identity is pinned in the public
+[extension identity](../docs/distribution/chrome-extension/identity.json);
+client packaging and store publication remain experimental pending work.
+
 ## Public Share Authorization
 
 Public shares are bearer-link read-only views. New links use a 128-bit CSPRNG

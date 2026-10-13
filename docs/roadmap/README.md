@@ -350,7 +350,10 @@ The maintainer proposed an experimental
 [Chrome extension client](../tactical/151-chrome-extension-client.md) on
 2026-10-13: the full web client served from an extension origin over the
 public relay, starting with a stable store id and a relay origin allowlist
-entry. It is not yet implemented and does not displace release delivery.
+entry. The store draft id and public key are reserved, and exact extension
+origin admission is implemented. Public relay deployment is being verified;
+the client build, reload handling and real-host acceptance remain next.
+This experiment does not displace release delivery.
 
 These remain candidates behind publishing and continuous delivery, not a
 ranked or approved implementation queue. Recheck current code and owning
