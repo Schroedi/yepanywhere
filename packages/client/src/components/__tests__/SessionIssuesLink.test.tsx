@@ -289,6 +289,53 @@ describe("SessionIssuesLink", () => {
     }
   });
 
+  it("shows tracker states once asked for, and re-reads an old list when opened", async () => {
+    vi.useFakeTimers();
+    try {
+      const pr = (state?: "merged") => ({
+        items: [
+          item(1, {
+            kind: "pr",
+            key: "o/r#1",
+            ...(state
+              ? {
+                  trackerStatus: {
+                    state,
+                    checkedAt: new Date(Date.now()).toISOString(),
+                  },
+                }
+              : {}),
+          }),
+        ],
+        coverage: { settings: {}, active: false, error: null, counts: [] },
+        nextOffset: null,
+      });
+      state.fetch.mockResolvedValue({ ...pr(), statusRefreshing: true });
+      renderLink();
+      await act(() => vi.advanceTimersByTimeAsync(0));
+      // The server is asking the tracker, so the header asks again soon.
+      state.fetch.mockResolvedValue(pr("merged"));
+      await act(() => vi.advanceTimersByTimeAsync(1500));
+      expect(state.fetch).toHaveBeenCalledTimes(2);
+      fireEvent.click(screen.getByRole("button"));
+      const row = screen.getAllByRole("menuitem")[0]!;
+      expect(row.textContent).toBe("o/r#1Title 1Merged");
+      expect(row.getAttribute("data-tooltip")).toContain(
+        "Merged on the tracker, checked 0m ago",
+      );
+      // A fresh list opens without a request; an old one is read again.
+      expect(state.fetch).toHaveBeenCalledTimes(2);
+      fireEvent.keyDown(document, { key: "Escape" });
+      await act(() => vi.advanceTimersByTimeAsync(60_000));
+      const before = state.fetch.mock.calls.length;
+      fireEvent.click(screen.getByRole("button"));
+      await act(() => vi.advanceTimersByTimeAsync(0));
+      expect(state.fetch).toHaveBeenCalledTimes(before + 1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("renders nothing while the feature is off", () => {
     state.enabled = false;
     const { container } = renderLink();

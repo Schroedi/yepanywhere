@@ -14,8 +14,13 @@ import { useIssuesEnabled } from "../hooks/useIssuesEnabled";
 import { useRemoteBasePath } from "../hooks/useRemoteBasePath";
 import { useTextTooltipAttributes } from "../hooks/useTooltipAppearance";
 import { useI18n } from "../i18n";
+import { formatBriefAge } from "../lib/sessionAge";
 import { IssueIcon } from "./IssueIcon";
 import styles from "./SessionIssuesLink.module.css";
+import {
+  TRACKER_STATUS_LABELS,
+  TrackerStatusBadge,
+} from "./TrackerStatusBadge";
 
 /** One page of the list route supplies the count; a fuller page reads "N+". */
 const COUNT_PAGE = 100;
@@ -29,6 +34,10 @@ const INDEXING_MS = 4000;
  * until it settles and then stop: a bounded recheck, never a standing poll.
  */
 const RECHECK_MS = [2000, 5000, 10000];
+/** Recheck cadence while the server is asking the tracker for states. */
+const STATUS_MS = 1500;
+/** Opening the menu re-reads a list older than this, so states are current. */
+const MENU_STALE_MS = 30_000;
 /** A header menu stays scannable; the rest stay one click away on the page. */
 const MENU_ROWS = 12;
 /** Each section keeps this many rows however long the other one is. */
@@ -49,16 +58,18 @@ interface KnownIssues {
  * answer it actually read: it refreshes when the transcript grows and while the
  * indexer reports active work, and reports nothing at all rather than a count
  * it cannot currently confirm. The same page that supplies the count supplies
- * the menu rows, so opening the menu costs no further request.
+ * the menu rows, so opening the menu costs no request unless that page is old
+ * enough for its tracker states to have moved on.
  */
 function useSessionIssues(
   sessionId: string,
   projectId: string,
   enabled: boolean,
   messageCount: number,
-): KnownIssues | null {
+): { known: KnownIssues | null; refresh: () => void } {
   const { transport } = useCurrentSourceRuntime();
   const [known, setKnown] = useState<KnownIssues | null>(null);
+  const reload = useRef<() => void>(() => {});
   const loaded = useRef<{ transport: unknown; key: string } | null>(null);
   // The transport whose server advertised mention order; until then the page
   // arrives in key order and is reordered here.
@@ -80,8 +91,11 @@ function useSessionIssues(
     let disposed = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let rechecks = 0;
+    let reading = false;
+    let readAt = 0;
     const load = async () => {
-      let active = false;
+      let next: number | undefined;
+      reading = true;
       try {
         const sorted = ordered.current === transport;
         const result = await transport.fetch<IssueSearchResult>(
@@ -99,7 +113,12 @@ function useSessionIssues(
           // again in mention order rather than show it.
           if (result.nextOffset !== null) return void load();
         }
-        active = result.coverage.active;
+        readAt = Date.now();
+        next = result.statusRefreshing
+          ? STATUS_MS
+          : result.coverage.active
+            ? INDEXING_MS
+            : undefined;
         setKnown({
           items: result.items,
           count: result.items.length,
@@ -110,23 +129,31 @@ function useSessionIssues(
         // server no longer confirms; the remaining rechecks can recover it.
         if (disposed) return;
         setKnown(null);
+      } finally {
+        reading = false;
       }
-      const next =
+      if (disposed) return;
+      const delay =
         rechecks < RECHECK_MS.length
-          ? active
-            ? INDEXING_MS
-            : RECHECK_MS[rechecks]
+          ? (next ?? RECHECK_MS[rechecks])
           : undefined;
       rechecks += 1;
-      if (next !== undefined) timer = setTimeout(() => void load(), next);
+      if (delay !== undefined) timer = setTimeout(() => void load(), delay);
     };
     timer = setTimeout(() => void load(), first ? 0 : SETTLE_MS);
+    reload.current = () => {
+      if (reading || Date.now() - readAt < MENU_STALE_MS) return;
+      if (timer) clearTimeout(timer);
+      rechecks = 0;
+      void load();
+    };
     return () => {
       disposed = true;
       if (timer) clearTimeout(timer);
     };
   }, [enabled, messageCount, projectId, sessionId, transport]);
-  return known;
+  const refresh = useCallback(() => reload.current(), []);
+  return { known, refresh };
 }
 
 /** Latest mention first; unknown times keep the server's order, last. */
@@ -187,6 +214,12 @@ function useItemTooltip(item: IssueItem): string {
       .filter(Boolean)
       .join(" · "),
     item.unresolved ? t("issuesUnresolved") : null,
+    item.trackerStatus && TRACKER_STATUS_LABELS[item.trackerStatus.state]
+      ? t("issuesStatusChecked", {
+          state: t(TRACKER_STATUS_LABELS[item.trackerStatus.state]),
+          age: formatBriefAge(item.trackerStatus.checkedAt) ?? "?",
+        })
+      : null,
     item.url,
     item.url ? t("issuesMenuOpenHint") : t("issuesMenuNoUrlHint"),
   ];
@@ -210,6 +243,7 @@ function IssueMenuRow({
       <IssueIcon size={14} />
       <span className={styles.itemKey}>{item.key}</span>
       {item.title && <span className={styles.itemTitle}>{item.title}</span>}
+      <TrackerStatusBadge item={item} className={styles.itemStatus} />
     </>
   );
   // A plain href in both branches keeps the browser's own middle-click and
@@ -263,7 +297,12 @@ export function SessionIssuesLink({
   const enabled = useIssuesEnabled();
   const base = useRemoteBasePath();
   const { t } = useI18n();
-  const known = useSessionIssues(sessionId, projectId, enabled, messageCount);
+  const { known, refresh } = useSessionIssues(
+    sessionId,
+    projectId,
+    enabled,
+    messageCount,
+  );
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<{ top: number; left: number }>();
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -273,6 +312,11 @@ export function SessionIssuesLink({
   const hidden = known ? known.count - shown : 0;
   const prHeading = useId();
   const otherHeading = useId();
+
+  const openMenu = () => {
+    setOpen(true);
+    refresh();
+  };
 
   const close = useCallback((focusTrigger: boolean) => {
     setOpen(false);
@@ -451,11 +495,11 @@ export function SessionIssuesLink({
         aria-haspopup="menu"
         aria-expanded={open}
         {...triggerTooltip}
-        onClick={() => (open ? close(false) : setOpen(true))}
+        onClick={() => (open ? close(false) : openMenu())}
         onKeyDown={(event) => {
           if (event.key === "ArrowDown" && !open) {
             event.preventDefault();
-            setOpen(true);
+            openMenu();
           }
         }}
       >

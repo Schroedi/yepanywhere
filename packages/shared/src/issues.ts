@@ -104,6 +104,13 @@ export interface IssueCredentialsResult {
 }
 export type IssueSort = "activity" | "mentioned" | "number";
 
+/** What the tracker last said about an item's state, and when it said it. */
+export interface IssueTrackerStatus {
+  state: "open" | "draft" | "merged" | "closed";
+  /** ISO time of the lookup that produced this state. */
+  checkedAt: string;
+}
+
 export interface IssueItem {
   id: string;
   key: string;
@@ -124,6 +131,11 @@ export interface IssueItem {
     /** The tracker's own summary, present only for a confirmed reference. */
     title: string | null;
   };
+  /**
+   * Open, draft, merged or closed, as last read from the tracker. Absent when
+   * the server has none to report, including every server before it was added.
+   */
+  trackerStatus?: IssueTrackerStatus;
 }
 export interface IssueEvidence {
   id: number;
@@ -183,6 +195,11 @@ export interface IssueSearchResult {
    */
   ref?: string;
   items: IssueItem[];
+  /**
+   * True while a tracker status refresh covering these items is in flight, so
+   * reading again shortly will show fresher states.
+   */
+  statusRefreshing?: boolean;
   coverage: IssueCoverage;
   nextOffset: number | null;
 }

@@ -73,6 +73,11 @@
   outline-offset: -2px;
 }
 
+/* A tight phone row gives up title width, never the glyph's. */
+.item > svg {
+  flex-shrink: 0;
+}
+
 /* The key identifies the row; the title fills whatever width is left. */
 .itemKey {
   flex-shrink: 0;
@@ -84,6 +89,11 @@
   color: var(--text-secondary);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* The state sits at the row's end, where a glance down the menu finds it. */
+.itemStatus {
+  margin-left: auto;
 }
 
 .browse {

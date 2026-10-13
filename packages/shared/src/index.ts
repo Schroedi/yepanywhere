@@ -1636,6 +1636,7 @@ export type {
   IssueCredentialsResult,
   IssueItem,
   IssueSort,
+  IssueTrackerStatus,
   IssueEvidence,
   IssueCoverage,
   IssueSearchResult,

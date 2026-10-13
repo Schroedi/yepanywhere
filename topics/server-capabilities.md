@@ -1153,6 +1153,12 @@ contract may evolve before release; released changes need the usual review. See
 [issue/session associations](issue-session-associations.md#compatibility-and-migrations)
 for exact routes, fields and source-switch behavior.
 
+The additive `trackerStatus` item field and `statusRefreshing` result flag on
+`GET /api/issues` are self-gated response fields, not a widening of ID 68.
+Every released server lacks them; a current client then shows no state badge
+and sends no new request, and older clients ignore them. The maintainer
+approved this fallback on 2026-10-13 ([tracker status](issue-session-associations.md#tracker-status)).
+
 ## Installed Machine Control compatibility
 
 **Decision (2026-10-02):** Allocate permanent optional capability 112,

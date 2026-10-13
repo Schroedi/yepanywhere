@@ -15,6 +15,7 @@ import { IssueIndexer } from "./services/issues/IssueIndexer.js";
 import { createIssueRoutes } from "./routes/issues.js";
 import { IssueCredentials } from "./services/issues/credentials.js";
 import { IssueConfirmer } from "./services/issues/confirm.js";
+import { IssueStatusRefresher } from "./services/issues/status.js";
 import { getSessionSources } from "./sessions/provider-resolution.js";
 import type { HttpBindings } from "@hono/node-server";
 import { artifactViewerAgentEnvironment } from "./artifacts/agentEnvironment.js";
@@ -1446,6 +1447,7 @@ export function createApp(options: AppOptions): AppResult {
   let retainedCollections: RetainedSessionCollections | undefined;
   let issueIndexer: IssueIndexer | undefined;
   let issueConfirmer: IssueConfirmer | undefined;
+  let issueStatuses: IssueStatusRefresher | undefined;
   const issueDisposers: Array<() => void> = [];
   let vocabularyLearning: VocabularyLearning | undefined;
   let vocabularyKeyterms: VocabularyKeyterms | undefined;
@@ -1465,6 +1467,7 @@ export function createApp(options: AppOptions): AppResult {
       for (const dispose of issueDisposers) dispose();
       await issueIndexer?.close();
       await issueConfirmer?.close();
+      await issueStatuses?.close();
       unsubscribeVocabulary?.();
       options.speechBackendRegistry?.setVocabularySource(undefined);
       await vocabularyKeyterms?.close();
@@ -2890,6 +2893,11 @@ export function createApp(options: AppOptions): AppResult {
       credentials: issueCredentials,
     });
     issueConfirmer = confirmer;
+    const statuses = new IssueStatusRefresher({
+      settings: issueSettings,
+      credentials: issueCredentials,
+    });
+    issueStatuses = statuses;
     const indexer = new IssueIndexer(issueStore, {
       settings: issueSettings,
       confirm: () => confirmer.schedule(),
@@ -2969,6 +2977,7 @@ export function createApp(options: AppOptions): AppResult {
         issueCredentials,
         confirmer,
         async () => (await catalog.read()).rows,
+        statuses,
       ),
     );
     indexer.configure();

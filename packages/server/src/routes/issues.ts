@@ -8,6 +8,7 @@ import type { ServerSettingsService } from "../services/ServerSettingsService.js
 import type { IssueIndexer } from "../services/issues/IssueIndexer.js";
 import type { IssueCredentials } from "../services/issues/credentials.js";
 import type { IssueConfirmer } from "../services/issues/confirm.js";
+import type { IssueStatusRefresher } from "../services/issues/status.js";
 import { issueUrl } from "../services/issues/extract.js";
 import { issueLookupUrl } from "@yep-anywhere/shared";
 
@@ -66,6 +67,7 @@ export function createIssueRoutes(
       createdAt?: string;
     }[]
   > = async () => [],
+  statuses?: IssueStatusRefresher,
 ) {
   const routes = new Hono();
   routes.get("/issues/settings", (c) => c.json(indexer.coverage()));
@@ -176,7 +178,7 @@ export function createIssueRoutes(
       (sort !== "key" && !supportedSorts.includes(sort as IssueSort))
     )
       return c.json({ error: "Invalid search or pagination" }, 400);
-    const items = indexer.store.list(
+    const listed = indexer.store.list(
       issueUrl(query)?.url ?? query,
       c.req.query("projectId") ?? "",
       c.req.query("sessionId") ?? "",
@@ -189,11 +191,16 @@ export function createIssueRoutes(
         identity: ref,
       },
     );
+    const { items, refreshing } = statuses?.annotate(listed) ?? {
+      items: listed,
+      refreshing: false,
+    };
     return c.json({
       supportedSorts,
       sort,
       ...(ref === undefined ? {} : { ref }),
       items,
+      ...(refreshing ? { statusRefreshing: true } : {}),
       coverage: indexer.coverage(),
       nextOffset: items.length === p.size ? p.start + p.size : null,
     });

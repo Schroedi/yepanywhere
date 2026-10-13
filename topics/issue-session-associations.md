@@ -148,8 +148,9 @@ transcript reads, durable activity copies or migrations.
 
 Each row keeps its key in the identity line, next to a colored Jira, GitHub
 issue, or GitHub PR badge; unknown GitHub types say GitHub reference. Type icons
-and labels carry the distinction without relying on color. Colors never claim
-open, closed or merged state. A title, when available and distinct from the
+and labels carry the distinction without relying on color. Type colors never
+claim open, closed or merged state; only a [tracker status](#tracker-status)
+badge does, and only when the server reported one. A title, when available and distinct from the
 key, occupies its own line. Session count and the chosen recency basis sit
 below it; number order shows session activity. Unknown times are explicit.
 
@@ -256,6 +257,32 @@ regardless of the active credential source. They mask newly entered keys and
 request no existing-password autofill or password-manager save/fill handling;
 browser-native password-saving prompts remain under browser control. The
 source inventory, rather than password dots, indicates configured credentials.
+
+## Tracker status
+
+While confirmation is on, GitHub issues and PRs on `github.com` also show the
+state GitHub last reported: a PR is Open, Draft, Merged or Closed, an issue
+Open or Closed. The badge sits at the end of each header menu row and beside
+the type badge on the Issues page, in GitHub's state hues; its tooltip says
+how long ago the state was checked. An item the server has no state for shows
+no badge. Jira status and GitHub Enterprise hosts are not covered.
+
+States are refreshed when someone looks, not on a timer. A `GET /api/issues`
+read returns the state the server holds and queues each returned item whose
+state is missing or at least five minutes old. Merged is final and never asked
+about again. A failed lookup keeps the previous state with its old check time
+and is not retried for five minutes. Every reader joins one server-wide pass,
+which asks GitHub's GraphQL API about up to 50 items per request; at most 200
+items wait, and a read past that bound gets no refresh. States live in memory,
+at most 2,000 of them: a restart forgets them and the next look asks again.
+Turning confirmation off stops lookups and drops queued ones.
+
+While a pass covering the returned items is in flight the response carries
+`statusRefreshing: true`. The session header then reads again after 1.5
+seconds within its existing bounded rechecks, and the Issues page reads again
+at most three times. Opening the header menu re-reads the list when its last
+answer is more than 30 seconds old, so a session left open shows current
+states when the menu is opened; a fresher answer opens without a request.
 
 ## Identity and evidence
 
@@ -421,6 +448,11 @@ preceding 14 days on 2026-09-10. Sparse optional capability
 - `POST /api/issues/confirm`;
 - `PATCH /api/issues/item`, `DELETE /api/issues/item`.
 
+`IssueItem.trackerStatus` and `IssueSearchResult.statusRefreshing` are
+additive, self-gated response fields outside the bit: older servers omit them
+and the client shows no state badge and makes no extra request; older clients
+ignore them. The bit's meaning is unchanged.
+
 The shared settings service persists `issueAssociations: { enabled, scope,
 recentDays }`. The bit requires ready SQLite and the installed indexing owner,
 independently of opt-in; data routes also require enablement and ordinary app
@@ -451,9 +483,10 @@ untouched. Use a newer binary or explicitly restore a consistent older backup.
 Deferred: branch/worktree inference (including YA Workstreams), Git/commit
 attribution, tracker synchronization, remote snapshots, semantic matching,
 tool-output mining and multi-server aggregation. Credentials are now used, but
-only to ask whether a reference exists: YA writes nothing to a tracker, mirrors
-no tracker state, and makes no request for a reference it has already asked
-about. This feature does not
+to ask whether a reference exists and, for GitHub items someone is looking at,
+what state it is in: YA writes nothing to a tracker, stores no tracker state
+durably, and asks about a reference again only under the
+[tracker status](#tracker-status) refresh rule. This feature does not
 close the [cold-storage startup gap](../gaps/sqlite-backed-cold-storage-startup.md),
 [commit attribution gap](../gaps/sketches/committed-change-session-attribution.md) or
 [worktree identity gap](../gaps/session-worktree-file-links.md).
