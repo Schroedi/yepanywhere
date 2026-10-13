@@ -1,8 +1,9 @@
 /**
  * Vite config for the Chrome extension client (docs/tactical/151).
  *
- * Builds the remote client into packages/browser-extension/dist, which that
- * package's assemble script completes with a manifest and background worker.
+ * Builds the remote client and the side panel into
+ * packages/browser-extension/dist; vite.config.extension-worker.ts adds the
+ * background worker and that package's assemble script the manifest.
  * Manifest V3 extension pages run only scripts packaged with the extension,
  * so the inline scripts the web entry carries become files here. The hosted
  * remote build is untouched.
@@ -73,7 +74,10 @@ export default defineConfig((env) => {
       rollupOptions: {
         ...remote.build?.rollupOptions,
         // play.html hosts public-share frames, which the extension omits.
-        input: { main: resolve(__dirname, "remote.html") },
+        input: {
+          main: resolve(__dirname, "remote.html"),
+          sidepanel: resolve(__dirname, "sidepanel.html"),
+        },
       },
     },
   };

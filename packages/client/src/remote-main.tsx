@@ -18,7 +18,7 @@
 console.log("[RemoteClient] Loading remote-main.tsx entry point");
 
 import "./lib/developmentPerformanceBootstrap";
-import { Fragment, lazy, StrictMode } from "react";
+import { Fragment, lazy, StrictMode, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 
 // Toggle to disable StrictMode for easier debugging (avoids double renders)
@@ -29,6 +29,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { PrebootComposerRetirement } from "./components/PrebootComposerRetirement";
 import { RouteModule, routeModule } from "./components/RouteModule";
 import { TooltipLayer } from "./components/ui/TooltipLayer";
+import { isExtensionPage } from "./extension/chrome";
 import { initializeContentMaxWidth } from "./hooks/useContentMaxWidth";
 import { initializeFontSize } from "./hooks/useFontSize";
 import { initializeSidebarSpacing } from "./hooks/useSidebarSpacing";
@@ -280,6 +281,12 @@ const WorkstreamsPage = lazy(() =>
   })),
 );
 
+// Only the Chrome extension's app tab mirrors saved hosts and takes
+// navigation from the side panel (docs/tactical/151).
+const ExtensionAppBridge = isExtensionPage()
+  ? lazy(() => import("./extension/AppBridge"))
+  : null;
+
 const initialRemoteModuleLoaders: Record<
   RemoteRouteModuleKey,
   () => Promise<unknown>
@@ -452,6 +459,11 @@ const app = (
     <TooltipLayer />
     <BrowserRouter basename={basename}>
       <PrebootComposerRetirement />
+      {ExtensionAppBridge && (
+        <Suspense fallback={null}>
+          <ExtensionAppBridge />
+        </Suspense>
+      )}
       <I18nProvider>
         <Routes>
           <Route

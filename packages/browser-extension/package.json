@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build:extension": "pnpm --filter @yep-anywhere/shared build && pnpm --filter @yep-anywhere/client exec vite build --config vite.config.extension.ts && node ./scripts/assemble.mjs",
+    "build:extension": "pnpm --filter @yep-anywhere/shared build && pnpm --filter @yep-anywhere/client exec vite build --config vite.config.extension.ts && pnpm --filter @yep-anywhere/client exec vite build --config vite.config.extension-worker.ts && node ./scripts/assemble.mjs",
     "assemble": "node ./scripts/assemble.mjs"
   }
 }

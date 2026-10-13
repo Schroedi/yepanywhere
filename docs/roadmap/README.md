@@ -353,10 +353,12 @@ public relay, starting with a stable store id and a relay origin allowlist
 entry. The store draft id and public key are reserved, and exact extension
 origin admission is deployed on the default public relay with 26 passing
 public upgrade/CORS probes. The client builds as an unpacked extension,
-reaches the relay and survives reloads; logged-in real-host acceptance is
-next. Shared saved hosts across extension contexts, exact issue lookup, a side
-panel for the current tab, and options with automatic lookup are designed and
-mocked up, not implemented.
+reaches the relay, survives reloads and is signed in to a real host in the
+maintainer's Chrome; the remaining logged-in checks (typing latency, reload on
+session and Settings pages) are next. A side panel listing the sessions that mention the GitHub or Jira item
+in the current tab (exact server lookup across saved hosts), automatic lookup
+with a toolbar badge on user-granted sites, and a Browser extension settings
+pane are implemented and accepted locally and in the maintainer's Chrome.
 This experiment does not displace release delivery.
 
 These remain candidates behind publishing and continuous delivery, not a

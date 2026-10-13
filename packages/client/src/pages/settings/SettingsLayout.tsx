@@ -80,6 +80,11 @@ const CATEGORY_COMPONENTS: Record<string, React.ComponentType> = {
   issues: lazy(() =>
     import("./IssueSettings").then((m) => ({ default: m.IssueSettings })),
   ),
+  "browser-extension": lazy(() =>
+    import("./BrowserExtensionSettings").then((m) => ({
+      default: m.BrowserExtensionSettings,
+    })),
+  ),
   storage: lazy(() =>
     import("./StorageSettings").then((m) => ({ default: m.StorageSettings })),
   ),

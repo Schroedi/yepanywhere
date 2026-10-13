@@ -171,6 +171,41 @@ physical-device, signing and notification delivery remain release acceptance.
 Reproducible commands and packaging limits live in
 [the iOS README](../packages/ios/README.md).
 
+## Chrome Extension Client
+
+The experimental Chrome extension (id `dgeameddpnggdeenoekpiaacfghdodch`,
+[plan 151](../docs/tactical/151-chrome-extension-client.md)) serves the full
+remote client from its own origin and adds a side panel. Other extensions
+cannot inject into or debug its pages, and its storage belongs to it alone.
+
+- **Permissions.** Installed with `sidePanel`, `storage` and `activeTab`
+  only, none of which shows an install warning. Host access is optional and
+  granted per site by the user from the side panel or Settings → Browser
+  extension; there are no content scripts, no `tabs` permission and no
+  `externally_connectable` entry.
+- **Credentials.** Saved hosts and resume sessions stay in the extension
+  origin's `localStorage` under the existing compare-and-set rules. Extension
+  pages mirror that record into `chrome.storage.local` after each write, for
+  the background worker only; the worker reads it, resumes the saved session
+  on demand, and never writes a credential. Saved logins never enter
+  `chrome.storage.sync`.
+- **Contexts.** The app tab, the side panel and the background worker each
+  connect to a host when they need it and close idle connections; nothing
+  keeps a persistent background page or offscreen document.
+- **Side panel.** Opens from the toolbar button. On a GitHub issue/PR or Jira
+  page it lists, across the active hosts, the sessions that mention that item
+  by exact identity; elsewhere it lists sessions needing input, running and
+  recent. A toolbar click makes the clicked page readable once (`activeTab`);
+  automatic lookup and the per-tab badge count need granted site access and
+  respect the optional repository/project allowlist. Opening a session
+  navigates the existing YA tab in place, or opens one.
+- **Settings.** Settings → Browser extension appears only on the extension
+  origin and stores its values in `chrome.storage.local`, not on any host.
+- **Known unavailable.** Push notifications, streamed downloads, HTML
+  artifact previews and direct (LAN) hosts. The update path is the store
+  item; until a signed-update policy exists the store account is the trust
+  root.
+
 ## Deferred Verification Setup
 
 A useful host-local regression gate would run a separate YA checkout or built

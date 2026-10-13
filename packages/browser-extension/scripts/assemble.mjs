@@ -1,5 +1,6 @@
 // Complete the client build in dist/ as a loadable Manifest V3 extension.
-// `pnpm build:extension` runs the client's extension Vite build first.
+// `pnpm build:extension` runs the client's extension and worker Vite builds
+// first.
 
 import { execFileSync } from "node:child_process";
 import { copyFile, readFile, rename, rm, writeFile } from "node:fs/promises";
@@ -35,10 +36,9 @@ await rename(resolve(dist, "remote.html"), resolve(dist, "index.html"));
 for (const name of ["sw.js", "_headers", "debug-streaming.html"]) {
   await rm(resolve(dist, name), { force: true });
 }
-await copyFile(
-  resolve(packageRoot, "src/background.js"),
-  resolve(dist, "background.js"),
-);
+for (const name of ["options.html", "options.js"]) {
+  await copyFile(resolve(packageRoot, "src", name), resolve(dist, name));
+}
 
 const manifest = {
   manifest_version: 3,
@@ -49,10 +49,18 @@ const manifest = {
   key: identity.key,
   icons: { 128: "icon-192.png" },
   action: {
-    default_title: "Open Yep Anywhere",
+    default_title: "Yep Anywhere",
     default_icon: { 128: "icon-192.png" },
   },
-  background: { service_worker: "background.js" },
+  background: { service_worker: "background.js", type: "module" },
+  side_panel: { default_path: "sidepanel.html" },
+  options_page: "options.html",
+  // None of these shows an install warning (docs/tactical/151 design rule).
+  // activeTab lets a toolbar click read that one page's address.
+  permissions: ["sidePanel", "storage", "activeTab"],
+  // Requested per site from the side panel or options, never at install:
+  // reading a granted site's addresses drives automatic lookup.
+  optional_host_permissions: ["https://*/*", "http://*/*"],
 };
 await writeFile(
   resolve(dist, "manifest.json"),

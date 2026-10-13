@@ -5,10 +5,11 @@ Topic: chrome-extension-client
 Status: in progress 2026-10-13, experimental. Store identity is reserved as
 a draft and relay origin support is deployed and publicly verified. The
 client spike (steps 3–5) builds, loads unpacked under the store id, reaches
-the public relay and survives reloads; logged-in verification (step 6) is
-next. Steps 7–10 (shared saved hosts, exact issue lookup, the side panel, and
-options with automatic lookup) were designed with the maintainer on
-2026-10-13 and have a review-only mockup; none is implemented.
+the public relay and survives reloads. Steps 7–10 (shared saved hosts, exact
+issue lookup, the side panel, and options with automatic lookup) are
+implemented and accepted locally and in the maintainer's Chrome against a
+real host (recorded under each step). Remaining step 6 checks, the deferred
+slices and publishing (step 11) are open.
 
 ## Objective
 
@@ -238,7 +239,7 @@ and `tabs` access stay out of this extension; Machine Control and
 [remote browser diagnostics](../../topics/remote-browser-diagnostics.md)
 already cover agent control of the browser.
 
-The review-only mockup for steps 9 and 10 is
+The review-only mockup for steps 9 and 10 was
 [`packages/client/mockups/extension-side-panel`](../../packages/client/mockups/extension-side-panel/README.md).
 
 ### 7 — share saved hosts across extension contexts
@@ -296,6 +297,22 @@ A background connection owner (an offscreen document or long-lived worker
 serving pages through `NativeSourceTransport` over a `chrome.runtime` port,
 as the mobile bridge does) stays deferred. Nothing here precludes it.
 
+Implemented 2026-10-13, with one deviation from the adapter design above.
+`hostStorage` and `rejectedResumeStorage` rely on synchronous
+`localStorage` compare-and-set under Web Locks, and every extension page
+already has that `localStorage`; only the background worker lacks it. So
+page storage is unchanged, and pages mirror the saved-host record into
+`chrome.storage.local` (`ya.savedHosts`) after each write
+(`lib/savedHostsWritten.ts`, `extension/savedHosts.ts`). The worker reads the
+mirror and connects with read-only credentials: `connectSavedHost` now takes
+a `SavedHostCredentials` store, and the worker's never records a session (a
+resume keeps the same session id; the page's record stays authoritative).
+Per-host keys were not needed for the same reason. `extension/hostLinks.ts`
+is the shared on-demand connection module (`withHost`), closing a connection
+after 60 s idle. Chrome hides even the extension's own tab URLs without the
+`tabs` permission, so app tabs register their tab ids in
+`chrome.storage.session` and the panel picks the most recently used one.
+
 ### 8 — exact issue lookup on the server
 
 Findings carried from the original lookup idea:
@@ -320,6 +337,17 @@ live status would save the panel a second request. This changes a server
 contract, so it needs the
 [client/server compatibility review](../../DEVELOPMENT.md#clientserver-compatibility-review)
 and maintainer approval before implementation.
+
+Implemented 2026-10-13 without a capability bit. `GET /api/issues?ref=<url>`
+matches the item whose stored identity the URL names
+(`issueLookupUrl` in `@yep-anywhere/shared`, which adds Jira
+`selectedIssue` to the canonical `issueUrl`, now shared with the server) and
+echoes the identity as `ref`; a `ref` that names nothing matches nothing.
+Clients send `q` and `ref` together and keep only `item.id === identity`
+(`api/issuesClient.ts`), so an older server that ignores `ref` still gives
+correct answers, missing only an item recorded under the other GitHub
+`issues/`/`pull/` path. Transcript extraction is unchanged. The Issues page
+keeps its inline calls; a `ref` route parameter for it remains open.
 
 ### 9 — side panel for the current tab
 
@@ -348,6 +376,19 @@ warning).
   open it when a PR page loads.
 - Verify microphone use separately: permission prompts may not appear inside a
   side panel.
+
+Implemented 2026-10-13 as `sidepanel.html` (`extension/sidepanel/`). The
+toolbar click opens the panel and records the clicked tab, whose URL
+`activeTab` makes readable, in `chrome.storage.session`; the worker clears it
+when that tab navigates. Rows show title, age, state (approval or question
+from the host's inbox, running from session activity), provider and model,
+project, host when several are active, the latest agent text and the mention
+count. The panel refreshes on tab changes and every 30 s while visible rather
+than subscribing to live activity. "New session about this" copies the item's
+URL and opens New Session on the default host with a project whose name or
+directory matches the repository; there is no composer prefill parameter yet.
+The attention view shows needs-input, running and five recent sessions. A
+`?url=` query on the panel page overrides the tab, for development and tests.
 
 ### 10 — options and automatic lookup
 
@@ -378,6 +419,38 @@ each URL change, since GitHub and Jira change URLs inside the page, and
 results are cached per issue. The badge shows a per-tab count. When no
 extension page is open, the URL change wakes the background worker, which
 connects through step 7 and lets Chrome stop it when idle.
+
+Implemented 2026-10-13 as `pages/settings/BrowserExtensionSettings.tsx`, shown
+only on the extension origin; `options.html` redirects to it under the
+default host. Narrower than designed: no per-host connection policy (every
+context connects when needed), no attention-count badge mode and no Chrome
+sync of the host list. A URL is sent to hosts when its site is granted and it
+passes the allowlist; hosts' indexed repositories are not consulted first.
+Per-site access is requested from the panel or the pane with `https://` and
+`http://` wildcards declared as `optional_host_permissions`. Chrome's
+extension details page therefore says the extension "can read and change your
+data on sites", and the toolbar button's accessible label adds "Wants access
+to this site", although no site is granted until the user grants one.
+
+Acceptance 2026-10-13:
+
+- `packages/client/scripts/extension-acceptance.mts` starts a local relay and
+  an isolated server with seeded transcripts, configures Remote Access with
+  the CLI, and drives the unpacked build in Playwright's Chromium under the
+  store id. It passes: relay sign-in from the extension origin; the saved-host
+  mirror; the panel finding exactly the two sessions for
+  `tomfitag/tomfit-api#482` and not `#4821`; opening a row in the existing app
+  tab without a reload; the attention view; settings typed one key at a time
+  (each within 100 ms) persisting to `chrome.storage.local`; and the worker
+  putting `1` on the badge of a granted PR page from the mirror alone. The
+  worker bundle needed `process.env.NODE_ENV` defined, since library mode
+  left React's reference in place and the worker failed at load.
+- In the maintainer's Chrome (kyle@tom.fit profile, Machine Control), the
+  reloaded build's side panel connected to the saved host `kylefit2` from the
+  page's saved login and listed its running sessions. On
+  `TomFitAG/aitrainer/pull/78`, a toolbar click looked the page up through
+  `activeTab` and showed the one session that mentions it, live. Automatic
+  lookup with granted site access was not exercised there.
 
 ### 11 — publish to the store
 
@@ -412,6 +485,11 @@ version is the extension's update path; until a signed-update policy exists
 - Address-bar keyword and global shortcuts.
 - Sending the current tab (selection, link, screenshot) into a session's
   composer through `activeTab`, `scripting` and `contextMenus`.
+- Left out of steps 9–10: a per-host "keep connected" policy, an
+  attention-count badge (needs a periodic wake or push), Chrome sync of the
+  host list, live activity subscriptions in the panel, a composer prefill
+  for "new session about this", Jira sites suggested from the hosts' learned
+  projects, and a `ref` route parameter for the Issues page.
 
 ## Topic ownership on landing
 
