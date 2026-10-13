@@ -20,6 +20,15 @@ IndexedDB connection or transaction that went bad and stays broken for the
 page's lifetime, or a similar long-lived client cache. Whether the download
 failure and the acknowledgement failure share one cause is not established.
 
+Possibly already addressed in part: commit `b16af8b22` (2026-10-12, "Reopen
+cached IndexedDB connections the browser closed") makes the attachment
+preview cache and recent-uploads history reopen a connection the browser
+closed, which otherwise failed every later write until reload. Restarting the
+server does not reload an open page, so the failing window may have been
+running a client loaded before that fix; the refresh would have loaded the
+fixed one. First check which client build the failing window ran. That commit
+does not touch downloads, so the "Failed to fetch" needs its own check.
+
 ## Where to look
 
 - Attachment storage: `packages/client/src/lib/attachmentPreviewCache.ts`
