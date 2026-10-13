@@ -132,6 +132,8 @@ function saveAttachmentStateToStorage(
   try {
     const previousValue = draftStorage.getItem(key);
     const nextValue = draftStorageValueForAttachments(value, previousValue);
+    // As in `persistSessionDraftEnvelope`: an unchanged value is no edit.
+    if (nextValue === previousValue) return;
     if (nextValue) {
       draftStorage.setItem(key, nextValue);
     } else {

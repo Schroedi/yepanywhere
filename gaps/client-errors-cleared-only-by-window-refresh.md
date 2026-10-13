@@ -1,67 +1,51 @@
-# Client errors persist until a window refresh: downloads fail, attachment sends stay unacknowledged
+# A file-viewer download failed with "Failed to fetch" until the window was refreshed
 
-Reported by the user on 2026-10-13 (direct observations):
+Reported by the user on 2026-10-13 (direct observations): in the file viewer,
+Download for
+`/local/graehl/trtllm-speculative/pii-software-v1.5/software-v1.5.tgz`
+(19.3 MB; the file exists, and the viewer showed its type and size) failed
+with the toast "Could not download software-v1.5.tgz: Failed to fetch".
+Refreshing the browser window cleared it; a full restart of YA and its provider
+hosts did not, so the faulty state lives in the client page.
 
-- **Download failure.** In the file viewer, Download for
-  `/local/graehl/trtllm-speculative/pii-software-v1.5/software-v1.5.tgz`
-  (19.3 MB; the file exists, and the viewer showed its type and size) failed
-  with the toast "Could not download software-v1.5.tgz: Failed to fetch".
-- **Unacknowledged sends.** In the same period, a message sent with an
-  uploaded attachment was never shown as acknowledged, although it plainly
-  arrived (the receiving agent acted on it). The user describes the error as
-  the same sort of database error. Cancelling the send then left a stale
-  "unsent draft" for a message that had already been delivered.
-- **What cleared it.** Refreshing the browser window cleared the errors. A
-  full restart of YA and its provider hosts did not, so the faulty state lives
-  in the client page, not the server.
+The same report had two companions, now resolved:
 
-Working hypothesis (user's, unverified): client-side storage, such as an
-IndexedDB connection or transaction that went bad and stays broken for the
-page's lifetime, or a similar long-lived client cache. Whether the download
-failure and the acknowledgement failure share one cause is not established.
+- Sends with an attachment stayed in the composer after delivery. That was
+  two tabs of one session echoing attachment state through shared storage
+  (see [draft synchronization](../topics/draft-synchronization.md), sibling
+  tabs); it reproduces on localhost and over the relay, and is fixed with a
+  regression check.
+- The "database" error toasts were the recent-uploads store failing on a
+  connection the browser had closed, fixed by `b16af8b22`.
 
-Possibly already addressed in part: commit `b16af8b22` (2026-10-12, "Reopen
-cached IndexedDB connections the browser closed") makes the attachment
-preview cache and recent-uploads history reopen a connection the browser
-closed, which otherwise failed every later write until reload. Restarting the
-server does not reload an open page, so the failing window may have been
-running a client loaded before that fix; the refresh would have loaded the
-fixed one. First check which client build the failing window ran. That commit
-does not touch downloads, so the "Failed to fetch" needs its own check.
+## What is known about the download
 
-## Where to look
+"Failed to fetch" is the message of a rejected browser `fetch`, and the toast
+comes only from `useSaveResourceDownload`
+(`packages/client/src/components/FileResourceActions.tsx`) when its transport
+fetch rejects. Checked 2026-10-13 against current code, neither ordinary
+transport should produce it:
 
-- Attachment storage: `packages/client/src/lib/attachmentPreviewCache.ts`
-  (IndexedDB). Upload-attached sends touch it; a failing write or read there
-  could block the delivery bookkeeping.
-- Delivery and draft reconciliation: `packages/client/src/lib/deliveryState.ts`,
-  `packages/client/src/lib/draftSendReconcile.ts`,
-  `packages/client/src/components/DraftSyncNotice.tsx`. A send must not
-  remain "unsent" once the server has accepted it, and cancelling it must not
-  resurrect a delivered draft.
-- Downloads: `packages/client/src/components/FileResourceActions.tsx`
-  (`useSaveResourceDownload`, the transport-backed Blob loader) and
-  `packages/client/src/components/FilePathLink.tsx`.
-- Client diagnostics: `packages/client/src/lib/diagnostics/` (IndexedDB-backed
-  log collector) may hold the error from that window.
+- On a direct (same-origin) client the viewer hands `directUrl` to the
+  browser's own download, so no toast is possible.
+- On the relay client, `fetchStream` and `fetchResponse` travel inside the
+  relay socket (`RelayProtocol`), and the relay mux pool's one browser `fetch`
+  (its health discovery) swallows its errors.
 
-Related open gaps: [session-path download start delay](session-path-download-start-delay.md)
-(same project's files, a different symptom),
-[new-session draft clear](new-session-draft-clear-captures-after-submission.md)
-and [browser upload interruption](browser-upload-interruption-unhandled-rejection.md).
+So which window, transport and code path produced the toast is unknown. The
+streamed-download handoff to the service worker
+(`packages/client/src/lib/streamedDownload.ts`, `public/sw.js`) holds
+page-lifetime state and is the next candidate to check.
 
 ## Discriminating checks
 
-When it recurs, before refreshing: capture the browser console and the
-IndexedDB error names (`InvalidStateError`, `QuotaExceededError`,
-`UnknownError`, a closed or blocked connection after a `versionchange`), the
-failing request in the network panel for the download, and the client
-diagnostics log. Then establish whether one stuck storage handle is shared by
-the download path and delivery state. The repair belongs in the owning layer:
-reopen or fail clearly on a broken handle, and never leave a server-accepted
-send unacknowledged.
+When it recurs, before refreshing: note the window's URL (direct or
+ya.graehl.org), capture the browser console and the failing request in the
+network panel, and whether a service worker controls the page
+(`navigator.serviceWorker.controller`). Client diagnostics
+(`packages/client/src/lib/diagnostics/`) were not uploading on 2026-10-13, so
+enable them if the failure needs to be caught unattended.
 
-Not fixed here: noticed while delivering PII submission files through the
-file viewer; another agent will take it (user).
+Related open gap: [session-path download start delay](session-path-download-start-delay.md).
 
 Found 2026-10-13 while downloading release archives through YA's file viewer.
