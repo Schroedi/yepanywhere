@@ -2,16 +2,17 @@
 
 Topic: chrome-extension-client
 
-Status: in progress 2026-10-13, experimental. Store identity is reserved as
-a draft and relay origin support is deployed and publicly verified. The
-client spike (steps 3–5) builds, loads unpacked under the store id, reaches
+Status: in progress 2026-10-13, experimental. The first public store release
+is pending review and relay origin support is deployed and publicly verified.
+The client spike (steps 3–5) builds, loads unpacked under the store id, reaches
 the public relay and survives reloads. Steps 7–10 (shared saved hosts, exact
 issue lookup, the side panel, and options with automatic lookup) are
 implemented and accepted locally and in the maintainer's Chrome against a
 real host (recorded under each step). Remaining step 6 checks, the deferred
-slices and store submission (step 11) are open. Publication preparation is
+slices and store approval (step 11) are open. Publication preparation is
 implemented: independent extension version 0.1.1, audited upload ZIP, public
-listing assets and CI draft-release packaging.
+listing assets and CI draft-release packaging. Version 0.1.1 was submitted for
+public review with automatic publication after approval.
 
 ## Objective
 
@@ -88,10 +89,12 @@ Recorded 2026-10-13 against `b16af8b22`.
 ### 1 — register the store item and pin the extension id
 
 Completed 2026-10-13 using Machine Control in the signed-in Chrome profile.
-The **Yep Anywhere** item is a draft, version `0.0.1`, with extension id
+The **Yep Anywhere** item was registered as a draft, version `0.0.1`, with
+extension id
 `dgeameddpnggdeenoekpiaacfghdodch`. A minimal Manifest V3 registration ZIP
-requests no permissions and displays an implementation-pending page. It has
-not been submitted for review or published.
+requests no permissions and displays an implementation-pending page. That
+seed reserved the identity before the client release. Step 11 records the
+subsequent real-client submission.
 
 The store public key is recorded in
 [`identity.json`](../distribution/chrome-extension/identity.json). Its SHA-256
@@ -487,8 +490,11 @@ for 0.1.1 passes in [Chrome Extension CI
 exact ZIP and badge fixtures pass all 35 keys, at 11.1/11.3 ms maxima, with
 browser restart/resume. The workflow produced the draft release,
 ZIP/checksum/source record, listing artifact and acceptance captures. Web
-Store submission/publication
-remains the maintainer's final step.
+Store submission was authorized and completed on 2026-10-13: the exact 0.1.1
+CI ZIP replaced the seed, listing/assets/privacy fields and restricted reviewer
+access were saved, and distribution is public and free in all regions. The
+console confirmed submission and reports **Pending review**. Automatic
+publication after approval is enabled; Google approval remains outstanding.
 
 The maintainer selected public visibility, independent three-part extension
 versions and CI upload ZIPs. Publishing a new version is the extension's

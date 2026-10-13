@@ -1,7 +1,9 @@
-# Chrome Web Store preparation
+# Chrome Web Store publication
 
-Version **0.1.1** is prepared for a **public** listing. The existing draft item
-is `dgeameddpnggdeenoekpiaacfghdodch`; [identity.json](identity.json) holds its
+Version **0.1.1** was submitted on **2026-10-13** for a **public** listing in
+all regions, with automatic publication after approval. The store reports
+**Pending review**; it is not yet published. The item is
+`dgeameddpnggdeenoekpiaacfghdodch`; [identity.json](identity.json) holds its
 public key. Account links and reviewer credentials belong in the private
 `dotfiles/runbooks/yepanywhere-chrome-extension.md` inventory.
 
@@ -95,14 +97,24 @@ through its public TLS relay from a fresh, subsequently removed profile.
 Saved login also survives a complete browser restart. The prior 0.1.0 tag
 failed a fixture focus check and produced no release; use 0.1.1.
 
-## Console preparation
+## Store submission
 
-Use [listing.en-US.txt](listing.en-US.txt), upload the required icon, small
-promotion and screenshots (side panel first), and apply the prepared privacy
-fields. Put the existing isolated evaluation-server login in the console's
-restricted reviewer instructions, never in public artifacts. Verify that host
-before review submission. Set distribution to **Public**, with publication
-deferred until review completes. This preparation does not submit the item or
-publish it in the Chrome Web Store.
+The verified CI ZIP above replaced the registration seed. The console has
+saved [English listing](listing.en-US.txt), the icon, both promotion images,
+and all four screenshots in the documented order (side panel first). The
+official site is `yepanywhere.com`, with the homepage and GitHub support links.
+Distribution is **Public**, **Free of charge**, and **All regions**.
+
+The privacy fields and six data categories are saved. The console exposes
+justifications for the three install permissions; the optional per-site host
+access explanation is included with `activeTab`. The existing isolated
+evaluation-server login and owner-login steps are saved in the restricted
+Test instructions fields, never in public artifacts. Login was rechecked with
+the exact CI ZIP before submission. Keep that server available during review.
+
+The maintainer authorized submission, and the console confirmed it on
+2026-10-13 with **Publish automatically after review** enabled. Approval is
+still pending. For later updates, refresh the package, listing and disclosures,
+verify reviewer access, then submit the new extension version.
 
 Asset requirements were checked against [Chrome's image specifications](https://developer.chrome.com/docs/webstore/images): 128px icon, required 440×280 tile, optional 1400×560 marquee, and full-bleed 1280×800 screenshots.

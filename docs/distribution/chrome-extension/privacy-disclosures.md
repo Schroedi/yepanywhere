@@ -1,7 +1,9 @@
 # Chrome Web Store privacy fields
 
-These are prepared answers for the actual 0.1.1 package, not saved console
-state. Review them against the final package when uploading.
+These answers were saved for the actual 0.1.1 package and submitted on
+2026-10-13. Review them against each later package before uploading. The console
+has fields for the three install permissions; the optional per-site host-access
+explanation is included in the `activeTab` justification.
 
 **Single purpose:** Let users supervise coding-agent sessions on their own Yep
 Anywhere servers and find the sessions related to a GitHub issue, pull request
@@ -39,9 +41,10 @@ Do not characterize encrypted relay processing as an absence of all metadata.
 
 **Reviewer access:** Use the existing isolated Yep Anywhere evaluation server
 and sample account, recorded privately in the dotfiles `machines/laptop/yep-review/README.md` runbook.
-Put its relay username, SRP username/password and steps in the console's
-restricted Test instructions field, never in this repository or the listing.
-Explain how to open the app from the panel, add the supplied host, sign in,
-view the sample project, and look up an indexed sample issue. A reviewer does
+Put its server name and password in the console's restricted Username/Password
+fields, and its relay URL and steps in Additional instructions, never in this
+repository or the listing. Explain how to choose **Open Yep Anywhere** from the
+panel, use the owner login (limited-user username empty), view a sample project
+and session, and find it in the panel's Recent sessions. A reviewer does
 not need a paid provider account. Verify that host's availability before review
 submission; do not offer the short-lived screenshot fixture as reviewer access.

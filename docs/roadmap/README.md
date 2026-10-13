@@ -363,8 +363,11 @@ pane are implemented and accepted locally and in the maintainer's Chrome.
 A public 0.1.1 listing, actual screenshots, privacy disclosures and an audited
 CI ZIP/draft-release workflow are prepared. [Chrome Extension
 CI](https://github.com/kzahel/yepanywhere/actions/runs/38405189923) passed the
-actual 0.1.1 ZIP and produced its draft release; manual Web Store upload and
-submission remain next.
+actual 0.1.1 ZIP and produced its draft release. The exact ZIP, listing, assets,
+privacy disclosures and restricted reviewer access were saved in the Web Store
+and submitted on 2026-10-13. Public distribution covers all regions, with
+automatic publication after approval. The store reports **Pending review**;
+Google approval remains outstanding.
 This experiment does not displace release delivery.
 
 These remain candidates behind publishing and continuous delivery, not a
