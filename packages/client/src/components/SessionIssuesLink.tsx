@@ -2,6 +2,7 @@ import type { IssueItem, IssueSearchResult } from "@yep-anywhere/shared";
 import {
   useCallback,
   useEffect,
+  useId,
   useLayoutEffect,
   useRef,
   useState,
@@ -30,6 +31,8 @@ const INDEXING_MS = 4000;
 const RECHECK_MS = [2000, 5000, 10000];
 /** A header menu stays scannable; the rest stay one click away on the page. */
 const MENU_ROWS = 12;
+/** Each section keeps this many rows however long the other one is. */
+const SECTION_ROWS = MENU_ROWS / 2;
 /** Keep the menu off both screen edges on a phone. */
 const MENU_MARGIN_PX = 8;
 
@@ -57,6 +60,9 @@ function useSessionIssues(
   const { transport } = useCurrentSourceRuntime();
   const [known, setKnown] = useState<KnownIssues | null>(null);
   const loaded = useRef<{ transport: unknown; key: string } | null>(null);
+  // The transport whose server advertised mention order; until then the page
+  // arrives in key order and is reordered here.
+  const ordered = useRef<unknown>(null);
   // biome-ignore lint/correctness/useExhaustiveDependencies: messageCount is the trigger for a fresh count, not an input to the request
   useEffect(() => {
     if (!enabled) {
@@ -77,14 +83,22 @@ function useSessionIssues(
     const load = async () => {
       let active = false;
       try {
+        const sorted = ordered.current === transport;
         const result = await transport.fetch<IssueSearchResult>(
           `/issues?${new URLSearchParams({
             sessionId,
             projectId,
             limit: String(COUNT_PAGE),
+            ...(sorted ? { sort: "mentioned" } : {}),
           })}`,
         );
         if (disposed) return;
+        if (!sorted && result.supportedSorts?.includes("mentioned")) {
+          ordered.current = transport;
+          // A full key-ordered page can omit the latest references, so ask
+          // again in mention order rather than show it.
+          if (result.nextOffset !== null) return void load();
+        }
         active = result.coverage.active;
         setKnown({
           items: result.items,
@@ -113,6 +127,35 @@ function useSessionIssues(
     };
   }, [enabled, messageCount, projectId, sessionId, transport]);
   return known;
+}
+
+/** Latest mention first; unknown times keep the server's order, last. */
+function byLastMention(items: IssueItem[]): IssueItem[] {
+  const time = (item: IssueItem) =>
+    item.lastMentionAt ? Date.parse(item.lastMentionAt) || 0 : 0;
+  return items
+    .map((item, index) => ({ item, index, at: time(item) }))
+    .sort((a, b) => b.at - a.at || a.index - b.index)
+    .map(({ item }) => item);
+}
+
+/**
+ * Pull requests first, since they are usually what the session produced, then
+ * everything else. Each section keeps half the rows and lends what it does not
+ * use to the other, so a long ticket list cannot push every PR out of view.
+ */
+function menuSections(items: IssueItem[]) {
+  const ordered = byLastMention(items);
+  const prs = ordered.filter((item) => item.kind === "pr");
+  const others = ordered.filter((item) => item.kind !== "pr");
+  const prRows = Math.min(
+    prs.length,
+    Math.max(SECTION_ROWS, MENU_ROWS - others.length),
+  );
+  return {
+    prs: prs.slice(0, prRows),
+    others: others.slice(0, MENU_ROWS - prRows),
+  };
 }
 
 const KIND_LABELS = {
@@ -213,8 +256,11 @@ export function SessionIssuesLink({
   const [position, setPosition] = useState<{ top: number; left: number }>();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const rows = known?.items.slice(0, MENU_ROWS) ?? [];
-  const hidden = known ? known.count - rows.length : 0;
+  const sections = menuSections(known?.items ?? []);
+  const shown = sections.prs.length + sections.others.length;
+  const hidden = known ? known.count - shown : 0;
+  const prHeading = useId();
+  const otherHeading = useId();
 
   const close = useCallback((focusTrigger: boolean) => {
     setOpen(false);
@@ -244,7 +290,7 @@ export function SessionIssuesLink({
         ),
       ),
     });
-  }, [open, rows.length, hidden]);
+  }, [open, shown, hidden]);
 
   // The first row takes focus so the menu is usable from the keyboard even
   // though the portal sits outside the header's tab order.
@@ -326,17 +372,45 @@ export function SessionIssuesLink({
             else if (event.key === "Tab") close(false);
           }}
         >
-          {rows.length === 0 && (
+          {shown === 0 ? (
             <p className={styles.empty}>{t("issuesMenuEmpty")}</p>
+          ) : (
+            <>
+              <div role="group" aria-labelledby={prHeading}>
+                <p id={prHeading} className={styles.section}>
+                  {t("issuesMenuPullRequests")}
+                </p>
+                {sections.prs.length === 0 && (
+                  <p className={styles.empty}>
+                    {t("issuesMenuNoPullRequests")}
+                  </p>
+                )}
+                {sections.prs.map((item) => (
+                  <IssueMenuRow
+                    key={item.id}
+                    item={item}
+                    fallbackHref={browseHref}
+                    onSelect={() => close(false)}
+                  />
+                ))}
+              </div>
+              {sections.others.length > 0 && (
+                <div role="group" aria-labelledby={otherHeading}>
+                  <p id={otherHeading} className={styles.section}>
+                    {t("issuesMenuIssues")}
+                  </p>
+                  {sections.others.map((item) => (
+                    <IssueMenuRow
+                      key={item.id}
+                      item={item}
+                      fallbackHref={browseHref}
+                      onSelect={() => close(false)}
+                    />
+                  ))}
+                </div>
+              )}
+            </>
           )}
-          {rows.map((item) => (
-            <IssueMenuRow
-              key={item.id}
-              item={item}
-              fallbackHref={browseHref}
-              onSelect={() => close(false)}
-            />
-          ))}
           {hidden > 0 && (
             <p className={styles.more}>
               {t("issuesMenuMore", { count: hidden })}

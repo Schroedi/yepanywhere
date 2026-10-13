@@ -6,7 +6,7 @@
  * apart from rows a later reader would produce from the same text. Bump it when
  * a change here would give a different answer for text already captured.
  */
-export const EXTRACTOR_VERSION = 1;
+export const EXTRACTOR_VERSION = 2;
 
 export interface IssueReference {
   key: string;
@@ -75,6 +75,25 @@ export function issueUrl(
   return null;
 }
 
+/**
+ * Whether a link label only names its item — `#42`, `repo#42`, `PR #42`, the
+ * key itself — and so says nothing a title should. Titles saved before this
+ * rule are read through it too, because the first observed title is kept.
+ */
+export function isReferenceLabel(label: string, key: string): boolean {
+  const name = label
+    .replace(/[`*_]/g, "")
+    .replace(/^(?:pr|pull request|issue)\s*/i, "")
+    .trim()
+    .toLowerCase();
+  const own = key.toLowerCase();
+  return (
+    name === own ||
+    own.endsWith(`/${name}`) ||
+    (name.startsWith("#") && own.endsWith(name))
+  );
+}
+
 export interface ExtractOptions {
   /**
    * Uppercase project parts to ignore when a Jira key appears without a URL.
@@ -103,11 +122,15 @@ export function extractIssueReferences(
     if (!parsed) continue;
     const prefix = text.slice(Math.max(0, start - 520), start);
     const label = prefix.match(/\[([^\]\n]{1,512})\]\($/)?.[1];
+    // A link into the item (a changed file, a review comment) is labelled for
+    // that part, not for the item.
+    const part = /\/(?:issues|pull)\/[1-9]\d*\/.|#./.test(value);
     refs.push({
       ...parsed,
       start,
       end: start + value.length,
-      title: label && label !== parsed.key ? label : null,
+      title:
+        label && !part && !isReferenceLabel(label, parsed.key) ? label : null,
     });
   }
   const enclosed = (start: number) =>

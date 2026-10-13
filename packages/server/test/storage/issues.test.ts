@@ -48,7 +48,7 @@ afterEach(() => {
 describe("issue reference extraction", () => {
   it("discovers keys and URLs without a registry, preserving repeat occurrences", () => {
     const refs = extractIssueReferences(
-      "ABC-123 then ABC-123 and [Fix the crash](https://github.com/Owner/Repo/pull/42/files?token=secret#diff)",
+      "ABC-123 then ABC-123 and [Fix the crash](https://github.com/Owner/Repo/pull/42?token=secret)",
     );
     expect(refs.map((r) => r.key)).toEqual([
       "owner/repo#42",
@@ -60,6 +60,21 @@ describe("issue reference extraction", () => {
       url: "https://github.com/owner/repo/pull/42",
       kind: "pr",
     });
+  });
+  it("takes no title from a label that only names the item or a part of it", () => {
+    const pr = "https://github.com/Owner/Repo/pull/42";
+    const titles = (label: string, url = pr) =>
+      extractIssueReferences(`[${label}](${url})`)[0]?.title;
+    for (const label of ["#42", "Repo#42", "`owner/repo#42`", "PR #42"])
+      expect(titles(label)).toBeNull();
+    expect(titles("gate.sh:82", `${pr}/files#diff-1R82`)).toBeNull();
+    expect(titles("this comment", `${pr}#issuecomment-7`)).toBeNull();
+    expect(titles("#4200")).toBe("#4200");
+    expect(
+      extractIssueReferences(
+        "[**ABC-1 — Login fails**](https://t.test/browse/ABC-1)",
+      )[0]?.title,
+    ).toBe("**ABC-1 — Login fails**");
   });
   it("ignores prose that is shaped like a bare Jira key", () => {
     const text =
@@ -279,6 +294,22 @@ describe("durable issue evidence", () => {
     expect(store.title(item.id, null)).toBe("Fix 100%");
     store.delete(item.id);
     expect(store.list()).toHaveLength(1);
+  });
+  it("reads a title saved under earlier label rules as absent, unless a user chose it", () => {
+    const { store, service } = fixture();
+    store.capture(
+      { sessionId: "s", projectId: "p" },
+      { id: "m", text: "https://github.com/a/b/pull/7" },
+    );
+    // Version 1 kept `[#7](…)` labels, and the first observed title is kept.
+    service
+      .getDatabase()
+      .prepare("UPDATE external_issues SET title='#7'")
+      .run();
+    const item = store.list()[0]!;
+    expect(item.title).toBeNull();
+    store.title(item.id, "#7");
+    expect(store.list()[0]?.title).toBe("#7");
   });
   it("unions remapped sessions and preserves the latest decision", () => {
     const { store } = fixture();

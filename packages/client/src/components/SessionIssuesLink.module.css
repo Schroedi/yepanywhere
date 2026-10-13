@@ -93,6 +93,17 @@
   color: var(--text-secondary);
 }
 
+/* Section headings label their rows without competing with them. */
+.section {
+  margin: 0;
+  padding: 8px 8px 2px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .empty,
 .more {
   margin: 0;

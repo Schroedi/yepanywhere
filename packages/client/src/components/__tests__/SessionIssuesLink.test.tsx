@@ -170,6 +170,51 @@ describe("SessionIssuesLink", () => {
     );
   });
 
+  it("lists pull requests first and keeps them in view past a long ticket list", async () => {
+    const at = (minute: number) =>
+      `2026-10-13T08:${String(minute).padStart(2, "0")}:00.000Z`;
+    state.fetch.mockResolvedValue({
+      items: [
+        ...Array.from({ length: 18 }, (_, index) =>
+          item(index, { lastMentionAt: at(index) }),
+        ),
+        item(90, { kind: "pr", key: "o/r#90", lastMentionAt: at(5) }),
+        item(91, { kind: "pr", key: "o/r#91", lastMentionAt: null }),
+        item(92, { kind: "pr", key: "o/r#92", lastMentionAt: at(30) }),
+      ],
+      coverage: { settings: {}, active: false, error: null, counts: [] },
+      nextOffset: null,
+    });
+    renderLink();
+    await openMenu("21 issues and pull requests associated with this session");
+    const [prs, issues] = screen.getAllByRole("group");
+    expect(prs!.getAttribute("aria-labelledby")).toBe(
+      screen.getByText("Pull requests").id,
+    );
+    const keys = (group: HTMLElement) =>
+      Array.from(group.querySelectorAll('[role="menuitem"]')).map(
+        (row) => row.querySelector("span")?.textContent,
+      );
+    expect(keys(prs!)).toEqual(["o/r#92", "o/r#90", "o/r#91"]);
+    // The tickets fill what the PRs leave, newest mention first.
+    expect(keys(issues!)).toEqual(
+      [17, 16, 15, 14, 13, 12, 11, 10, 9].map((n) => `AUTOTEST-${n}`),
+    );
+    expect(screen.getByText("9 more in the full list")).toBeTruthy();
+  });
+
+  it("asks again in mention order when a key-ordered page is incomplete", async () => {
+    state.fetch.mockResolvedValue({
+      ...result(100, true),
+      supportedSorts: ["activity", "mentioned", "number"],
+    });
+    renderLink();
+    await waitFor(() => expect(state.fetch).toHaveBeenCalledTimes(2));
+    expect(state.fetch).toHaveBeenLastCalledWith(
+      "/issues?sessionId=s1&projectId=p1&limit=100&sort=mentioned",
+    );
+  });
+
   it("keeps the menu reachable when nothing is associated", async () => {
     state.fetch.mockResolvedValue(result(0));
     renderLink();

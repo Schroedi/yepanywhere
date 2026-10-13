@@ -8,6 +8,7 @@ import type { VisibleMessageText } from "../../sessions/message-text.js";
 import {
   EXTRACTOR_VERSION,
   extractIssueReferences,
+  isReferenceLabel,
   issueUrl,
   issueExcerpt,
 } from "./extract.js";
@@ -748,10 +749,10 @@ export class IssueStore {
       WHERE ${this.visibleEvidence()} AND (?=1 OR (e.suppressed=0 AND COALESCE(l.state,'discovered')!='dismissed'))
       AND (?='' OR COALESCE(j.project_id,e.project_id)=?) AND (?='' OR e.session_id=?)
     ), items AS (
-      SELECT i.id,i.ref_key,COALESCE(i.manual_title,i.title) AS title,i.url,i.provider,i.kind,COUNT(DISTINCT e.session_id) AS count,NULL AS context,MAX(e.activity) AS last_activity,MAX(julianday(e.source_time)) AS last_mention
+      SELECT i.id,i.ref_key,COALESCE(i.manual_title,i.title) AS title,i.url,i.provider,i.kind,COUNT(DISTINCT e.session_id) AS count,NULL AS context,MAX(e.activity) AS last_activity,MAX(julianday(e.source_time)) AS last_mention,i.manual_title IS NOT NULL AS manual
       FROM external_issues i JOIN observations e ON e.issue_id=i.id GROUP BY i.id
       UNION ALL
-      SELECT NULL,ref_key,NULL,NULL,provider,'unknown',COUNT(DISTINCT session_id),current_project,MAX(activity),MAX(julianday(source_time)) FROM observations WHERE link_id IS NULL GROUP BY current_project,provider,ref_key
+      SELECT NULL,ref_key,NULL,NULL,provider,'unknown',COUNT(DISTINCT session_id),current_project,MAX(activity),MAX(julianday(source_time)),0 FROM observations WHERE link_id IS NULL GROUP BY current_project,provider,ref_key
     ), numbered AS (
       SELECT *,CASE WHEN provider='github' THEN instr(ref_key,'#')+1 ELSE instr(ref_key,'-')+1 END AS number_start FROM items
     ) SELECT items.*,
@@ -783,7 +784,12 @@ export class IssueStore {
         ? String(row.id)
         : unresolvedId(String(row.context), String(row.ref_key)),
       key: String(row.ref_key),
-      title: row.title as string | null,
+      title:
+        typeof row.title === "string" &&
+        !row.manual &&
+        isReferenceLabel(row.title, String(row.ref_key))
+          ? null
+          : (row.title as string | null),
       url: row.url as string | null,
       provider: String(row.provider),
       kind: String(row.kind),

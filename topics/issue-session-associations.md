@@ -50,7 +50,12 @@ retained as inactive candidates, without creating an issue/session link or
 appearing in search or session counts. **Match unknown ticket keys** is an
 explicit opt-in that exposes these candidates as references with **Issue link
 unknown**. Their issue menu accepts a matching full URL through **Add issue link**. Markdown labels
-supply observed titles; a user can override a resolved item's title. Discovery
+supply observed titles; a user can override a resolved item's title. A label
+that only names the item (`#42`, `repo#42`, `PR #42`, the key) is not a title,
+and neither is the label of a link into part of the item, such as a changed
+file or a comment anchor. Because the first observed title is kept, titles
+saved under the earlier rules are read through the same test; a manual title
+is shown as chosen. Discovery
 itself makes no tracker request and changes no external issue; the only
 outbound requests come from the opt-in confirmation step below.
 
@@ -64,9 +69,16 @@ The session header button carries the count of that session's undismissed
 associations, read from one page of the same search route, so more than a full
 page reads as `100+`. That count also says in advance how many rows the button
 opens: pressing it opens a menu built from the page already read, so the menu
-costs no further request and the session stays on screen. At most twelve
-references are listed, newest page order, with a note naming how many more the
-full list holds and a final row that opens that list filtered to this session.
+costs no further request and the session stays on screen. The menu has a
+**Pull requests** section first, shown whenever the session has any
+association and saying so when none is a PR, then **Issues** for everything
+else. Each section lists its latest mention first, unknown times last. At most
+twelve references are listed; each section keeps six rows and lends the rest to
+the other, so a long ticket list cannot push every PR out of view. A note names
+how many more the full list holds, and a final row opens that list filtered to
+this session. The header first asks without a sort; a server advertising
+**Recently mentioned** is asked in that order from then on, immediately when
+the key-ordered page was full, so the page it reads holds the latest mentions.
 Each row links at its tracker URL when one is known and at the same filtered
 list otherwise, so a left click follows the reference and a middle or
 modifier click opens it in a new tab. Hovering or focusing a row describes it
