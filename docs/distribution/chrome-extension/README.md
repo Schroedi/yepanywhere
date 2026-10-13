@@ -1,6 +1,6 @@
 # Chrome Web Store preparation
 
-Version **0.1.0** is prepared for a **public** listing. The existing draft item
+Version **0.1.1** is prepared for a **public** listing. The existing draft item
 is `dgeameddpnggdeenoekpiaacfghdodch`; [identity.json](identity.json) holds its
 public key. Account links and reviewer credentials belong in the private
 `dotfiles/runbooks/yepanywhere-chrome-extension.md` inventory.
@@ -16,7 +16,7 @@ pnpm --filter @yep-anywhere/browser-extension acceptance
 
 The build includes the complete client, worker and panel. Assembly uses the
 extension package's own version, independent of server release tags. It creates
-`packages/browser-extension/release/yep-anywhere-chrome-0.1.0.zip`, a checksum
+`packages/browser-extension/release/yep-anywhere-chrome-0.1.1.zip`, a checksum
 and `build.json` containing the source revision, dirty-state flag, extension id
 and file count. The manifest is at the ZIP root. Source maps, inline/remote
 HTML scripts, missing entries, wrong icon sizes, an incorrect store key and
@@ -25,7 +25,7 @@ Python 3 (`python3`, or `py -3` on Windows); CI runs packaging on Ubuntu.
 
 [Chrome Extension CI](../../../.github/workflows/browser-extension.yml) can be
 run manually from Actions to produce a package and listing artifact. Pushing
-`extension-v0.1.0` (matching package.json) also produces a **draft GitHub
+`extension-v0.1.1` (matching package.json) also produces a **draft GitHub
 release**, attaching the checked ZIP, checksum and build record. The workflow
 extracts the actual upload ZIP and runs login, exact lookup, in-place session
 opening, reload, saved-login browser restart, settings, sequential typing and

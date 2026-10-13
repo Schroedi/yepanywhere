@@ -1,6 +1,6 @@
 # Chrome Web Store privacy fields
 
-These are prepared answers for the actual 0.1.0 package, not saved console
+These are prepared answers for the actual 0.1.1 package, not saved console
 state. Review them against the final package when uploading.
 
 **Single purpose:** Let users supervise coding-agent sessions on their own Yep
@@ -21,12 +21,13 @@ release. No remotely hosted script or `eval` permission is requested.
 
 **Data categories used:** Personally identifiable information (host/login
 identifiers), authentication information (login/resume material), web history
-(selected issue/ticket URLs), user activity (server actions), and website
+(selected issue/ticket URLs), user activity (server actions), personal communications (submitted agent
+conversations), and website
 content (session transcripts, prompts and displayed project information).
 Select these categories conservatively: local use and user-directed server
 processing are disclosed, even though there is no analytics collection.
-Health, financial/payment, location and personal communications are not
-separately collected by the extension. Users control arbitrary prompt content.
+Health, financial/payment and location data are not independently collected
+by the extension. Users control arbitrary prompt content.
 
 **Certifications:** Data is not sold or transferred for advertising; it is used
 only for the extension's single purpose and is not used for creditworthiness or

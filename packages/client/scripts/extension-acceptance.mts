@@ -574,6 +574,10 @@ Review restart persistence, provider-native resume and archive behavior on suppo
     await app.goto(
       `${origin}/-/relay/${USERNAME}/projects/${Buffer.from(project).toString("base64url")}/sessions/accept-impl`,
     );
+    // The badge scenario opened a site tab. Input acceptance is a foreground
+    // interaction; hidden tabs deliberately throttle requestAnimationFrame.
+    await app.bringToFront();
+    expect(await app.evaluate(() => document.visibilityState)).toBe("visible");
     await expect(app.locator("[data-composer-input]")).toBeVisible();
     // Exercise real sequential input while filesystem-backed transcript
     // updates travel through the server and encrypted relay into this page.
@@ -633,6 +637,13 @@ Review restart persistence, provider-native resume and archive behavior on suppo
         await composer.press(character === " " ? "Space" : character);
         typed += character;
         await expect(composer).toHaveValue(typed, { timeout: 100 });
+        await app.waitForFunction(
+          (count) =>
+            (globalThis as unknown as { extensionInputLatency: number[] })
+              .extensionInputLatency.length >= count,
+          typed.length,
+          { timeout: 100 },
+        );
       }
       await expect(
         app.getByText(

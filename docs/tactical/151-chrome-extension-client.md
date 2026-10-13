@@ -10,7 +10,7 @@ issue lookup, the side panel, and options with automatic lookup) are
 implemented and accepted locally and in the maintainer's Chrome against a
 real host (recorded under each step). Remaining step 6 checks, the deferred
 slices and store submission (step 11) are open. Publication preparation is
-implemented: independent extension version 0.1.0, audited upload ZIP, public
+implemented: independent extension version 0.1.1, audited upload ZIP, public
 listing assets and CI draft-release packaging.
 
 ## Objective
@@ -459,7 +459,7 @@ Acceptance 2026-10-13:
 Publication preparation implemented 2026-10-13 for a public listing.
 [Store preparation](../distribution/chrome-extension/README.md) owns upload
 commands, independent extension versioning, assets, listing/privacy copy and
-reviewer-access instructions. `extension-v0.1.0` invokes the dedicated CI
+reviewer-access instructions. `extension-v0.1.1` invokes the dedicated CI
 workflow to create a draft GitHub release with the ZIP, SHA-256 and source
 revision; manual dispatch produces downloadable artifacts. Neither path
 uploads or submits to CWS.
@@ -478,7 +478,11 @@ The native Chrome for Testing profile and fixture services are reaped.
 Local root lint, format, typecheck and unit suites pass, as do the dedicated
 harness typecheck and extension acceptance. The known Node 26 tsx loader
 deprecation remains in its existing tooling gap; CI uses supported Node 22.
-Hosted draft-release acceptance is pending. Web Store submission/publication
+The first hosted 0.1.0 run passed the exact ZIP checks but exposed a badge
+fixture that typed in an inactive tab. The harness now activates its composer
+page and waits for every frame acknowledgement with the same 100 ms limit.
+The unpublished 0.1.1 candidate supersedes that failed tag. Hosted acceptance
+for this fresh candidate is pending. Web Store submission/publication
 remains the maintainer's final step.
 
 Decide visibility (private to testers or unlisted), version numbering relative

@@ -176,7 +176,7 @@ the viewer/download gap remain the next mobile release work.
 - Both mobile store records have saved initial metadata. Local uploads now
   use platform-managed final signing: Android's upload-signed AAB passes Play
   internal-release validation, and Xcode uploaded the first iOS archive to
-  internal-only TestFlight. Android 0.1.0 is now active for the selected internal
+  internal-only TestFlight. Android 0.1.1 is now active for the selected internal
   testers, with its opt-in page verified. iOS build 1 shows Ready to Test after
   completing encryption compliance with France excluded from availability.
   October 4 fixes Android's UI-initiated public TLS login failure: 0.1.1
@@ -360,7 +360,7 @@ typing within 100 ms during relay transcript updates. A side panel listing the s
 in the current tab (exact server lookup across saved hosts), automatic lookup
 with a toolbar badge on user-granted sites, and a Browser extension settings
 pane are implemented and accepted locally and in the maintainer's Chrome.
-A public 0.1.0 listing, actual screenshots, privacy disclosures and an audited
+A public 0.1.1 listing, actual screenshots, privacy disclosures and an audited
 CI ZIP/draft-release workflow are prepared; hosted release acceptance and the
 manual Web Store submission remain next.
 This experiment does not displace release delivery.
