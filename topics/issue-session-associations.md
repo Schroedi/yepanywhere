@@ -217,7 +217,10 @@ by repository and number and Jira by key against the configured site and
 account email. A confirmed reference gains the tracker's own summary, the first
 title that does not depend on someone having written a Markdown link. A missing
 item is recorded as rejected, and a failed or unauthorized lookup as
-unreachable.
+unreachable. A rejected reference is hidden from search, the session header's
+count and menu, and the Issues page, as a dismissed association is; the
+dismissed filter shows it, and an exact `ref` lookup still finds it. A
+confirmation from any project outranks a rejection.
 
 One question per reference is the whole retry policy, and it lives in the
 schema rather than in a scheduler. `issue_confirmations` takes a pending row
@@ -295,7 +298,12 @@ path, and the issue index consumes both. Nothing under `sessions/` imports
 `services/issues/extract.ts` recognizes Jira browse URLs and uppercase Jira keys,
 GitHub issue/PR URLs, and repository-qualified `owner/repo#123` references.
 A bare `#123` needs explicit issue/PR wording and exactly one GitHub repository
-URL in the same bounded text window. Arbitrary bare numbers are ignored. Generic
+URL in the same bounded text window. Arbitrary bare numbers are ignored.
+Nothing inside a fenced code block (``` or ~~~, to its closing line or the end
+of the message) is a reference, and a repository URL there gives no context
+to a bare number: such blocks hold sample output, fixtures and logs. Fences
+are found over the whole message, so a chunk read from inside a long block
+knows it is in one. Inline code and indented blocks are still read. Generic
 Jira deployments may have context paths. GitHub Enterprise issue paths are
 recognized on `github.*` hosts; `/pull/N` URLs also identify PRs on other hosts.
 

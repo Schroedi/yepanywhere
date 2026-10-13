@@ -496,8 +496,18 @@ export class IssueStore {
     offset = 0,
     ownedStart = offset,
     ownedEnd = Number.POSITIVE_INFINITY,
+    /** Code fences in `message.text` offsets, when it is a slice of a longer message. */
+    fences?: ReadonlyArray<readonly [number, number]>,
   ): void {
-    this.captureText(source, message, offset, ownedStart, ownedEnd);
+    this.captureText(
+      source,
+      message,
+      offset,
+      ownedStart,
+      ownedEnd,
+      undefined,
+      fences,
+    );
   }
   /**
    * Record the reference in a URL a user attached to a session by hand, with
@@ -527,9 +537,10 @@ export class IssueStore {
     ownedEnd: number,
     /** Present for a hand-attached reference; its excerpt is the user's note. */
     manualNote?: string,
+    fences?: ReadonlyArray<readonly [number, number]>,
   ): void {
     const settings = this.settings();
-    const refs = extractIssueReferences(message.text).filter(
+    const refs = extractIssueReferences(message.text, { fences }).filter(
       (ref) =>
         ref.start + offset >= ownedStart && ref.start + offset < ownedEnd,
     );
@@ -763,7 +774,11 @@ export class IssueStore {
       (SELECT c.state FROM issue_confirmations c WHERE c.ref_key=items.ref_key
         ORDER BY CASE c.state WHEN 'confirmed' THEN 0 WHEN 'rejected' THEN 1 WHEN 'unreachable' THEN 2 ELSE 3 END LIMIT 1) AS confirm_state,
       (SELECT c.title FROM issue_confirmations c WHERE c.ref_key=items.ref_key AND c.state='confirmed' AND c.title IS NOT NULL LIMIT 1) AS confirm_title
-      FROM numbered items WHERE CASE WHEN ?<>'' THEN id=? ELSE ref_key LIKE ? ESCAPE '\\' OR title LIKE ? ESCAPE '\\' OR url LIKE ? ESCAPE '\\' END ORDER BY ${order},ref_key,context,id LIMIT ? OFFSET ?`,
+      FROM numbered items WHERE CASE WHEN ?<>'' THEN id=? ELSE ref_key LIKE ? ESCAPE '\\' OR title LIKE ? ESCAPE '\\' OR url LIKE ? ESCAPE '\\' END
+      -- A reference the tracker says does not exist is hidden like a dismissed
+      -- one; an exact lookup still finds it.
+      AND (?<>'' OR ?=1 OR confirm_state IS NOT 'rejected')
+      ORDER BY ${order},ref_key,context,id LIMIT ? OFFSET ?`,
       JSON.stringify(
         (options.sessionActivity ?? []).map(({ sessionId, updatedAt }) => ({
           sessionId,
@@ -780,6 +795,8 @@ export class IssueStore {
       escaped(query),
       escaped(query),
       escaped(query),
+      options.identity ?? "",
+      dismissed ? 1 : 0,
       limit,
       offset,
     );

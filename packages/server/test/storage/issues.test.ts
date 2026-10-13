@@ -76,6 +76,29 @@ describe("issue reference extraction", () => {
       )[0]?.title,
     ).toBe("**ABC-1 — Login fails**");
   });
+  it("ignores references inside fenced code blocks", () => {
+    const keys = (text: string) =>
+      extractIssueReferences(text).map((ref) => ref.key);
+    expect(
+      keys(
+        [
+          "Shipped https://github.com/a/b/pull/1 and ABC-1.",
+          "```json",
+          '{"content":"See https://github.com/o/r/pull/12 and XYZ-9"}',
+          "```",
+          "~~~",
+          "```",
+          "https://github.com/o/r/pull/13",
+          "~~~",
+          "Then a/b#2.",
+          "```",
+          "unclosed https://github.com/o/r/pull/14",
+        ].join("\n"),
+      ),
+    ).toEqual(["a/b#1", "ABC-1", "a/b#2"]);
+    // A fenced repository URL does not supply context for a bare number.
+    expect(keys("```\nhttps://github.com/o/r\n```\nsee PR #5")).toEqual([]);
+  });
   it("ignores prose that is shaped like a bare Jira key", () => {
     const text =
       "UTF-8 and ISO-8601 and COVID-19 and an H-1 visa, but PROJ-7 is real";
