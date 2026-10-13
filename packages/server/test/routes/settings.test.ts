@@ -2089,6 +2089,9 @@ describe("Settings Routes", () => {
               codex: {
                 model: "gpt-5.5",
                 serviceTier: "priority",
+                routerPoolId: "work",
+                routerAccountId: "account-1",
+                routerPolicy: "weekly-pace",
                 thinkingMode: "auto",
                 effortLevel: "xhigh",
                 helperSideModel: "helper-target:local-vllm",
@@ -2116,6 +2119,9 @@ describe("Settings Routes", () => {
             codex: {
               model: "gpt-5.5",
               serviceTier: "priority",
+              routerPoolId: "work",
+              routerAccountId: "account-1",
+              routerPolicy: "weekly-pace",
               thinkingMode: "auto",
               effortLevel: "xhigh",
               helperSideModel: "helper-target:local-vllm",

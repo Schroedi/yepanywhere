@@ -386,7 +386,9 @@ The authorized recovery follow-up adds on-demand reachability, disabled-account
 guidance and explicit cancellation/disconnect retry before automatic policies.
 AAR owns the SHA-pinned cross-repository regression suite for both providers.
 Manual/Round robin allocation and a cached quota/eligibility overview are
-implemented. YA respects router-owned pool grants and exposes read-only
+implemented. Since 2026-10-13, New Session remembers pool/account/policy per
+provider on the server, with silent fallback when unavailable or unsupported;
+API-created-session defaults remain deferred. YA respects router-owned pool grants and exposes read-only
 management guidance; legacy routers retain their scoped editor. Advanced
 balancing, clone/helper inheritance, Windows and constrained sandbox support
 remain later work. On 2026-10-03 the maintainer deferred the next

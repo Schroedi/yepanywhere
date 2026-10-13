@@ -293,6 +293,22 @@ function parseProviderSessionDefaults(
     if (serviceTier === null) return null;
     if (serviceTier) parsed.serviceTier = serviceTier;
   }
+  for (const key of [
+    "routerPoolId",
+    "routerAccountId",
+    "routerPolicy",
+  ] as const) {
+    const value = parseOptionalString(
+      raw[key],
+      key === "routerPolicy" ? 64 : 200,
+    );
+    if (value === null) return null;
+    if (value) parsed[key] = value;
+  }
+  if (!parsed.routerPoolId) {
+    delete parsed.routerAccountId;
+    delete parsed.routerPolicy;
+  }
   if ("thinkingMode" in raw) {
     if (
       raw.thinkingMode !== undefined &&

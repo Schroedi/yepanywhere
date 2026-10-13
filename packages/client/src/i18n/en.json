@@ -1525,7 +1525,7 @@
   "newSessionSpeechTitle": "STT Backend",
   "newSessionSpeechPlaceholder": "Select STT backend",
   "newSessionServiceTierTitle": "Speed",
-  "newSessionServiceTierDescription": "Faster tiers use more of your plan or credits. New sessions always start at Standard.",
+  "newSessionServiceTierDescription": "Faster tiers use more of your plan or credits.",
   "newSessionRunOnTitle": "Run On",
   "newSessionRunOnLocal": "Local",
   "newSessionRunOnLocalDesc": "Run on this machine",
