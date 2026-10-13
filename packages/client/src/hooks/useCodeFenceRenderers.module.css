@@ -9,6 +9,28 @@
   position: relative;
 }
 
+/* One roomier font for the entire grid; reuse the shipped symbol-rich Iosevka
+   behind Fira. The normalizer fits any off-grid glyph to this font's cell. */
+.root pre[data-ya-code-grid],
+.root pre[data-ya-code-grid] > code {
+  font-family: "YA Fira Mono", "YA Iosevka", monospace;
+  font-variant-ligatures: none;
+  letter-spacing: 0;
+  line-height: 1.2;
+}
+
+.root [data-ya-code-cell] {
+  display: inline-block;
+  width: 1ch;
+  text-indent: 0;
+}
+
+.root [data-ya-code-glyph] {
+  display: inline-block;
+  transform: scale(var(--code-glyph-scale));
+  transform-origin: left center;
+}
+
 /* A pseudo-element, so the label never enters a text selection or the
    clipboard. It adds no persistent chrome: pointers reveal it on hover, touch
    reveals it on tap. */

@@ -105,6 +105,44 @@ the block's `textContent` or a plain selection), marked
 HTML clipboard with the rest of the active content. A confirmation state
 lasts about a second after a successful write.
 
+## Fixed-width Unicode grids
+
+`useCodeFenceRenderers` also normalizes grid typography through
+`lib/codeFence/gridFont.ts`. A multiline block with at least four box, block,
+geometric, Braille, or legacy-computing symbols, or an ASCII box border, uses
+the already shipped Fira Mono for the entire block. Its wider cells better
+fit grid art than Iosevka. No new font asset or preference is required.
+
+Other blocks switch when a standalone Unicode punctuation or symbol glyph's
+measured advance differs from one ordinary cell. This detects both browser
+font fallback and double-width symbols supplied by the selected font itself:
+the shipped Iosevka draws `◎●○◯∞∑→` at twice its digit advance.
+
+Iosevka supplies symbols missing from Fira, followed by the browser's
+monospace fallback. After fonts load, any remaining mismatched symbol gets a
+one-cell inline wrapper and proportional scaling. The cell controls advance;
+scaling preserves the glyph's shape. Highlight spans, links, and source text
+remain intact, including verbatim copying. The client enhancement covers
+streamed and historical assistant blocks and rendered Markdown previews.
+
+This is a symbol-grid contract, not a terminal emulator. Chinese, Japanese,
+Korean, fullwidth punctuation, emoji-presentation characters, and multi-codepoint
+graphemes retain natural layout. Authors mixing these with single-cell symbols
+remain responsible for spacing. Inline code and ordinary code without a width
+mismatch retain the chosen output font.
+
+Unicode classifications use a process-wide sparse array of lazily allocated
+256-codepoint byte pages, with cached property flags per codepoint. Font/glyph
+measurements are shared within each mounted renderer and capped at 4096 pairs.
+Output appearance changes invalidate those measurements and rebuild wrappers;
+async results are discarded after source replacement or unmount.
+
+The browser regression uses the real enhancement hook and shipped fonts:
+`pnpm --filter @yep-anywhere/client exec playwright test --config playwright.code-grid.config.ts`.
+It checks symbol/reference row alignment, fallback for an isolated double-width
+circle, verbatim copy, and sequential typing during streamed updates with 100
+additional mounted grids. Captures cover desktop and phone widths.
+
 ## The renderer registry
 
 Dispatch is a lookup in a map keyed by normalized language name. Two properties
