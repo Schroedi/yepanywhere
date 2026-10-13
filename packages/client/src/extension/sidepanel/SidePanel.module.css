@@ -32,25 +32,13 @@
   z-index: 1;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
+  gap: 4px;
+  padding: 4px 8px 4px 12px;
   border-bottom: 1px solid var(--border-color);
   background: var(--bg-secondary);
 }
-.logo {
-  width: 24px;
-  height: 24px;
-  flex-shrink: 0;
-  display: grid;
-  place-items: center;
-  border-radius: 6px;
-  background: linear-gradient(135deg, #2f9e5b, #1d6b3d);
-  color: #fff;
-  font-weight: 700;
-  font-size: 13px;
-}
 .hosts {
-  margin-left: auto;
+  flex: 1;
   display: flex;
   gap: 4px;
   min-width: 0;
@@ -79,8 +67,8 @@
   background: var(--text-dimmed);
 }
 .panel .iconButton {
-  width: 34px;
-  min-height: 34px;
+  width: 30px;
+  min-height: 30px;
   padding: 0;
   flex-shrink: 0;
   display: grid;

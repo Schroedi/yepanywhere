@@ -348,11 +348,9 @@ export function SidePanel() {
 
   return (
     <div className={styles.panel}>
+      {/* Chrome's own panel header already shows the extension's icon and
+          name, so this row holds only hosts and controls. */}
       <header className={styles.header}>
-        <span className={styles.logo} aria-hidden="true">
-          Y
-        </span>
-        <strong>Yep Anywhere</strong>
         <span className={styles.hosts}>
           {hosts.map((host) => {
             const answer = answers.find((item) => item.host.id === host.id);
@@ -378,8 +376,8 @@ export function SidePanel() {
           onClick={() => setRefreshCount((count) => count + 1)}
         >
           <svg
-            width="15"
-            height="15"
+            width="14"
+            height="14"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -398,8 +396,8 @@ export function SidePanel() {
           onClick={openOptions}
         >
           <svg
-            width="15"
-            height="15"
+            width="14"
+            height="14"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
