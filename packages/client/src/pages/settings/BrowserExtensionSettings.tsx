@@ -1,4 +1,8 @@
 import { useEffect, useState } from "react";
+import {
+  FilterDropdown,
+  type FilterOption,
+} from "../../components/FilterDropdown";
 import { getChrome } from "../../extension/chrome";
 import { activeHosts, defaultHost } from "../../extension/savedHosts";
 import {
@@ -63,6 +67,33 @@ function Toggle({
       />
       <span className="toggle-slider" />
     </span>
+  );
+}
+
+/** One choice from a few, in the dropdown the rest of the app uses. */
+function Choice<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: T;
+  options: FilterOption<T>[];
+  onChange: (value: T) => void;
+}) {
+  return (
+    <FilterDropdown<T>
+      label={label}
+      triggerTitle={label}
+      multiSelect={false}
+      align="right"
+      options={options}
+      selected={[value]}
+      onChange={(values) => {
+        if (values[0]) onChange(values[0]);
+      }}
+    />
   );
 }
 
@@ -266,74 +297,58 @@ export function BrowserExtensionSettings() {
 
       <SettingsSection title={t("extensionSettingsToolbarTitle")}>
         <SettingsItem label={t("extensionSettingsToolbarButton")}>
-          <select
-            aria-label={t("extensionSettingsToolbarButton")}
+          <Choice
+            label={t("extensionSettingsToolbarButton")}
             value={settings.toolbarAction}
-            onChange={(event) =>
-              update({
-                toolbarAction: event.target
-                  .value as ExtensionSettings["toolbarAction"],
-              })
-            }
-          >
-            <option value="side-panel">
-              {t("extensionSettingsToolbarSidePanel")}
-            </option>
-            <option value="app-tab">
-              {t("extensionSettingsToolbarAppTab")}
-            </option>
-          </select>
+            options={[
+              {
+                value: "side-panel",
+                label: t("extensionSettingsToolbarSidePanel"),
+              },
+              { value: "app-tab", label: t("extensionSettingsToolbarAppTab") },
+            ]}
+            onChange={(toolbarAction) => update({ toolbarAction })}
+          />
         </SettingsItem>
         <SettingsItem label={t("extensionSettingsBadge")}>
-          <select
-            aria-label={t("extensionSettingsBadge")}
+          <Choice
+            label={t("extensionSettingsBadge")}
             value={settings.badge}
-            onChange={(event) =>
-              update({
-                badge: event.target.value as ExtensionSettings["badge"],
-              })
-            }
-          >
-            <option value="page">{t("extensionSettingsBadgePage")}</option>
-            <option value="off">{t("extensionSettingsBadgeOff")}</option>
-          </select>
+            options={[
+              { value: "page", label: t("extensionSettingsBadgePage") },
+              { value: "off", label: t("extensionSettingsBadgeOff") },
+            ]}
+            onChange={(badge) => update({ badge })}
+          />
         </SettingsItem>
         <SettingsItem label={t("extensionSettingsFallback")}>
-          <select
-            aria-label={t("extensionSettingsFallback")}
+          <Choice
+            label={t("extensionSettingsFallback")}
             value={settings.panelFallback}
-            onChange={(event) =>
-              update({
-                panelFallback: event.target
-                  .value as ExtensionSettings["panelFallback"],
-              })
-            }
-          >
-            <option value="attention">
-              {t("extensionSettingsFallbackAttention")}
-            </option>
-            <option value="recent">
-              {t("extensionSettingsFallbackRecent")}
-            </option>
-            <option value="none">{t("extensionSettingsFallbackNone")}</option>
-          </select>
+            options={[
+              {
+                value: "attention",
+                label: t("extensionSettingsFallbackAttention"),
+              },
+              { value: "recent", label: t("extensionSettingsFallbackRecent") },
+              { value: "none", label: t("extensionSettingsFallbackNone") },
+            ]}
+            onChange={(panelFallback) => update({ panelFallback })}
+          />
         </SettingsItem>
         <SettingsItem label={t("extensionSettingsOpenIn")}>
-          <select
-            aria-label={t("extensionSettingsOpenIn")}
+          <Choice
+            label={t("extensionSettingsOpenIn")}
             value={settings.openSessionsIn}
-            onChange={(event) =>
-              update({
-                openSessionsIn: event.target
-                  .value as ExtensionSettings["openSessionsIn"],
-              })
-            }
-          >
-            <option value="existing-tab">
-              {t("extensionSettingsOpenInExisting")}
-            </option>
-            <option value="new-tab">{t("extensionSettingsOpenInNew")}</option>
-          </select>
+            options={[
+              {
+                value: "existing-tab",
+                label: t("extensionSettingsOpenInExisting"),
+              },
+              { value: "new-tab", label: t("extensionSettingsOpenInNew") },
+            ]}
+            onChange={(openSessionsIn) => update({ openSessionsIn })}
+          />
         </SettingsItem>
       </SettingsSection>
     </>

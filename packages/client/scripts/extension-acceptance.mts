@@ -389,29 +389,37 @@ try {
       await expect(allowlist).toHaveValue(typed, { timeout: 100 });
     }
     await allowlist.blur();
-    await app
-      .getByRole("combobox", { name: "Toolbar badge" })
-      .selectOption("page");
-    await expect
-      .poll(() =>
-        app.evaluate(async () => {
-          const stored = await (
-            globalThis as unknown as {
-              chrome: {
-                storage: {
-                  local: { get(key: string): Promise<Record<string, unknown>> };
-                };
+    const storedSettings = () =>
+      app.evaluate(async () => {
+        const stored = await (
+          globalThis as unknown as {
+            chrome: {
+              storage: {
+                local: { get(key: string): Promise<Record<string, unknown>> };
               };
-            }
-          ).chrome.storage.local.get("ya.extension.settings");
-          return (
-            stored["ya.extension.settings"] as { lookupAllowlist?: string[] }
-          )?.lookupAllowlist;
-        }),
-      )
+            };
+          }
+        ).chrome.storage.local.get("ya.extension.settings");
+        return stored["ya.extension.settings"] as {
+          lookupAllowlist?: string[];
+          badge?: string;
+        };
+      });
+    await expect
+      .poll(async () => (await storedSettings())?.lookupAllowlist)
       .toEqual(["tomfitag/*"]);
+    // The app's own dropdown, not a native select: pick Off, then back.
+    const badgeChoice = app.getByRole("button", { name: "Toolbar badge" });
+    await badgeChoice.click();
+    await app.getByRole("button", { name: "Off", exact: true }).click();
+    await expect.poll(async () => (await storedSettings())?.badge).toBe("off");
+    await badgeChoice.click();
     const settingsShot = join(shots, "settings.png");
     await app.screenshot({ path: settingsShot, fullPage: true });
+    await app
+      .getByRole("button", { name: "Sessions for this page", exact: true })
+      .click();
+    await expect.poll(async () => (await storedSettings())?.badge).toBe("page");
 
     // Background badge: a granted PR page gets its session count with no
     // extension page involved beyond the worker.
