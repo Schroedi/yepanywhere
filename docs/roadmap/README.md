@@ -352,8 +352,11 @@ The maintainer proposed an experimental
 public relay, starting with a stable store id and a relay origin allowlist
 entry. The store draft id and public key are reserved, and exact extension
 origin admission is deployed on the default public relay with 26 passing
-public upgrade/CORS probes. The client build, reload handling and real-host
-acceptance remain next.
+public upgrade/CORS probes. The client builds as an unpacked extension,
+reaches the relay and survives reloads; logged-in real-host acceptance is
+next. Shared saved hosts across extension contexts, exact issue lookup, a side
+panel for the current tab, and options with automatic lookup are designed and
+mocked up, not implemented.
 This experiment does not displace release delivery.
 
 These remain candidates behind publishing and continuous delivery, not a

@@ -6,7 +6,9 @@ Status: in progress 2026-10-13, experimental. Store identity is reserved as
 a draft and relay origin support is deployed and publicly verified. The
 client spike (steps 3–5) builds, loads unpacked under the store id, reaches
 the public relay and survives reloads; logged-in verification (step 6) is
-next.
+next. Steps 7–10 (shared saved hosts, exact issue lookup, the side panel, and
+options with automatic lookup) were designed with the maintainer on
+2026-10-13 and have a review-only mockup; none is implemented.
 
 ## Objective
 
@@ -36,7 +38,8 @@ panel, background worker, tab-aware actions) as later slices.
 - Browser integration the hosted page cannot have: a side panel beside any
   tab, a toolbar action and keyboard shortcuts, and tab-aware lookups such as
   "which YA sessions mention this GitHub PR or Jira ticket" (see
-  [Issue and PR lookup](#issue-and-pr-lookup)).
+  [exact issue lookup](#8--exact-issue-lookup-on-the-server) and
+  [the side panel](#9--side-panel-for-the-current-tab)).
 
 ## Current constraints
 
@@ -220,13 +223,163 @@ Progress 2026-10-13:
 - Pending: login with a real password (the maintainer types it), resume,
   session viewing, typing latency, reload on session and Settings pages.
 
-### 7 — open YA in the side panel
+### Design rule for steps 7–10
 
-Use `chrome.sidePanel` with the same app page, so YA can sit beside any tab.
-This is the first capability the hosted client cannot offer and the main
-reason to use the extension day to day.
+The extension's value as a trusted client is that it holds YA credentials
+and nothing else can reach them. Broad permissions would make it the
+"privileged browser extension" that
+[Security](../../topics/security.md#authenticated-remote-access-and-the-relay)
+names as a client-side threat. Steps 7–10 therefore use only permissions
+that show no install warning, plus narrow host access that the user grants
+per site at runtime through `optional_host_permissions`. Requesting optional
+permissions at runtime also avoids the store-update case where a new install
+warning disables the extension until the user approves it. Debugger, all-sites
+and `tabs` access stay out of this extension; Machine Control and
+[remote browser diagnostics](../../topics/remote-browser-diagnostics.md)
+already cover agent control of the browser.
 
-### 8 — publish to the store
+The review-only mockup for steps 9 and 10 is
+[`packages/client/mockups/extension-side-panel`](../../packages/client/mockups/extension-side-panel/README.md).
+
+### 7 — share saved hosts across extension contexts
+
+The side panel, the toolbar badge and automatic lookup must reach hosts
+without the YA tab open. Saved hosts and resume sessions are in
+`localStorage`, written synchronously by `lib/hostStorage.ts` and
+`lib/rejectedResumeStorage.ts`, and the background worker has no
+`localStorage`. The maintainer does not want a persistent background page or
+offscreen document as a requirement.
+
+- **No connection owner.** Each extension context (the YA tab, the side panel,
+  the background worker when an event wakes it) connects on its own by
+  resuming from the shared saved session. The server permits this:
+  `RemoteSessionService.validateProof` checks a fresh challenge and only
+  updates `lastUsed`; it never rotates the session. Several hosted tabs
+  already resume one saved session concurrently.
+- **Async storage adapter.** Put an adapter behind `hostStorage`,
+  `rejectedResumeStorage` and the browser profile id. It loads once
+  asynchronously at startup, serves synchronous reads from memory and writes
+  through asynchronously, so existing callers stay synchronous.
+  `chrome.storage.onChanged` updates other contexts, as the `storage` event
+  does between tabs today. The web build keeps a `localStorage` adapter; the
+  extension uses `chrome.storage.local` (`storage` permission, no warning).
+- **One key per host.** `chrome.storage` has no transactions, so a single
+  host-list value would let two contexts overwrite each other's changes.
+- **`SecureConnection` needs no storage change.** It receives a saved session
+  and reports new ones through `onSessionEstablished`. Its only `window` use
+  is full SRP origin metadata (`SecureConnection.ts:769`), and password login
+  always happens in a page.
+- **A shared `openHost(hostId)` module** built from `connectSavedHost`,
+  `RelayMuxSocketPool` and per-host API factories in the style of
+  `createSessionApi(fetcher)`. `fetchJSON` (`api/sourceApiFetch.ts`) routes
+  through the app's current source, so extension code imports factory modules
+  with a host-bound fetcher and never the `api/client.ts` aggregate.
+- **Active and default hosts** are extension settings stored beside the saved
+  logins. Active hosts serve lookups, the badge and the attention view; the
+  default host receives "new session about this page".
+
+Constraints:
+
+- Content scripts can read `chrome.storage.local` by default. The extension
+  has none; adding one requires restricting that storage to trusted contexts
+  or moving secrets to IndexedDB. Saved logins never go in
+  `chrome.storage.sync`.
+- No `externally_connectable` entry: web pages and other extensions cannot
+  call into the extension. Opening it to another extension is a
+  [principals and grants](../../topics/principals-and-grants.md) question.
+- Every worker wake that needs a host pays a resume handshake, which has not
+  been measured. Cache lookup results in `chrome.storage.session`. Check
+  whether the server or relay limits concurrent connections per saved
+  session.
+
+A background connection owner (an offscreen document or long-lived worker
+serving pages through `NativeSourceTransport` over a `chrome.runtime` port,
+as the mobile bridge does) stays deferred. Nothing here precludes it.
+
+### 8 — exact issue lookup on the server
+
+Findings carried from the original lookup idea:
+
+- `issueUrl` (`services/issues/extract.ts`) already canonicalizes a pasted
+  URL, so `…/pull/12/files` finds `…/pull/12`.
+- Search remains a literal `LIKE` substring over key, title and URL
+  (`IssueStore.list`): `…/pull/12` also matches `…/pull/123`, and the same
+  number recorded as `issues/12` and visited as `pull/12` misses although
+  their stored identity is equal.
+- Jira board and backlog URLs (`…/boards/1?selectedIssue=TF-3996`) do not
+  parse.
+- `IssuesPage` keeps its search box in local state, so a deep link needs a
+  `q`/`ref` route parameter, and its issue calls are inline rather than in an
+  API module.
+
+Add an exact identity lookup (for example `GET /api/issues?ref=<url>`),
+advertised by a capability so the extension falls back to `q=` on older
+servers, and parse `selectedIssue`. Extract the Issues page calls into an
+`issuesClient` factory. One call returning an issue's sessions with their
+live status would save the panel a second request. This changes a server
+contract, so it needs the
+[client/server compatibility review](../../DEVELOPMENT.md#clientserver-compatibility-review)
+and maintainer approval before implementation.
+
+### 9 — side panel for the current tab
+
+Permission: `sidePanel` (no warning). Lookup on click uses `activeTab` (no
+warning).
+
+- One panel per window that follows the active tab, built as its own
+  lightweight entry rather than the full app at side-panel width. It reuses
+  the step 7 modules and YA's status, provider and issue-type badges.
+- **On an issue or PR page:** an issue header (type, key, title), then one row
+  per session across active hosts with title, age, live state (activity
+  subscription for the shown sessions only), provider, project and host, the
+  latest agent activity, and how it mentions the issue. Below the list, "new
+  session about this PR" targets the default host and a project guessed from
+  the repository, and a coverage note says which sessions were indexed.
+- **On any other page:** sessions that need you, running sessions and recent
+  ones across active hosts, from the inbox counts `multiHostMonitor` already
+  computes. This is what makes leaving the panel open worthwhile.
+- **On a site without granted access:** a one-off lookup using the click, and
+  the request for automatic lookup on that site.
+- **Opening a session** messages the YA tab to navigate inside the app without
+  a reload and focuses it, or opens a YA tab when none exists. A modifier
+  click opens a new tab.
+- Chrome opens a side panel only from a user gesture, so the panel opens from
+  the toolbar button or a shortcut and then stays open; the extension cannot
+  open it when a PR page loads.
+- Verify microphone use separately: permission prompts may not appear inside a
+  side panel.
+
+### 10 — options and automatic lookup
+
+Options live in YA Settings as a **Browser extension** pane, and the
+manifest's `options_page` points at that route. Values are stored in
+`chrome.storage.local` so the background worker can read them.
+
+- **Hosts:** active toggle, default host, and a connection policy per host
+  ("when needed", the default, or "keep connected").
+- **Issue and PR lookup:** automatic lookup on or off; per-site access
+  (`github.com`, GitHub Enterprise hosts, Jira sites pre-filled from the
+  hosts' learned `jira_project_sites`), each granted through Chrome's prompt
+  from the toggle; an optional allowlist of repositories and Jira projects;
+  whether to include dismissed associations.
+- **Toolbar and side panel:** what the toolbar button does (open the side
+  panel, open or focus the YA tab, or look up this page), what the badge
+  counts (this page's sessions, sessions that need you, or nothing), what the
+  panel shows on other pages, and whether sessions open in the existing YA
+  tab or a new one.
+- **Storage:** optional sync of the host list (names and relay usernames,
+  never logins) through Chrome sync.
+
+Automatic lookup listens to `tabs.onUpdated` for granted sites only; the
+`tabs` permission, which warns about browsing history on all sites, is not
+used. A URL is sent to a host only when it matches a repository or Jira
+prefix that host has indexed, or the allowlist. Lookups wait briefly after
+each URL change, since GitHub and Jira change URLs inside the page, and
+results are cached per issue. The badge shows a per-tab count. When no
+extension page is open, the URL change wakes the background worker, which
+connects through step 7 and lets Chrome stop it when idle.
+
+### 11 — publish to the store
 
 Decide visibility (private to testers or unlisted), version numbering relative
 to YA releases, and whether CI produces the store zip. Publishing a new
@@ -235,35 +388,30 @@ version is the extension's update path; until a signed-update policy exists
 
 ## Deferred
 
-### Issue and PR lookup
+### Other lookup entry points
 
-The original prompt for this plan: on a GitHub PR/issue or Jira page, click to
-find the YA sessions that mention it via
-[Issues & PRs](../../topics/issue-session-associations.md). With the client
-inside the extension, this becomes a toolbar action, link context menu or
-badge. Findings to carry forward:
-
-- `IssuesPage` keeps its search box in local state; only `sessionId` and
-  `projectId` come from the URL, so a deep link needs a `q`/`ref` parameter.
-- Search is a literal `LIKE` substring (`IssueStore.list`). A browser URL such
-  as `…/pull/12/files` misses the stored canonical `…/pull/12`, while
-  `…/pull/12` also matches `…/pull/123`, and GitHub issue/PR URLs share
-  identity but differ textually. An exact lookup should reuse the server's
-  `services/issues/extract.ts` canonicalization rather than a copy in the
-  extension.
-- A badge needs only `github.com` and the user's Atlassian hosts, not all
-  sites.
+- A link context menu (`contextMenus`, no warning) limited by
+  `targetUrlPatterns` to issue, PR and Jira links, so a link in Slack, Gmail
+  or Jira can be looked up; a selected bare key such as `TF-3996` likewise.
+- PRs opened by agents link their exported transcript under "Agent session".
+  Reading the PR body on click (`activeTab` plus `scripting`) could open the
+  originating session directly, independent of indexing.
+- An injected "YA: 3 sessions" chip on GitHub or Jira pages is rejected: it
+  needs content scripts, breaks on markup changes, and exposes session titles
+  to the page's own scripts.
 
 ### Other later slices
 
 - Push notifications and streamed downloads through the extension's
-  background worker.
+  background worker; HTML artifact previews in manifest `sandbox` pages.
 - Direct-mode (LAN/Tailscale, possibly plain HTTP) servers, including server
   origin checks and mixed-content behavior from an extension page.
 - A narrowly scoped extension credential instead of the full Remote Access
   login. This is a new principal and needs
   [principals and grants](../../topics/principals-and-grants.md) review first.
 - Address-bar keyword and global shortcuts.
+- Sending the current tab (selection, link, screenshot) into a session's
+  composer through `activeTab`, `scripting` and `contextMenus`.
 
 ## Topic ownership on landing
 
