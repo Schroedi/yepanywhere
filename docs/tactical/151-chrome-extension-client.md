@@ -174,7 +174,7 @@ permissions; `chrome.tabs.query` on the extension's own URLs works without
 one, so the toolbar action focuses an existing app tab. The package has no
 build script under the name `build`, so `pnpm -r build` and CI do not run
 it, and root typecheck skips it as it skips the Android package. The store
-zip is not produced yet.
+ZIP is now produced by the publication build in step 11.
 
 ### 5 — make reloads and deep links work
 
@@ -482,12 +482,17 @@ The first hosted 0.1.0 run passed the exact ZIP checks but exposed a badge
 fixture that typed in an inactive tab. The harness now activates its composer
 page and waits for every frame acknowledgement with the same 100 ms limit.
 The unpublished 0.1.1 candidate supersedes that failed tag. Hosted acceptance
-for this fresh candidate is pending. Web Store submission/publication
+for 0.1.1 passes in [Chrome Extension CI
+38405189923](https://github.com/kzahel/yepanywhere/actions/runs/38405189923):
+exact ZIP and badge fixtures pass all 35 keys, at 11.1/11.3 ms maxima, with
+browser restart/resume. The workflow produced the draft release,
+ZIP/checksum/source record, listing artifact and acceptance captures. Web
+Store submission/publication
 remains the maintainer's final step.
 
-Decide visibility (private to testers or unlisted), version numbering relative
-to YA releases, and whether CI produces the store zip. Publishing a new
-version is the extension's update path; until a signed-update policy exists
+The maintainer selected public visibility, independent three-part extension
+versions and CI upload ZIPs. Publishing a new version is the extension's
+update path; until a signed-update policy exists
 (open in trusted client packaging), the store account is the trust root.
 
 ## Deferred

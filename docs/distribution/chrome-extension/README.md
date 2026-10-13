@@ -79,6 +79,22 @@ OUTPUT.png`. Extension icons under `packages/browser-extension/src/icons/`
 are rasterizations of `packages/client/public/icon.svg`; only the 128px store
 icon uses the required 16px transparent padding.
 
+## Verified CI candidate
+
+[Chrome Extension CI 38405189923](https://github.com/kzahel/yepanywhere/actions/runs/38405189923)
+passed for source `087cda688693556832b24bfc958b3beb5b3b9537` and created the
+[draft 0.1.1 release](https://github.com/kzahel/yepanywhere/releases/tag/untagged-2776443d061b6e92e73b).
+The upload ZIP SHA-256 is
+`9270ccd6177288452517f9ba1ae56149d6a9ba9730cd808316e72ba9259c632b`.
+The downloaded file's checksum and archive integrity were verified, and its
+build record declares `sourceDirty: false`. Linux exact-ZIP acceptance measured
+11.1 ms maximum for 35 keys; the separate badge fixture measured 11.3 ms.
+Both pass the unchanged 100 ms input limit with concurrent transcript updates.
+The downloaded CI ZIP also signs into the existing isolated reviewer host
+through its public TLS relay from a fresh, subsequently removed profile.
+Saved login also survives a complete browser restart. The prior 0.1.0 tag
+failed a fixture focus check and produced no release; use 0.1.1.
+
 ## Console preparation
 
 Use [listing.en-US.txt](listing.en-US.txt), upload the required icon, small
