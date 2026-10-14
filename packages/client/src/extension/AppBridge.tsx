@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { appTabRouteKey, isNavigateMessage, registerAppTab } from "./appTab";
+import {
+  appTabRouteKey,
+  isNavigateMessage,
+  registerAppTab,
+  rememberPopupBounds,
+} from "./appTab";
 import { getChrome } from "./chrome";
 import { installSavedHostsMirror } from "./savedHosts";
 
@@ -14,6 +19,7 @@ export default function ExtensionAppBridge() {
   const { pathname } = useLocation();
   const [ownTabId, setOwnTabId] = useState<number>();
   useEffect(() => installSavedHostsMirror(), []);
+  useEffect(() => rememberPopupBounds(), []);
   useEffect(() => {
     const registration = registerAppTab();
     return () => void registration.then((unregister) => unregister());

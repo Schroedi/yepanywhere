@@ -85,6 +85,16 @@ export interface ChromeApi {
     onRemoved: ChromeEvent<(tabId: number) => void>;
   };
   windows: {
+    create(info: {
+      url: string;
+      type?: "normal" | "popup";
+      focused?: boolean;
+      left?: number;
+      top?: number;
+      width?: number;
+      height?: number;
+    }): Promise<unknown>;
+    getCurrent(): Promise<{ id?: number; type?: string }>;
     update(windowId: number, info: { focused?: boolean }): Promise<unknown>;
     WINDOW_ID_CURRENT: number;
   };

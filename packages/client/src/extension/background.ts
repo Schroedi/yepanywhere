@@ -13,7 +13,12 @@
  */
 
 import { issueLookupUrl } from "@yep-anywhere/shared";
-import { appTabRouteKey, CLICKED_TAB_KEY, findAppTab } from "./appTab";
+import {
+  appTabRouteKey,
+  CLICKED_TAB_KEY,
+  createAppPage,
+  findAppTab,
+} from "./appTab";
 import { getChrome } from "./chrome";
 import { countIssueSessions } from "./lookup";
 import {
@@ -100,7 +105,7 @@ async function focusAppTab(): Promise<void> {
     await chrome.windows.update(tab.windowId, { focused: true });
     return;
   }
-  await chrome.tabs.create({ url: chrome.runtime.getURL("/") });
+  await createAppPage("/");
 }
 
 // --- Automatic lookup and the badge ---------------------------------------

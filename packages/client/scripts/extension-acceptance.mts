@@ -419,6 +419,85 @@ Review restart persistence, provider-native resume and archive behavior on suppo
     expect(await app.evaluate(() => performance.timeOrigin)).toBe(before);
     log("row opened the session in the existing app tab without a reload");
 
+    // With the popup preference, a new app page is a popup window that
+    // registers as an app tab and saves its size for the next popup.
+    if (!storeAssets) {
+      await panel.evaluate(async () => {
+        const local = (
+          globalThis as unknown as {
+            chrome: {
+              storage: {
+                local: {
+                  get(key: string): Promise<Record<string, unknown>>;
+                  set(items: Record<string, unknown>): Promise<void>;
+                };
+              };
+            };
+          }
+        ).chrome.storage.local;
+        const key = "ya.extension.settings";
+        const current = (await local.get(key))[key] as object | undefined;
+        await local.set({ [key]: { ...current, appWindow: "popup" } });
+      });
+      const opened = context.waitForEvent("page");
+      await panel
+        .getByRole("button", { name: `Open ${implementationTitle}` })
+        .click({ modifiers: ["ControlOrMeta"] });
+      const popup = await opened;
+      await popup.waitForURL(`**/sessions/accept-impl`, { timeout: 30_000 });
+      const popupState = () =>
+        popup.evaluate(async () => {
+          const chrome = (
+            globalThis as unknown as {
+              chrome: {
+                windows: { getCurrent(): Promise<{ type?: string }> };
+                storage: {
+                  local: { get(key: string): Promise<Record<string, unknown>> };
+                };
+              };
+            }
+          ).chrome;
+          return {
+            type: (await chrome.windows.getCurrent()).type,
+            bounds: (await chrome.storage.local.get("ya.popupBounds"))[
+              "ya.popupBounds"
+            ],
+          };
+        });
+      expect((await popupState()).type).toBe("popup");
+      // The popup opens at its final URL, before the app's bridge loads.
+      await expect
+        .poll(
+          async () => {
+            await popup.evaluate(() =>
+              window.dispatchEvent(new Event("resize")),
+            );
+            return (await popupState()).bounds;
+          },
+          { timeout: 30_000 },
+        )
+        .toMatchObject({ width: expect.any(Number) });
+      await popup.close();
+      await panel.evaluate(async () => {
+        const local = (
+          globalThis as unknown as {
+            chrome: {
+              storage: {
+                local: {
+                  get(key: string): Promise<Record<string, unknown>>;
+                  set(items: Record<string, unknown>): Promise<void>;
+                };
+              };
+            };
+          }
+        ).chrome.storage.local;
+        const key = "ya.extension.settings";
+        const current = (await local.get(key))[key] as object | undefined;
+        await local.set({ [key]: { ...current, appWindow: "tab" } });
+      });
+      log("new-page click opened the session in a popup window");
+    }
+
     // The app tab publishes its route for the panel, which cannot read the
     // tab's address; on that route the panel lists the session's PR.
     const sessionRoute = new URL(app.url()).pathname;

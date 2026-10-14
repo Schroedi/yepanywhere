@@ -4771,15 +4771,20 @@
   "extensionSettingsToolbarTitle": "Toolbar and side panel",
   "extensionSettingsToolbarButton": "Toolbar button",
   "extensionSettingsToolbarSidePanel": "Open the side panel",
-  "extensionSettingsToolbarAppTab": "Open or focus the Yep Anywhere tab",
+  "extensionSettingsToolbarAppTab": "Open or focus Yep Anywhere",
   "extensionSettingsBadge": "Toolbar badge",
   "extensionSettingsBadgePage": "Sessions for this page",
   "extensionSettingsBadgeOff": "Off",
+  "extensionSettingsBadgeDescription": "Number of sessions about the GitHub issue, pull request or Jira issue in the current tab. Counts only on sites granted above, with automatic lookup on, and stays blank when there are none.",
   "extensionSettingsFallback": "When a page has no issue or PR",
   "extensionSettingsFallbackAttention": "Show sessions that need you",
   "extensionSettingsFallbackRecent": "Show recent sessions",
   "extensionSettingsFallbackNone": "Show nothing",
   "extensionSettingsOpenIn": "Open sessions in",
-  "extensionSettingsOpenInExisting": "The existing Yep Anywhere tab",
-  "extensionSettingsOpenInNew": "A new tab"
+  "extensionSettingsOpenInExisting": "The open Yep Anywhere tab or popup",
+  "extensionSettingsOpenInNew": "A new tab or popup",
+  "extensionSettingsAppWindow": "Open Yep Anywhere as",
+  "extensionSettingsAppWindowDescription": "How the toolbar button and the side panel open a new Yep Anywhere page. A popup window has no tabs or address bar and reopens at its last size and place.",
+  "extensionSettingsAppWindowTab": "A browser tab",
+  "extensionSettingsAppWindowPopup": "A popup window"
 }

@@ -310,7 +310,10 @@ export function BrowserExtensionSettings() {
             onChange={(toolbarAction) => update({ toolbarAction })}
           />
         </SettingsItem>
-        <SettingsItem label={t("extensionSettingsBadge")}>
+        <SettingsItem
+          label={t("extensionSettingsBadge")}
+          description={t("extensionSettingsBadgeDescription")}
+        >
           <Choice
             label={t("extensionSettingsBadge")}
             value={settings.badge}
@@ -348,6 +351,20 @@ export function BrowserExtensionSettings() {
               { value: "new-tab", label: t("extensionSettingsOpenInNew") },
             ]}
             onChange={(openSessionsIn) => update({ openSessionsIn })}
+          />
+        </SettingsItem>
+        <SettingsItem
+          label={t("extensionSettingsAppWindow")}
+          description={t("extensionSettingsAppWindowDescription")}
+        >
+          <Choice
+            label={t("extensionSettingsAppWindow")}
+            value={settings.appWindow}
+            options={[
+              { value: "tab", label: t("extensionSettingsAppWindowTab") },
+              { value: "popup", label: t("extensionSettingsAppWindowPopup") },
+            ]}
+            onChange={(appWindow) => update({ appWindow })}
           />
         </SettingsItem>
       </SettingsSection>

@@ -207,6 +207,13 @@ cannot inject into or debug its pages, and its storage belongs to it alone.
   automatic lookup and the per-tab badge count need granted site access and
   respect the optional repository/project allowlist. Opening a session
   navigates the existing YA tab in place, or opens one.
+- **Popup window.** With Settings → Browser extension → "Open Yep Anywhere
+  as" set to a popup window, every new YA page the toolbar button or the
+  side panel opens is a Chrome popup window (no tabs or address bar) instead
+  of a tab. A popup counts as the existing YA tab for later opens. Each
+  popup saves its size and place when resized or closed, and the next popup
+  opens there, falling back to a default size when Chrome rejects those
+  bounds. The default is a browser tab.
 - **Settings.** Settings → Browser extension appears only on the extension
   origin and stores its values in `chrome.storage.local`, not on any host.
 - **Known unavailable.** Push notifications, streamed downloads, HTML

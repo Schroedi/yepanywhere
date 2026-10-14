@@ -29,6 +29,8 @@ export interface ExtensionSettings {
   badge: "page" | "off";
   panelFallback: "attention" | "recent" | "none";
   openSessionsIn: "existing-tab" | "new-tab";
+  /** What a newly opened YA page is: a browser tab or a popup window. */
+  appWindow: "tab" | "popup";
 }
 
 export const DEFAULT_EXTENSION_SETTINGS: ExtensionSettings = {
@@ -41,6 +43,7 @@ export const DEFAULT_EXTENSION_SETTINGS: ExtensionSettings = {
   badge: "page",
   panelFallback: "attention",
   openSessionsIn: "existing-tab",
+  appWindow: "tab",
 };
 
 function normalize(value: unknown): ExtensionSettings {
@@ -87,6 +90,9 @@ function normalize(value: unknown): ExtensionSettings {
     ),
     openSessionsIn: pick("openSessionsIn", (candidate) =>
       ["existing-tab", "new-tab"].includes(candidate as string),
+    ),
+    appWindow: pick("appWindow", (candidate) =>
+      ["tab", "popup"].includes(candidate as string),
     ),
   };
 }

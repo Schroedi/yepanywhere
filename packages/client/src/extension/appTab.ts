@@ -5,6 +5,7 @@
  */
 
 import { getChrome, type ChromeTab } from "./chrome";
+import { loadExtensionSettings } from "./settings";
 
 export const NAVIGATE_MESSAGE = "ya-extension-navigate";
 
@@ -97,7 +98,96 @@ export async function findAppTab(): Promise<ChromeTab | undefined> {
     .sort((a, b) => (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0))[0];
 }
 
-/** Show `path` in the YA tab, or in a new one when asked or when none exists. */
+/**
+ * `chrome.storage.local` size and place of the last YA popup window, saved by
+ * the popup itself, since Chrome does not remember them for created windows.
+ */
+const POPUP_BOUNDS_KEY = "ya.popupBounds";
+
+interface PopupBounds {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+const DEFAULT_POPUP_SIZE = { width: 480, height: 860 };
+
+function isPopupBounds(value: unknown): value is PopupBounds {
+  const bounds = value as Partial<PopupBounds> | null;
+  return (
+    !!bounds &&
+    [bounds.left, bounds.top, bounds.width, bounds.height].every(
+      (n) => typeof n === "number" && Number.isFinite(n),
+    )
+  );
+}
+
+/** Open `path` in a new app page: a tab, or a popup window when preferred. */
+export async function createAppPage(path: string): Promise<void> {
+  const chrome = getChrome();
+  if (!chrome) return;
+  const url = chrome.runtime.getURL(path);
+  if ((await loadExtensionSettings()).appWindow !== "popup") {
+    await chrome.tabs.create({ url });
+    return;
+  }
+  const saved = (await chrome.storage.local.get(POPUP_BOUNDS_KEY))[
+    POPUP_BOUNDS_KEY
+  ];
+  const popup = { url, type: "popup", focused: true } as const;
+  // Chrome rejects bounds mostly off every display, as after unplugging one.
+  await chrome.windows
+    .create({
+      ...popup,
+      ...(isPopupBounds(saved) ? saved : DEFAULT_POPUP_SIZE),
+    })
+    .catch(() => chrome.windows.create({ ...popup, ...DEFAULT_POPUP_SIZE }));
+}
+
+/** In a YA popup window, save its size and place for the next popup. */
+export function rememberPopupBounds(): () => void {
+  const chrome = getChrome();
+  if (!chrome) return () => {};
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const save = () => {
+    clearTimeout(timer);
+    const bounds: PopupBounds = {
+      left: window.screenX,
+      top: window.screenY,
+      width: window.outerWidth,
+      height: window.outerHeight,
+    };
+    void chrome.storage.local
+      .set({ [POPUP_BOUNDS_KEY]: bounds })
+      .catch(() => {});
+  };
+  const resized = () => {
+    clearTimeout(timer);
+    timer = setTimeout(save, 500);
+  };
+  let attached = false;
+  let disposed = false;
+  void chrome.windows
+    .getCurrent()
+    .catch(() => undefined)
+    .then((current) => {
+      if (disposed || current?.type !== "popup") return;
+      attached = true;
+      // Moving a window fires no event a page can see; closing saves it.
+      window.addEventListener("resize", resized);
+      window.addEventListener("pagehide", save);
+    });
+  return () => {
+    disposed = true;
+    clearTimeout(timer);
+    if (!attached) return;
+    window.removeEventListener("resize", resized);
+    window.removeEventListener("pagehide", save);
+  };
+}
+
+/** Show `path` in the YA tab, or in a new page when asked or when none exists. */
 export async function openInApp(
   path: string,
   options: { newTab?: boolean } = {},
@@ -106,7 +196,7 @@ export async function openInApp(
   if (!chrome) return;
   const tab = options.newTab ? undefined : await findAppTab();
   if (tab?.id === undefined) {
-    await chrome.tabs.create({ url: chrome.runtime.getURL(path) });
+    await createAppPage(path);
     return;
   }
   const message: NavigateMessage = {
