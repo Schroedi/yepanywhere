@@ -72,8 +72,10 @@ The dedicated `chrome-web-store` GitHub environment holds three variables:
 `CWS_WIF_PROVIDER`, `CWS_SERVICE_ACCOUNT`, and `CWS_PUBLISHER_ID`. No private key
 or refresh token is stored in GitHub. Enable the Chrome Web Store API in the
 Google Cloud project and link the dedicated service-account email in the
-Web Store developer account's API access settings. It needs no general project
-roles. Grant only `roles/iam.workloadIdentityUser` on that account to the
+Web Store developer account's API access settings. Google grants access at
+publisher scope; the script pins the Yep Anywhere item. See
+[Google's service-account setup](https://developer.chrome.com/docs/webstore/service-accounts).
+The account needs no general project roles. Grant only `roles/iam.workloadIdentityUser` on that account to the
 workload pool's exact GitHub environment subject.
 
 The OIDC provider maps `google.subject` to `assertion.sub` and restricts the
@@ -90,6 +92,11 @@ gh workflow run browser-extension.yml --ref main -f mode=check
 
 This main-only job obtains a short-lived scoped token, reads store status,
 checks the canonical public key and retains a sanitized status receipt.
+[Live verification 38618552980](https://github.com/kzahel/yepanywhere/actions/runs/38618552980) passed on
+2026-10-14: the pinned item reports 0.1.1 published and 0.1.3 pending review.
+The check made no upload or publication request. Upload/publish transitions
+are covered by the publisher tests; the next requested release tag will use
+that path against the store.
 
 ## Listing assets
 

@@ -377,7 +377,8 @@ confirms **Pending review**, with automatic publication after approval.
 Future explicit extension tags now have exact-ZIP acceptance, keyless Google
 API submission and GitHub release receipts; listing/privacy edits and Google
 review remain outside CI. The release helper follows the existing tagged
-website release pattern. Authentication verification is in progress.
+website release pattern. The [live read-only authentication check](https://github.com/kzahel/yepanywhere/actions/runs/38618552980)
+passed on 2026-10-14 and confirmed 0.1.3 remains pending review.
 This experiment does not displace release delivery.
 
 These remain candidates behind publishing and continuous delivery, not a

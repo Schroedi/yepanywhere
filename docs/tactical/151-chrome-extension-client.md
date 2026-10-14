@@ -15,6 +15,8 @@ tagged API submission and GitHub release receipts are implemented. Version 0.1.3
 [CI](https://github.com/kzahel/yepanywhere/actions/runs/38604832081) and was
 submitted on 2026-10-14 with the `contextMenus` justification saved. The store
 confirms **Pending review**, with automatic publication after approval.
+The [live keyless authentication check](https://github.com/kzahel/yepanywhere/actions/runs/38618552980) passed on
+2026-10-14 without store writes. Future tagged releases now submit through CI.
 
 ## Objective
 
