@@ -100,21 +100,17 @@ test.beforeAll(async () => {
     port: address.port,
     localOrigin: `http://artifacts.localhost:${address.port}`,
   });
-  await Promise.all([
-    process.platform === "linux"
-      ? (async () => {
-          const response = await fetch(`${base}/api/version`, {
-            signal: AbortSignal.timeout(10_000),
-          });
-          expect(response.ok).toBe(true);
-          const version = await response.json();
-          expect(
-            version.sessionSandboxing,
-            JSON.stringify(version.sessionSandboxing),
-          ).toMatchObject({ state: "available", backend: "bubblewrap" });
-        })()
-      : Promise.resolve(),
-  ]);
+  if (process.platform === "linux") {
+    const response = await fetch(`${base}/api/version`, {
+      signal: AbortSignal.timeout(10_000),
+    });
+    expect(response.ok).toBe(true);
+    const version = await response.json();
+    expect(
+      version.sessionSandboxing,
+      JSON.stringify(version.sessionSandboxing),
+    ).toMatchObject({ state: "available", backend: "bubblewrap" });
+  }
 });
 test.afterAll(async () => {
   if (instance) {
