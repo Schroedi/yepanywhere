@@ -173,6 +173,13 @@ everything pending.
   `pnpm update`, which forces a single version onto both importers and
   fails `--frozen-lockfile`. Apply the same rule to any other package
   declared at two majors in the workspace.
+- `@playwright/test` is held below 1.61. From 1.61 the runner loads test
+  files through `module.registerHooks`, and on Node 22.16 through 22.22 and
+  on 23.11 that fails to load CommonJS dependencies such as `sanitize-html`
+  with `request for './Parser.js' is not in cache`, so every e2e shard fails
+  at the supported Node floor. Node 22.23 and 24 load them. Lift the hold
+  when the supported floor moves past the fix. Playwright's
+  `PLAYWRIGHT_FORCE_ASYNC_LOADER` avoids the path but is undocumented.
 - `@anthropic-ai/claude-agent-sdk` and the pixi STT environment update
   only when requested from the dashboard, because they follow the
   [provider refresh](../../topics/provider-refresh.md) audit and the
