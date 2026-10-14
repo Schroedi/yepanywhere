@@ -90,6 +90,9 @@ data class YaHostManagementState(
     val error: YaNativeUiError? = null,
     val removalPrompt: YaRemovalPrompt? = null,
     val deviceNotifications: YaDeviceNotifications = YaDeviceNotifications.UNAVAILABLE,
+    /** A newly paired server whose notification offer is pending; it opens once the offer ends. */
+    val pushOffer: String? = null,
+    val pushOfferAccepted: Boolean = false,
 )
 
 /** Authentication availability is derived afresh, never retained from rendered UI.

@@ -48,7 +48,9 @@ class MainActivity : WebClientActivity() {
     private val pushPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         val profile = pendingPushProfile
         pendingPushProfile = null
-        // A denial refreshes the card into its blocked state and Settings link.
+        // A denial refreshes the card into its blocked state and Settings link,
+        // and lets a newly paired server open without notifications.
+        if (!granted) homeViewModel.finishPushOffer()
         homeViewModel.refreshNotifications(enableWhenReady = profile.takeIf { granted })
     }
     private fun enablePush(profileId: String) {
@@ -139,6 +141,7 @@ class MainActivity : WebClientActivity() {
                         onClearPairingInput = { pairingInput = null },
                         onEnablePush = ::enablePush,
                         onOpenNotificationSettings = ::openNotificationSettings,
+                        onAcceptPushOffer = { homeViewModel.acceptPushOffer()?.let(::enablePush) },
                     )
                 }
             }

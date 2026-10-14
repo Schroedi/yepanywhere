@@ -64,6 +64,7 @@ fun YaHostManagementScreen(
     onClearPairingInput: () -> Unit = {},
     onEnablePush: (String) -> Unit = {},
     onOpenNotificationSettings: (String) -> Unit = {},
+    onAcceptPushOffer: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsState()
     val uriHandler = LocalUriHandler.current
@@ -121,6 +122,25 @@ fun YaHostManagementScreen(
             dismissButton = {
                 TextButton(onClick = { confirmForgetProfileId = null }) {
                     Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
+    state.pushOffer?.takeIf { !state.pushOfferAccepted }?.let { profileId ->
+        val label = state.profiles.firstOrNull { it.id == profileId }?.label.orEmpty()
+        AlertDialog(
+            onDismissRequest = { viewModel.finishPushOffer() },
+            title = { Text(stringResource(R.string.native_push_offer_title)) },
+            text = { Text(stringResource(R.string.native_push_offer_body, label)) },
+            confirmButton = {
+                TextButton(onClick = onAcceptPushOffer) {
+                    Text(stringResource(R.string.native_push_enable))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.finishPushOffer() }) {
+                    Text(stringResource(R.string.native_push_offer_decline))
                 }
             },
         )

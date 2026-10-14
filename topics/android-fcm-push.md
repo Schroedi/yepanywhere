@@ -410,6 +410,12 @@ notification settings instead of an Enable action that cannot succeed; an
 enrolled server says it is on but blocked, and hides Send test. Returning from
 Settings with notifications allowed finishes the enable the user started there.
 
+Adding a server offers notifications once, before the server opens, when
+Android can show them or will still ask. Enable runs the same permission and
+enrollment flow and then opens the server; Not now or a permission denial opens
+it without enrolling. An enrollment failure keeps the Servers screen and its
+error visible. Blocked devices and builds without Firebase get no offer.
+
 ## First-Class Shell Live Verification
 
 Completed on 2026-08-02 with the configured replacement APK and an attached
