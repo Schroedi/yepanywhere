@@ -102,7 +102,7 @@ class WebClientActivityTest {
                 """
                 JSON.parse(window.__yaNativeTestResponse).result.features.join(",")
                 """.trimIndent(),
-                "\"notifications.status,notifications.requestPermission\"",
+                "\"notifications.status,notifications.requestPermission,notifications.manage\"",
             )
         }
     }

@@ -48,9 +48,9 @@ release channel loads a fixed YA HTTPS origin for Play internal or closed
 testing. Neither channel accepts an arbitrary runtime UI URL. Its native host
 is exact-origin and main-frame bound and exposes only declared high-level
 methods. The small control-plane methods are `host.describe`,
-`notifications.status`, and
-the explicitly user-triggered `notifications.requestPermission`; no method
-exports native credentials.
+`notifications.status`, and the explicitly user-triggered
+`notifications.requestPermission` and `notifications.manage`, which opens the
+native Servers screen; no method exports native credentials.
 
 The signed Android package also owns one platform-native launcher identity:
 YA's white Y over the established green gradient. Android 8 and later receive

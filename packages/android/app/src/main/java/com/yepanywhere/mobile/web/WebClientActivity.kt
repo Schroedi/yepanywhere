@@ -229,6 +229,7 @@ open class WebClientActivity : ComponentActivity() {
             launchPermissionRequest = {
                 notificationPermissionLauncher.launch(POST_NOTIFICATIONS_PERMISSION)
             },
+            showNotificationManagement = { showHostManagement() },
         )
         val root = FrameLayout(this).apply {
             setBackgroundColor(Color.rgb(24, 24, 24))

@@ -416,6 +416,13 @@ enrollment flow and then opens the server; Not now or a permission denial opens
 it without enrolling. An enrollment failure keeps the Servers screen and its
 error visible. Blocked devices and builds without Firebase get no offer.
 
+Inside the Android and iOS apps, whose WebView has no Web Push, the web
+Notifications settings replace the browser Web Push toggle with the app's
+native notification status and, where the app supports
+`notifications.manage`, a button that opens its Servers screen. The server
+event toggles stay usable there even when no browser holds a Web Push
+subscription, because native subscriptions honor the same toggles.
+
 ## First-Class Shell Live Verification
 
 Completed on 2026-08-02 with the configured replacement APK and an attached
