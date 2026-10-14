@@ -89,7 +89,11 @@ export async function publishStore({
   }
   const current = await call("GET", "fetchStatus");
   assert.equal(
-    current.publicKey,
+    // The API returns PEM; Chrome manifests store the same SPKI bytes as base64.
+    current.publicKey?.replace(
+      /-----BEGIN PUBLIC KEY-----|-----END PUBLIC KEY-----|\s/g,
+      "",
+    ),
     identity.key,
     "Store public key differs from the pinned identity",
   );

@@ -114,7 +114,8 @@ test("a rerun recognizes the submitted version and never changes another active 
 });
 
 test("status verification is read-only and refuses a different public key", async () => {
-  const { calls, request } = sequence([status]);
+  const pem = `-----BEGIN PUBLIC KEY-----\n${identity.key.match(/.{1,64}/g).join("\n")}\n-----END PUBLIC KEY-----\n`;
+  const { calls, request } = sequence([{ ...status, publicKey: pem }]);
   assert.equal(
     (
       await publishStore({
