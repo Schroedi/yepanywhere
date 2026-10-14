@@ -15,5 +15,11 @@ plausible stall point but is not established. The log carries no helper
 stderr or timing, so on the next occurrence capture the helper's stderr and
 elapsed time before choosing a fix. No timeout change or retry was added.
 
+The same 20-second stall appeared outside the unit test on 2026-10-14: in
+runtime run 38540391834 (attempt 1, Windows Node 23.11.0), server startup
+logged `hostAwakeService initialized (+20029ms)` before a later
+`/api/version` readiness timeout, recorded in
+[windows-validation-baseline.md](windows-validation-baseline.md).
+
 Found 2026-10-14 while triaging CI failures.
 Contributing-model: claude-opus-5-5
