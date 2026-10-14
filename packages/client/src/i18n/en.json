@@ -699,7 +699,7 @@
   "settingsAgentContextTitle": "Agent Context",
   "settingsAgentContextDescription": "Instructions for all sessions",
   "settingsNotificationsTitle": "Notifications",
-  "settingsNotificationsDescription": "Browser push, events, devices",
+  "settingsNotificationsDescription": "Push, events, devices",
   "settingsWebhooksTitle": "Lifecycle Webhooks",
   "settingsWebhooksDescription": "Notify services when sessions idle",
   "settingsDevicesTitle": "Devices",
