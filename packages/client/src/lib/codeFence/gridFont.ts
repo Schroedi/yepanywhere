@@ -10,7 +10,11 @@ const naturallyWide =
 function characterKind(character: string): number {
   const point = character.codePointAt(0)!;
   if (point < 0x80) return PLAIN;
-  const page = (characterPages[point >>> 8] ??= new Uint8Array(256));
+  let page = characterPages[point >>> 8];
+  if (!page) {
+    page = new Uint8Array(256);
+    characterPages[point >>> 8] = page;
+  }
   const offset = point & 255;
   const cached = page[offset];
   if (cached) return cached;
