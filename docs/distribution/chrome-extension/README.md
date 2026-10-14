@@ -57,9 +57,20 @@ and atomically pushes `main` and `extension-v0.1.4`. CI must pass packaging and
 both exact-ZIP acceptance gates before it can authenticate and upload. The
 publisher checks source revision, checksum and pinned store identity, waits
 for upload processing, and submits with review enabled and warnings blocked.
-It preserves a different version already awaiting review; rerunning the same
-submitted or published version is safe. Review is asynchronous: a successful
-workflow means submission succeeded, not that Chrome has delivered the update.
+A strictly newer candidate automatically cancels an older pending or staged
+submission, waits for cancellation, then uploads and submits the replacement.
+Same-version retries are safe, and an older workflow cannot cancel a newer
+submission. Publication jobs are serialized and recheck store status after
+cancellation. Review is asynchronous: a successful workflow means submission
+succeeded, not that Chrome has delivered the update.
+
+Cancellation happens only after the new ZIP passes both CI acceptance gates and
+integrity checks. It returns the old candidate to draft; if replacement upload
+or submission then fails, rerun the failed publishing job after resolving the
+error. The previous public version remains available. Google permits at most
+six review cancellations per publisher per day, so a quota error stops the run
+without uploading. See [review cancellation](https://developer.chrome.com/docs/webstore/cancel-review)
+and the [cancellation API](https://developer.chrome.com/docs/webstore/api/reference/rest/v2/publishers.items/cancelSubmission).
 
 Before tagging, update listing assets/disclosures in the dashboard if behavior
 or permissions changed, and verify the existing reviewer host remains usable.

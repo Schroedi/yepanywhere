@@ -82,25 +82,13 @@ export async function publishStore({
       throw new Error(
         `Web Store ${action}: HTTP ${response.status}; check the developer dashboard`,
       );
+    // cancelSubmission has an empty success response (including HTTP 204).
+    if (action === "cancelSubmission") return;
     const value = await response.json();
     assert.equal(value.name, name, "Unexpected store resource");
     assert.equal(value.itemId, identity.id, "Unexpected store item");
     return value;
   }
-  const current = await call("GET", "fetchStatus");
-  assert.equal(
-    // The API returns PEM; Chrome manifests store the same SPKI bytes as base64.
-    current.publicKey?.replace(
-      /-----BEGIN PUBLIC KEY-----|-----END PUBLIC KEY-----|\s/g,
-      "",
-    ),
-    identity.key,
-    "Store public key differs from the pinned identity",
-  );
-  assert(
-    !current.takenDown && !current.warned,
-    "Resolve the store policy issue before releasing",
-  );
   const summarize = (revision) =>
     revision && {
       state: revision.state,
@@ -108,11 +96,30 @@ export async function publishStore({
         (channel) => channel.crxVersion,
       ),
     };
-  const receipt = {
-    extensionId: identity.id,
-    published: summarize(current.publishedItemRevisionStatus),
-    submitted: summarize(current.submittedItemRevisionStatus),
+  const readStatus = async () => {
+    const current = await call("GET", "fetchStatus");
+    assert.equal(
+      // The API returns PEM; Chrome manifests store the same SPKI bytes as base64.
+      current.publicKey?.replace(
+        /-----BEGIN PUBLIC KEY-----|-----END PUBLIC KEY-----|\s/g,
+        "",
+      ),
+      identity.key,
+      "Store public key differs from the pinned identity",
+    );
+    assert(
+      !current.takenDown && !current.warned,
+      "Resolve the store policy issue before releasing",
+    );
+    return {
+      extensionId: identity.id,
+      published: summarize(current.publishedItemRevisionStatus),
+      submitted: summarize(current.submittedItemRevisionStatus),
+    };
   };
+  const active = (submission) =>
+    submission && ["PENDING_REVIEW", "STAGED"].includes(submission.state);
+  let receipt = await readStatus();
   if (checkOnly) return { status: "authenticated", ...receipt };
   assert(candidate, "A verified candidate is required");
   const { build, zip } = candidate;
@@ -129,18 +136,50 @@ export async function publishStore({
     published.state === "PUBLISHED"
   )
     return { status: "already-published", ...result };
-  if (submitted && ["PENDING_REVIEW", "STAGED"].includes(submitted.state)) {
-    assert(
-      submitted.versions.includes(build.version),
-      "Another version is awaiting review or publication; leave it intact",
-    );
+  if (
+    active(submitted) &&
+    submitted.versions.length &&
+    submitted.versions.every((version) => version === build.version)
+  )
     return { status: "already-submitted", ...result };
-  }
-  for (const version of published?.versions ?? [])
+  const requireNewerThanPublished = (published) => {
+    for (const version of published?.versions ?? [])
+      assert(
+        compareVersions(build.version, version) > 0,
+        "Refusing an older or reused store version",
+      );
+  };
+  requireNewerThanPublished(published);
+  if (active(submitted)) {
+    assert(submitted.versions.length, "Pending store version is unknown");
+    for (const version of submitted.versions)
+      assert(
+        compareVersions(build.version, version) > 0,
+        "Refusing to replace a newer or equal pending store version",
+      );
+    // The exact candidate has already passed CI and local integrity checks.
+    // Cancel once; never burn the publisher's daily quota by retrying this POST.
+    await call("POST", "cancelSubmission");
+    result.superseded = submitted;
+    for (let attempt = 0; attempt < 30; attempt++) {
+      receipt = await readStatus();
+      if (!active(receipt.submitted)) break;
+      assert.deepEqual(
+        receipt.submitted,
+        submitted,
+        "Submission changed during cancellation; inspect the store",
+      );
+      if (attempt < 29) await pause();
+    }
     assert(
-      compareVersions(build.version, version) > 0,
-      "Refusing an older or reused store version",
+      !active(receipt.submitted),
+      "Cancellation is still processing; inspect the store before retrying",
     );
+    // Approval can race cancellation. Never upload over a newer publication.
+    requireNewerThanPublished(receipt.published);
+    result.published = receipt.published;
+    result.submitted = receipt.submitted;
+  }
   const uploaded = await call("POST", "upload", zip, true);
   let state = uploaded.uploadState;
   for (

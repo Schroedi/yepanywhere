@@ -375,8 +375,10 @@ as **Published — public**. The 0.1.3 update passed
 submitted with its new `contextMenus` justification on 2026-10-14. The store
 confirms **Pending review**, with automatic publication after approval.
 Future explicit extension tags now have exact-ZIP acceptance, keyless Google
-API submission and GitHub release receipts; listing/privacy edits and Google
-review remain outside CI. The release helper follows the existing tagged
+API submission and GitHub release receipts. A newer accepted release supersedes
+an older pending submission after confirming cancellation; older runs cannot
+cancel newer submissions. Listing/privacy edits and Google review remain
+outside CI. The release helper follows the existing tagged
 website release pattern. The [live read-only authentication check](https://github.com/kzahel/yepanywhere/actions/runs/38618552980)
 passed on 2026-10-14 and confirmed 0.1.3 remains pending review.
 This experiment does not displace release delivery.

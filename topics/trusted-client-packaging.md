@@ -253,9 +253,18 @@ cannot inject into or debug its pages, and its storage belongs to it alone.
   principal is separate from YA owner/user/device grants. Trust is restricted
   to this repository, workflow, environment, main and extension release tags.
   Publication checks the pinned store id/public key, clean source revision and
-  ZIP checksum. It refuses policy warnings, older versions and replacing a
-  different pending submission; retries recognize an already submitted or
-  published version. A GitHub release retains the ZIP, checksum, source record
+  ZIP checksum. It refuses policy warnings and older versions. A strictly
+  newer accepted candidate cancels an older pending or staged submission,
+  confirms cancellation, then uploads and submits the replacement. Same-version
+  retries recognize an already submitted or published version; an older run
+  cannot cancel a newer submission. Publishing jobs are serialized, and store
+  status is checked again after cancellation to catch approval races. Failed
+  builds leave the previous review intact. Cancellation and replacement are
+  separate API operations: an upload/submission failure after cancellation
+  leaves the old candidate out of review until recovery. The installed public
+  version remains available. Cancellation is attempted once per run; status
+  polling is bounded, and Google's publisher-wide cancellation quota applies.
+  A GitHub release retains the ZIP, checksum, source record
   and store receipt after submission, without claiming review has completed.
   Manual `package` dispatch only builds artifacts; `check` on main performs
   authentication and a read-only store status check. The ZIP preserves the

@@ -17,6 +17,10 @@ submitted on 2026-10-14 with the `contextMenus` justification saved. The store
 confirms **Pending review**, with automatic publication after approval.
 The [live keyless authentication check](https://github.com/kzahel/yepanywhere/actions/runs/38618552980) passed on
 2026-10-14 without store writes. Future tagged releases now submit through CI.
+A newer verified candidate automatically supersedes an older pending or staged
+submission; it confirms cancellation before uploading, and refuses an older
+run that would replace a newer submission. The store runbook owns cancellation
+quota and failure-recovery details.
 
 ## Objective
 
