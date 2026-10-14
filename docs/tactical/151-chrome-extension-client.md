@@ -8,12 +8,13 @@ The client spike (steps 3–5) builds, loads unpacked under the store id, reache
 the public relay and survives reloads. Steps 7–10 (shared saved hosts, exact
 issue lookup, the side panel, and options with automatic lookup) are
 implemented and accepted locally and in the maintainer's Chrome against a
-real host (recorded under each step). Remaining step 6 checks, the deferred
-slices remain open. The first store approval (step 11) is complete. Publication preparation is
-implemented: independent extension version 0.1.1, audited upload ZIP, public
-listing assets and CI draft-release packaging. Version 0.1.3 passed
-[CI](https://github.com/kzahel/yepanywhere/actions/runs/38604832081) for the next
-public update; its upload and review submission remain pending.
+real host (recorded under each step). Remaining step 6 checks and deferred
+slices remain open. The first store approval (step 11) is complete. Independent
+extension versioning, audited upload ZIPs, public listing assets and CI
+draft-release packaging are implemented. Version 0.1.3 passed
+[CI](https://github.com/kzahel/yepanywhere/actions/runs/38604832081) and was
+submitted on 2026-10-14 with the `contextMenus` justification saved. The store
+confirms **Pending review**, with automatic publication after approval.
 
 ## Objective
 

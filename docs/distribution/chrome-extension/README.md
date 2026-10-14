@@ -1,8 +1,8 @@
 # Chrome Web Store publication
 
 Version **0.1.1** is **Published — public**, verified on **2026-10-14**, in
-all regions. The **0.1.3** update has passed CI and is ready for upload and review submission.
-The item is
+all regions. Version **0.1.3** was submitted on **2026-10-14** and is
+**Pending review**, with automatic publication after approval. The item is
 `dgeameddpnggdeenoekpiaacfghdodch`; [identity.json](identity.json) holds its
 public key. Account links and reviewer credentials belong in the private
 `dotfiles/runbooks/yepanywhere-chrome-extension.md` inventory.
@@ -107,15 +107,19 @@ official site is `yepanywhere.com`, with the homepage and GitHub support links.
 Distribution is **Public**, **Free of charge**, and **All regions**.
 
 The privacy fields and six data categories are saved. The console exposes
-justifications for the three install permissions; the optional per-site host
-access explanation is included with `activeTab`. The existing isolated
+justifications for all four install permissions, including `contextMenus`;
+the optional per-site host access explanation is included with `activeTab`.
+The existing isolated
 evaluation-server login and owner-login steps are saved in the restricted
 Test instructions fields, never in public artifacts. Login was rechecked with
 the exact CI ZIP before submission. Keep that server available during review.
 
 The maintainer authorized submission, and the console confirmed it on
 2026-10-13 with **Publish automatically after review** enabled. Version 0.1.1
-is now public. For later updates, refresh the package, listing and disclosures,
-verify reviewer access, then submit the new extension version.
+is now public. The exact 0.1.3 CI ZIP was uploaded and submitted on 2026-10-14
+after saving its `contextMenus` justification. The console confirmed submission
+and reports **Pending review**; automatic publication after approval is enabled.
+For later updates, refresh the package, listing and disclosures, verify
+reviewer access, then submit the new extension version.
 
 Asset requirements were checked against [Chrome's image specifications](https://developer.chrome.com/docs/webstore/images): 128px icon, required 440×280 tile, optional 1400×560 marquee, and full-bleed 1280×800 screenshots.

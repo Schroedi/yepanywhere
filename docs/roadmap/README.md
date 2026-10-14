@@ -371,8 +371,9 @@ privacy disclosures and restricted reviewer access were saved in the Web Store
 and submitted on 2026-10-13. Public distribution covers all regions, with
 automatic publication after approval. On 2026-10-14 the store reports 0.1.1
 as **Published — public**. The 0.1.3 update passed
-[CI](https://github.com/kzahel/yepanywhere/actions/runs/38604832081); its store
-upload and review submission remain pending.
+[CI](https://github.com/kzahel/yepanywhere/actions/runs/38604832081) and was
+submitted with its new `contextMenus` justification on 2026-10-14. The store
+confirms **Pending review**, with automatic publication after approval.
 This experiment does not displace release delivery.
 
 These remain candidates behind publishing and continuous delivery, not a

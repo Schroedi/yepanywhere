@@ -1,10 +1,10 @@
 # Chrome Web Store privacy fields
 
-These answers were saved for the actual 0.1.1 package and submitted on
-2026-10-13. Review them against each later package before uploading. The console
-has fields for the three install permissions; the optional per-site host-access
-explanation is included in the `activeTab` justification. The next package adds
-`contextMenus`; enter its justification below before uploading it.
+These answers were saved for the actual 0.1.3 package and submitted on
+2026-10-14, including the new `contextMenus` justification. Review them against
+each later package before submission. The console has fields for all four
+install permissions; the optional per-site host-access explanation is included
+in the `activeTab` justification.
 
 **Single purpose:** Let users supervise coding-agent sessions on their own Yep
 Anywhere servers and find the sessions related to a GitHub issue, pull request
