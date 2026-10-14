@@ -369,8 +369,10 @@ CI](https://github.com/kzahel/yepanywhere/actions/runs/38405189923) passed the
 actual 0.1.1 ZIP and produced its draft release. The exact ZIP, listing, assets,
 privacy disclosures and restricted reviewer access were saved in the Web Store
 and submitted on 2026-10-13. Public distribution covers all regions, with
-automatic publication after approval. The store reports **Pending review**;
-Google approval remains outstanding.
+automatic publication after approval. On 2026-10-14 the store reports 0.1.1
+as **Published — public**. The 0.1.3 update passed
+[CI](https://github.com/kzahel/yepanywhere/actions/runs/38604832081); its store
+upload and review submission remain pending.
 This experiment does not displace release delivery.
 
 These remain candidates behind publishing and continuous delivery, not a

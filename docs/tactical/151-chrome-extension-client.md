@@ -2,17 +2,18 @@
 
 Topic: chrome-extension-client
 
-Status: in progress 2026-10-13, experimental. The first public store release
-is pending review and relay origin support is deployed and publicly verified.
+Status: in progress 2026-10-14, experimental. Version 0.1.1 is publicly
+published; relay origin support is deployed and publicly verified.
 The client spike (steps 3–5) builds, loads unpacked under the store id, reaches
 the public relay and survives reloads. Steps 7–10 (shared saved hosts, exact
 issue lookup, the side panel, and options with automatic lookup) are
 implemented and accepted locally and in the maintainer's Chrome against a
 real host (recorded under each step). Remaining step 6 checks, the deferred
-slices and store approval (step 11) are open. Publication preparation is
+slices remain open. The first store approval (step 11) is complete. Publication preparation is
 implemented: independent extension version 0.1.1, audited upload ZIP, public
-listing assets and CI draft-release packaging. Version 0.1.1 was submitted for
-public review with automatic publication after approval.
+listing assets and CI draft-release packaging. Version 0.1.3 passed
+[CI](https://github.com/kzahel/yepanywhere/actions/runs/38604832081) for the next
+public update; its upload and review submission remain pending.
 
 ## Objective
 
@@ -493,8 +494,8 @@ ZIP/checksum/source record, listing artifact and acceptance captures. Web
 Store submission was authorized and completed on 2026-10-13: the exact 0.1.1
 CI ZIP replaced the seed, listing/assets/privacy fields and restricted reviewer
 access were saved, and distribution is public and free in all regions. The
-console confirmed submission and reports **Pending review**. Automatic
-publication after approval is enabled; Google approval remains outstanding.
+console confirmed submission; on 2026-10-14 it reports version 0.1.1 as
+**Published — public**. Automatic publication after approval remains enabled.
 
 The maintainer selected public visibility, independent three-part extension
 versions and CI upload ZIPs. Publishing a new version is the extension's

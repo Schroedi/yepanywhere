@@ -1,8 +1,8 @@
 # Chrome Web Store publication
 
-Version **0.1.1** was submitted on **2026-10-13** for a **public** listing in
-all regions, with automatic publication after approval. The store reports
-**Pending review**; it is not yet published. The item is
+Version **0.1.1** is **Published — public**, verified on **2026-10-14**, in
+all regions. The **0.1.3** update has passed CI and is ready for upload and review submission.
+The item is
 `dgeameddpnggdeenoekpiaacfghdodch`; [identity.json](identity.json) holds its
 public key. Account links and reviewer credentials belong in the private
 `dotfiles/runbooks/yepanywhere-chrome-extension.md` inventory.
@@ -18,7 +18,7 @@ pnpm --filter @yep-anywhere/browser-extension acceptance
 
 The build includes the complete client, worker and panel. Assembly uses the
 extension package's own version, independent of server release tags. It creates
-`packages/browser-extension/release/yep-anywhere-chrome-0.1.1.zip`, a checksum
+`packages/browser-extension/release/yep-anywhere-chrome-0.1.3.zip`, a checksum
 and `build.json` containing the source revision, dirty-state flag, extension id
 and file count. The manifest is at the ZIP root. Source maps, inline/remote
 HTML scripts, missing entries, wrong icon sizes, an incorrect store key and
@@ -27,7 +27,7 @@ Python 3 (`python3`, or `py -3` on Windows); CI runs packaging on Ubuntu.
 
 [Chrome Extension CI](../../../.github/workflows/browser-extension.yml) can be
 run manually from Actions to produce a package and listing artifact. Pushing
-`extension-v0.1.1` (matching package.json) also produces a **draft GitHub
+`extension-v0.1.3` (matching package.json) also produces a **draft GitHub
 release**, attaching the checked ZIP, checksum and build record. The workflow
 extracts the actual upload ZIP and runs login, exact lookup, in-place session
 opening, reload, saved-login browser restart, settings, sequential typing and
@@ -83,23 +83,24 @@ icon uses the required 16px transparent padding.
 
 ## Verified CI candidate
 
-[Chrome Extension CI 38405189923](https://github.com/kzahel/yepanywhere/actions/runs/38405189923)
-passed for source `087cda688693556832b24bfc958b3beb5b3b9537` and created the
-[draft 0.1.1 release](https://github.com/kzahel/yepanywhere/releases/tag/untagged-2776443d061b6e92e73b).
+[Chrome Extension CI 38604832081](https://github.com/kzahel/yepanywhere/actions/runs/38604832081)
+passed its package and acceptance job for source
+`8eec474833b94de5349b7e6df27135a776344993`, version **0.1.3**.
 The upload ZIP SHA-256 is
-`9270ccd6177288452517f9ba1ae56149d6a9ba9730cd808316e72ba9259c632b`.
+`fb0665563af5abfdeeba4538b137f436f84aae49b3c679dc8c992a1a36258cbd`.
 The downloaded file's checksum and archive integrity were verified, and its
 build record declares `sourceDirty: false`. Linux exact-ZIP acceptance measured
-11.1 ms maximum for 35 keys; the separate badge fixture measured 11.3 ms.
+16.0 ms maximum for 35 keys; the separate badge fixture measured 15.0 ms.
 Both pass the unchanged 100 ms input limit with concurrent transcript updates.
 The downloaded CI ZIP also signs into the existing isolated reviewer host
 through its public TLS relay from a fresh, subsequently removed profile.
-Saved login also survives a complete browser restart. The prior 0.1.0 tag
-failed a fixture focus check and produced no release; use 0.1.1.
+Saved login also survives a complete browser restart. The unpublished 0.1.2
+candidate exposed a stale-route acceptance race; 0.1.3 waits for the current
+session route without changing the timeout or application behavior.
 
 ## Store submission
 
-The verified CI ZIP above replaced the registration seed. The console has
+The original 0.1.1 CI ZIP replaced the registration seed. The console has
 saved [English listing](listing.en-US.txt), the icon, both promotion images,
 and all four screenshots in the documented order (side panel first). The
 official site is `yepanywhere.com`, with the homepage and GitHub support links.
@@ -113,8 +114,8 @@ Test instructions fields, never in public artifacts. Login was rechecked with
 the exact CI ZIP before submission. Keep that server available during review.
 
 The maintainer authorized submission, and the console confirmed it on
-2026-10-13 with **Publish automatically after review** enabled. Approval is
-still pending. For later updates, refresh the package, listing and disclosures,
+2026-10-13 with **Publish automatically after review** enabled. Version 0.1.1
+is now public. For later updates, refresh the package, listing and disclosures,
 verify reviewer access, then submit the new extension version.
 
 Asset requirements were checked against [Chrome's image specifications](https://developer.chrome.com/docs/webstore/images): 128px icon, required 440×280 tile, optional 1400×560 marquee, and full-bleed 1280×800 screenshots.
