@@ -47,6 +47,20 @@
   font-size: 13px;
   cursor: pointer;
 }
+.allowlist {
+  margin: 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.allowlist > span {
+  display: flex;
+  flex-direction: column;
+}
+.allowlist > span span {
+  color: var(--text-muted);
+  font-size: 13px;
+}
 .siteList li {
   display: flex;
   flex-wrap: wrap;
@@ -90,20 +104,6 @@
 .addSite input {
   flex: 1;
   min-width: 0;
-}
-.allowlist {
-  margin: 12px 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.allowlist > span {
-  display: flex;
-  flex-direction: column;
-}
-.allowlist > span span {
-  color: var(--text-muted);
-  font-size: 13px;
 }
 .allowlist textarea {
   padding: 8px 10px;

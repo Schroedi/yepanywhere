@@ -173,6 +173,14 @@
 .list[hidden] {
   display: none;
 }
+.newSession {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.newSession button {
+  flex: 1 1 auto;
+}
 .groupHeading {
   margin: 0 0 2px;
 }
@@ -204,14 +212,6 @@
 }
 .groupHeading [aria-expanded="true"] .chevron {
   transform: rotate(90deg);
-}
-.newSession {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.newSession button {
-  flex: 1 1 auto;
 }
 .panel .primary {
   background: var(--accent-color);
