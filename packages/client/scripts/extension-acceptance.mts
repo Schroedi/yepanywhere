@@ -551,7 +551,7 @@ Review restart persistence, provider-native resume and archive behavior on suppo
     // tab's address; on that route the panel lists the session's PR.
     const sessionRoute = new URL(app.url()).pathname;
     const published = await waitFor("published app tab route", () =>
-      app.evaluate(async () => {
+      app.evaluate(async (expectedRoute) => {
         const chrome = (
           globalThis as unknown as {
             chrome: {
@@ -565,10 +565,13 @@ Review restart persistence, provider-native resume and archive behavior on suppo
           }
         ).chrome;
         const key = `ya.appTabRoute.${(await chrome.tabs.getCurrent())?.id}`;
-        return (await chrome.storage.session.get(key))[key] as
+        const route = (await chrome.storage.session.get(key))[key] as
           | string
           | undefined;
-      }),
+        // Storage can still hold the projects route while AppBridge publishes
+        // the session navigation. Wait for that navigation, not any old route.
+        return route === expectedRoute ? route : undefined;
+      }, sessionRoute),
     );
     expect(published).toBe(sessionRoute);
     for (const sessionUrl of [
