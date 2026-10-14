@@ -81,6 +81,12 @@
       "automerge": true
     },
     {
+      "description": "The client and desktop declare different vite majors. A lockfile-only update passes both target versions to one recursive pnpm update, which forces a single version onto both importers and breaks --frozen-lockfile; bumping the ranges keeps each importer on its own major.",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["vite"],
+      "rangeStrategy": "bump"
+    },
+    {
       "description": "Group and automerge non-major GitHub Actions updates and digest pins.",
       "matchManagers": ["github-actions"],
       "matchUpdateTypes": ["minor", "patch", "digest", "pinDigest"],

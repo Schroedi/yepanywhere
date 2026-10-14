@@ -167,6 +167,12 @@ everything pending.
   Node floor.
 - Major updates to `pnpm-workspace.yaml` overrides are disabled; see the
   exact `fast-uri` pin above.
+- `vite` updates bump the declared ranges instead of updating only the
+  lockfile. The client and desktop declare different vite majors, and a
+  lockfile-only group update passes both versions to one recursive
+  `pnpm update`, which forces a single version onto both importers and
+  fails `--frozen-lockfile`. Apply the same rule to any other package
+  declared at two majors in the workspace.
 - `@anthropic-ai/claude-agent-sdk` and the pixi STT environment update
   only when requested from the dashboard, because they follow the
   [provider refresh](../../topics/provider-refresh.md) audit and the
