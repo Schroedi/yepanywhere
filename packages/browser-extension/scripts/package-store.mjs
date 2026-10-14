@@ -30,6 +30,7 @@ assert.equal(manifest.version, version);
 assert.equal(manifest.manifest_version, 3);
 assert.deepEqual([...manifest.permissions].sort(), [
   "activeTab",
+  "contextMenus",
   "sidePanel",
   "storage",
 ]);

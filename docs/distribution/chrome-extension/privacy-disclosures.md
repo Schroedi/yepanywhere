@@ -3,7 +3,8 @@
 These answers were saved for the actual 0.1.1 package and submitted on
 2026-10-13. Review them against each later package before uploading. The console
 has fields for the three install permissions; the optional per-site host-access
-explanation is included in the `activeTab` justification.
+explanation is included in the `activeTab` justification. The next package adds
+`contextMenus`; enter its justification below before uploading it.
 
 **Single purpose:** Let users supervise coding-agent sessions on their own Yep
 Anywhere servers and find the sessions related to a GitHub issue, pull request
@@ -14,6 +15,7 @@ or Jira ticket beside the page they are reviewing.
 | `sidePanel` | Display related coding-agent sessions beside the current browser tab. |
 | `storage` | Save extension preferences and a local saved-host login mirror so the worker can resume the user's selected hosts on demand. Temporary tab/lookup state uses session storage. No credentials use Chrome sync. |
 | `activeTab` | A toolbar click reads that tab's URL for an explicit issue/ticket lookup. No page content is injected or read. |
+| `contextMenus` | Adds "Open Yep Anywhere", "Open Yep Anywhere in a popup window" and "Open the side panel" to the toolbar button's right-click menu. No menu is added to web pages. |
 | Optional `https://*/*`, `http://*/*` | Users can run GitHub Enterprise or Jira at their own addresses. Access is requested for one selected site at runtime, to observe that site's issue/ticket URLs for automatic lookup and the badge. No site access is granted at install. |
 
 **Remote code:** No. Application JavaScript, fonts, styles, the worker and side

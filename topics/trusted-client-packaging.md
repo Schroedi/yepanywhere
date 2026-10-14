@@ -178,11 +178,11 @@ The experimental Chrome extension (id `dgeameddpnggdeenoekpiaacfghdodch`,
 remote client from its own origin and adds a side panel. Other extensions
 cannot inject into or debug its pages, and its storage belongs to it alone.
 
-- **Permissions.** Installed with `sidePanel`, `storage` and `activeTab`
-  only, none of which shows an install warning. Host access is optional and
-  granted per site by the user from the side panel or Settings → Browser
-  extension; there are no content scripts, no `tabs` permission and no
-  `externally_connectable` entry.
+- **Permissions.** Installed with `sidePanel`, `storage`, `activeTab` and
+  `contextMenus` only, none of which shows an install warning. Host access
+  is optional and granted per site by the user from the side panel or
+  Settings → Browser extension; there are no content scripts, no `tabs`
+  permission and no `externally_connectable` entry.
 - **Credentials.** Saved hosts and resume sessions stay in the extension
   origin's `localStorage` under the existing compare-and-set rules. Extension
   pages mirror that record into `chrome.storage.local` after each write, for
@@ -207,6 +207,15 @@ cannot inject into or debug its pages, and its storage belongs to it alone.
   automatic lookup and the per-tab badge count need granted site access and
   respect the optional repository/project allowlist. Opening a session
   navigates the existing YA tab in place, or opens one.
+- **Opening the app.** The side panel header has an "Open Yep Anywhere"
+  button, and the toolbar button's right-click menu has "Open Yep
+  Anywhere" and "Open Yep Anywhere in a popup window". "Open Yep Anywhere"
+  brings the most recently used YA tab or popup forward without
+  navigating it, or opens a new app page. The popup item always opens a
+  new popup window. When the toolbar button is set to open the app, the
+  menu also offers "Open the side panel", which reads the clicked page
+  once as a toolbar click does. Menu items appear only on the toolbar
+  button, never on web pages.
 - **Popup window.** With Settings → Browser extension → "Open Yep Anywhere
   as" set to a popup window, every new YA page the toolbar button or the
   side panel opens is a Chrome popup window (no tabs or address bar) instead

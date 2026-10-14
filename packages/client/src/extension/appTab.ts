@@ -123,12 +123,18 @@ function isPopupBounds(value: unknown): value is PopupBounds {
   );
 }
 
-/** Open `path` in a new app page: a tab, or a popup window when preferred. */
-export async function createAppPage(path: string): Promise<void> {
+/**
+ * Open `path` in a new app page: a tab, or a popup window when preferred or
+ * asked for.
+ */
+export async function createAppPage(
+  path: string,
+  options: { popup?: boolean } = {},
+): Promise<void> {
   const chrome = getChrome();
   if (!chrome) return;
   const url = chrome.runtime.getURL(path);
-  if ((await loadExtensionSettings()).appWindow !== "popup") {
+  if (!options.popup && (await loadExtensionSettings()).appWindow !== "popup") {
     await chrome.tabs.create({ url });
     return;
   }
@@ -143,6 +149,19 @@ export async function createAppPage(path: string): Promise<void> {
       ...(isPopupBounds(saved) ? saved : DEFAULT_POPUP_SIZE),
     })
     .catch(() => chrome.windows.create({ ...popup, ...DEFAULT_POPUP_SIZE }));
+}
+
+/** Bring the YA tab forward as it is, or open a new app page. */
+export async function focusOrOpenApp(): Promise<void> {
+  const chrome = getChrome();
+  if (!chrome) return;
+  const tab = await findAppTab();
+  if (tab?.id === undefined) {
+    await createAppPage("/");
+    return;
+  }
+  await chrome.tabs.update(tab.id, { active: true });
+  await chrome.windows.update(tab.windowId, { focused: true });
 }
 
 /** In a YA popup window, save its size and place for the next popup. */

@@ -392,7 +392,7 @@ Review restart persistence, provider-native resume and archive behavior on suppo
     await panel.goto(
       `${origin}/sidepanel.html?url=${encodeURIComponent(storeAssets ? reference : `${reference}/files`)}`,
     );
-    const rows = panel.getByRole("button", { name: /^Open / });
+    const rows = panel.getByRole("button", { name: /^Open (?!Yep Anywhere$)/ });
     await expect(rows).toHaveCount(2, { timeout: 60_000 });
     await expect(panel.getByText(implementationTitle)).toBeVisible();
     await expect(panel.getByText(/Look at/)).toHaveCount(0);
@@ -496,6 +496,55 @@ Review restart persistence, provider-native resume and archive behavior on suppo
         await local.set({ [key]: { ...current, appWindow: "tab" } });
       });
       log("new-page click opened the session in a popup window");
+
+      // The panel's open button brings the app tab forward unchanged.
+      const pages = context.pages().length;
+      await panel.getByRole("button", { name: "Open Yep Anywhere" }).click();
+      await expect
+        .poll(() =>
+          app.evaluate(
+            async () =>
+              (
+                await (
+                  globalThis as unknown as {
+                    chrome: {
+                      tabs: {
+                        getCurrent(): Promise<{ active: boolean } | undefined>;
+                      };
+                    };
+                  }
+                ).chrome.tabs.getCurrent()
+              )?.active,
+          ),
+        )
+        .toBe(true);
+      expect(context.pages()).toHaveLength(pages);
+      expect(app.url()).toMatch(/\/sessions\/accept-impl$/);
+      expect(await app.evaluate(() => performance.timeOrigin)).toBe(before);
+
+      // The toolbar button's right-click menu exists; Chrome offers no way
+      // to open it from automation, so only its items are checked.
+      await expect
+        .poll(() =>
+          worker
+            .evaluate(async () => {
+              const menus = (
+                globalThis as unknown as {
+                  chrome: {
+                    contextMenus: {
+                      update(id: string, properties: object): Promise<void>;
+                    };
+                  };
+                }
+              ).chrome.contextMenus;
+              const ids = ["open-app", "open-popup", "open-side-panel"];
+              for (const id of ids) await menus.update(id, {});
+              return ids.length;
+            })
+            .catch(() => 0),
+        )
+        .toBe(3);
+      log("panel open button focused the app tab; toolbar menu items exist");
     }
 
     // The app tab publishes its route for the panel, which cannot read the

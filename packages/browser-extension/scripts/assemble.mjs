@@ -78,8 +78,9 @@ const manifest = {
     extension_pages: "script-src 'self'; object-src 'self'",
   },
   // None of these shows an install warning (docs/tactical/151 design rule).
-  // activeTab lets a toolbar click read that one page's address.
-  permissions: ["sidePanel", "storage", "activeTab"],
+  // activeTab lets a toolbar click read that one page's address;
+  // contextMenus adds items to the toolbar button's right-click menu.
+  permissions: ["sidePanel", "storage", "activeTab", "contextMenus"],
   // Requested per site from the side panel or options, never at install:
   // reading a granted site's addresses drives automatic lookup.
   optional_host_permissions: ["https://*/*", "http://*/*"],

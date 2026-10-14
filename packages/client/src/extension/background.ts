@@ -3,7 +3,8 @@
  *
  * - Serves the app shell for path navigations, so reloads and deep links
  *   work under BrowserRouter.
- * - Runs the toolbar button: open the side panel, or focus the YA tab.
+ * - Runs the toolbar button: open the side panel, or focus the YA tab, and
+ *   its right-click menu.
  * - Looks up issue pages on granted sites as tabs navigate and puts the
  *   session count on the toolbar badge.
  *
@@ -17,9 +18,9 @@ import {
   appTabRouteKey,
   CLICKED_TAB_KEY,
   createAppPage,
-  findAppTab,
+  focusOrOpenApp,
 } from "./appTab";
-import { getChrome } from "./chrome";
+import { type ChromeTab, getChrome } from "./chrome";
 import { countIssueSessions } from "./lookup";
 import {
   activeHosts,
@@ -62,6 +63,7 @@ const settingsReady = loadExtensionSettings().then((loaded) => {
 });
 subscribeExtensionSettings((next) => {
   settings = next;
+  showMenuSidePanel(next);
   if (next.badge === "off" || !next.automaticLookup) void clearAllBadges();
 });
 
@@ -80,33 +82,59 @@ worker.addEventListener("fetch", (event) => {
 chrome.runtime.onInstalled.addListener(() => {
   // The worker decides per click, since the toolbar setting can change.
   void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false });
+  // Menu items persist across worker restarts; recreate them on update.
+  void Promise.all([chrome.contextMenus.removeAll(), settingsReady]).then(
+    () => {
+      for (const item of MENU_ITEMS)
+        chrome.contextMenus.create({ ...item, contexts: ["action"] });
+      showMenuSidePanel(settings);
+    },
+  );
 });
+
+function openSidePanel(tab: ChromeTab): void {
+  // Call open first: it must run inside the click's user gesture.
+  const opening = chrome.sidePanel.open({ windowId: tab.windowId });
+  // The click grants activeTab, so the URL is readable now even on a site
+  // without granted access; the panel looks that page up once.
+  if (tab.id !== undefined)
+    void chrome.storage.session.set({
+      [CLICKED_TAB_KEY]: { tabId: tab.id, url: tab.url },
+    });
+  void opening.catch(() => {});
+}
 
 chrome.action.onClicked.addListener((tab) => {
-  if (settings.toolbarAction === "side-panel") {
-    // Call open first: it must run inside the click's user gesture.
-    const opening = chrome.sidePanel.open({ windowId: tab.windowId });
-    // The click grants activeTab, so the URL is readable now even on a site
-    // without granted access; the panel looks that page up once.
-    if (tab.id !== undefined)
-      void chrome.storage.session.set({
-        [CLICKED_TAB_KEY]: { tabId: tab.id, url: tab.url },
-      });
-    void opening.catch(() => {});
-    return;
-  }
-  void focusAppTab();
+  if (settings.toolbarAction === "side-panel") openSidePanel(tab);
+  else void focusOrOpenApp();
 });
 
-async function focusAppTab(): Promise<void> {
-  const tab = await findAppTab();
-  if (tab?.id !== undefined) {
-    await chrome.tabs.update(tab.id, { active: true });
-    await chrome.windows.update(tab.windowId, { focused: true });
-    return;
-  }
-  await createAppPage("/");
+// --- Toolbar button menu ---------------------------------------------------
+
+// Titles are fixed English, like the manifest's: the worker does not load
+// the client's message catalog.
+const MENU_ITEMS = [
+  { id: "open-app", title: "Open Yep Anywhere" },
+  { id: "open-popup", title: "Open Yep Anywhere in a popup window" },
+  { id: "open-side-panel", title: "Open the side panel" },
+] as const;
+
+/** The side panel item duplicates a click unless the click opens the app. */
+function showMenuSidePanel(current: ExtensionSettings): void {
+  void chrome.contextMenus
+    .update("open-side-panel", {
+      visible: current.toolbarAction !== "side-panel",
+    })
+    .catch(() => {});
 }
+
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId === "open-side-panel") {
+    if (tab) openSidePanel(tab);
+  } else if (info.menuItemId === "open-popup")
+    void createAppPage("/", { popup: true });
+  else if (info.menuItemId === "open-app") void focusOrOpenApp();
+});
 
 // --- Automatic lookup and the badge ---------------------------------------
 

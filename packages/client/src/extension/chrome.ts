@@ -106,6 +106,19 @@ export interface ChromeApi {
     }): Promise<void>;
     onClicked: ChromeEvent<(tab: ChromeTab) => void>;
   };
+  contextMenus: {
+    create(properties: {
+      id: string;
+      title: string;
+      contexts: "action"[];
+      visible?: boolean;
+    }): void;
+    update(id: string, properties: { visible?: boolean }): Promise<void>;
+    removeAll(): Promise<void>;
+    onClicked: ChromeEvent<
+      (info: { menuItemId: string | number }, tab?: ChromeTab) => void
+    >;
+  };
   sidePanel: {
     open(options: { tabId?: number; windowId?: number }): Promise<void>;
     setPanelBehavior(behavior: {
