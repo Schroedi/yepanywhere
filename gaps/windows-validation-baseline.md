@@ -88,4 +88,12 @@ The commit changed only site, sharing-worker and STT lockfiles. No retry or
 timeout change was made.
 Contributing-model: claude-opus-5-5.
 
+Follow-up the same day: `npm root -g` is now bounded at about 10 seconds and
+falls back to the release-package install source, and `/api/version` logs a
+`version_probe_slow` warning naming each dependency still pending after
+5 seconds, so the smoke's output tail identifies a stalled probe on the next
+occurrence. The smoke's readiness budget is unchanged. This does not establish
+the cause; check the next failing log for `version_probe_slow`.
+Contributing-model: claude-opus-5-5.
+
 Found 2026-09-12 while validating Windows directory-sync persistence fixes.
