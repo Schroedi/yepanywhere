@@ -93,7 +93,7 @@ export interface ChromeApi {
       top?: number;
       width?: number;
       height?: number;
-    }): Promise<unknown>;
+    }): Promise<{ id?: number; tabs?: ChromeTab[] }>;
     getCurrent(): Promise<{ id?: number; type?: string }>;
     update(windowId: number, info: { focused?: boolean }): Promise<unknown>;
     WINDOW_ID_CURRENT: number;

@@ -10,10 +10,15 @@ import { ThinkingIndicator } from "../../components/ThinkingIndicator";
 import { useI18n } from "../../i18n";
 import { formatBriefAge } from "../../lib/sessionAge";
 import { loadSavedHosts, type SavedHost } from "../../lib/hostStorage";
+import {
+  createNewSessionPrefillToken,
+  stashNewSessionPrefillToken,
+} from "../../lib/newSessionPrefill";
+import { resolveSourceKeyForSavedHost } from "../../lib/sourceIdentity";
 import { TrackerStatusBadge } from "../../components/TrackerStatusBadge";
 import { IssueTypeBadge } from "../../pages/IssueTypeBadge";
 import type { Project } from "../../types";
-import { focusOrOpenApp, openInApp } from "../appTab";
+import { focusOrOpenApp, openComposeWindow, openInApp } from "../appTab";
 import { getChrome } from "../chrome";
 import { withHost } from "../hostLinks";
 import {
@@ -41,6 +46,9 @@ import styles from "./SidePanel.module.css";
 import { useCurrentTab } from "./useCurrentTab";
 
 const REFRESH_MS = 30_000;
+const COLLAPSED_GROUPS_KEY = "ya.extension.panelCollapsedGroups";
+
+type GroupKey = "needsYou" | "running" | "recent";
 
 type Content =
   | { kind: "idle" }
@@ -66,6 +74,43 @@ function useSavedHosts(): SavedHost[] {
     return () => window.removeEventListener("storage", reload);
   }, []);
   return hosts;
+}
+
+function loadCollapsedGroups(): GroupKey[] {
+  try {
+    const stored: unknown = JSON.parse(
+      localStorage.getItem(COLLAPSED_GROUPS_KEY) ?? "[]",
+    );
+    return Array.isArray(stored)
+      ? stored.filter((key): key is GroupKey =>
+          ["needsYou", "running", "recent"].includes(key),
+        )
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Attention groups the user collapsed, remembered across panel opens. */
+function useCollapsedGroups(): [GroupKey[], (key: GroupKey) => void] {
+  const [collapsed, setCollapsed] = useState(loadCollapsedGroups);
+  useEffect(() => {
+    const reload = (event: StorageEvent) => {
+      if (event.key === COLLAPSED_GROUPS_KEY)
+        setCollapsed(loadCollapsedGroups());
+    };
+    window.addEventListener("storage", reload);
+    return () => window.removeEventListener("storage", reload);
+  }, []);
+  const toggle = useCallback((key: GroupKey) => {
+    const current = loadCollapsedGroups();
+    const next = current.includes(key)
+      ? current.filter((item) => item !== key)
+      : [...current, key];
+    localStorage.setItem(COLLAPSED_GROUPS_KEY, JSON.stringify(next));
+    setCollapsed(next);
+  }, []);
+  return [collapsed, toggle];
 }
 
 function useSiteAccess(url: string | undefined): boolean | null {
@@ -275,7 +320,6 @@ export function SidePanel() {
   const [manualUrl, setManualUrl] = useState<string>();
   const [content, setContent] = useState<Content>({ kind: "idle" });
   const [loading, setLoading] = useState(false);
-  const [note, setNote] = useState("");
   const [refreshCount, setRefreshCount] = useState(0);
 
   const reference = tab.url ? issueLookupUrl(tab.url) : null;
@@ -333,11 +377,10 @@ export function SidePanel() {
     refreshCount,
   ]);
 
-  // A different page drops the previous page's answer and note.
+  // A different page drops the previous page's answer.
   // biome-ignore lint/correctness/useExhaustiveDependencies: the URL is the trigger, not an input.
   useEffect(() => {
     setContent({ kind: "idle" });
-    setNote("");
   }, [tab.url]);
 
   const open = useCallback(
@@ -358,24 +401,36 @@ export function SidePanel() {
       target ? hostPath(target, "settings/browser-extension") : "/login",
     );
 
-  const startSession = (lookupReference: IssueUrlReference) => {
+  // Ctrl/⌘ opens an ordinary app page instead of the new-session popup.
+  const openNewSession = (path: string, newTab: boolean) => {
+    if (newTab) void openInApp(path, { newTab: true });
+    else void openComposeWindow(path);
+  };
+
+  // The new session starts with the page's address in its composer, in the
+  // project the address most likely belongs to.
+  const startSessionAbout = (
+    event: MouseEvent,
+    pageReference: IssueUrlReference,
+  ) => {
     if (!target) return;
-    void navigator.clipboard
-      .writeText(lookupReference.url)
-      .then(() => setNote(t("extensionPanelNewSessionCopied")))
-      .catch(() => {});
-    void guessProject(target, lookupReference)
+    const newTab = event.metaKey || event.ctrlKey;
+    void guessProject(target, pageReference)
       .catch(() => undefined)
-      .then((projectId) =>
-        openInApp(
-          hostPath(
-            target,
-            projectId
-              ? `new-session?projectId=${encodeURIComponent(projectId)}`
-              : "new-session",
-          ),
-        ),
-      );
+      .then((projectId) => {
+        const token = createNewSessionPrefillToken();
+        stashNewSessionPrefillToken(
+          token,
+          resolveSourceKeyForSavedHost(target),
+          `${pageReference.url}\n\n`,
+        );
+        const params = new URLSearchParams({ prefillToken: token });
+        if (projectId) params.set("projectId", projectId);
+        openNewSession(
+          hostPath(target, `new-session?${params.toString()}`),
+          newTab,
+        );
+      });
   };
 
   const openIssue = (item: IssueItem) => {
@@ -506,6 +561,38 @@ export function SidePanel() {
           </section>
         ) : (
           <>
+            {target && (
+              <section
+                className={styles.newSession}
+                aria-label={t("extensionPanelNewSessionSection")}
+              >
+                {reference && (
+                  <button
+                    type="button"
+                    className={styles.primary}
+                    onClick={(event) => startSessionAbout(event, reference)}
+                  >
+                    {t("extensionPanelNewSession")}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={(event) =>
+                    openNewSession(
+                      hostPath(target, "new-session"),
+                      event.metaKey || event.ctrlKey,
+                    )
+                  }
+                >
+                  {showHost
+                    ? t("extensionPanelStartSessionOn", {
+                        host: target.displayName,
+                      })
+                    : t("extensionPanelStartSession")}
+                </button>
+              </section>
+            )}
+
             {reference && (
               <section className={styles.context} aria-label={reference.key}>
                 <div className={styles.contextKey}>
@@ -586,20 +673,6 @@ export function SidePanel() {
                     ))}
                   </ul>
                 )}
-                {target && (
-                  <button
-                    type="button"
-                    className={styles.primary}
-                    onClick={() => startSession(lookup.reference)}
-                  >
-                    {t("extensionPanelNewSession")}
-                  </button>
-                )}
-                {note && (
-                  <p className={styles.note} role="status">
-                    {note}
-                  </p>
-                )}
                 <p className={styles.hint}>{t("extensionPanelCoverage")}</p>
               </>
             )}
@@ -668,13 +741,33 @@ function AttentionGroups({
   onOpen: (session: PanelSession, event: MouseEvent) => void;
 }) {
   const { t } = useI18n();
-  const groups =
+  const [collapsed, toggle] = useCollapsedGroups();
+  const groups: {
+    key: GroupKey;
+    heading: string;
+    sessions: PanelSession[];
+  }[] =
     fallback === "recent"
-      ? [{ heading: t("extensionPanelRecent"), sessions: view.recent }]
-      : [
-          { heading: t("extensionPanelNeedsYou"), sessions: view.needsYou },
-          { heading: t("extensionPanelRunning"), sessions: view.running },
+      ? [
           {
+            key: "recent",
+            heading: t("extensionPanelRecent"),
+            sessions: view.recent,
+          },
+        ]
+      : [
+          {
+            key: "needsYou",
+            heading: t("extensionPanelNeedsYou"),
+            sessions: view.needsYou,
+          },
+          {
+            key: "running",
+            heading: t("extensionPanelRunning"),
+            sessions: view.running,
+          },
+          {
+            key: "recent",
             heading: t("extensionPanelRecent"),
             sessions: view.recent.slice(0, 5),
           },
@@ -684,24 +777,49 @@ function AttentionGroups({
     return <p className={styles.hint}>{t("extensionPanelNothingActive")}</p>;
   return (
     <>
-      {visible.map((group) => (
-        <section key={group.heading} aria-label={group.heading}>
-          <h3 className={styles.groupHeading}>
-            {group.heading}
-            <span>{group.sessions.length}</span>
-          </h3>
-          <ul className={styles.list}>
-            {group.sessions.map((session) => (
-              <SessionRow
-                key={`${session.host.id}:${session.sessionId}`}
-                session={session}
-                showHost={showHost}
-                onOpen={onOpen}
-              />
-            ))}
-          </ul>
-        </section>
-      ))}
+      {visible.map((group) => {
+        const expanded = !collapsed.includes(group.key);
+        const listId = `panel-group-${group.key}`;
+        return (
+          <section key={group.key} aria-label={group.heading}>
+            <h3 className={styles.groupHeading}>
+              <button
+                type="button"
+                aria-expanded={expanded}
+                aria-controls={listId}
+                onClick={() => toggle(group.key)}
+              >
+                <svg
+                  className={styles.chevron}
+                  width="10"
+                  height="10"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="m9 6 6 6-6 6" />
+                </svg>
+                {group.heading}
+                <span>{group.sessions.length}</span>
+              </button>
+            </h3>
+            <ul id={listId} className={styles.list} hidden={!expanded}>
+              {group.sessions.map((session) => (
+                <SessionRow
+                  key={`${session.host.id}:${session.sessionId}`}
+                  session={session}
+                  showHost={showHost}
+                  onOpen={onOpen}
+                />
+              ))}
+            </ul>
+          </section>
+        );
+      })}
     </>
   );
 }

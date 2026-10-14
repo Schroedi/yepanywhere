@@ -613,11 +613,87 @@ Review restart persistence, provider-native resume and archive behavior on suppo
       `${origin}/sidepanel.html?url=${encodeURIComponent("https://example.com/")}`,
     );
     await expect(panel.getByText("No issue or PR on this page.")).toBeVisible();
-    await expect(
-      panel.getByRole("region", { name: "Recent" }).getByRole("button"),
-    ).toHaveCount(3, { timeout: 30_000 });
+    const recent = panel.getByRole("region", { name: "Recent" });
+    await expect(recent.getByRole("listitem")).toHaveCount(3, {
+      timeout: 30_000,
+    });
     const otherShot = join(rawShots, "panel-other.png");
     await panel.screenshot({ path: otherShot });
+
+    // A collapsed group stays collapsed when the panel reopens.
+    const recentToggle = recent.getByRole("button", { name: /^Recent/ });
+    await recentToggle.click();
+    await expect(recentToggle).toHaveAttribute("aria-expanded", "false");
+    await expect(recent.getByRole("listitem")).toHaveCount(0);
+    await panel.reload();
+    await expect(recentToggle).toHaveAttribute("aria-expanded", "false", {
+      timeout: 30_000,
+    });
+    await expect(recent.getByRole("listitem")).toHaveCount(0);
+    await recentToggle.click();
+    await expect(recent.getByRole("listitem")).toHaveCount(3);
+    log("panel remembered a collapsed group");
+
+    // The new-session button opens the default host's new-session page in
+    // its own popup window, which it reuses and session links leave alone.
+    const newSessionPath = `/-/relay/${USERNAME}/new-session`;
+    const composeOpened = context.waitForEvent("page");
+    await panel.getByRole("button", { name: "+ New session" }).click();
+    const compose = await composeOpened;
+    await compose.waitForURL(`**${newSessionPath}`, { timeout: 30_000 });
+    expect(
+      await compose.evaluate(
+        async () =>
+          (
+            await (
+              globalThis as unknown as {
+                chrome: {
+                  windows: { getCurrent(): Promise<{ type?: string }> };
+                };
+              }
+            ).chrome.windows.getCurrent()
+          ).type,
+      ),
+    ).toBe("popup");
+    await compose.setViewportSize({ width: 480, height: 760 });
+    await expect(compose.getByRole("textbox").first()).toBeVisible({
+      timeout: 30_000,
+    });
+    const composeShot = join(rawShots, "compose-popup.png");
+    await compose.screenshot({ path: composeShot });
+    const pageCount = context.pages().length;
+    await compose.goto(`${origin}/-/relay/${USERNAME}/sessions/accept-impl`);
+    await panel.getByRole("button", { name: "+ New session" }).click();
+    await compose.waitForURL(`**${newSessionPath}`, { timeout: 30_000 });
+    await panel
+      .getByRole("button", { name: `Open ${implementationTitle}` })
+      .click();
+    await expect
+      .poll(
+        () =>
+          context
+            .pages()
+            .some((page) => page.url().endsWith("/sessions/accept-impl")),
+        { timeout: 30_000 },
+      )
+      .toBe(true);
+    expect(new URL(compose.url()).pathname).toBe(newSessionPath);
+    expect(context.pages()).toHaveLength(pageCount);
+    // "About this" reaches the already-open form with the page's address in
+    // its composer and the matching project chosen.
+    await panel.goto(
+      `${origin}/sidepanel.html?url=${encodeURIComponent(reference)}`,
+    );
+    await panel
+      .getByRole("button", { name: "+ New session about this" })
+      .click();
+    await expect(
+      compose.getByPlaceholder("Describe what you'd like help with..."),
+    ).toHaveValue(`${reference.toLowerCase()}\n\n`, { timeout: 30_000 });
+    expect(new URL(compose.url()).searchParams.get("projectId")).toBeTruthy();
+    expect(context.pages()).toHaveLength(pageCount);
+    await compose.close();
+    log("new-session popup opened, was reused, and kept out of session links");
 
     // Settings pane: values land in chrome.storage.local.
     await app.goto(`${origin}/-/relay/${USERNAME}/settings/browser-extension`);
@@ -907,6 +983,7 @@ Review restart persistence, provider-native resume and archive behavior on suppo
           { name: "panel-pr", width: 400, height: 760, path: prShot },
           { name: "panel-session", width: 400, height: 760, path: sessionShot },
           { name: "panel-other", width: 400, height: 760, path: otherShot },
+          { name: "compose-popup", width: 480, height: 760, path: composeShot },
           {
             name: "settings",
             width: storeAssets ? 1280 : 1000,

@@ -257,6 +257,7 @@ export function NewSessionPage() {
         <div className="page-content-inner new-session-page-shell">
           <NewSessionForm
             incomingShareFiles={incomingShareFiles}
+            prefillToken={searchParams.get("prefillToken")}
             projectId={projectId}
             selectedProject={selectedProject}
             projects={projects}

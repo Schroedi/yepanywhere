@@ -201,9 +201,22 @@ cannot inject into or debug its pages, and its storage belongs to it alone.
   the tracker page in a new tab. The app tab publishes its route to
   `chrome.storage.session` for this, since the panel cannot read its
   address, and withdraws it when the page goes away. Elsewhere the panel
-  lists sessions needing input, running and recent. A session page is
-  looked up whenever its address is readable, regardless of the issue
-  allowlist. A toolbar click makes the clicked page readable once (`activeTab`);
+  lists sessions needing input, running and recent; each group collapses
+  from its heading, and collapsed groups stay collapsed across panel opens
+  (extension-origin `localStorage`). The top of the panel always has a
+  "+ New session" button, which opens the default host's new-session page
+  in a dedicated popup window. On an issue or PR page it also has "+ New
+  session about this", which opens the same window with the item's address
+  already in the composer and, for GitHub, the project whose name matches
+  the repository selected. There is at most one such window: the buttons
+  bring it forward and show their new-session page in it in place (a plain
+  "+ New session" leaves a new-session page it already shows alone), and
+  opening sessions or the app from the panel never navigates it. It saves
+  its own size and place, opens narrower than the desktop layout so the app
+  shows no sidebar, and Ctrl/⌘-click opens an ordinary app page instead.
+  A session page is looked up whenever its address is readable, regardless
+  of the issue allowlist. A toolbar click makes the clicked page readable
+  once (`activeTab`);
   automatic lookup and the per-tab badge count need granted site access and
   respect the optional repository/project allowlist. Opening a session
   navigates the existing YA tab in place, or opens one.

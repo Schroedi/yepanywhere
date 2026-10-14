@@ -369,6 +369,11 @@ export interface NewSessionFormProps {
   /** Seed the execution host from an existing session. */
   preferredExecutor?: string;
   /**
+   * The route's `prefillToken`. The form reads the token from the address
+   * itself; a change here makes an already-mounted form read it again.
+   */
+  prefillToken?: string | null;
+  /**
    * Reuse the New Session composer and launch controls for a specialized
    * session start such as handoff.
    */
@@ -457,6 +462,7 @@ export function NewSessionForm({
   preferredThinking,
   preferredPermissionMode,
   preferredExecutor,
+  prefillToken: routedPrefillToken,
   incomingShareFiles,
   launch,
 }: NewSessionFormProps) {
@@ -2498,7 +2504,9 @@ export function NewSessionForm({
     setFullPane((current) => !current);
   }, [compact, composerMuted, fullPane]);
 
-  // Check for opt-in new-session prefill on mount.
+  // Check for opt-in new-session prefill on mount, and again when an in-app
+  // navigation brings a new token to an already-mounted form.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the routed token is the trigger; the effect reads window.location.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const token = params.get("prefillToken");
@@ -2521,7 +2529,7 @@ export function NewSessionForm({
       },
     };
     setMessage(record.text);
-  }, [clientSummarySourceKey, setMessage]);
+  }, [clientSummarySourceKey, setMessage, routedPrefillToken]);
 
   const handleProjectInputKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
