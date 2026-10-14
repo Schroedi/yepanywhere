@@ -91,7 +91,19 @@ matching upstream release tags when the version changed; the real zero-token
 probe covers the production model-discovery command but intentionally does not
 exercise authenticated assistant events or persisted sessions.
 
-Current refresh, 2026-10-11 (Pi 1.1.0): the installed package's changelog
+Current refresh, 2026-10-14 (Pi 1.2.0): the installed binary passes the
+zero-token RPC contract and the local-server effort-retry integration test,
+including YA's extension command and the reloaded transcript. The installed
+source retains `agent_settled` and session format v3. The 1.2.0 changelog's
+`before_agent_start` union and startup-busy changes require no change to YA's
+extension, which registers a command rather than that hook. No adapter changes
+are needed; root compatibility advances to 1.2.0. These probes do not establish
+authenticated upstream availability or exercise every provider stream.
+The full workspace check must also select the managed launcher explicitly
+when an inherited `PI_EXECUTABLE` still names the removed global npm install;
+that stale override failed both installed-Pi tests before correction.
+
+Previous refresh, 2026-10-11 (Pi 1.1.0): the installed package's changelog
 from 0.84.2 through 1.1.0 changes no RPC command, response, or lifecycle event
 that YA consumes. The real zero-token check passes with `PI_EXECUTABLE`
 pointed at the 1.1.0 install; without that override it checks whatever
@@ -1163,7 +1175,25 @@ Previous-model registry review:
 6. Use read-only catalog and lifecycle checks routinely. Do not spend tokens
    on live model turns without explicit approval.
 
-Current source refresh, 2026-10-11 (Claude Code 2.1.296 / SDK 0.3.296):
+Current source refresh, 2026-10-14 (Claude Code 2.1.300 / SDK 0.3.300):
+
+- The SDK and its native executable packages advance from 0.3.296 to
+  0.3.300; the bundled Linux executable reports Claude Code 2.1.300. Root
+  runtime and SDK compatibility markers advance together. Updating a separate
+  terminal Claude installation does not update YA's preferred bundled runtime.
+- The public declaration diff adds optional MCP elicitation property ordering
+  and usage-behavior labels, and clarifies queue cancellation and permission
+  interaction semantics. No YA adapter changes are required by these additions.
+- A no-turn SDK handshake with the bundled executable returns the same 13
+  model rows recorded for 0.3.296, including the current aliases. `/goal` and
+  `/loop` remain native. The Claude provider tests pass with the new package.
+- This refresh includes upstream headless/SDK resume and compaction fixes.
+  The control probe sends no assistant prompt; authenticated generation and
+  new 2.1.300 persisted transcripts remain outside this probe's coverage.
+- Existing provider-host workers retain their loaded SDK and executable.
+  Adopt the update through a user-timed worker or provider-host restart.
+
+Previous source refresh, 2026-10-11 (Claude Code 2.1.296 / SDK 0.3.296):
 
 - `@anthropic-ai/claude-agent-sdk` advances from `0.3.293` to `0.3.296`, and its
   bundled executable reports Claude Code `2.1.296`. Root compatibility and SDK

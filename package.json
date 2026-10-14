@@ -97,11 +97,11 @@
       "compatibleThroughVersion": "0.162.1"
     },
     "claudeCode": {
-      "compatibleThroughVersion": "2.1.296",
-      "claudeAgentSdkVersion": "0.3.296"
+      "compatibleThroughVersion": "2.1.300",
+      "claudeAgentSdkVersion": "0.3.300"
     },
     "piCli": {
-      "compatibleThroughVersion": "1.1.0"
+      "compatibleThroughVersion": "1.2.0"
     },
     "grokCli": {
       "compatibleThroughVersion": "1.0.4"
