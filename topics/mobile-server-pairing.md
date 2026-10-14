@@ -900,6 +900,15 @@ network policy. Live acceptance starts pairing from Main, including an opt-in
 public `wss://` relay run against a disposable server. Plaintext local relay
 acceptance alone does not establish that the shipping TLS login path works.
 
+Debug and Release share one Android network policy: plain HTTP is permitted
+only to loopback (`localhost`, `127.0.0.1`) and to the CA revocation-list
+hosts published by the platform verifier. The verifier's Android revocation
+check downloads CRLs over HTTP, so without those hosts every certificate that
+lacks an OCSP URL, including all current Let's Encrypt certificates, fails as
+revoked and login reports the server unreachable. The build generates the
+policy from the verifier's own list and fails if that list changes shape; no
+build variant or property removes it or broadens plain HTTP.
+
 The iOS shell displays one selected foreground profile while other native owners
 can retain independent source demand. Switch Host and replacement documents
 release only the foreground lease. Background suspension retires the foreground

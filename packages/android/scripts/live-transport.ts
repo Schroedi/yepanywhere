@@ -66,7 +66,6 @@ serial ??= devices[0];
 await run("./gradlew", [
   "assembleBundledDebug",
   "assembleBundledDebugAndroidTest",
-  "-PyaNativeProbeCleartext=true",
   "-PyaNativeProbeMinify=true",
   "--warning-mode",
   "all",

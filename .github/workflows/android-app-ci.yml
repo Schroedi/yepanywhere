@@ -212,8 +212,7 @@ jobs:
         working-directory: packages/android
         run: >-
           ./gradlew assembleBundledDebug assembleBundledDebugAndroidTest
-          -PyaNativeProbeCleartext=true -PyaNativeProbeMinify=true
-          --warning-mode all --no-daemon
+          -PyaNativeProbeMinify=true --warning-mode all --no-daemon
 
       - name: Enable KVM
         run: |
@@ -245,9 +244,8 @@ jobs:
             -camera-back none
           script: >-
             cd packages/android && ./gradlew connectedBundledDebugAndroidTest
-            -PyaNativeProbeCleartext=true -PyaNativeProbeMinify=true
-            --warning-mode all --no-daemon && cd ../.. && pnpm --filter
-            @yep-anywhere/android test:live
+            -PyaNativeProbeMinify=true --warning-mode all --no-daemon
+            && cd ../.. && pnpm --filter @yep-anywhere/android test:live
 
       - name: Upload Android instrumentation reports
         if: always()

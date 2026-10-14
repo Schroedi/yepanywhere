@@ -87,9 +87,10 @@ pnpm --filter @yep-anywhere/android test:live
 
 The Android live runner requires one authorized device/emulator (or an explicit
 ANDROID_SERIAL). It installs an R8-minified debug probe and its test APK without
-clearing application data. Only that debug build opts into cleartext fixtures;
-Release network policy is unchanged. It owns two disposable servers, a relay
-and exact adb reverse mappings, and removes those mappings/processes on exit.
+clearing application data. Its fixtures use loopback, which every build's
+network policy permits; no build opts into broader plain HTTP. It owns two
+disposable servers, a relay and exact adb reverse mappings, and removes those
+mappings/processes on exit.
 It checks security continuity/revocation, existing credential resume, route
 fallback, independent mux hosts, the bundled WebView and sequential typing
 during a 100 MiB upload. The Kotlin crypto/backend remains differential test

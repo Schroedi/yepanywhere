@@ -110,9 +110,10 @@ upload. These captures use the owned fixtures; inspect any local device
 captures before sharing them. Hosted run `37219989321` established that a
 Pixel Launcher ANR dialog was hiding an otherwise connected YA page from
 accessibility. CI compiles its minified probe APKs before starting the emulator,
-then uses the same cleartext-fixture/minification properties for ordinary and
-live instrumentation. This avoids rebuilding/shrinking a different variant
-beside the running emulator. Release network policy remains unchanged.
+then uses the same minification property for ordinary and live
+instrumentation. This avoids rebuilding/shrinking a different variant
+beside the running emulator. Fixtures use loopback through adb reverse, which
+every build's network policy permits; no build opts into broader plain HTTP.
 The UI probes can close that exact
 system-owned Pixel Launcher dialog once per test, on emulators only, and retain
 its evidence. They never dismiss YA ANRs or relax input-readiness/latency gates.
