@@ -766,6 +766,13 @@ export function SessionListItem({
     [],
   );
 
+  const handleSessionContextMenu = useCallback(
+    (event: React.MouseEvent<HTMLAnchorElement>) => {
+      if (showHoverCard) event.preventDefault();
+    },
+    [showHoverCard],
+  );
+
   const handleSessionAuxClick = useCallback(
     (e: React.MouseEvent<HTMLAnchorElement>) => {
       if (e.button !== 1) return;
@@ -879,6 +886,7 @@ export function SessionListItem({
             onClick={handleSessionClick}
             onMouseDown={handleSessionMouseDown}
             onAuxClick={handleSessionAuxClick}
+            onContextMenu={handleSessionContextMenu}
             className={`session-list-item__link ${
               mode === "compact" ? styles.compactLink : ""
             }`}
@@ -1132,6 +1140,7 @@ export function SessionListItem({
           onClick={handleSessionClick}
           onMouseDown={handleSessionMouseDown}
           onAuxClick={handleSessionAuxClick}
+          onContextMenu={handleSessionContextMenu}
         >
           {compactTrailing}
         </Link>
