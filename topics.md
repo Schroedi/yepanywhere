@@ -454,3 +454,5 @@
 - ya-owned-session-ids - Required SQLite session metadata, then YA-minted session ids so per-session facts exist before any provider call (plan 150).
 
 - chrome-extension-client - Full YA web client served from a Chrome extension over the public relay; extension-origin relay allowlist, shared saved hosts, side panel with issue/PR lookup, options (plan 151).
+
+- native-notification-surfacing - Truthful Android notification permission state on server cards, Settings recovery, post-sign-in offer, and native status instead of browser Web Push in the app WebView.

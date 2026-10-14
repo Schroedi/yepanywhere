@@ -400,6 +400,16 @@ broker revocation, independently of YA host reachability. A source child that
 cannot be deleted immediately is invalidated on its next broker `404`.
 Permission and installed delivery state alone do not enroll any host.
 
+Each server card on the native Servers screen shows the enrollment together
+with Android's own notification state, re-read whenever the screen resumes.
+A build without Firebase configuration shows no notification controls. When
+Android will still show its permission dialog, Enable requests permission and
+enrolls on grant. After a denial, or with app or channel notifications turned
+off, the card says Android is blocking notifications and offers Android's
+notification settings instead of an Enable action that cannot succeed; an
+enrolled server says it is on but blocked, and hides Send test. Returning from
+Settings with notifications allowed finishes the enable the user started there.
+
 ## First-Class Shell Live Verification
 
 Completed on 2026-08-02 with the configured replacement APK and an attached
