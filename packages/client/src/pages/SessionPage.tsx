@@ -4246,19 +4246,17 @@ function SessionPageContent({
       return false;
     }
 
-    // Recalling a still-queued message cancels it server-side and restores its
-    // text to the composer — the "edit" affordance is intentionally just
-    // cancel + re-queue (see topics/queued-messages.md).
+    // A still-queued message is left alone. Submitting leaves focus in the
+    // empty composer, so ↑ meant to scroll would otherwise unqueue it; the
+    // chip's Edit and cancel controls are the explicit ways to change it
+    // (topics/queued-messages.md).
     if (
       lastSubmission.kind === "queued" &&
       deferredMessages.some(
         (message) => message.tempId === lastSubmission.tempId,
       )
     ) {
-      void handleCancelDeferred(lastSubmission.tempId);
-      draftControls.setDraft(lastSubmission.text);
-      setComposerAttachments([], { revokeRemovedPreviewUrls: true });
-      return true;
+      return false;
     }
 
     draftControls.setDraft(lastSubmission.text);
@@ -4271,7 +4269,7 @@ function SessionPageContent({
       originalText: lastSubmission.text,
     });
     return true;
-  }, [deferredMessages, handleCancelDeferred, setComposerAttachments]);
+  }, [deferredMessages, setComposerAttachments]);
 
   const handleModelChanged = useCallback(
     (next: {
