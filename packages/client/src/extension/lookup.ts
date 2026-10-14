@@ -8,6 +8,7 @@
 import {
   issueLookupUrl,
   type IssueItem,
+  type IssueSearchResult,
   type IssueUrlReference,
   type ProviderName,
 } from "@yep-anywhere/shared";
@@ -19,6 +20,7 @@ import {
   isSavedHostSignInRequiredError,
   type SavedHostCredentials,
 } from "../lib/savedHostConnection";
+import { getChrome } from "./chrome";
 import { withHost } from "./hostLinks";
 
 export type PanelSessionState = "approval" | "question" | "running" | "idle";
@@ -252,6 +254,97 @@ export async function loadAttention(
     running: tier((inbox) => inbox.active),
     recent: tier((inbox) => inbox.recentActivity).slice(0, 8),
   };
+}
+
+/** A session page of the YA app, by its relay host's username. */
+export interface SessionRoute {
+  relayUsername: string;
+  projectId: string;
+  sessionId: string;
+}
+
+export interface SessionIssues {
+  route: SessionRoute;
+  /** The active host serving the session; null when none matches. */
+  host: SavedHost | null;
+  hosts: HostAnswer[];
+  items: IssueItem[];
+}
+
+const SESSION_PATH =
+  /\/-\/relay\/([^/]+)\/projects\/([^/]+)\/sessions\/([^/]+)/;
+
+/**
+ * The session a YA page shows: this extension's own app tab, or the hosted
+ * app on yepanywhere.com and its subdomains, under any base path.
+ */
+export function sessionPageRoute(
+  url: string,
+  extensionId = getChrome()?.runtime.id,
+): SessionRoute | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  const own =
+    parsed.protocol === "chrome-extension:" &&
+    !!extensionId &&
+    parsed.host === extensionId;
+  const hosted =
+    parsed.protocol === "https:" &&
+    (parsed.hostname === "yepanywhere.com" ||
+      parsed.hostname.endsWith(".yepanywhere.com"));
+  const match = (own || hosted) && parsed.pathname.match(SESSION_PATH);
+  if (!match) return null;
+  try {
+    return {
+      relayUsername: decodeURIComponent(match[1]!),
+      projectId: decodeURIComponent(match[2]!),
+      sessionId: decodeURIComponent(match[3]!),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** The issues and PRs a session mentions, from the active host serving it. */
+export async function lookupSessionIssues(
+  route: SessionRoute,
+  hosts: SavedHost[],
+  credentials: SavedHostCredentials = documentSavedHostCredentials,
+): Promise<SessionIssues> {
+  const host =
+    hosts.find(
+      (candidate) =>
+        candidate.relayUsername?.toLowerCase() ===
+        route.relayUsername.toLowerCase(),
+    ) ?? null;
+  if (!host) return { route, host, hosts: [], items: [] };
+  try {
+    const result = await withHost(
+      host,
+      (connection) =>
+        connection.fetch<IssueSearchResult>(
+          `/issues?${new URLSearchParams({
+            sessionId: route.sessionId,
+            projectId: route.projectId,
+            limit: "100",
+            sort: "mentioned",
+          })}`,
+        ),
+      credentials,
+    );
+    return {
+      route,
+      host,
+      hosts: [{ host, status: "ok" }],
+      items: result.items,
+    };
+  } catch (error) {
+    return { route, host, hosts: [answerFor(host, error)], items: [] };
+  }
 }
 
 /** The app path of a session on a relay host. */

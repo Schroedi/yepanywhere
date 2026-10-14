@@ -1,10 +1,14 @@
 import { useEffect, useState } from "react";
-import { CLICKED_TAB_KEY } from "../appTab";
+import { appTabRouteKey, CLICKED_TAB_KEY } from "../appTab";
 import { getChrome } from "../chrome";
 
 export interface CurrentTab {
   tabId?: number;
-  /** Absent when the extension has no access to the tab's address. */
+  /**
+   * Absent when the extension has no access to the tab's address. For the
+   * extension's own app tab, whose address Chrome hides without the `tabs`
+   * permission, this is the route the tab published.
+   */
   url?: string;
   /**
    * The address came from a toolbar click (`activeTab`) rather than granted
@@ -37,12 +41,20 @@ export function useCurrentTab(): CurrentTab {
       const clicked = (await chrome.storage.session.get(CLICKED_TAB_KEY))[
         CLICKED_TAB_KEY
       ] as { tabId?: number; url?: string } | undefined;
+      const routeKey = tab?.id === undefined ? "" : appTabRouteKey(tab.id);
+      const route =
+        tab?.url || !routeKey
+          ? undefined
+          : (await chrome.storage.session.get(routeKey))[routeKey];
       if (disposed) return;
       windowId = tab?.windowId;
       activeTabId = tab?.id;
       const fromClick =
         clicked?.tabId !== undefined && clicked.tabId === tab?.id;
-      const url = tab?.url ?? (fromClick ? clicked?.url : undefined);
+      const url =
+        tab?.url ??
+        (fromClick ? clicked?.url : undefined) ??
+        (typeof route === "string" ? chrome.runtime.getURL(route) : undefined);
       setCurrent((previous) =>
         previous.tabId === tab?.id &&
         previous.url === url &&
@@ -65,7 +77,12 @@ export function useCurrentTab(): CurrentTab {
         void refresh();
     };
     const stored = (changes: Record<string, unknown>, area: string) => {
-      if (area === "session" && CLICKED_TAB_KEY in changes) void refresh();
+      if (
+        area === "session" &&
+        (CLICKED_TAB_KEY in changes ||
+          (activeTabId !== undefined && appTabRouteKey(activeTabId) in changes))
+      )
+        void refresh();
     };
     const access = () => void refresh();
     chrome.tabs.onActivated.addListener(activated);

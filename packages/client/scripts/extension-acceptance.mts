@@ -418,6 +418,48 @@ Review restart persistence, provider-native resume and archive behavior on suppo
     await app.waitForURL(`**/sessions/accept-impl`, { timeout: 30_000 });
     expect(await app.evaluate(() => performance.timeOrigin)).toBe(before);
     log("row opened the session in the existing app tab without a reload");
+
+    // The app tab publishes its route for the panel, which cannot read the
+    // tab's address; on that route the panel lists the session's PR.
+    const sessionRoute = new URL(app.url()).pathname;
+    const published = await waitFor("published app tab route", () =>
+      app.evaluate(async () => {
+        const chrome = (
+          globalThis as unknown as {
+            chrome: {
+              tabs: { getCurrent(): Promise<{ id?: number } | undefined> };
+              storage: {
+                session: {
+                  get(key: string): Promise<Record<string, unknown>>;
+                };
+              };
+            };
+          }
+        ).chrome;
+        const key = `ya.appTabRoute.${(await chrome.tabs.getCurrent())?.id}`;
+        return (await chrome.storage.session.get(key))[key] as
+          | string
+          | undefined;
+      }),
+    );
+    expect(published).toBe(sessionRoute);
+    for (const sessionUrl of [
+      `${origin}${sessionRoute}`,
+      `https://yepanywhere.com/remote${sessionRoute}`,
+    ]) {
+      await panel.goto(
+        `${origin}/sidepanel.html?url=${encodeURIComponent(sessionUrl)}`,
+      );
+      await expect(
+        panel
+          .getByRole("button", { name: `Open ${ownerRepo}#${issueNumber}` })
+          .first(),
+      ).toBeVisible({ timeout: 30_000 });
+      await expect(panel.getByText(/ in this session$/)).toBeVisible();
+    }
+    const sessionShot = join(rawShots, "panel-session.png");
+    await panel.screenshot({ path: sessionShot });
+    log("panel listed the PR on the extension and hosted session pages");
     if (storeAssets) {
       await expect(
         app.getByText("A storage boundary for session discovery", {
@@ -735,6 +777,7 @@ Review restart persistence, provider-native resume and archive behavior on suppo
               ]
             : []),
           { name: "panel-pr", width: 400, height: 760, path: prShot },
+          { name: "panel-session", width: 400, height: 760, path: sessionShot },
           { name: "panel-other", width: 400, height: 760, path: otherShot },
           {
             name: "settings",

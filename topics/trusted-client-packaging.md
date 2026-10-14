@@ -194,8 +194,16 @@ cannot inject into or debug its pages, and its storage belongs to it alone.
   keeps a persistent background page or offscreen document.
 - **Side panel.** Opens from the toolbar button. On a GitHub issue/PR or Jira
   page it lists, across the active hosts, the sessions that mention that item
-  by exact identity; elsewhere it lists sessions needing input, running and
-  recent. A toolbar click makes the clicked page readable once (`activeTab`);
+  by exact identity. On a session page, in the extension's own app tab or in
+  the hosted app on `yepanywhere.com` and its subdomains, it lists that
+  session's issues and PRs from the active host whose relay username the
+  route names, and says so when no active host matches; opening one opens
+  the tracker page in a new tab. The app tab publishes its route to
+  `chrome.storage.session` for this, since the panel cannot read its
+  address, and withdraws it when the page goes away. Elsewhere the panel
+  lists sessions needing input, running and recent. A session page is
+  looked up whenever its address is readable, regardless of the issue
+  allowlist. A toolbar click makes the clicked page readable once (`activeTab`);
   automatic lookup and the per-tab badge count need granted site access and
   respect the optional repository/project allowlist. Opening a session
   navigates the existing YA tab in place, or opens one.

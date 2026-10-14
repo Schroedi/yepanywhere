@@ -13,7 +13,7 @@
  */
 
 import { issueLookupUrl } from "@yep-anywhere/shared";
-import { CLICKED_TAB_KEY, findAppTab } from "./appTab";
+import { appTabRouteKey, CLICKED_TAB_KEY, findAppTab } from "./appTab";
 import { getChrome } from "./chrome";
 import { countIssueSessions } from "./lookup";
 import {
@@ -191,4 +191,6 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   clearTimeout(pending.get(tabId));
   pending.delete(tabId);
   shown.delete(tabId);
+  // A closing app tab may not finish withdrawing its own route.
+  void chrome.storage.session.remove(appTabRouteKey(tabId)).catch(() => {});
 });

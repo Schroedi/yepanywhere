@@ -10,6 +10,7 @@ import { ThinkingIndicator } from "../../components/ThinkingIndicator";
 import { useI18n } from "../../i18n";
 import { formatBriefAge } from "../../lib/sessionAge";
 import { loadSavedHosts, type SavedHost } from "../../lib/hostStorage";
+import { TrackerStatusBadge } from "../../components/TrackerStatusBadge";
 import { IssueTypeBadge } from "../../pages/IssueTypeBadge";
 import type { Project } from "../../types";
 import { openInApp } from "../appTab";
@@ -22,7 +23,10 @@ import {
   type IssueLookup,
   loadAttention,
   lookupIssue,
+  lookupSessionIssues,
   type PanelSession,
+  type SessionIssues,
+  sessionPageRoute,
   sessionPath,
 } from "../lookup";
 import { activeHosts, defaultHost } from "../savedHosts";
@@ -41,6 +45,7 @@ const REFRESH_MS = 30_000;
 type Content =
   | { kind: "idle" }
   | { kind: "lookup"; lookup: IssueLookup }
+  | { kind: "session"; issues: SessionIssues }
   | { kind: "attention"; view: AttentionView };
 
 function useExtensionSettings(): ExtensionSettings {
@@ -166,6 +171,40 @@ function SessionRow({
   );
 }
 
+function IssueRow({ item, onOpen }: { item: IssueItem; onOpen: () => void }) {
+  const { t } = useI18n();
+  const title = item.title ?? item.confirmation?.title;
+  return (
+    <li>
+      <button
+        type="button"
+        className={styles.row}
+        aria-label={t("extensionPanelOpenIssue", { key: item.key })}
+        disabled={!item.url}
+        onClick={onOpen}
+      >
+        <span className={styles.rowTop}>
+          <span className={styles.rowTitle}>{title ?? item.key}</span>
+        </span>
+        <span className={styles.rowMeta}>
+          <IssueTypeBadge item={item} />
+          <TrackerStatusBadge item={item} />
+          <span>
+            {[
+              title ? item.key : undefined,
+              item.sessionCount > 1
+                ? t("extensionPanelSessionCount", { count: item.sessionCount })
+                : undefined,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </span>
+        </span>
+      </button>
+    </li>
+  );
+}
+
 function HostProblems({ answers }: { answers: HostAnswer[] }) {
   const { t } = useI18n();
   const problems = answers.filter((answer) => answer.status !== "ok");
@@ -240,6 +279,7 @@ export function SidePanel() {
   const [refreshCount, setRefreshCount] = useState(0);
 
   const reference = tab.url ? issueLookupUrl(tab.url) : null;
+  const route = tab.url ? sessionPageRoute(tab.url) : null;
   const lookupWanted =
     !!reference &&
     !!tab.url &&
@@ -258,7 +298,12 @@ export function SidePanel() {
     const load = async () => {
       setLoading(true);
       try {
-        if (lookupWanted && url) {
+        // A session page is the user's own data on a page already readable,
+        // so it is always looked up.
+        if (route) {
+          const issues = await lookupSessionIssues(route, hosts);
+          if (!cancelled) setContent({ kind: "session", issues });
+        } else if (lookupWanted && url) {
           const lookup = await lookupIssue(url, hosts, {
             includeDismissed: settings.includeDismissed,
           });
@@ -333,6 +378,11 @@ export function SidePanel() {
       );
   };
 
+  const openIssue = (item: IssueItem) => {
+    const chrome = getChrome();
+    if (chrome && item.url) void chrome.tabs.create({ url: item.url });
+  };
+
   const requestSite = () => {
     const chrome = getChrome();
     if (!chrome || !tab.url) return;
@@ -344,7 +394,8 @@ export function SidePanel() {
   const site = tab.url ? new URL(tab.url).host : "";
   const lookup = content.kind === "lookup" ? content.lookup : null;
   const attention = content.kind === "attention" ? content.view : null;
-  const answers = lookup?.hosts ?? attention?.hosts ?? [];
+  const session = content.kind === "session" ? content.issues : null;
+  const answers = lookup?.hosts ?? attention?.hosts ?? session?.hosts ?? [];
 
   return (
     <div className={styles.panel}>
@@ -472,6 +523,30 @@ export function SidePanel() {
               </button>
             )}
 
+            {route && (
+              <section
+                className={styles.context}
+                aria-label={t("extensionPanelThisSession")}
+              >
+                <p>
+                  {loading && !session
+                    ? t("extensionPanelLookingUp")
+                    : !session ||
+                        (session.host && session.hosts[0]?.status !== "ok")
+                      ? ""
+                      : !session.host
+                        ? t("extensionPanelSessionHostInactive", {
+                            host: route.relayUsername,
+                          })
+                        : session.items.length === 1
+                          ? t("extensionPanelSessionIssueCountOne")
+                          : t("extensionPanelSessionIssueCount", {
+                              count: session.items.length,
+                            })}
+                </p>
+              </section>
+            )}
+
             <HostProblems answers={answers} />
 
             {lookup && (
@@ -508,7 +583,25 @@ export function SidePanel() {
               </>
             )}
 
-            {reference && tab.clicked && access === false && (
+            {session?.host &&
+              session.hosts[0]?.status === "ok" &&
+              (session.items.length === 0 ? (
+                <p className={styles.hint}>
+                  {t("extensionPanelSessionNoIssues")}
+                </p>
+              ) : (
+                <ul className={styles.list}>
+                  {session.items.map((item) => (
+                    <IssueRow
+                      key={item.id}
+                      item={item}
+                      onOpen={() => openIssue(item)}
+                    />
+                  ))}
+                </ul>
+              ))}
+
+            {(reference || route) && tab.clicked && access === false && (
               <div className={styles.siteAccess}>
                 <button type="button" onClick={requestSite}>
                   {t("extensionPanelAllowSite", { site })}
@@ -519,7 +612,7 @@ export function SidePanel() {
               </div>
             )}
 
-            {!reference && (
+            {!reference && !route && (
               <p className={styles.hint}>
                 {tab.url
                   ? t("extensionPanelNoIssue")

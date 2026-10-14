@@ -38,6 +38,14 @@ export function isNavigateMessage(value: unknown): value is NavigateMessage {
  */
 const APP_TABS_KEY = "ya.appTabs";
 
+/**
+ * `chrome.storage.session` key of an app tab's current route, which the app
+ * tab publishes for the side panel for the same reason.
+ */
+export function appTabRouteKey(tabId: number): string {
+  return `ya.appTabRoute.${tabId}`;
+}
+
 async function appTabIds(): Promise<number[]> {
   const chrome = getChrome();
   const stored = chrome
