@@ -14,6 +14,7 @@ import { DiscoverySqliteService } from "../../server/src/storage/discovery-sqlit
 import { LimitedUsersService } from "../../server/src/auth/LimitedUsersService";
 import { AuthService } from "../../server/src/auth/AuthService";
 import { ServerSettingsService } from "../../server/src/services/ServerSettingsService";
+import { ProjectQueueService } from "../../server/src/services/ProjectQueueService";
 import { initFileAccess } from "../../server/src/middleware/file-access";
 import { recordUiCapture } from "./support/ui-capture";
 
@@ -60,6 +61,8 @@ test.beforeAll(async () => {
   await limitedUsers.initialize();
   const settings = new ServerSettingsService({ dataDir });
   await settings.initialize();
+  const projectQueue = new ProjectQueueService({ dataDir });
+  await projectQueue.initialize();
   const auth = new AuthService({ dataDir });
   await auth.initialize();
   initFileAccess({
@@ -73,6 +76,7 @@ test.beforeAll(async () => {
     sessionMetadataService: sessionMetadata,
     limitedUsersService: limitedUsers,
     serverSettingsService: settings,
+    projectQueueService: projectQueue,
     authService: auth,
     dataDir,
     discoverySqlite: discovery,
@@ -317,6 +321,72 @@ test("app inventory sits below port forwards and manages addresses inline", asyn
   }
   instance.artifactServer.config.vhostPublicRoot = undefined;
   instance.artifactServer.config.vhosts = [];
+});
+
+test("New Session keeps launch options and restores project selection after closing App", async ({
+  page,
+}) => {
+  test.setTimeout(60_000);
+  await page.goto(`${base}/new-session?projectId=${projectId}`);
+  await page.evaluate(() => {
+    localStorage.setItem("yep-anywhere-project-app-composing-enabled", "true");
+  });
+  await page.reload();
+  for (const size of [
+    { width: 1200, height: 600 },
+    { width: 1000, height: 600 },
+    { width: 375, height: 812 },
+  ]) {
+    await page.setViewportSize(size);
+    const composer = page.locator("textarea:visible").first();
+    await expect(composer).toBeVisible();
+    await composer.fill("");
+    let typed = "";
+    for (const character of "Keep my launch options") {
+      typed += character;
+      await composer.pressSequentially(character);
+      await expect(composer).toHaveValue(typed, { timeout: 100 });
+    }
+    const form = page.locator(".new-session-form");
+    await form.evaluate((element) => {
+      element.dataset.kept = "yes";
+    });
+    const advanced = page.getByRole("button", {
+      name: "Show advanced options",
+      exact: true,
+    });
+    if (await advanced.isVisible()) await advanced.click();
+    const options = page.locator("[data-new-session-secondary-options]");
+    await expect(options).toBeVisible();
+    const before = await page.locator(".new-session-provider-slot").innerText();
+    const appButton = page.getByRole("button", { name: "App", exact: true });
+    await appButton.click();
+    const app = page.getByRole("region", { name: "Project App" });
+    await expect(app.locator("iframe")).toBeVisible();
+    await expect(
+      page
+        .frameLocator('iframe[title="index.html"]')
+        .getByRole("heading", { name: "Sketch garden" }),
+    ).toBeVisible();
+    if (size.width >= 1100) {
+      await expect(page.locator(".new-session-provider-slot")).toBeVisible();
+      await expect(options).toBeVisible();
+      await expect(composer).toHaveValue(typed);
+    }
+    await recordUiCapture(page, `new-session-app-open-${size.width}`);
+    await app.getByRole("button", { name: "Back", exact: true }).click();
+    await expect(page.locator(".new-session-project-chooser")).toBeVisible();
+    await expect
+      .poll(() => page.locator(".new-session-provider-slot").innerText())
+      .toBe(before);
+    await expect(options).toBeVisible();
+    await expect(
+      page.locator('.new-session-form[data-kept="yes"]'),
+    ).toBeVisible();
+    await expect(composer).toHaveValue(typed);
+    await composer.scrollIntoViewIfNeeded();
+    await recordUiCapture(page, `new-session-app-closed-${size.width}`);
+  }
 });
 
 // Real browser layout, iframe retention and key-by-key acknowledgement cannot

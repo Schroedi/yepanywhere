@@ -22,14 +22,27 @@ direction; the interactive fixture is `packages/client/mockups/project-service/`
 
 ## Project App and Settings
 
-The ordinary New Session page shows an **App** button in its header, opening
-the selected project's app beside the composer, only when the browser-local
-**Appearance → Show project app while composing** setting is enabled, the
-server advertises `project-service`, and the selected project declares a
-usable app (the same check as the session's App button). The setting defaults
-off for all principals, independently of the Session right pane setting.
-Project App navigation remains available independently through an explicit App
-entry; server capability alone does not reveal the composing button.
+The ordinary New Session page shows an **App** button in its header when a
+project is selected, the browser-local **Appearance → Show project app while
+composing** setting is enabled, and the server advertises `project-service`.
+The button does not wait for an app-status request. Opening it resolves the
+project's app or latest artifact through the usual viewer; a project with
+neither shows the existing empty state. The setting defaults off for all
+principals, independently of the Session right pane setting. Project App
+navigation remains available independently through an explicit App entry;
+server capability alone does not reveal the composing button.
+
+Opening App keeps the same New Session form mounted: the draft, attachments,
+provider, model, effort, advanced options and their expanded state survive
+opening and closing it. On wide screens the app sits beside the full launch
+form, with only project selection withheld while App is open. Closing App
+restores project selection. On phones the app and complete form alternate;
+Back returns to the form with project selection restored. Starting a session
+from the project App viewer also offers the full launch controls.
+
+**Design decision:** keep the ordinary form mounted and toggle the viewer
+beside it, rather than navigate to a composer-only page and reconstruct launch
+state. App discovery occurs on explicit open rather than delaying navigation.
 
 Projects offers **Open app**, opening the main content pane with the same
 isolated rendering and viewer controls as the session's right App pane. It

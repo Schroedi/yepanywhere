@@ -338,6 +338,8 @@ function unprobedProviderRow(name: ProviderName): ProviderInfo {
 }
 
 export interface NewSessionFormProps {
+  /** Keep this project selected while retaining all launch options. */
+  fixedProject?: boolean;
   projectApp?: ProjectAppTarget;
   onVoiceControl?: (control: VoiceInputButtonRef | null) => void;
   projectId?: string;
@@ -444,6 +446,7 @@ function NewSessionOptionSection({
 const EMPTY_FOLDER_CHOICE = "empty-folder";
 
 export function NewSessionForm({
+  fixedProject: fixedProjectProp = false,
   projectApp,
   onVoiceControl,
   projectId,
@@ -723,7 +726,7 @@ export function NewSessionForm({
   const { showToast } = useToastContext();
   const allowAttachments = launch?.allowAttachments ?? true;
   const allowProjectQueue = launch?.allowProjectQueue ?? true;
-  const fixedProject = launch?.fixedProject ?? false;
+  const fixedProject = launch?.fixedProject ?? fixedProjectProp;
   const composerMuted = launch?.composer === "muted";
   const showProviderAndModel = !(launch?.fixedProviderModel ?? false);
   // A locked field is stated in the fixed-launch caption instead of offered.
