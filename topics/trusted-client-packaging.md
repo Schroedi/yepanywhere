@@ -244,11 +244,24 @@ cannot inject into or debug its pages, and its storage belongs to it alone.
   root.
 - **Publication.** The extension has its own three-part store version in
   `packages/browser-extension/package.json`, independent of server versions.
-  `extension-v<version>` must match it and produces an audited, tested upload
-  ZIP in a draft GitHub release. Manual CI dispatch produces the same package
-  artifact. Neither submits to the Chrome Web Store. The ZIP preserves the
+  `scripts/release-extension.sh <version>` bumps it and atomically pushes main
+  and the matching `extension-v<version>` tag after a committed changelog entry.
+  Tagged main-branch releases build, audit and exercise the exact upload ZIP,
+  then submit that artifact for automatic publication after Google's review.
+  A dedicated GitHub environment uses Google workload identity federation and
+  a publisher-linked service account, without stored keys. This deployment
+  principal is separate from YA owner/user/device grants. Trust is restricted
+  to this repository, workflow, environment, main and extension release tags.
+  Publication checks the pinned store id/public key, clean source revision and
+  ZIP checksum. It refuses policy warnings, older versions and replacing a
+  different pending submission; retries recognize an already submitted or
+  published version. A GitHub release retains the ZIP, checksum, source record
+  and store receipt after submission, without claiming review has completed.
+  Manual `package` dispatch only builds artifacts; `check` on main performs
+  authentication and a read-only store status check. The ZIP preserves the
   public-key-derived id, contains all scripts locally, and requests only the
-  permissions listed above. Store assets and the privacy policy live in
+  permissions listed above. Listing/privacy changes still use the dashboard.
+  Store assets, setup and release commands live in
   [store preparation](../docs/distribution/chrome-extension/README.md).
 
 ## Deferred Verification Setup

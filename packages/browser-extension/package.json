@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test": "node --test scripts/publish-store.test.mjs",
     "build:extension": "pnpm --filter @yep-anywhere/shared build && pnpm --filter @yep-anywhere/client exec vite build --config vite.config.extension.ts && pnpm --filter @yep-anywhere/client exec vite build --config vite.config.extension-worker.ts && node ./scripts/assemble.mjs",
     "assemble": "node ./scripts/assemble.mjs",
     "package:store": "pnpm build:extension && node ./scripts/package-store.mjs",

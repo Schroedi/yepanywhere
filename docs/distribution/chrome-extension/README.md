@@ -26,10 +26,11 @@ unexpected install permissions fail the package audit. ZIP creation requires
 Python 3 (`python3`, or `py -3` on Windows); CI runs packaging on Ubuntu.
 
 [Chrome Extension CI](../../../.github/workflows/browser-extension.yml) can be
-run manually from Actions to produce a package and listing artifact. Pushing
-`extension-v0.1.3` (matching package.json) also produces a **draft GitHub
-release**, attaching the checked ZIP, checksum and build record. The workflow
-extracts the actual upload ZIP and runs login, exact lookup, in-place session
+run manually with mode `package` to produce a package and listing artifact.
+New `extension-v<version>` tags submit the verified ZIP to the existing store
+item, then create a GitHub release with the ZIP, checksum, build record and
+submission receipt. Google still controls review and final publication. The
+workflow extracts the actual upload ZIP and runs login, exact lookup, in-place session
 opening, reload, saved-login browser restart, settings, sequential typing and
 concurrent relay transcript updates. A separate owned-site-grant fixture covers
 the automatic badge; its extra permission is never added to the store ZIP.
@@ -41,6 +42,54 @@ Bump the extension package version for each store update. Existing unpacked
 development builds used YA-derived versions; remove the development copy
 before installing the store item, and sign into saved hosts again if Chrome
 clears that extension's storage.
+
+## Releasing an update
+
+Update and commit `packages/browser-extension/CHANGELOG.md` with a section
+such as `## [0.1.4]`. From a clean, current `main` checkout, run:
+
+```sh
+scripts/release-extension.sh 0.1.4
+```
+
+The helper validates the version and changelog, commits the package version,
+and atomically pushes `main` and `extension-v0.1.4`. CI must pass packaging and
+both exact-ZIP acceptance gates before it can authenticate and upload. The
+publisher checks source revision, checksum and pinned store identity, waits
+for upload processing, and submits with review enabled and warnings blocked.
+It preserves a different version already awaiting review; rerunning the same
+submitted or published version is safe. Review is asynchronous: a successful
+workflow means submission succeeded, not that Chrome has delivered the update.
+
+Before tagging, update listing assets/disclosures in the dashboard if behavior
+or permissions changed, and verify the existing reviewer host remains usable.
+Those account forms are outside the publishing API. Manual uploads remain a
+recovery option using the exact clean CI artifact described above.
+
+## One-time publishing configuration
+
+The dedicated `chrome-web-store` GitHub environment holds three variables:
+`CWS_WIF_PROVIDER`, `CWS_SERVICE_ACCOUNT`, and `CWS_PUBLISHER_ID`. No private key
+or refresh token is stored in GitHub. Enable the Chrome Web Store API in the
+Google Cloud project and link the dedicated service-account email in the
+Web Store developer account's API access settings. It needs no general project
+roles. Grant only `roles/iam.workloadIdentityUser` on that account to the
+workload pool's exact GitHub environment subject.
+
+The OIDC provider maps `google.subject` to `assertion.sub` and restricts the
+immutable repository/owner IDs, the `chrome-web-store` environment subject,
+this workflow's exact `workflow_ref`, and either `main` or an `extension-v*`
+tag. GitHub environment deployment rules allow only that branch/tag pattern.
+Concrete cloud identities and bindings live in the private dotfiles runbook.
+
+Verify the configuration without uploading or submitting anything:
+
+```sh
+gh workflow run browser-extension.yml --ref main -f mode=check
+```
+
+This main-only job obtains a short-lived scoped token, reads store status,
+checks the canonical public key and retains a sanitized status receipt.
 
 ## Listing assets
 

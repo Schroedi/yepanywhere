@@ -11,7 +11,7 @@ implemented and accepted locally and in the maintainer's Chrome against a
 real host (recorded under each step). Remaining step 6 checks and deferred
 slices remain open. The first store approval (step 11) is complete. Independent
 extension versioning, audited upload ZIPs, public listing assets and CI
-draft-release packaging are implemented. Version 0.1.3 passed
+tagged API submission and GitHub release receipts are implemented. Version 0.1.3 passed
 [CI](https://github.com/kzahel/yepanywhere/actions/runs/38604832081) and was
 submitted on 2026-10-14 with the `contextMenus` justification saved. The store
 confirms **Pending review**, with automatic publication after approval.
@@ -464,10 +464,13 @@ Acceptance 2026-10-13:
 Publication preparation implemented 2026-10-13 for a public listing.
 [Store preparation](../distribution/chrome-extension/README.md) owns upload
 commands, independent extension versioning, assets, listing/privacy copy and
-reviewer-access instructions. `extension-v0.1.1` invokes the dedicated CI
-workflow to create a draft GitHub release with the ZIP, SHA-256 and source
-revision; manual dispatch produces downloadable artifacts. Neither path
-uploads or submits to CWS.
+reviewer-access instructions. The original `extension-v0.1.1` workflow created
+an upload ZIP and draft GitHub release for manual submission. Subsequent
+release tags use a dedicated keyless GitHub/Google identity to submit the
+exact accepted ZIP and record a public GitHub release with a store receipt.
+Manual `package` dispatch produces artifacts; `check` on main verifies store
+authentication and identity without writes. Listing/privacy edits remain in
+the dashboard, and Google owns review and final publication.
 
 The audit checks the packaged identity, manifest permissions, local/external
 script entry points, absence of maps/private files, and exact icon sizes.
