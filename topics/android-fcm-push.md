@@ -337,14 +337,40 @@ Real target replacement is proven. Offline app/broker recovery, reinstall or
 cleared-app-data behavior, and eventual orphan/stale-record cleanup remain
 unresolved and must be measured before broadening this bounded policy.
 
+## Android Build Configuration
+
+The public client configuration in
+`packages/android/app/google-services.json` is tracked in Git. Fresh source
+checkouts and all CI builds, including pull requests, use the official YA
+Firebase project by default. The project id, app id, sender id and API key are
+compiled into the distributed APK; they identify the Firebase project and
+do not authorize broker sends. Firebase treats these values as
+[public configuration](https://firebase.google.com/docs/projects/learn-more#config-files-objects).
+Firebase-only API keys must retain appropriate
+[API restrictions](https://firebase.google.com/docs/projects/api-keys).
+Service-account private keys, app-signing keys and broker capabilities remain
+secrets and must never be added to this file or committed.
+
+To build without Firebase, pass `-PyaFirebaseEnabled=false` to Gradle. This
+skips the Google Services plugin and sets `BuildConfig.FIREBASE_CONFIGURED`
+to `false` even when the tracked config is present. The property defaults to
+`true` and accepts only `true` or `false`. A missing config also retains the
+Firebase-disabled fallback, with an explicit build message.
+
+Operators building an alternate distribution can replace the client config
+with their own Firebase project's file and explicitly configure their matching
+broker through `-PyaPushBrokerUrl=https://their-broker.example/`. CI uses the
+tracked client config directly; no Firebase config secret is required.
+
 ## Android Foundation Contract
 
 The first-class Android project:
 
 - applies Google Services only when
-  `packages/android/app/google-services.json` exists;
-- ignores that project-specific file and builds without it, explicitly
-  reporting that Firebase messaging is disabled;
+  `packages/android/app/google-services.json` exists and Firebase has not been
+  explicitly disabled with `-PyaFirebaseEnabled=false`;
+- builds without Firebase when disabled or when the config is absent,
+  explicitly reporting that Firebase messaging is disabled;
 - registers a non-exported native messaging service and does not require an
   Activity or WebView for receipt;
 - creates an ordinary activity notification channel at process start;

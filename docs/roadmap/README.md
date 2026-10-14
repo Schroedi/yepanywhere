@@ -1,6 +1,6 @@
 # Roadmap
 
-Last updated: 2026-10-13.
+Last updated: 2026-10-14.
 
 This is Yep Anywhere's canonical product-priority overview. Keep initiative
 status, the next action, and major blockers here; keep implementation steps in
@@ -162,9 +162,12 @@ the viewer/download gap remain the next mobile release work.
   now passes full packaged startup on Linux, macOS and Windows across all four
   Node versions and the pinned Bun runtime, including clean npm installations.
 - [Android CI](../../.github/workflows/android-app-ci.yml) tests and builds
-  application artifacts, including a bundled Release AAB. A dependent internal
-  publishing job requires a manual main dispatch with `publish_internal=true`,
-  then handles versioning, exact-artifact signing and stale-run protection.
+  application artifacts, including a bundled Release AAB. Public Firebase client
+  configuration is tracked, so fresh checkouts and PR builds support push without
+  CI secret injection; an explicit Firebase-disabled build remains available.
+  A dependent internal publishing job requires a manual main dispatch with
+  `publish_internal=true`, then handles versioning, exact-artifact signing and
+  stale-run protection.
   Push/nightly verification does not publish and cancels superseded checks;
   explicit releases finish independently of later pushes. Dedicated Google
   OIDC federation and app-scoped Play testing permissions are verified end to end.

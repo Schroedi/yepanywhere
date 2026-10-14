@@ -37,9 +37,20 @@ if (debugWebClientUrl != null) {
     }
 }
 
-val hasFirebaseConfiguration = file("google-services.json").isFile
+val firebaseEnabled = providers.gradleProperty("yaFirebaseEnabled").orNull
+    ?.trim()
+    ?.let {
+        require(it == "true" || it == "false") {
+            "yaFirebaseEnabled must be true or false"
+        }
+        it.toBoolean()
+    }
+    ?: true
+val hasFirebaseConfiguration = firebaseEnabled && file("google-services.json").isFile
 if (hasFirebaseConfiguration) {
     apply(plugin = "com.google.gms.google-services")
+} else if (!firebaseEnabled) {
+    logger.lifecycle("yaFirebaseEnabled=false; Firebase messaging is disabled")
 } else {
     logger.lifecycle("google-services.json not found; Firebase messaging is disabled")
 }
