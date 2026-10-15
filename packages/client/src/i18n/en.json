@@ -192,6 +192,8 @@
   "usersAllowPublicApps": "Allow public apps (no private link required)",
   "usersAllowPrivateAppLinks": "Allow copying private app links",
   "projectAppServe": "Serve at this address",
+  "projectAppStartAndServe": "Start app and serve here",
+  "projectAppServedStopped": "The app is stopped, so visitors to {address} see “Project app is not serving” until it runs.",
   "projectAppUnserve": "Stop serving at this address",
   "projectAppRelease": "Release address",
   "projectAppReleaseConfirm": "Release {address}? This app address will stop working.",

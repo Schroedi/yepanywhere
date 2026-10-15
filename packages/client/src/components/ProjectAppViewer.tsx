@@ -192,6 +192,13 @@ export function ProjectAppViewer({
     declaration && "start" in declaration
       ? declaration.start.argv.join(" ")
       : undefined;
+  // A served address reaches a process app only while it runs; a static app
+  // is served from its files with no process.
+  const processAppStopped =
+    !!info &&
+    !info.activeDeclaration &&
+    info.declaration?.where.kind === "process";
+  const canStartApp = processAppStopped && (info.canStart ?? info.canExecute);
   return (
     <section
       ref={viewerRef}
@@ -554,6 +561,15 @@ export function ProjectAppViewer({
                           />
                         </div>
                       )}
+                    {row.serving &&
+                      row.namespace === addresses.namespace &&
+                      processAppStopped && (
+                        <p role="status" className={styles.servedStopped}>
+                          {t("projectAppServedStopped", {
+                            address: `${row.name}.${row.namespace}`,
+                          })}
+                        </p>
+                      )}
                     {!addresses.canPublish &&
                       !row.public &&
                       row.namespace === addresses.namespace && (
@@ -605,22 +621,35 @@ export function ProjectAppViewer({
                               type="button"
                               disabled={busy}
                               onClick={() =>
-                                void perform(() =>
-                                  projectAppApi.addressAction(
+                                void perform(async () => {
+                                  // Serving a stopped process app would only
+                                  // publish "not serving", so start it first.
+                                  const startFirst =
+                                    !row.serving && canStartApp;
+                                  if (startFirst)
+                                    await projectAppApi.action(
+                                      projectId,
+                                      "start",
+                                    );
+                                  await projectAppApi.addressAction(
                                     projectId,
                                     "serve",
                                     {
                                       serving: !row.serving,
                                       public: row.public,
                                     },
-                                  ),
-                                )
+                                  );
+                                  if (startFirst)
+                                    setReload((value) => value + 1);
+                                })
                               }
                             >
                               {t(
                                 row.serving
                                   ? "projectAppUnserve"
-                                  : "projectAppServe",
+                                  : canStartApp
+                                    ? "projectAppStartAndServe"
+                                    : "projectAppServe",
                               )}
                             </button>
                           </>

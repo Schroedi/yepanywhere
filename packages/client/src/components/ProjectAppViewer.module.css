@@ -35,6 +35,11 @@
 .details code {
   overflow-wrap: anywhere;
 }
+.servedStopped {
+  padding: 6px 10px;
+  border-inline-start: 3px solid var(--warning-color);
+  color: var(--warning-color);
+}
 .details label {
   display: block;
   margin-block: 12px;

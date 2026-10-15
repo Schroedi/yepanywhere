@@ -210,11 +210,6 @@ export function ProjectAppInventorySection() {
                 expanded === row.projectId && (
                   <article className={styles.row} key={row.projectId}>
                     {!canDelete && <p>{t("projectAppDeleteUpdate")}</p>}
-                    <div className={styles.heading}>
-                      <span>
-                        {t("projectAppState", { state: row.info.state })}
-                      </span>
-                    </div>
                     <p>
                       {row.owner ?? t("projectAppInventoryAdministrator")} ·{" "}
                       <code>{row.path}</code>

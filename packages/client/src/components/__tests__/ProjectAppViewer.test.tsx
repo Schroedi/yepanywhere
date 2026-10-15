@@ -215,6 +215,81 @@ it("offers a view-only user Start for a stopped app and never Stop", async () =>
   expect(screen.queryByRole("button", { name: "Start app" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Restart app" })).toBeNull();
 });
+it("starts a stopped process app before serving its address, and warns while it is served but stopped", async () => {
+  const process = {
+    version: 1,
+    where: { kind: "process", cwd: ".", entry: "/" },
+    start: { argv: ["npm", "start"], portEnv: "PORT" },
+  };
+  const row = {
+    name: "canvas",
+    namespace: "apps.example",
+    owner: "superuser",
+    serving: false,
+    public: false,
+    privateOnly: false,
+  };
+  let running = false;
+  mock.fetch.mockImplementation(
+    async (path: string, options?: { body: string }) => {
+      if (path.endsWith("/start")) {
+        running = true;
+        return {};
+      }
+      if (path.endsWith("/serve")) {
+        Object.assign(row, JSON.parse(options!.body));
+        return row;
+      }
+      if (path.endsWith("/address"))
+        return {
+          enabled: true,
+          namespace: "apps.example",
+          canPublish: true,
+          reservations: [{ ...row }],
+        };
+      return {
+        projectId: "test",
+        declaration: process,
+        ...(running ? { activeDeclaration: process } : {}),
+        state: running ? "running" : "stopped",
+        latestArtifact: null,
+        canExecute: true,
+        canShare: false,
+        removedFrom: [],
+      };
+    },
+  );
+  render(
+    <I18nProvider>
+      <ProjectAppViewer projectId="test" presentation="settings" />
+    </I18nProvider>,
+  );
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Start app and serve here" }),
+  );
+  await waitFor(() =>
+    expect(
+      mock.fetch.mock.calls
+        .map(([path]) => path)
+        .filter((path) => /\/(start|serve)$/.test(path)),
+    ).toEqual(["/projects/test/app/start", "/projects/test/app/address/serve"]),
+  );
+  expect(
+    await screen.findByRole("button", { name: "Stop serving at this address" }),
+  ).toBeTruthy();
+  expect(screen.queryByText(/visitors to canvas\.apps\.example/)).toBeNull();
+
+  running = false;
+  cleanup();
+  render(
+    <I18nProvider>
+      <ProjectAppViewer projectId="test" presentation="settings" />
+    </I18nProvider>,
+  );
+  expect(
+    await screen.findByText(/visitors to canvas\.apps\.example see/),
+  ).toBeTruthy();
+});
 it("restarts a running app as stop, then start in its running mode", async () => {
   const process = {
     version: 1,
