@@ -120,6 +120,20 @@ the field support first-declaration detection only, not rebuild detection.
 The optional stamp is recorded under `project-app-address-links`; clients
 feature-detect the field without requiring a new capability.
 
+YA never takes keyboard focus from an open App without a user action in YA
+itself (user requirement, 2026-10-15). An open App stays mounted across turn
+boundaries: a reading that lacks the declaration, as during an `app.json`
+edit or a service restart, does not close or unmount it. A declaration that
+is really gone takes effect once the user closes the App, which then hides
+the App button. Focus moves YA makes on its own, rather than in a user's own
+click or key, decline while an embedded frame holds focus: refocusing the
+composer after a `!` command or a settled speech delivery, voice start and
+stop, returning from an answered async question or a restored queued
+message, a question jump, and a modal's initial focus. They route through
+`programmaticFocus` (`packages/client/src/lib/programmaticFocus.ts`). Leaving
+the page for the App while an answer sends counts as moving away, so the
+answer does not return focus to the composer.
+
 **New session** creates one session in this project using the user's normal
 provider/model defaults and enforced locks, with the viewed app already open
 in its full-height right pane when the viewport has room. The microphone is

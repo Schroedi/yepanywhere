@@ -271,6 +271,12 @@ export function AsyncQuestionsProvider({
           return;
         moved = true;
       };
+      // A click into an embedded app (the project App frame) reaches neither
+      // listener above; the page losing focus to it is the visible trace.
+      const noteLeftPage = () => {
+        moved = true;
+      };
+      window.addEventListener("blur", noteLeftPage);
       document.addEventListener("pointerdown", noteMovement, true);
       document.addEventListener("focusin", noteMovement, true);
       document.addEventListener("wheel", noteMovement, {
@@ -295,6 +301,7 @@ export function AsyncQuestionsProvider({
       } finally {
         submitting.current = false;
         setSubmittingId(null);
+        window.removeEventListener("blur", noteLeftPage);
         document.removeEventListener("pointerdown", noteMovement, true);
         document.removeEventListener("focusin", noteMovement, true);
         document.removeEventListener("wheel", noteMovement, true);

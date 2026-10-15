@@ -76,6 +76,7 @@ import {
   getLatestMessageTimestampMs,
   MESSAGE_STALE_THRESHOLD_MS,
 } from "../lib/messageAge";
+import { programmaticFocus } from "../lib/programmaticFocus";
 import type { ActiveToolApproval } from "@yep-anywhere/shared/transcript/types";
 import {
   SESSION_ISEARCH_OPEN_EVENT,
@@ -3593,11 +3594,13 @@ export const MessageList = memo(function MessageList({
           0,
           currentContainer.scrollTop + rowRect.top - scrollRect.top - offset,
         );
+        // Question jumps run from frames and layout retries, not a key or
+        // click, so they leave an embedded app's focus alone.
         if (Math.abs(nextTop - currentContainer.scrollTop) < 1) {
           if (questionId)
-            row
-              .querySelector<HTMLTextAreaElement>("textarea")
-              ?.focus({ preventScroll: true });
+            programmaticFocus(row.querySelector("textarea"), {
+              preventScroll: true,
+            });
           return true;
         }
         if (withMotionCue) {
@@ -3611,9 +3614,9 @@ export const MessageList = memo(function MessageList({
           currentContainer.scrollTop = nextTop;
         }
         if (questionId)
-          row
-            .querySelector<HTMLTextAreaElement>("textarea")
-            ?.focus({ preventScroll: true });
+          programmaticFocus(row.querySelector("textarea"), {
+            preventScroll: true,
+          });
         return true;
       };
 

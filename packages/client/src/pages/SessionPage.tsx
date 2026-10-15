@@ -240,6 +240,7 @@ import {
   thinkingOptionFromSelection,
 } from "../lib/liveThinkingConfig";
 import { getPersistentEditApprovalResponse } from "../lib/permissionModes";
+import { embeddedFrameHoldsFocus } from "../lib/programmaticFocus";
 import {
   sessionResumeOverrides,
   stoppedSessionPermissionMode,
@@ -785,11 +786,13 @@ function SessionPageContent({
     useProviderRuntimeStatusForSession(actualSessionId);
   // Arriving from the project's App entry names a target; otherwise a project
   // that declares a root app still offers it, closed until asked for, and
-  // opens it when a turn ends with the app newly declared or rebuilt.
+  // opens it when a turn ends with the app newly declared or rebuilt. An open
+  // app stays mounted across readings until the user closes it.
   const projectDeclaresApp = useProjectAppUpdates(
     projectId,
     projectServiceSupported,
     processState === "in-turn" || processState === "waiting-input",
+    projectAppOpen,
     () => {
       setProjectAppOpenedBy("session");
       setProjectAppOpen(true);
@@ -3960,7 +3963,10 @@ function SessionPageContent({
         setPermissionMode(mode);
       }
       setCorrectionDraft(null);
-      requestAnimationFrame(() => controls.focus?.());
+      // Restoring follows an awaited cancel, so the user may be in the app.
+      requestAnimationFrame(() => {
+        if (!embeddedFrameHoldsFocus()) controls.focus?.();
+      });
     },
     [setComposerAttachments, setPermissionMode],
   );
@@ -7285,9 +7291,11 @@ function SessionPageContent({
         )
       }
       quote={insertQuotedSelection}
-      focusComposer={() =>
-        draftControlsRef.current?.focus?.({ preventScroll: true })
-      }
+      focusComposer={() => {
+        // Runs after an answer's send settles, so the user may be in the app.
+        if (!embeddedFrameHoldsFocus())
+          draftControlsRef.current?.focus?.({ preventScroll: true });
+      }}
     >
       <RoutedSessionContext value={Boolean(session?.routerBinding)}>
         <ComposerInsertContext value={insertQuotedSelection}>

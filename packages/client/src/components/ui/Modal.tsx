@@ -10,6 +10,7 @@ import {
 import { createPortal } from "react-dom";
 import { useI18n } from "../../i18n";
 import { QUOTE_SELECTION_ROOT_ATTRIBUTES } from "../../lib/markdownSelectionCopy";
+import { programmaticFocus } from "../../lib/programmaticFocus";
 
 const ANCHORED_MODAL_MARGIN_PX = 8;
 const ANCHORED_MODAL_MIN_VIEWPORT_WIDTH_PX = 600;
@@ -412,10 +413,11 @@ export function Modal({
       window.innerWidth > ANCHORED_MODAL_MIN_VIEWPORT_WIDTH_PX);
   const [anchorStyle, setAnchorStyle] = useState<CSSProperties | null>(null);
 
-  // Focus the close button on mount for accessibility
+  // Focus the close button on mount for accessibility. A modal that opens
+  // by itself while the user is in an embedded app leaves its focus alone.
   useEffect(() => {
     if (minimized) return;
-    closeButtonRef.current?.focus();
+    programmaticFocus(closeButtonRef.current);
   }, [minimized]);
 
   useLayoutEffect(() => {

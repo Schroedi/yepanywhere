@@ -75,6 +75,7 @@ import {
 } from "../lib/composerTurnRecall";
 import { hasCoarsePointer } from "../lib/deviceDetection";
 import { MOBILE_KEYBOARD_OPEN_VIEWPORT_RATIO } from "../lib/mobileKeyboardViewport";
+import { programmaticFocus } from "../lib/programmaticFocus";
 import { focusComposerForSpeechTransition } from "../lib/speechComposerFocus";
 import type {
   SpeechTranscriptionContext,
@@ -1467,7 +1468,7 @@ export function MessageInput({
       );
       consumeSpeechAttribution();
       if (focusAfterSubmit) {
-        textareaRef.current?.focus();
+        programmaticFocus(textareaRef.current);
       } else {
         textareaRef.current?.blur();
       }
@@ -1528,7 +1529,7 @@ export function MessageInput({
       );
       consumeSpeechAttribution();
       if (focusAfterSubmit) {
-        textareaRef.current?.focus();
+        programmaticFocus(textareaRef.current);
       } else {
         textareaRef.current?.blur();
       }
@@ -1570,7 +1571,7 @@ export function MessageInput({
       }
       onDone();
       if (focusAfterSubmit) {
-        textareaRef.current?.focus();
+        programmaticFocus(textareaRef.current);
       } else {
         textareaRef.current?.blur();
       }
@@ -1696,8 +1697,9 @@ export function MessageInput({
               controls.restoreFromStorage();
             }
           }
+          // The command ran across an await; the user may be in the app now.
           if (focusAfterSubmit) {
-            textareaRef.current?.focus();
+            programmaticFocus(textareaRef.current);
           } else {
             textareaRef.current?.blur();
           }
@@ -1736,8 +1738,9 @@ export function MessageInput({
         onSend(message, metadata);
         consumeSpeechAttribution();
         if (focusAfterSubmit) {
-          // Refocus the textarea so user can continue typing.
-          textareaRef.current?.focus();
+          // Refocus the textarea so user can continue typing, unless a
+          // settled speech delivery finds the user in an embedded app.
+          programmaticFocus(textareaRef.current);
         } else {
           textareaRef.current?.blur();
         }
@@ -1819,7 +1822,7 @@ export function MessageInput({
         );
         consumeSpeechAttribution();
         if (focusAfterSubmit) {
-          textareaRef.current?.focus();
+          programmaticFocus(textareaRef.current);
         } else {
           textareaRef.current?.blur();
         }
@@ -1891,7 +1894,7 @@ export function MessageInput({
         );
         consumeSpeechAttribution();
         if (focusAfterSubmit) {
-          textareaRef.current?.focus();
+          programmaticFocus(textareaRef.current);
         } else {
           textareaRef.current?.blur();
         }
