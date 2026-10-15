@@ -6592,12 +6592,14 @@ export class Supervisor {
     process: Process | null;
   }): void {
     const process = processHolder.process;
-    process?.handleProviderRetentionChanged();
+    // A snapshot change that leaves `retained` alone (recorded work only,
+    // e.g. a Codex background terminal) refreshes liveness and nothing else.
+    if (!process?.handleProviderRetentionChanged()) return;
     this.emitWorkerActivity();
     // Background work starting/finishing flips an idle session between active
     // and truly idle without a state-change event. Surface that so inbox/sidebar
     // activity indicators update live rather than only on the next refresh.
-    if (process && process.state.type === "idle") {
+    if (process.state.type === "idle") {
       this.emitProcessActivity(process);
       if (!process.isRetainingProviderWork()) {
         void this.finalizePendingDone(process);

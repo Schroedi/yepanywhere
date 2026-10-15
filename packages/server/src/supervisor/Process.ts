@@ -1190,6 +1190,8 @@ export class Process {
   private getProviderActivityFn: (() => ProviderActivitySnapshot) | null;
   private getProviderRetentionFn: (() => ProviderRetentionSnapshot) | null =
     null;
+  /** Null until the first change, so that change always counts as a flip. */
+  private lastPublishedProviderRetained: boolean | null = null;
   private refreshPromptCacheFn:
     | ((options: { sessionId: string }) => Promise<PromptCacheRefreshResult>)
     | null = null;
@@ -1691,9 +1693,19 @@ export class Process {
     );
   }
 
-  handleProviderRetentionChanged(): void {
+  /**
+   * Publish a changed provider snapshot. Returns whether it flipped
+   * `retained`: only that flip affects idle reaping and row activity, while
+   * recorded work (including Codex background terminals, which never retain)
+   * only refreshes liveness.
+   */
+  handleProviderRetentionChanged(): boolean {
     this.emit({ type: "liveness-update" });
+    const retained = this.getProviderRetentionSnapshot().retained;
+    if (retained === this.lastPublishedProviderRetained) return false;
+    this.lastPublishedProviderRetained = retained;
     this.viewerLifecycle.retentionChanged();
+    return true;
   }
 
   supportsPromptCacheKeepalive(): boolean {

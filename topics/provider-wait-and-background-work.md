@@ -1,8 +1,8 @@
 # Provider Waits And Background Work
 
 > How Claude and Codex wait, keep work running after a turn, and wake
-> themselves; what YA records about it today; and the provider-neutral record
-> YA should capture before choosing new indicators or lifecycle behavior.
+> themselves, and the provider-neutral record of that work YA keeps for the
+> sessions it owns, ahead of any new indicators or lifecycle behavior.
 
 Related topics: [session liveness](session-liveness.md) owns liveness
 statuses, retention and idle reaping; [Claude provider control](claude.md)
@@ -54,69 +54,63 @@ Two provider facts matter for any later design:
   `clock` tool (bundled gpt-6 models), and a single sleep may last up to
   12 hours.
 
-## Current YA Behavior
+## Recorded Work
 
-- **Claude.** `ClaudeProviderRetentionTracker` reduces provider state to
-  counts: live SDK tasks, Stop-hook background tasks and session crons. An
-  idle process with any of them is `verified-waiting-provider`, reports
-  `activity: "in-turn"` on every row surface (see
-  [session liveness](session-liveness.md)), and is not idle-reaped. Task
-  type, description, command and cron schedule are discarded, so a
-  background subagent, a dev server and a pending reminder look identical.
-- **Codex.** Nothing feeds retention. A thread with live background
-  terminals is `verified-idle`, shows no activity and is eligible for idle
-  reaping; teardown then kills those terminals. A late background
-  `item/completed` updates raw-event cadence only. In-turn `clock.sleep`
-  items render in the transcript as `sleep` tool calls and keep the session
-  `in-turn` / `verified-progressing`.
-- **Session Info.** The Info tab of the session model panel
-  (`ProcessInfoBody`) shows the retention counts and reasons and the last
-  wake reason from the liveness snapshot.
+YA records provider-held work for the sessions it owns as two optional lists
+on the liveness snapshot's `providerRetention` (`ProviderWorkItem` in
+`packages/shared/src/session-liveness.ts`). Each item has an `id`, a `kind`
+(`shell`, `monitor`, `subagent`, `workflow`, `mcp`, `cron`, `sleep`,
+`other`), a `label`, the raw `providerType`, and the `source` evidence it
+came from, plus `command`, `startedAt`, `until`, `schedule`, `recurring` or
+`parentId` when known.
+
+- **Foreground waits** are what an active turn is blocked on. Claude reports
+  the main thread's blocking tasks from `task_started`
+  (`is_backgrounded: false`, not owned by a subagent): foreground Bash calls
+  that run long enough for the CLI to announce them (about 6.5 s), and
+  foreground subagents. They clear on the task's notification or terminal
+  update, on a move to the background, or at `result`. Codex reports the
+  turn's `clock.sleep` item with its `until` time; it clears on the item's
+  completion or at `turn/completed`.
+- **Background work** is work that runs independently of model steps.
+  Claude reports the latest `background_tasks_changed` level (excluding
+  `ambient` tasks; older CLIs fall back to task edges and Stop-hook input),
+  enriched with the Stop hook's shell command, plus Stop-hook
+  `session_crons` with schedule, prompt and `recurring`. Codex reports
+  unified-exec processes (`source: "unifiedExecStartup"`) from
+  `item/started` until their `item/completed`, during and after the turn,
+  for the session's own thread only.
+- Codex notifications are observed as they arrive, so a process that exits
+  between turns clears immediately. At each `turn/completed` YA reconciles
+  once with `thread/backgroundTerminals/list`; an item that ends while that
+  request is in flight is not resurrected. A replaced app-server process
+  clears the record, because its terminals died with it.
+- The Info tab of the session model panel (`ProcessInfoBody`) lists both,
+  under **Waiting on** and **Background work**, from the live session
+  stream; a liveness update is published on every change.
+- Lists are bounded to 64 items and 500 characters per text field. They
+  describe what the provider reported; untracked descendants (a Claude
+  `nohup … &` launch, daemons a command forks) never appear, and YA must not
+  present the list as a complete process inventory.
 
 ## Contracts
 
-- Codex background terminals do not retain a session and do not defer idle
-  reaping. Reaping may therefore end a dev server Codex started. A future
-  setting may make them retain the session; until then this is deliberate,
-  not a defect. (Decided 2026-10-15.)
-- Claude provider retention keeps its existing contract: background tasks
-  and session crons defer idle reaping.
-
-## Proposed Normalized Record
-
-Not implemented. The first goal is correct underlying data, shown in the
-Session Info tab; row indicators, queue behavior, done notifications and
-reaping changes come later and are out of scope for the first slice.
-
-The liveness snapshot (or a sibling field on process info) should carry two
-optional, provider-neutral parts alongside the existing coarse state:
-
-- **Foreground wait**, present only while the turn is active:
-  `{ kind: "sleep" | "command" | "subagent", since, until?, label? }`.
-  Codex supplies it from live `sleep` items (`durationMs`), unified-exec
-  commands the turn is polling, and `collabAgentToolCall` waits; Claude from a
-  running foreground Bash or `Agent` call.
-- **Background work**, a list present after the turn ends:
-  `{ kind: "shell" | "monitor" | "subagent" | "workflow" | "mcp" | "cron",
-  id, label, startedAt?, schedule?, source }`, where `source` names the
-  provider evidence. Claude supplies it from the latest
-  `background_tasks_changed` snapshot (keeping `task_type`, `description`,
-  `subagent_type`, `parent_task_id`, excluding `ambient`) and from Stop-hook
-  `background_tasks` and `session_crons` (command, schedule, prompt). Codex
-  supplies it from unified-exec items left `inProgress` at turn end,
-  reconciled with `thread/backgroundTerminals/list` at turn end and on
-  resume or reconnect, and cleared by the late `item/completed`.
-
-Constraints on collecting it:
-
-- No timer polling of idle sessions. Per the
-  [architecture mandates](architecture-mandates.md), an idle provider
-  session must not indefinitely consume server resources; Codex
-  reconciliation happens at turn boundaries and reconnects only.
-- Retention stays a separate decision. Recording Codex background work must
-  not by itself make it retain the session (see Contracts).
-- Untracked descendants (Claude `nohup` launches, daemons a command forks)
-  are invisible to both providers; YA must not imply the list is a complete
-  process inventory.
-- Codex self-started turns carry no trigger field over app-server; YA can
-  record that a turn began without a YA `turn/start`, not why.
+- Recording work and retaining a session are separate. Claude background
+  tasks and session crons retain the session and defer idle reaping, as
+  before. Codex background terminals are recorded with `retained: false`:
+  they do not retain the session or defer idle reaping, and reaping ends
+  them. A future setting may change that; until then it is deliberate.
+  (Decided 2026-10-15.)
+- A provider snapshot change that does not flip `retained` refreshes
+  liveness only. It must not restart the idle grace, emit row activity or
+  rerun idle-boundary work (done finalization, threshold compaction,
+  post-compact replay).
+- Codex reconciliation happens only at turn boundaries. No timer polls an
+  idle session for its terminals, per the
+  [architecture mandates](architecture-mandates.md).
+- Row activity is unchanged: an idle process that retains provider work
+  still reports `activity: "in-turn"`. New indicators that use the recorded
+  work are future UI decisions.
+- Codex self-started turns (goals, thread queue) carry no trigger field over
+  app-server; YA can record that a turn began without a YA `turn/start`, not
+  why.

@@ -198,3 +198,44 @@ host learns about them at turn end.
   them at the next turn start (`packages/server/src/sdk/providers/codex.ts`
   `updateBackgroundProcessTracking`). YA does not call
   `thread/backgroundTerminals/list` and does not normalize live `sleep` items.
+
+## 2026-10-15 — YA capture validation
+
+Setup: standalone dev profiles from this checkout, Codex CLI 0.160.0 and
+Claude Agent SDK 0.3.296 (CLI 2.1.296), sessions started through
+`POST /api/sessions` and polled every 2 s through
+`GET /api/sessions/:id/process`. Profile `bgwork` (port 4600) ran
+providers in-process; profile `bgwork-host` (port 4700) used the provider
+host (`YEP_PROVIDER_HOST_ENABLED=true`), so snapshots crossed the host
+boundary. The second round used `IDLE_TIMEOUT=150`. YA's default Claude model
+in these profiles chose different mechanisms from the earlier SDK probe
+(Sonnet): a foreground Bash `sleep 180` for "check in", and background Bash
+sleeps instead of `CronCreate` or `ScheduleWakeup` for two of three
+reminders.
+
+Twelve concurrent sessions first froze the 4600 server: concurrent
+`flush()` calls on the SQLite-backed `SessionMetadataService` saver re-armed
+each other's drains in microtasks forever. Fixed in `createCoalescingSaver`
+before the runs below; afterwards twelve concurrent sessions kept the API
+answering in about 1 ms.
+
+| Scenario | Observed record |
+|---|---|
+| Claude background build | `shell` work with command, retained; cleared and woke at completion |
+| Claude reminder (`CronCreate`) | `cron` work with schedule `48 15 15 10 *`; cleared after it fired |
+| Claude background subagent | `subagent` work (`local_agent`); cleared on completion, new turn |
+| Claude monitor | background server plus a background `sleep 120; curl` check; the server stayed recorded and retained after the check |
+| Claude foreground check-in | `shell` wait (`claude:task_started`) for the whole three minutes |
+| Claude `nohup` dev server | nothing after the launcher returned (untracked, as expected) |
+| Codex check-in | successive `clock.sleep` waits with `until`; none after the turn |
+| Codex build | the command as `shell` work during the turn; cleared at exit |
+| Codex dev server | `shell` work through and after the turn, `verified-idle`, not retained |
+| Codex `sleep 120` left running | recorded after the turn; cleared at its exit while idle |
+| Codex subagent | child as `subagent` work (`/root/time_after_minute`); `wait_agent` waits; both cleared |
+
+Reaping with a 150 s grace: a Codex dev-server session idle at 15:52:33 was
+reaped at 15:55:03 and its port freed; a session whose background `sleep
+60` exited at 15:53:27, after it went idle at 15:52:31, was reaped at
+15:55:02, so the exit did not restart the grace; a Claude session retaining
+a background server was not reaped. The provider-host profile recorded the
+same items as the in-process one.

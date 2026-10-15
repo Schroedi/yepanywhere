@@ -7,6 +7,7 @@ import { createConnection, type Socket } from "node:net";
 import { getLogger } from "../../logging/logger.js";
 import { getModuleEnv, harvestYaModuleEnv } from "../../yaModuleEnv.js";
 import { setProviderHostDegraded } from "./provider-host-status.js";
+import { normalizeProviderWorkItems } from "@yep-anywhere/shared";
 import type {
   PermissionMode,
   ThinkingConfig,
@@ -1502,6 +1503,8 @@ function reviveRetention(
     sessionCronCount: value?.sessionCronCount,
     liveTaskCount: value?.liveTaskCount,
     lastUpdatedAt: value?.lastUpdatedAt ? new Date(value.lastUpdatedAt) : null,
+    backgroundWork: normalizeProviderWorkItems(value?.backgroundWork),
+    foregroundWaits: normalizeProviderWorkItems(value?.foregroundWaits),
   };
 }
 

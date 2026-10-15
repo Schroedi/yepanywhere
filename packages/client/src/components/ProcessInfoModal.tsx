@@ -3,6 +3,7 @@ import type {
   ModelServiceTier,
   ProviderName,
   ProviderRuntimeStatus,
+  ProviderWorkItem,
   SessionLivenessSnapshot,
   SessionSandboxPolicy,
 } from "@yep-anywhere/shared";
@@ -180,6 +181,66 @@ function formatProviderRetention(
   return reasons ? `${counts}; ${reasons}` : counts;
 }
 
+const PROVIDER_WORK_ROWS = 8;
+
+function formatProviderWorkItem(
+  item: ProviderWorkItem,
+  t: (key: string, vars?: Record<string, string | number>) => string,
+): string {
+  const parts = [item.kind, item.label];
+  if (item.command && item.command !== item.label) parts.push(item.command);
+  if (item.schedule) {
+    parts.push(
+      item.recurring
+        ? t("processInfoWorkRecurring", { schedule: item.schedule })
+        : item.schedule,
+    );
+  }
+  if (item.until) {
+    parts.push(
+      t("processInfoWorkUntil", {
+        time: new Date(item.until).toLocaleTimeString(),
+      }),
+    );
+  } else if (item.startedAt) {
+    parts.push(formatTimeAgo(new Date(item.startedAt).getTime(), t));
+  }
+  return parts.join(" · ");
+}
+
+function ProviderWorkRows({
+  label,
+  items,
+  t,
+}: {
+  label: string;
+  items: ProviderWorkItem[] | undefined;
+  t: (key: string, vars?: Record<string, string | number>) => string;
+}) {
+  if (!items?.length) return null;
+  const shown = items.slice(0, PROVIDER_WORK_ROWS);
+  return (
+    <>
+      {shown.map((item) => (
+        <InfoRow
+          key={item.id}
+          label={label}
+          value={formatProviderWorkItem(item, t)}
+          mono
+        />
+      ))}
+      {items.length > shown.length && (
+        <InfoRow
+          label={label}
+          value={t("processInfoWorkMore", {
+            count: items.length - shown.length,
+          })}
+        />
+      )}
+    </>
+  );
+}
+
 function InfoRow({
   label,
   value,
@@ -243,7 +304,9 @@ export function ProcessInfoBody({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { connected: streamConnected, connectionState } = useActivityBusState();
-  const liveness = processInfo?.liveness ?? sessionLiveness ?? null;
+  // The session stream refreshes liveness on every provider change; the
+  // process fetch only covers sessions without a live stream.
+  const liveness = sessionLiveness ?? processInfo?.liveness ?? null;
   const providerRuntimeStatus = processInfo
     ? (processInfo.providerRuntimeStatus ?? null)
     : (liveProviderRuntimeStatus ?? null);
@@ -368,6 +431,16 @@ export function ProcessInfoBody({
           label={t("processInfoLabelProviderRetention")}
           value={retentionValue}
           mono
+        />
+        <ProviderWorkRows
+          label={t("processInfoLabelForegroundWait")}
+          items={liveness?.providerRetention?.foregroundWaits}
+          t={tr}
+        />
+        <ProviderWorkRows
+          label={t("processInfoLabelBackgroundWork")}
+          items={liveness?.providerRetention?.backgroundWork}
+          t={tr}
         />
         <InfoRow label={t("processInfoLabelLastWake")} value={wakeValue} />
         <InfoRow

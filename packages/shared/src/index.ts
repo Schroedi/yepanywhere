@@ -622,6 +622,8 @@ export {
 } from "./git-status.js";
 
 export type {
+  ProviderWorkItem,
+  ProviderWorkKind,
   SessionActiveWorkKind,
   SessionLivenessDerivedStatus,
   SessionLivenessProbeStatus,
@@ -629,6 +631,10 @@ export type {
   SessionProviderRetentionSnapshot,
   SessionWakeReason,
   SessionWakeReasonSnapshot,
+} from "./session-liveness.js";
+export {
+  normalizeProviderWorkItems,
+  PROVIDER_WORK_ITEM_LIMIT,
 } from "./session-liveness.js";
 
 export {

@@ -5,6 +5,7 @@ import {
   type McpAppToolCall,
   formatMcpAppModelContext,
   mcpAppToolCallFromCodexItem,
+  PROVIDER_WORK_ITEM_LIMIT,
   routerModelSupportsThinking,
 } from "@yep-anywhere/shared";
 import {
@@ -191,6 +192,7 @@ import {
   isCodexLiveDeltaSuppressionEnabled,
   readCodexTurnErrorDetail,
 } from "./codex-notification-guards.js";
+import { CodexProviderWorkTracker } from "./codex-provider-work.js";
 import {
   captureCodexSummaryTextFromNotification,
   captureCodexSummaryTextFromTurnItems,
@@ -999,6 +1001,9 @@ class CodexAppServerClient {
   >();
   private readonly notifications = new AsyncQueue<JsonRpcNotification>();
   private onServerRequest: AppServerRequestHandler | null = null;
+  private notificationObserver:
+    | ((notification: JsonRpcNotification) => void)
+    | null = null;
   private closed = false;
   private lastRawProviderEventAt: Date | null = null;
   private lastRawProviderEventSource: string | null = null;
@@ -1030,6 +1035,16 @@ class CodexAppServerClient {
 
   setServerRequestHandler(handler: AppServerRequestHandler): void {
     this.onServerRequest = handler;
+  }
+
+  /**
+   * See every provider notification on arrival, including the ones that
+   * reach the queue only when the next turn reads it.
+   */
+  setNotificationObserver(
+    observer: ((notification: JsonRpcNotification) => void) | null,
+  ): void {
+    this.notificationObserver = observer;
   }
 
   getProviderActivity(): ProviderActivitySnapshot {
@@ -1150,6 +1165,11 @@ class CodexAppServerClient {
       }
 
       const notification = { method, params: message.params };
+      try {
+        this.notificationObserver?.(notification);
+      } catch (error) {
+        log.debug({ error, method }, "Codex notification observer failed");
+      }
       if (this.shouldSuppressNotification?.(notification)) {
         return;
       }
@@ -2014,6 +2034,22 @@ export class CodexProvider implements AgentProvider {
     }
 
     let activeClient: CodexAppServerClient | null = null;
+    const providerWork = new CodexProviderWorkTracker(
+      () => options.onProviderRetentionChange?.(),
+      async () => {
+        const client = activeClient;
+        const threadId = runtimeState.threadId;
+        if (!client || !threadId) return null;
+        return await withCodexTimeout(
+          client.request("thread/backgroundTerminals/list", {
+            threadId,
+            limit: PROVIDER_WORK_ITEM_LIMIT,
+          }),
+          5_000,
+          "Codex background terminal list",
+        );
+      },
+    );
     let goalCommandTail: Promise<void> = Promise.resolve();
     let resolveInitialActiveClient:
       | ((client: CodexAppServerClient | null) => void)
@@ -2040,6 +2076,13 @@ export class CodexProvider implements AgentProvider {
       abortController.signal,
       runtimeState,
       (client) => {
+        if (client !== activeClient) {
+          activeClient?.setNotificationObserver(null);
+          providerWork.reset();
+          client.setNotificationObserver((notification) =>
+            providerWork.observe(notification, runtimeState.threadId),
+          );
+        }
         activeClient = client;
         settleInitialActiveClient(client);
       },
@@ -2113,6 +2156,7 @@ export class CodexProvider implements AgentProvider {
         await installationLease.release();
       },
       isProcessAlive: () => activeClient?.isAlive() ?? false,
+      getProviderRetention: () => providerWork.getSnapshot(),
       getProviderActivity: () =>
         activeClient?.getProviderActivity() ?? {
           lastRawProviderEventAt: null,
