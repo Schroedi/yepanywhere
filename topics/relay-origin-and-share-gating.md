@@ -197,6 +197,18 @@ Unmarked links make neither metadata nor chunk requests. The capability says
 nothing about live pagination, general relay streaming, public-share
 encryption, management, or relay multiplexing.
 
+For a live share, the metadata request may instead add
+`public-share-live-session-chunks-v1`. The server then serializes the current
+live session exactly as the one-response route would, compresses it, and holds
+it in memory for that viewer as a transient revision. The viewer pulls it with
+the same chunk protocol and keeps the share live; later updates use the
+existing incremental one-response route. A newer metadata request from the
+same viewer replaces its snapshot, the final chunk releases it, and it expires
+with viewer presence (120 s). Total retained snapshot bytes are capped at
+64 MiB, evicting the oldest; an evicted or expired transfer returns a
+retryable 409 and the viewer reloads. A session over the 64 MiB compressed or
+decompressed ceiling gets no capability and keeps the capped raw-json path.
+
 A pre-auth WebSocket selects one lifetime mode. The first public-share read
 locks it to public-read-only, while any SRP control attempt locks it to SRP even
 when authentication later fails. Public and SRP traffic cannot follow one

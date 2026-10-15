@@ -6,7 +6,10 @@ import {
   capabilityBitIsSet,
   encodeCapabilityIds,
 } from "./capability-ids.js";
-import { PUBLIC_SHARE_SESSION_CHUNKS_CAPABILITY } from "./public-shares.js";
+import {
+  PUBLIC_SHARE_LIVE_SESSION_CHUNKS_CAPABILITY,
+  PUBLIC_SHARE_SESSION_CHUNKS_CAPABILITY,
+} from "./public-shares.js";
 import { SECURITY_CLIENT_AUDIT_CAPABILITY } from "./security-clients.js";
 
 export type ServerCapabilityKind = "permanent" | "transitional";
@@ -1832,6 +1835,32 @@ export const SERVER_CAPABILITIES = {
       kind: "permanent",
       reason:
         "Hosted public viewers can outpace installed servers, and frozen sessions need a bounded relay path without changing legacy response semantics.",
+    },
+  },
+  publicShareLiveSessionChunks: {
+    name: PUBLIC_SHARE_LIVE_SESSION_CHUNKS_CAPABILITY,
+    kind: "permanent",
+    area: "remoteAccess",
+    introducedIn: "0.9.4",
+    advertisement: { kind: "scoped" },
+    description:
+      "Secret-authorized metadata for a live share selects the same sequential pull transfer for a transient per-viewer snapshot of the current session; later updates keep the incremental live response.",
+    clientFallback:
+      "Use the existing one-response raw-json transfer through its 8 MiB relay cap and make no chunk request.",
+    serverContract: {
+      routes: [
+        "GET /public-api/shares/:secret/metadata",
+        "GET /public-api/shares/:secret/session-chunks",
+      ],
+      responseFields: [
+        "publicShareMetadata.capabilities",
+        "publicShareMetadata.sessionChunks",
+      ],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "Hosted public viewers can outpace installed servers, and live sessions outgrow the one-response relay cap; a separate name keeps older viewers from treating a live share as frozen.",
     },
   },
   publicShareManagement: {

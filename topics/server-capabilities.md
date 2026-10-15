@@ -583,6 +583,19 @@ larger responses return 413 with update guidance. A browser without
 WebSocket even when metadata advertises chunks. Existing capability meanings
 and the `#v=2` marker remain unchanged.
 
+`public-share-live-session-chunks-v1` is the live-share counterpart, scoped to
+the same metadata response. It means the server compressed a transient
+snapshot of the current live session for this viewer and serves it through the
+same `session-chunks` route, ordering, cursor, and size rules. The viewer keeps
+the share live and resumes incremental `afterMessageId` polling on the
+one-response route. The name is separate so a viewer that knows only
+`public-share-session-chunks-v1` never loads a live share as frozen. The
+2026-10-15 review covered stable `v0.9.2`, `v0.9.1`, `v0.9.0` (latest two plus
+the preceding 14 days of an optional feature); all lack it. Without the
+capability the viewer uses the one-response raw-json path and makes no chunk
+request, so live sessions over the 8 MiB relay cap still fail against those
+servers. The frozen capability's meaning is unchanged.
+
 ## Capability Lifecycle Classes
 
 Use `kind: "permanent"` for client gates that remain useful indefinitely. This
