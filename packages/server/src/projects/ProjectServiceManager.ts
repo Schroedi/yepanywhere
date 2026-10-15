@@ -45,11 +45,52 @@ export interface ProjectServiceUpstream {
   entry: string;
 }
 
+const appDeclarationSchema = z.object({
+  service: projectServiceSchema.optional(),
+  livePreview: projectServiceSchema
+    .refine(
+      (service) => service.where.kind === "process",
+      "Live preview requires a process",
+    )
+    .optional(),
+  kind: z.string().optional(),
+  dir: z.string().optional(),
+  // How a static app's reserved address opens. Top-level, not inside the
+  // strict service schema, so older servers ignore it and keep redirecting.
+  staticAddress: z.enum(["redirect", "frame"]).optional(),
+});
+
+/** How a static app's reserved address opens: redirect to its grant (default) or frame it. */
+export type StaticAddressMode = "redirect" | "frame";
+
 /** Source files are untrusted and bounded; neither discovery nor status executes them. */
 export async function readProjectService(
   projectPath: string,
   mode: "app" | "live-preview" = "app",
 ): Promise<ProjectServiceDeclaration | null> {
+  const value = await readAppDeclaration(projectPath);
+  if (!value) return null;
+  if (mode === "live-preview") return value.livePreview ?? null;
+  // Existing canvas templates have an explicit static output directory.
+  // Adapt that declaration only; never infer executable server commands.
+  if (!value.service && value.kind === "static" && value.dir)
+    return projectServiceSchema.parse({
+      version: 1,
+      where: { kind: "static", root: value.dir, entry: "index.html" },
+      serving: { target: "static-root" },
+    });
+  return value.service ?? null;
+}
+
+export async function readStaticAddressMode(
+  projectPath: string,
+): Promise<StaticAddressMode> {
+  return (await readAppDeclaration(projectPath))?.staticAddress ?? "redirect";
+}
+
+async function readAppDeclaration(
+  projectPath: string,
+): Promise<z.infer<typeof appDeclarationSchema> | null> {
   const root = await realpath(projectPath);
   let file: string;
   try {
@@ -68,29 +109,9 @@ export async function readProjectService(
     const { bytesRead } = await handle.read(bytes, 0, bytes.length, 0);
     if (bytesRead === bytes.length)
       throw new Error("Service declaration exceeds 64 KiB");
-    const value = z
-      .object({
-        service: projectServiceSchema.optional(),
-        livePreview: projectServiceSchema
-          .refine(
-            (service) => service.where.kind === "process",
-            "Live preview requires a process",
-          )
-          .optional(),
-        kind: z.string().optional(),
-        dir: z.string().optional(),
-      })
-      .parse(JSON.parse(bytes.subarray(0, bytesRead).toString("utf8")));
-    if (mode === "live-preview") return value.livePreview ?? null;
-    // Existing canvas templates have an explicit static output directory.
-    // Adapt that declaration only; never infer executable server commands.
-    if (!value.service && value.kind === "static" && value.dir)
-      return projectServiceSchema.parse({
-        version: 1,
-        where: { kind: "static", root: value.dir, entry: "index.html" },
-        serving: { target: "static-root" },
-      });
-    return value.service ?? null;
+    return appDeclarationSchema.parse(
+      JSON.parse(bytes.subarray(0, bytesRead).toString("utf8")),
+    );
   } finally {
     await handle.close();
   }

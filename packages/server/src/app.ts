@@ -99,6 +99,7 @@ import { ProjectAppStore } from "./projects/ProjectAppStore.js";
 import {
   ProjectServiceManager,
   readProjectService,
+  readStaticAddressMode,
   projectServiceStaticApp,
 } from "./projects/ProjectServiceManager.js";
 import { ProjectAppDelivery } from "./artifacts/ProjectAppDelivery.js";
@@ -1248,7 +1249,10 @@ export function createApp(options: AppOptions): AppResult {
       if (!project) return null;
       const declaration = await readProjectService(project.path);
       if (declaration?.where.kind !== "static") return null;
-      return projectServiceStaticApp(project.path, declaration);
+      return {
+        ...(await projectServiceStaticApp(project.path, declaration)),
+        address: await readStaticAddressMode(project.path),
+      };
     },
     async (reservation) => {
       const project = await scanner.getProject(reservation.projectId);

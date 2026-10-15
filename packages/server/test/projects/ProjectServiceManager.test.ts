@@ -13,6 +13,7 @@ import { projectServiceSchema } from "@yep-anywhere/shared";
 import {
   ProjectServiceManager,
   readProjectService,
+  readStaticAddressMode,
   projectServiceStaticEntry,
 } from "../../src/projects/ProjectServiceManager.js";
 import * as sandbox from "../../src/session-sandbox.js";
@@ -98,6 +99,25 @@ describe("project service ownership", { timeout: 25_000 }, () => {
     await expect(readProjectService(project)).rejects.toThrow(
       "escapes project",
     );
+  });
+
+  it("reads the optional static address mode beside the service declaration", async () => {
+    const project = await fixture();
+    expect(await readStaticAddressMode(project)).toBe("redirect");
+    const declaration = join(project, ".project-template/app.json");
+    await writeFile(
+      declaration,
+      JSON.stringify({ service: staticService, staticAddress: "frame" }),
+    );
+    expect(await readStaticAddressMode(project)).toBe("frame");
+    // The key sits outside the strict service schema, so the declaration
+    // itself is unchanged and older servers can ignore it.
+    expect(await readProjectService(project)).toEqual(staticService);
+    await writeFile(
+      declaration,
+      JSON.stringify({ service: staticService, staticAddress: "embed" }),
+    );
+    await expect(readStaticAddressMode(project)).rejects.toThrow();
   });
 
   it("does not reinterpret old template commands as permission to launch a service", async () => {

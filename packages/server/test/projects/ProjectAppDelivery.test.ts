@@ -110,11 +110,12 @@ createServer((req, res) => {
       allowed: false,
       superuser: false,
     }));
+    let address: "redirect" | "frame" | undefined;
     const delivery = new ProjectAppDelivery(
       artifacts,
       services,
       store,
-      async () => ({ entry, root: project }),
+      async () => ({ entry, root: project, address }),
     );
     artifacts.setProjectAppDelivery(delivery);
     await delivery.ready;
@@ -124,11 +125,43 @@ createServer((req, res) => {
       name: "archer-static",
       projectId: "static",
     });
+    // Default: redirect to the grant.
+    const redirected = await artifacts.dispatchHost(
+      new Request(`${host}?ya_access=${token}`),
+    );
+    expect(redirected?.status).toBe(302);
+    expect(redirected?.headers.get("referrer-policy")).toBe("no-referrer");
+    expect(
+      await (
+        await artifacts.app.request(redirected!.headers.get("location")!)
+      ).text(),
+    ).toBe("<h1>Reserved canvas</h1>");
+    // A page navigation carried only by the access cookie is sent back to the
+    // same URL with the token, so the address bar always shows a working
+    // private link; subresources and token-bearing URLs are left alone.
+    const cookie = redirected!.headers.get("set-cookie")!.split(";")[0]!;
+    const navigate = (path: string, dest: string) =>
+      artifacts.dispatchHost(
+        new Request(`http://archer-static.localhost:4402${path}`, {
+          headers: {
+            cookie,
+            "sec-fetch-mode": dest === "document" ? "navigate" : "no-cors",
+            "sec-fetch-dest": dest,
+          },
+        }),
+      );
+    const revealed = await navigate("/notes.html?x=1", "document");
+    expect(revealed?.status).toBe(302);
+    expect(revealed?.headers.get("location")).toBe(
+      `/notes.html?x=1&ya_access=${token}`,
+    );
+    const image = await navigate("/logo.png", "image");
+    expect(image?.headers.get("location")).not.toContain("ya_access");
+    // Opt-in frame mode keeps the reserved address in the location bar.
+    address = "frame";
     const response = await artifacts.dispatchHost(
       new Request(`${host}?ya_access=${token}`),
     );
-    // The reserved address frames the grant instead of redirecting, so the
-    // location bar keeps the address.
     expect(response?.status).toBe(200);
     expect(response?.headers.get("location")).toBeNull();
     expect(response?.headers.get("referrer-policy")).toBe("no-referrer");

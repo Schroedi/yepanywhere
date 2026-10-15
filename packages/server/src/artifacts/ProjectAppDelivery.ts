@@ -31,9 +31,11 @@ export class ProjectAppDelivery {
     private readonly artifacts: ArtifactServer,
     private readonly services: ProjectServices,
     private readonly store: ProjectAppStore,
-    private readonly staticApp?: (
-      projectId: string,
-    ) => Promise<{ entry: string; root: string } | null>,
+    private readonly staticApp?: (projectId: string) => Promise<{
+      entry: string;
+      root: string;
+      address?: "redirect" | "frame";
+    } | null>,
     private readonly publicAllowed?: (
       reservation: ProjectAppReservation,
     ) => Promise<boolean>,
@@ -243,6 +245,37 @@ export class ProjectAppDelivery {
     return response;
   }
 
+  /**
+   * Keep a private app's link token in the address bar (graehl, 2026-10-15):
+   * a top-level page navigation authorized only by the access cookie is
+   * redirected to the same URL with `ya_access`, so every visited page shows
+   * a link that opens the same view. Public addresses, frames, subresources,
+   * non-GET requests and clients without Fetch Metadata are left alone; the
+   * token in the redirected URL ends the redirect.
+   */
+  private revealAccessToken(
+    request: Request,
+    target: AppAccessTarget,
+  ): Response | null {
+    if (("public" in target && target.public) || request.method !== "GET")
+      return null;
+    if (
+      request.headers.get("sec-fetch-mode") !== "navigate" ||
+      request.headers.get("sec-fetch-dest") !== "document"
+    )
+      return null;
+    const url = new URL(request.url);
+    if (url.searchParams.has(APP_ACCESS_QUERY)) return null;
+    url.searchParams.set(
+      APP_ACCESS_QUERY,
+      this.artifacts.vhostAccess.token(target),
+    );
+    return new Response(null, {
+      status: 302,
+      headers: { Location: `${url.pathname}${url.search}` },
+    });
+  }
+
   private async dispatchHostResponse(
     request: Request,
     clientAddress?: string,
@@ -308,6 +341,8 @@ export class ProjectAppDelivery {
     }
     const authorized = this.artifacts.vhostAccess.authorize(request, target);
     if (!authorized) return new Response("App link required", { status: 401 });
+    const revealed = this.revealAccessToken(request, target);
+    if (revealed) return revealed;
     if (!upstream && reservation?.serving && this.staticApp) {
       const app = await this.staticApp(reservation.projectId);
       if (app) {
@@ -318,14 +353,25 @@ export class ProjectAppDelivery {
           false,
           app.root,
         );
-        // Frame the grant rather than redirect to it, so the reserved
-        // address stays in the location bar (graehl, 2026-10-15).
-        return projectAppFramePage({
-          src: staticAppFrameSource(
-            grant.url,
-            new URL(authorized.request.url).pathname,
-          ),
-          cookie: authorized.cookie,
+        // Opt-in `staticAddress: "frame"` keeps the reserved address in the
+        // location bar, but navigation inside the app then never shows its
+        // own URL; the default redirect shows the grant's URL instead.
+        if (app.address === "frame")
+          return projectAppFramePage({
+            src: staticAppFrameSource(
+              grant.url,
+              new URL(authorized.request.url).pathname,
+            ),
+            cookie: authorized.cookie,
+          });
+        return new Response(null, {
+          status: 302,
+          headers: {
+            Location: grant.url,
+            "Cache-Control": "no-store",
+            "Referrer-Policy": "no-referrer",
+            ...(authorized.cookie ? { "Set-Cookie": authorized.cookie } : {}),
+          },
         });
       }
     }

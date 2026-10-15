@@ -293,7 +293,7 @@ it("enforces public publishing and private-link retrieval independently, includi
         new Request("https://archer-game.apps.example/"),
       )
     ).status,
-  ).toBe(200);
+  ).toBe(302);
   grants.allowPublicApps = false;
   expect(
     (
@@ -303,7 +303,7 @@ it("enforces public publishing and private-link retrieval independently, includi
     ).status,
   ).toBe(401);
   expect((await delivery.dispatchHost(new Request(privateUrl))).status).toBe(
-    200,
+    302,
   );
   expect((await get()).reservations[0]).toMatchObject({
     public: false,
