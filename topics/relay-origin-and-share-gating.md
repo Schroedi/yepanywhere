@@ -374,8 +374,12 @@ the live edge, and scrolling away exposes **Follow** beside the floating
 Conversation control. Frozen shares have no Follow action because their
 transcript cannot advance. See [conversation-view.md](conversation-view.md).
 
-Image attachment chips load on hover or open through the existing share-scoped
-raw-file endpoint, using the link's relay and viewer identity. They never use
+Image attachment chips load their thumbnail once within a screen of the
+viewport (and on hover or open) through the existing share-scoped raw-file
+endpoint, using the link's relay and viewer identity: a viewer never has the
+uploader's cached thumbnail, so waiting for a click left only placeholders.
+Share viewers also start with inline media expanded, so an agent's image reads
+show when their row is opened. Chips never use
 the viewer's private upload endpoint or owner-side attachment cache. An absent
 or unauthorized attachment remains unavailable; it does not fall back to
 authenticated access.

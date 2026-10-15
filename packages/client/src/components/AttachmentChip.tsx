@@ -2,6 +2,7 @@ import { planThumbnail } from "@yep-anywhere/shared";
 import { getPersistedAttachmentUploadUrl } from "../lib/attachmentUploadUrl";
 export { getPersistedAttachmentUploadUrl } from "../lib/attachmentUploadUrl";
 import {
+  type RefObject,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -94,6 +95,31 @@ export function getAttachmentIdFromPersistedPath(
   const filename = filePath.split(/[\\/]/).pop() ?? "";
   const match = ATTACHMENT_FILENAME_ID.exec(filename);
   return match?.[1] ?? null;
+}
+
+/** Latches true once the element comes within a screen of the viewport. */
+function useNearViewport(
+  ref: RefObject<HTMLElement | null>,
+  enabled: boolean,
+): boolean {
+  const [near, setNear] = useState(false);
+  useEffect(() => {
+    const element = ref.current;
+    if (!enabled || near || !element) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setNear(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) setNear(true);
+      },
+      { rootMargin: "100% 0px" },
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [enabled, near, ref]);
+  return near;
 }
 
 function useCachedAttachmentImage(
@@ -311,6 +337,11 @@ function ImageAttachmentChip({
   const hoverImageRef = useRef<HTMLImageElement>(null);
   const derivedAttachmentId = getAttachmentIdFromPersistedPath(path);
   const cacheKey = attachmentId ?? derivedAttachmentId ?? path ?? originalName;
+  // A public viewer never has the uploader's cached thumbnail, so its chips
+  // read the shared file once they near the viewport instead of showing only
+  // a placeholder until clicked.
+  const publicShare = usePublicShareContext();
+  const nearViewport = useNearViewport(chipButtonRef, Boolean(publicShare));
   const {
     previewUrl: imagePreviewUrl,
     fullUrl,
@@ -321,7 +352,7 @@ function ImageAttachmentChip({
   } = useCachedAttachmentImage(
     cacheKey,
     path,
-    showModal || showHoverPreview,
+    showModal || showHoverPreview || nearViewport,
     previewUrl,
     routeProjectId,
   );
