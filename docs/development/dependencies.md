@@ -91,8 +91,9 @@ This neutralizes the `"preinstall": "node setup.mjs"` vector used
 by npm supply-chain attacks. If a newly added dep needs its build script,
 `pnpm install` warns `build scripts that were ignored: <pkg>` and the
 package will be missing its native binary at runtime — vet the script,
-then add the package name to the allowlist. Blocked today, each verified
-a no-op with no performance fallback: `esbuild` (native binary ships via
+then add the package name to the allowlist. Blocked today and listed under
+`ignoredBuiltDependencies` so installs stay quiet, each verified a no-op with
+no performance fallback: `esbuild` (native binary ships via
 `@esbuild/*` optional deps; the postinstall only swaps the bin shim, and
 there is no silent WASM fallback), `@firebase/util` (bakes
 `FIREBASE_WEBAPP_CONFIG` into web-SDK defaults; unset here), `protobufjs`
