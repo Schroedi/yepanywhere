@@ -213,7 +213,36 @@ older installs may continue to work when YA does not need newer protocol fields,
 and version-sensitive behavior should be capability- or version-gated where
 possible ([provider-version-support](provider-version-support.md)).
 
-Current source refresh, 2026-10-11 (0.162.1):
+Current source refresh, 2026-10-15 (0.163.0, generated types only):
+
+- Installed Codex is `codex-cli 0.163.0`; the official `rust-v0.163.0` tag
+  resolves to `83086188a`, 232 commits after `rust-v0.162.1`.
+  `expectedVersion` and `compatibleThroughVersion` record `0.163.0`.
+- Regeneration adds `ThreadReadState` and `ThreadUnreadPosition` and changes
+  five subset files, all with new optional fields YA does not read:
+  `output_text` `annotations`/`logprobs`; `encrypted_content`/`status` on
+  message and tool-call response items; `thread/read` `readState`
+  (experimental durable read state); `thread/fork`
+  `experimentalPredictionMode`; tool-output `retain`. The session schema
+  passes unknown fields through, and no YA code reads these names on those
+  items. No adapter change.
+- Cold resume now restores a thread's saved permission profile, but honors
+  explicit caller overrides (upstream `7c9bfb910`, `bf4ca52b6`). YA sends
+  `approvalPolicy` and `sandbox` on every start/resume and the full pair on
+  every `turn/start` ([codex-permission-mode](codex-permission-mode.md)), so
+  its mode stays authoritative.
+- Not consumed: background compaction is behind the opt-in `AsyncCompaction`
+  feature; `cli_daybreak` defaulting on is TUI-only; thread read-state
+  notifications are experimental and unsubscribed.
+- A zero-token `model/list` returns the same eight models as the 0.162.1
+  audit, `gpt-6.1-sol` default at low effort, with every field YA's catalog
+  normalizer reads. Its live refresh failed with an expired token in the
+  throwaway `CODEX_HOME`, so this is the bundled catalog.
+- No 0.163.0 rollout existed yet to validate, and no credentialed smoke ran.
+  The provider and session suites (1,290 tests) pass on the regenerated
+  types.
+
+Previous source refresh, 2026-10-11 (0.162.1):
 
 - Installed Codex is `codex-cli 0.162.1`. The official `rust-v0.162.1` tag
   resolves to `092d3acd6`. `expectedVersion`, `compatibleThroughVersion`, and
