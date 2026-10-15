@@ -168,6 +168,8 @@
   "projectAppLivePreview": "Live preview",
   "projectAppStart": "Start app",
   "projectAppStop": "Stop app",
+  "projectAppRestart": "Restart app",
+  "projectAppRestartTitle": "Stop and start the app so it rereads its start-time configuration",
   "projectAppEmpty": "No app or artifact yet.",
   "projectAppLatest": "Latest artifact: {label}",
   "projectAppRemoved": "Removed from {username}'s view on {date}.",

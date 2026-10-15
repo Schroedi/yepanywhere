@@ -381,6 +381,30 @@ export function ProjectAppViewer({
                       )}
                     </button>
                   )}
+                {info?.activeDeclaration && info.canExecute && (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    title={t("projectAppRestartTitle")}
+                    onClick={() =>
+                      void perform(async () => {
+                        // A running app reads its start-time configuration
+                        // again only from a fresh process, in the same mode.
+                        await projectAppApi.action(projectId, "stop");
+                        await projectAppApi.action(
+                          projectId,
+                          "start",
+                          info.mode === "live-preview"
+                            ? { mode: "live-preview" }
+                            : {},
+                        );
+                        setReload((value) => value + 1);
+                      })
+                    }
+                  >
+                    {t("projectAppRestart")}
+                  </button>
+                )}
                 {info?.state === "none" && !info.latestArtifact && (
                   <p>{t("projectAppEmpty")}</p>
                 )}

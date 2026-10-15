@@ -224,6 +224,12 @@ Example for a template with an application server:
 | `stop` | Process only: stop the owned process group with SIGTERM, wait `graceMs`, then report stopped or failed-to-stop. No arbitrary kill command, port-owner lookup, unrelated-process signaling or implicit SIGKILL. |
 | `serving` | Static uses `target: "static-root"`; process uses `target: "sandbox-loopback"`, `protocol: "http"`. This names the backend, not a public hostname, bearer, PID or host port. Vhost association lives separately in YA app data. |
 
+Settings offers **Restart app** for a running process app: the client issues
+the ordinary stop, then start in the running mode, so the app rereads
+start-time configuration. There is no separate restart endpoint. A declared
+reload signal that avoids the restart is a
+[sketch](project-service.sketches.md#reload-signal-without-restart-october-15-2026).
+
 For process delivery without a wildcard hostname, `serving.basePathEnv` names
 an environment variable through which YA supplies the app's scoped URL prefix.
 Use `BASE_PATH` or an uppercase name ending in `_BASE_PATH`, excluding `YA_`,

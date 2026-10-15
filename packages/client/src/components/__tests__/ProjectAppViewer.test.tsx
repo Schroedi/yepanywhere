@@ -213,6 +213,50 @@ it("offers a view-only user Start for a stopped app and never Stop", async () =>
   await screen.findByText(/running/);
   expect(screen.queryByRole("button", { name: "Stop app" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Start app" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Restart app" })).toBeNull();
+});
+it("restarts a running app as stop, then start in its running mode", async () => {
+  const process = {
+    version: 1,
+    where: { kind: "process", cwd: ".", entry: "/" },
+    start: { argv: ["npm", "start"], portEnv: "PORT" },
+  };
+  mock.fetch.mockImplementation(async (path: string) =>
+    path.endsWith("/address")
+      ? { enabled: false, reservations: [] }
+      : path.endsWith("/app")
+        ? {
+            projectId: "test",
+            declaration: process,
+            livePreview: process,
+            activeDeclaration: process,
+            mode: "live-preview",
+            state: "running",
+            latestArtifact: null,
+            canExecute: true,
+            canShare: false,
+            removedFrom: [],
+          }
+        : path.endsWith("/stop") || path.endsWith("/start")
+          ? {}
+          : new Promise(() => {}),
+  );
+  render(
+    <I18nProvider>
+      <ProjectAppViewer projectId="test" presentation="settings" />
+    </I18nProvider>,
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "Restart app" }));
+  await waitFor(() =>
+    expect(
+      mock.fetch.mock.calls
+        .map(([path, init]) => [path, init?.body])
+        .filter(([path]) => /\/(stop|start)$/.test(path)),
+    ).toEqual([
+      ["/projects/test/app/stop", "{}"],
+      ["/projects/test/app/start", JSON.stringify({ mode: "live-preview" })],
+    ]),
+  );
 });
 it("keeps the live iframe across settings and sharing and delegates mic synchronously to its composer", async () => {
   const toggle = vi.fn();
