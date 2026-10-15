@@ -10,6 +10,10 @@ import type {
 } from "../projects/ProjectServiceManager.js";
 import type { ArtifactServer } from "./ArtifactServer.js";
 import type { ArtifactConfig } from "./config.js";
+import {
+  projectAppFramePage,
+  staticAppFrameSource,
+} from "./ProjectAppFramePage.js";
 import { APP_ACCESS_QUERY, type AppAccessTarget } from "./VhostAccess.js";
 import { configuredVhostNames, hostnameFromHostHeader } from "./vhosts.js";
 import { proxyLoopbackVhost } from "./vhost-proxy.js";
@@ -314,14 +318,14 @@ export class ProjectAppDelivery {
           false,
           app.root,
         );
-        return new Response(null, {
-          status: 302,
-          headers: {
-            Location: grant.url,
-            "Cache-Control": "no-store",
-            "Referrer-Policy": "no-referrer",
-            ...(authorized.cookie ? { "Set-Cookie": authorized.cookie } : {}),
-          },
+        // Frame the grant rather than redirect to it, so the reserved
+        // address stays in the location bar (graehl, 2026-10-15).
+        return projectAppFramePage({
+          src: staticAppFrameSource(
+            grant.url,
+            new URL(authorized.request.url).pathname,
+          ),
+          cookie: authorized.cookie,
         });
       }
     }

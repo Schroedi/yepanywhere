@@ -449,9 +449,15 @@ principal boundary denies both to limited users. Maintainer approval on
 2026-09-29 covers v0.9.0–v0.9.2, which lack the contract: older servers retain
 manual Vhosts and an update note; clients make no inventory request.
 
-Static reserved-address opens redirect to an isolated artifact bearer. Access
-changes apply at the reserved address on the next request; previously issued
-artifact grants retain their independent expiry/revocation lifecycle.
+Static reserved-address opens return a script-free page that frames an
+isolated artifact bearer, so the reserved address stays in the location bar
+(graehl, 2026-10-15; previously a 302 to the bearer replaced it). A request
+path maps to the same relative path under the bearer's root; URL
+normalization removes dot segments first, and any remaining dot segment falls
+back to the entry. The page's CSP admits only its hashed style and frames
+from the artifact origin. Access changes apply at the reserved address on the
+next request; previously issued artifact grants retain their independent
+expiry/revocation lifecycle.
 
 Hide the entire vhost section when server vhost serving is disabled or the
 server lacks the required capability. Retain any previous association in
@@ -497,7 +503,7 @@ URLs and release/copy flags. Without it clients omit new permission fields and
 the URL row; v0.9.0–v0.9.2 lack this contract (approved 2026-09-28).
 
 Release remains superuser-only and rotates the address bearer before freeing the claim. Static
-reservations redirect authorized opens to a contained artifact grant; process
+reservations frame a contained artifact grant for authorized opens; process
 reservations proxy the same sandbox. Previous namespace rows stay visible in
 Settings while vhosts are enabled, and cannot silently be reassigned.
 

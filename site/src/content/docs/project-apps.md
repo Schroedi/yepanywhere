@@ -104,6 +104,9 @@ retain working files, and a retained reservation alone does not restart an app.
 A configured hostname also needs working DNS and tunnel routing, separately
 from the app's readiness.
 
-Static address opens redirect to an expiring artifact link. Taking the address
-private or releasing it changes access through that address; already issued
-artifact links retain their own expiry and revocation rules.
+A static app's address stays in the location bar: the page at that address
+frames an expiring artifact link to the app, and a path after the address
+opens the same path inside the app. Navigation inside the app does not change
+the address shown. Taking the address private or releasing it changes access
+through that address; already issued artifact links retain their own expiry
+and revocation rules.

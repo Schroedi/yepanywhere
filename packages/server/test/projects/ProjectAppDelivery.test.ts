@@ -127,13 +127,37 @@ createServer((req, res) => {
     const response = await artifacts.dispatchHost(
       new Request(`${host}?ya_access=${token}`),
     );
-    expect(response?.status).toBe(302);
+    // The reserved address frames the grant instead of redirecting, so the
+    // location bar keeps the address.
+    expect(response?.status).toBe(200);
+    expect(response?.headers.get("location")).toBeNull();
     expect(response?.headers.get("referrer-policy")).toBe("no-referrer");
-    expect(
-      await (
-        await artifacts.app.request(response!.headers.get("location")!)
-      ).text(),
-    ).toBe("<h1>Reserved canvas</h1>");
+    const frameSource = (page: string) =>
+      /<iframe src="([^"]+)"/.exec(page)?.[1]?.replaceAll("&amp;", "&");
+    const entrySource = frameSource(await response!.text());
+    expect(entrySource).toBeDefined();
+    expect(response?.headers.get("content-security-policy")).toContain(
+      `frame-src ${new URL(entrySource!).origin}`,
+    );
+    expect(await (await artifacts.app.request(entrySource!)).text()).toBe(
+      "<h1>Reserved canvas</h1>",
+    );
+    // A deep link frames the same path under the grant's directory, and URL
+    // normalization keeps dot segments from reaching any other grant.
+    await writeFile(join(project, "notes.html"), "<h1>Notes</h1>");
+    const grantDirectory = new URL(".", entrySource!).toString();
+    for (const path of ["notes.html", "a/../../notes.html"]) {
+      const deep = await artifacts.dispatchHost(
+        new Request(
+          `http://archer-static.localhost:4402/${path}?ya_access=${token}`,
+        ),
+      );
+      const source = frameSource(await deep!.text())!;
+      expect(source.startsWith(grantDirectory)).toBe(true);
+      expect(await (await artifacts.app.request(source)).text()).toBe(
+        "<h1>Notes</h1>",
+      );
+    }
     expect(await services.status("static")).toBeNull();
   });
   native(
