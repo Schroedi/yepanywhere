@@ -19,9 +19,11 @@ RUN pnpm install --frozen-lockfile
 COPY packages/shared/ packages/shared/
 COPY packages/client/ packages/client/
 
-# Build shared first, then remote client
+# Build shared first, then remote client. Run vite directly instead of
+# build:remote: its tsc step type-checks client tests that import server
+# sources, which this image does not copy. `pnpm typecheck` covers types.
 RUN pnpm --filter @yep-anywhere/shared build && \
-    pnpm --filter @yep-anywhere/client build:remote
+    pnpm --filter @yep-anywhere/client exec vite build --config vite.config.remote.ts
 
 # --- Production image: serve static files with nginx ---
 FROM nginx:alpine
