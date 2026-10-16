@@ -142,7 +142,12 @@ client selection; do not publish a client that assumes old servers upgraded.
 - [x] Product/default and custom-deployment behavior selected.
 - [x] DNS moved to Cloudflare; existing 18 records and service health preserved.
 - [x] Localhost service-worker/real encrypted transport feasibility measured.
-- [ ] Server preview lease and capability implemented and verified.
+- [x] Server preview lease and capability implemented and verified.
 - [ ] Managed HTTPS host deployed and verified.
 - [ ] Actual YA pane integrated, including compatibility fallbacks.
 - [ ] End-to-end acceptance and required checks pass; slices committed.
+
+Server slice: five real-filesystem route tests cover inert responses/ranges,
+traversal and symlinks, current policy, expiry/revocation, principal/session
+binding and live-stream cancellation. Root lint, format, typecheck and unit
+suites pass (6,582 server assertions). Browser integration remains next.

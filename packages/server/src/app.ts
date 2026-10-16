@@ -25,6 +25,7 @@ import {
   type ArtifactConfig,
 } from "./artifacts/config.js";
 import { createArtifactConfigWriter } from "./routes/artifactConfigWriter.js";
+import { createArtifactPreviewRoutes } from "./routes/artifact-previews.js";
 import { createArtifactRoutes } from "./routes/artifacts.js";
 import { createVhostSiteRoutes } from "./routes/vhostSites.js";
 import { createVhostAppRoutes } from "./routes/vhostApps.js";
@@ -1237,6 +1238,12 @@ export function createApp(options: AppOptions): AppResult {
     allowedPaths: getAllowedFilePaths,
     includeProjects: shouldIncludeProjects,
   });
+  const artifactPreviews = createArtifactPreviewRoutes({
+    policy: localResourcePathPolicy,
+    scope: sessionPathScope,
+    scanner,
+  });
+  app.route("/api", artifactPreviews.routes);
   const projectServices = isProviderRuntimeHostAvailable()
     ? new HostedProjectServices(effectiveDataDir)
     : new ProjectServiceManager(effectiveDataDir);
@@ -1481,6 +1488,7 @@ export function createApp(options: AppOptions): AppResult {
       if (ownsDiscoverySqlite) discoverySqlite.close();
       await retainedCollections?.dispose();
       await projectQueueScheduler?.dispose();
+      artifactPreviews.close();
       await artifactServer.close();
       await projectFileCompletion.dispose();
       await bangCommandService?.dispose();

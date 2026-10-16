@@ -358,6 +358,54 @@ worker obtains every byte from the trusted client over the encrypted relay. It
 was spiked in Chrome and is not implemented; see
 [`gaps/sketches/relay-artifact-frame.md`](../gaps/sketches/relay-artifact-frame.md).
 
+## Managed first-party relay previews
+
+The first-party hosted client provides interactive local HTML and neighboring
+assets through the authenticated source connection when the server advertises
+`artifact-relay-preview`. This is the out-of-box first-party delivery path;
+no artifact listener, public origin or tunnel configuration is required.
+An explicitly configured usable custom artifact origin retains precedence.
+Custom hosted origins and native shells retain their existing delivery until
+qualified; they do not silently adopt first-party infrastructure.
+
+The new API admits read-only, process-local preview leases independently of
+public/local artifact grants. Admission binds the acting principal, optional
+session, canonical HTML entry and its directory. Every file read requires
+normal authenticated API access, the same principal/session and current file
+policy. Session-scoped routes apply limited-user session access and sandbox
+path mapping on every request. A lease is not a public bearer URL, provider
+execution grant, hosted identity, or authority to delete files.
+
+Leases last 30 minutes, are explicitly revocable, and end on server restart.
+Admission prunes expired entries; there are at most 128 process-wide and 16 per
+principal. Each permits 1,024 distinct canonical files, 64 MiB per file and
+256 MiB cumulative admitted read bytes. At most eight reads per lease and 32
+process-wide are active. Revocation, disconnect, cancellation, app disposal
+and the bounded stream deadline close active bodies. Viewing writes no state
+into the project and never inherits owning-artifact deletion behavior.
+
+Paths are relative to the admitted directory. Traversal, absolute paths,
+dotfiles, backslashes, out-of-root symlinks and changed entry mappings fail
+closed. The authenticated endpoint keeps browser-active responses inert and
+attachment-only on the YA origin. Only the isolated content worker constructs
+executable browser responses under its own restrictive policy.
+
+The managed host serves a fixed, versioned bootstrap and worker, with explicit
+first-party parent allowlisting, origin-agent clustering and no ambient YA
+credentials. All network artifact/API requests fail closed. Per-viewer origins
+separate storage; worker messages identify one viewer but confer no API
+permission. The trusted parent captures the source transport and lease when
+opening a viewer, validates every message, and never accepts a general URL,
+method, header set or absolute filesystem path from content. Closing a viewer
+releases reads, ports, frames and worker registration. Sharing/copying remains
+owned by the existing sharing UI; a managed content URL is not a public share.
+
+Without the new capability, the client makes no preview-lease request and
+retains the configured artifact host or scriptless/source preview. The existing
+`artifact-viewer` capability, URLs, ownership and configuration keep their
+meaning. [Plan 155](../docs/tactical/155-managed-artifact-viewer.md) records
+qualification and rollout; basic WebKit evidence is not native-mobile support.
+
 ## Open Decisions
 
 - The direct and hosted untrusted-content hostnames/registrable domains and how

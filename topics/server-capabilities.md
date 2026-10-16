@@ -1195,3 +1195,18 @@ The maintainer's resumed end-to-end implementation follows the presented plan
 in [tactical 142](../docs/tactical/142-machine-control-desktop-consumer.md#session-picker-compatibility-decision).
 The bit means the readiness route is mounted on a supported host; installed
 product availability is reported separately and verified again at launch.
+
+### Managed artifact preview compatibility review — 2026-10-16
+
+The maintainer approved autonomous implementation of plan 155, including a new
+capability and preservation of existing custom deployments and old-server
+fallback. The optional-feature corpus is v0.9.2 and v0.9.1; no stable server
+release falls in the preceding 14 days. Both lack the preview lease routes.
+
+`artifact-relay-preview` is a separate permanent, version-implied capability
+introduced in 0.9.4, advertised explicitly by source-ahead builds. It covers
+POST `/api/artifact-previews`, GET `/api/artifact-previews/:id/file`, DELETE
+`/api/artifact-previews/:id`, and session-scoped equivalents. These authenticated
+read-only leases do not depend on a configured artifact listener. Existing
+`artifact-viewer` semantics remain unchanged. Without the new gate the client
+makes no new request and keeps its custom host or scriptless/source fallback.
