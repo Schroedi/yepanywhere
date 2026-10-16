@@ -133,7 +133,7 @@ function getRelayErrorDetail(body: unknown): string | null {
   return null;
 }
 
-function createRelayApiError(
+export function createRelayApiError(
   response: RelayResponse,
 ): Error & { setupRequired?: boolean; status: number } {
   const detail = getRelayErrorDetail(response.body);
@@ -186,7 +186,7 @@ const RELAY_REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 const MAX_RELAY_REDIRECTS = 5;
 const RELAY_REDIRECT_ORIGIN = "https://yep-relay.invalid";
 
-function resolveRelayRedirectPath(
+export function resolveRelayRedirectPath(
   currentPath: string,
   location: string | undefined,
 ): string {

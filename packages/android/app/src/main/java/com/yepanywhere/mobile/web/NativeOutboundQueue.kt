@@ -22,6 +22,8 @@ class NativeOutboundQueue(
     private val states = Channel<Message>(16, BufferOverflow.DROP_OLDEST, ::delivered)
     private val control = Channel<Message>(32, onUndeliveredElement = ::delivered)
     private val events = Channel<Message>(8, onUndeliveredElement = ::delivered)
+    private val responses = Channel<Message>(8, onUndeliveredElement = ::delivered)
+    private var preferEvents = true
 
     private fun reserve(message: Message, limit: Int) {
         require(message.bytes.isNotEmpty() && message.bytes.size <= NativeTransportFrames.MAX_MESSAGE_BYTES)
@@ -45,16 +47,22 @@ class NativeOutboundQueue(
     }
     suspend fun send(message: Message, event: Boolean = false) {
         reserve(message, if (event) byteLimit - minOf(byteLimit / 16, 4 * 1024 * 1024) else byteLimit)
-        try { (if (event) events else control).send(message) }
+        val lane = if (event) events else if (message.kind == NativeTransportFrames.RESPONSE) responses else control
+        try { lane.send(message) }
         catch (error: Throwable) { delivered(message); throw error }
     }
-    suspend fun receive(): Message = select {
-        states.onReceive { it }
-        control.onReceive { it }
-        events.onReceive { it }
+    suspend fun receive(): Message {
+        val next = select {
+            states.onReceive { it }
+            control.onReceive { it }
+            if (preferEvents) { events.onReceive { it }; responses.onReceive { it } }
+            else { responses.onReceive { it }; events.onReceive { it } }
+        }
+        preferEvents = !preferEvents
+        return next
     }
     fun delivered(message: Message) {
         if (message.charged.compareAndSet(true, false)) bytes.addAndGet(-message.bytes.size)
     }
-    fun close() { states.cancel(); control.cancel(); events.cancel() }
+    fun close() { states.cancel(); control.cancel(); events.cancel(); responses.cancel() }
 }

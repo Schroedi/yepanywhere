@@ -131,8 +131,113 @@ it("bounds abandoned bodies and expires idle readers without closing the bridge"
   const responses = [];
   for (let i = 0; i < 8; i++)
     responses.push(await source.fetchStream("/movie"));
-  await expect(source.fetchStream("/movie")).rejects.toThrow("limit");
-  await vi.advanceTimersByTimeAsync(120_000);
+  const waiting = source.fetchStream("/movie");
+  await vi.advanceTimersByTimeAsync(15_000);
+  await (await waiting).body?.cancel();
   await expect(responses[0]!.arrayBuffer()).rejects.toThrow("idle timeout");
   expect(source.status.getSnapshot().state).toBe("ready");
+});
+
+it("admits twenty concurrent consumers within eight native body slots", async () => {
+  const { host, source } = await setup();
+  const live = new Set<string>();
+  const read = new Set<string>();
+  let peak = 0;
+  host.handler = (command) => {
+    if (command.method === "responseStart") {
+      live.add(String(command.id));
+      peak = Math.max(peak, live.size);
+      return {
+        streaming: true,
+        responseId: command.id,
+        status: 200,
+        length: 1,
+      };
+    }
+    const id = (command.params as { responseId: string }).responseId;
+    if (!read.has(id)) {
+      read.add(id);
+      return new Uint8Array([42]);
+    }
+    live.delete(id);
+    return { done: true };
+  };
+  const results = await Promise.all(
+    Array.from({ length: 20 }, async () => [
+      ...new Uint8Array(
+        await (await source.fetchStream("/asset")).arrayBuffer(),
+      ),
+    ]),
+  );
+  expect(results).toEqual(Array.from({ length: 20 }, () => [42]));
+  expect(peak).toBeLessThanOrEqual(8);
+  expect(live.size).toBe(0);
+});
+
+it("removes an aborted waiter and makes a cancelled slot available to a new range", async () => {
+  const { host, source } = await setup();
+  host.handler = (c) =>
+    c.method === "responseStart"
+      ? { streaming: true, responseId: c.id, status: 206 }
+      : {};
+  const responses = await Promise.all(
+    Array.from({ length: 8 }, () => source.fetchStream("/movie")),
+  );
+  const abort = new AbortController();
+  const waiting = source.fetchStream("/movie", { signal: abort.signal });
+  const rejected = expect(waiting).rejects.toMatchObject({
+    name: "AbortError",
+  });
+  abort.abort();
+  await rejected;
+  const seek = source.fetchStream("/movie", {
+    headers: { Range: "bytes=999-" },
+  });
+  await responses[0]!.body!.cancel();
+  const next = await seek;
+  expect(
+    host.commands.filter((c) => c.method === "responseStart"),
+  ).toHaveLength(9);
+  await next.body!.cancel();
+});
+
+it("keeps a pending chunk read alive past the ordinary bridge request deadline", async () => {
+  const { host, source } = await setup();
+  let complete!: (chunk: { done: true }) => void;
+  host.handler = (c) =>
+    c.method === "responseStart"
+      ? { streaming: true, responseId: c.id, status: 200 }
+      : new Promise((resolve) => {
+          complete = resolve;
+        });
+  vi.useFakeTimers();
+  const response = await source.fetchStream("/quiet");
+  const read = response.body!.getReader().read();
+  const observed = expect(read).resolves.toMatchObject({ done: true });
+  await vi.advanceTimersByTimeAsync(0);
+  // An active pull extends the body budget to the chunk deadline.
+  await vi.advanceTimersByTimeAsync(31_000);
+  complete({ done: true });
+  await observed;
+});
+
+it("retries a safe read interrupted before headers after the native lease resumes", async () => {
+  const { host, source } = await setup();
+  let starts = 0;
+  host.handler = (c) => {
+    if (c.method === "responseStart" && ++starts === 1)
+      return new Promise(() => {});
+    return {
+      streaming: false,
+      status: 200,
+      headers: { "content-type": "text/javascript" },
+      body: "x".repeat(2 * 1024 * 1024),
+    };
+  };
+  const pending = source.fetchStream("/bundle.js");
+  await vi.waitFor(() => expect(starts).toBe(1));
+  await host.emit({ type: "state", phase: "SUSPENDED" });
+  await host.emit({ type: "state", phase: "CONNECTED" });
+  expect((await (await pending).text()).length).toBe(2 * 1024 * 1024);
+  expect(starts).toBe(2);
 });

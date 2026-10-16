@@ -28,6 +28,25 @@ class NativeOutboundQueueTest {
         assertEquals(0, queue.queuedBytes)
     }
 
+    @Test fun mediaAndCatchUpBothProgressBehindStateAndControl() = runBlocking {
+        val queue = NativeOutboundQueue({})
+        repeat(8) {
+            queue.send(message(it), event = true)
+            queue.send(NativeOutboundQueue.Message(NativeTransportFrames.RESPONSE, byteArrayOf(99), 1))
+        }
+        queue.state(message(240))
+        queue.send(message(241))
+        assertEquals(240, queue.receive().also(queue::delivered).bytes[0].toInt() and 255)
+        assertEquals(241, queue.receive().also(queue::delivered).bytes[0].toInt() and 255)
+        repeat(8) { expected ->
+            val pair = listOf(queue.receive(), queue.receive())
+            assertEquals(setOf(99, expected), pair.map { it.bytes[0].toInt() }.toSet())
+            pair.forEach(queue::delivered)
+        }
+        queue.close()
+        assertEquals(0, queue.queuedBytes)
+    }
+
     @Test fun closingDropsQueuedAndBlockedMessagesAndReturnsTheirBudget() = runBlocking {
         val queue = NativeOutboundQueue({})
         val producer = launch(start = CoroutineStart.UNDISPATCHED) {

@@ -1,5 +1,9 @@
 import type { RelayResponse } from "@yep-anywhere/shared";
-import { toFetchResponse } from "../connection/RelayProtocol";
+import {
+  toFetchResponse,
+  createRelayApiError,
+  resolveRelayRedirectPath,
+} from "../connection/RelayProtocol";
 import type { NativeTransportBridge } from "../nativeTransportBridge";
 
 interface Head extends RelayResponse {
@@ -11,20 +15,55 @@ interface Head extends RelayResponse {
 /** Native reads advance only when the Response consumer pulls another chunk. */
 export class NativeResponseBodies {
   private readonly active = new Set<AbortController>();
+  private admitted = 0;
+  private readonly waiting: { grant: () => void; abort: () => void }[] = [];
   constructor(private readonly bridge: NativeTransportBridge) {}
+
+  private async admit(signal: AbortSignal): Promise<() => void> {
+    if (signal.aborted) throw signal.reason;
+    if (this.admitted >= 8 || this.waiting.length) {
+      if (this.waiting.length >= 64)
+        throw new Error("Native response queue limit exceeded");
+      await new Promise<void>((resolve, reject) => {
+        const waiter = {
+          grant: () => {
+            signal.removeEventListener("abort", waiter.abort);
+            this.admitted++;
+            resolve();
+          },
+          abort: () => {
+            const index = this.waiting.indexOf(waiter);
+            if (index >= 0) this.waiting.splice(index, 1);
+            reject(signal.reason);
+          },
+        };
+        this.waiting.push(waiter);
+        signal.addEventListener("abort", waiter.abort, { once: true });
+      });
+    } else this.admitted++;
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      this.admitted--;
+      this.waiting.shift()?.grant();
+    };
+  }
 
   cancelAll(error: Error): void {
     for (const controller of [...this.active]) controller.abort(error);
   }
 
   async fetch(path: string, init?: RequestInit): Promise<Response> {
-    if (this.active.size >= 8)
-      throw new Error("Native response limit exceeded");
+    path = path.startsWith("/api") ? path : `/api${path}`;
+    const requestHeaders = new Headers(init?.headers);
+    requestHeaders.set("X-Yep-Anywhere", "true");
     const abort = new AbortController();
     const abandon = () => abort.abort(init?.signal?.reason);
     if (init?.signal?.aborted) abandon();
     init?.signal?.addEventListener("abort", abandon, { once: true });
     this.active.add(abort);
+    let releaseSlot: (() => void) | undefined;
     let id: string | undefined;
     let idle: ReturnType<typeof setTimeout> | undefined;
     let body: ReadableStreamDefaultController<Uint8Array> | undefined;
@@ -37,6 +76,7 @@ export class NativeResponseBodies {
       init?.signal?.removeEventListener("abort", abandon);
       abort.signal.removeEventListener("abort", fail);
       if (cancel && id) this.bridge.cancelRequest(id);
+      releaseSlot?.();
     };
     const fail = () => {
       if (finished) return;
@@ -45,31 +85,48 @@ export class NativeResponseBodies {
       );
       release(true);
     };
-    const progress = () => {
+    const progress = (timeout = 120_000) => {
       clearTimeout(idle);
       idle = setTimeout(
         () => abort.abort(new Error("Native response idle timeout")),
-        120_000,
+        timeout,
       );
     };
     abort.signal.addEventListener("abort", fail, { once: true });
     try {
-      const head = await this.bridge.request<Head>(
-        "responseStart",
-        {
+      releaseSlot = await this.admit(abort.signal);
+      if (finished) {
+        releaseSlot();
+        throw abort.signal.reason;
+      }
+      let head: Head;
+      for (let redirects = 0; ; redirects++) {
+        head = await this.bridge.request<Head>(
+          "responseStart",
+          {
+            path,
+            headers: Object.fromEntries(requestHeaders),
+          },
+          abort.signal,
+        );
+        id = head.responseId;
+        if (abort.signal.aborted) throw abort.signal.reason;
+        if (![301, 302, 303, 307, 308].includes(head.status)) break;
+        if (id) this.bridge.cancelRequest(id);
+        id = undefined;
+        if (redirects >= 5)
+          throw new Error("Relay request exceeded 5 redirects");
+        path = resolveRelayRedirectPath(
           path,
-          headers: Object.fromEntries(new Headers(init?.headers)),
-        },
-        abort.signal,
-      );
-      id = head.responseId;
-      if (abort.signal.aborted) throw abort.signal.reason;
-      if (head.status >= 400) {
-        throw Object.assign(new Error(`API error: ${head.status}`), {
-          status: head.status,
+          new Headers(head.headers).get("location") ?? undefined,
+        );
+      }
+      if (head.status >= 400)
+        throw Object.assign(createRelayApiError(head), {
           headers: new Headers(head.headers),
         });
-      }
+      if (head.status >= 300 && head.status !== 304)
+        throw new Error(`Unsupported relay response status: ${head.status}`);
       if (!head.streaming) {
         release(false);
         const download =
@@ -93,13 +150,20 @@ export class NativeResponseBodies {
         {
           start(controller) {
             body = controller;
-            progress();
+            progress(15_000);
           },
           pull: async (controller) => {
+            progress();
             try {
               const chunk = await this.bridge.request<
                 Uint8Array | { done: true }
-              >("responseRead", { responseId: id }, abort.signal);
+              >(
+                "responseRead",
+                { responseId: id },
+                abort.signal,
+                undefined,
+                120_000,
+              );
               if (finished) return;
               if (chunk instanceof Uint8Array) {
                 if (!chunk.byteLength || chunk.byteLength > 128 * 1024)

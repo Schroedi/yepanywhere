@@ -4,8 +4,8 @@ import { NativeSourceTransport } from "../NativeSourceTransport";
 import { NativeTransportFixture } from "./nativeTransportFixture";
 
 const transports: NativeSourceTransport[] = [];
-async function setup(binary = true) {
-  const host = new NativeTransportFixture(binary);
+async function setup(binary = true, responseStreams = false) {
+  const host = new NativeTransportFixture(binary, "CONNECTED", responseStreams);
   const transport = new NativeSourceTransport(host.channel);
   transports.push(transport);
   await transport.ready;
@@ -464,27 +464,42 @@ describe("native source transport", () => {
     },
   );
 
-  it("preserves redirects, binary media and API error status", async () => {
-    const { host, transport } = await setup();
-    host.handler = (command) => {
-      const path = (command.params as { path: string }).path;
-      if (path === "/api/redirect")
-        return { status: 302, headers: { Location: "/api/media" }, body: null };
-      if (path === "/api/media")
+  it.each([false, true])(
+    "preserves redirects, binary media and API error status (streams=%s)",
+    async (streams) => {
+      const { host, transport } = await setup(true, streams);
+      host.handler = (command) => {
+        const path = (command.params as { path: string }).path;
+        if (path === "/api/redirect")
+          return {
+            status: 302,
+            headers: { Location: "/api/media" },
+            body: null,
+          };
+        if (path === "/api/media")
+          return {
+            status: 200,
+            headers: { "content-type": "image/png" },
+            body: { _binary: true, data: btoa("png") },
+          };
         return {
-          status: 200,
-          headers: { "content-type": "image/png" },
-          body: { _binary: true, data: btoa("png") },
+          status: 403,
+          headers: { "X-Setup-Required": "true" },
+          body: { error: "denied" },
         };
-      return { status: 403, headers: {}, body: { error: "denied" } };
-    };
-    const response = await transport.fetchResponse("/redirect");
-    expect(response.status).toBe(200);
-    expect(await response.text()).toBe("png");
-    await expect(transport.fetch("/forbidden")).rejects.toMatchObject({
-      status: 403,
-    });
-  });
+      };
+      const response = await transport.fetchResponse("/redirect");
+      expect(response.status).toBe(200);
+      expect(await response.text()).toBe("png");
+      await expect(transport.fetchResponse("/forbidden")).rejects.toMatchObject(
+        {
+          message: "API error: 403: denied",
+          setupRequired: true,
+          status: 403,
+        },
+      );
+    },
+  );
 
   it("cancels an abandoned native request and ignores its late reply", async () => {
     const { host, transport } = await setup();

@@ -160,3 +160,24 @@ The bounded outbound queue drains 200 ordered events while prioritizing lifecycl
 state and control, and releases blocked producers/budget on close. Rust fmt,
 27 tests and warning-denying clippy pass. Further stream compatibility/admission
 findings from the Opus review are being addressed before device acceptance.
+
+The streaming review reproduced two defects against a real encrypted peer:
+a 2 MiB buffered JavaScript response was rejected and an invalid body length
+killed the source. Fallback now preserves the existing encrypted message bound;
+stream-local errors cancel only that body, preserving ordinary sibling requests.
+The JS bridge suite passes 59 cases, including twenty concurrent consumers,
+queued cancellation/seek, a quiet read beyond 30 seconds, redirect/error parity
+and pre-header resume retry. Native slots return on cancel or consumed EOF,
+while completed unread buffers stay bounded. Media and catch-up alternate
+behind small state/control messages. The physical isolated app's main probe
+passed upload and sequential typing; its screen-wake test was blocked by secure
+keyguard, so it is not accepted as a passing lifecycle run. No primary app data
+was replaced. Emulator and unlocked-phone qualification continue.
+
+Source-wide native FIFO admission now also prevents concurrent documents from
+racing the eight-body limit; a real encrypted peer proves cancellation admits
+the next body before the old native object is destroyed. Rust fmt, 31 tests
+and warning-denying clippy pass; actual mux and legacy relay fixture checks
+pass. Android lint/JVM checks and workspace lint/format/typecheck/full units
+pass (7,016 client / 6,583 server; about 140 seconds). These are foundation
+checks, not completed movie or device-lifecycle qualification.

@@ -7,27 +7,50 @@ use std::{
         atomic::{AtomicUsize, Ordering},
     },
 };
-use tokio::sync::Notify;
+use tokio::sync::{Notify, OwnedSemaphorePermit, Semaphore};
 use tokio_util::sync::CancellationToken;
 
 pub(crate) const WINDOW: usize = 1024 * 1024;
 pub(crate) const CHUNK: usize = 128 * 1024;
 pub(crate) const MAX_STREAMS: usize = 8;
 
-pub(crate) struct Permit(Arc<AtomicUsize>);
-impl Permit {
-    pub fn acquire(slots: &Arc<AtomicUsize>) -> Result<Self> {
-        slots
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| {
-                (n < MAX_STREAMS).then_some(n + 1)
-            })
-            .map_err(|_| Error::Overflow)?;
-        Ok(Self(slots.clone()))
+pub(crate) struct Slots {
+    active: Arc<Semaphore>,
+    waiting: AtomicUsize,
+}
+impl Slots {
+    pub fn new() -> Self {
+        Self {
+            active: Arc::new(Semaphore::new(MAX_STREAMS)),
+            waiting: AtomicUsize::new(0),
+        }
     }
 }
-impl Drop for Permit {
+pub(crate) struct Permit {
+    _permit: OwnedSemaphorePermit,
+}
+struct Waiting<'a>(&'a AtomicUsize);
+impl Drop for Waiting<'_> {
     fn drop(&mut self) {
         self.0.fetch_sub(1, Ordering::AcqRel);
+    }
+}
+impl Permit {
+    pub async fn acquire(slots: &Arc<Slots>) -> Result<Self> {
+        slots
+            .waiting
+            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| {
+                (n < 64).then_some(n + 1)
+            })
+            .map_err(|_| Error::Overflow)?;
+        let _waiting = Waiting(&slots.waiting);
+        let permit = slots
+            .active
+            .clone()
+            .acquire_owned()
+            .await
+            .map_err(|_| Error::Closed)?;
+        Ok(Self { _permit: permit })
     }
 }
 
@@ -133,7 +156,7 @@ pub struct NativeResponseStream {
     pub(crate) head: String,
     pub(crate) body: Arc<Body>,
     pub(crate) reader: tokio::sync::Mutex<()>,
-    pub(crate) _permit: Permit,
+    pub(crate) permit: Mutex<Option<Permit>>,
 }
 impl Drop for NativeResponseStream {
     fn drop(&mut self) {
@@ -147,10 +170,17 @@ impl NativeResponseStream {
     }
     pub async fn next_chunk(&self) -> Result<Option<Vec<u8>>> {
         let _reader = self.reader.lock().await;
-        self.body.read().await
+        let result = self.body.read().await;
+        if !matches!(&result, Ok(Some(_))) {
+            self.permit.lock().map_err(|_| Error::Closed)?.take();
+        }
+        result
     }
     pub fn cancel(&self) {
         self.body.cancel();
+        if let Ok(mut permit) = self.permit.lock() {
+            permit.take();
+        }
     }
 }
 
@@ -166,6 +196,34 @@ impl Drop for Admission {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn cancellation_and_consumed_eof_return_slots_before_object_destruction() {
+        let slots = Arc::new(Slots::new());
+        let body = Body::new(Arc::new(Notify::new()), CancellationToken::new());
+        body.push(vec![1]).unwrap();
+        body.finish(Ok(()));
+        let stream = NativeResponseStream {
+            head: String::new(),
+            body,
+            reader: tokio::sync::Mutex::new(()),
+            permit: Mutex::new(Some(Permit::acquire(&slots).await.unwrap())),
+        };
+        assert_eq!(stream.next_chunk().await.unwrap(), Some(vec![1]));
+        assert_eq!(slots.active.available_permits(), MAX_STREAMS - 1);
+        assert_eq!(stream.next_chunk().await.unwrap(), None);
+        assert_eq!(slots.active.available_permits(), MAX_STREAMS);
+        let cancelled = NativeResponseStream {
+            head: String::new(),
+            body: Body::new(Arc::new(Notify::new()), CancellationToken::new()),
+            reader: tokio::sync::Mutex::new(()),
+            permit: Mutex::new(Some(Permit::acquire(&slots).await.unwrap())),
+        };
+        cancelled.cancel();
+        assert_eq!(slots.active.available_permits(), MAX_STREAMS);
+        assert!(matches!(cancelled.next_chunk().await, Err(Error::Closed)));
+        drop((stream, cancelled));
+        assert_eq!(slots.active.available_permits(), MAX_STREAMS);
+    }
     #[tokio::test]
     async fn slow_reader_is_bounded_and_owner_cancellation_wakes_a_blocked_read() {
         let owner = CancellationToken::new();
@@ -192,12 +250,17 @@ mod tests {
         body.push(vec![1]).unwrap();
         body.finish(Err(Error::Unavailable));
         assert!(matches!(body.read().await, Err(Error::Unavailable)));
-        let slots = Arc::new(AtomicUsize::new(0));
-        let permits: Vec<_> = (0..MAX_STREAMS)
-            .map(|_| Permit::acquire(&slots).unwrap())
-            .collect();
-        assert!(matches!(Permit::acquire(&slots), Err(Error::Overflow)));
-        drop(permits);
-        assert_eq!(slots.load(Ordering::Acquire), 0);
+        let slots = Arc::new(Slots::new());
+        let mut permits = Vec::new();
+        for _ in 0..MAX_STREAMS {
+            permits.push(Permit::acquire(&slots).await.unwrap());
+        }
+        let pending = Permit::acquire(&slots);
+        tokio::pin!(pending);
+        assert!(futures_util::poll!(&mut pending).is_pending());
+        permits.pop();
+        let admitted = pending.await.unwrap();
+        drop((permits, admitted));
+        assert_eq!(slots.active.available_permits(), MAX_STREAMS);
     }
 }

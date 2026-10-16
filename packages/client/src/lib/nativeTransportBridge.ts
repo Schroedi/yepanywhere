@@ -194,6 +194,7 @@ export class NativeTransportBridge {
     params: unknown = {},
     signal?: AbortSignal,
     id = generateUUID(),
+    timeoutMs = 30_000,
   ): Promise<T> {
     if (this.closed)
       return Promise.reject(new Error("Native source bridge is closed"));
@@ -218,7 +219,7 @@ export class NativeTransportBridge {
         cleanup();
         reject(new Error("Native request timed out"));
         void this.sendCommand("cancel", { id }).catch(() => {});
-      }, 30_000);
+      }, timeoutMs);
       this.pending.set(id, {
         resolve: (value) => {
           cleanup();

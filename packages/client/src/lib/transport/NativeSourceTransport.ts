@@ -460,8 +460,30 @@ export class NativeSourceTransport implements SourceTransport, Connection {
       this.bridge.descriptor?.responseStreams &&
       (init?.method ?? "GET") === "GET"
     ) {
-      await this.ensureReady();
-      return this.responseBodies.fetch(path, init);
+      for (let attempt = 0; ; attempt++) {
+        await this.ensureReady();
+        const revision = this.nativeStateRevision;
+        try {
+          return await this.responseBodies.fetch(path, init);
+        } catch (error) {
+          if (
+            attempt ||
+            init?.signal?.aborted ||
+            !(
+              error instanceof ConnectionReconnectingError ||
+              (error instanceof NativeOperationError &&
+                error.code === "CONNECTION_UNAVAILABLE")
+            )
+          )
+            throw error;
+          if (
+            revision === this.nativeStateRevision &&
+            this.canRecover() &&
+            this.bridge.descriptor?.stateQuery
+          )
+            await this.refreshNativeState();
+        }
+      }
     }
     return this.protocol.fetchResponse(path, init);
   }

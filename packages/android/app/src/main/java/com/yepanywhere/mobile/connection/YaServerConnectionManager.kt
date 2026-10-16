@@ -236,7 +236,9 @@ class YaServerConnectionManager(
         try {
             return mutex.withLock {
                 check(leases.containsKey(leaseId) && connection?.transport === transport) { "Native response owner changed" }
-                require(responseBodies.size < 8) { "Native response limit exceeded" }
+                // Rust owns source-wide admission. Consumed EOF can return its
+                // slot before Kotlin retires the finished wrapper; a second cap
+                // here would reject a legitimate queued range in that interval.
                 val id = UUID.randomUUID().toString()
                 OwnedResponseBody(leaseId, id, body).also { responseBodies[id] = it }
             }
