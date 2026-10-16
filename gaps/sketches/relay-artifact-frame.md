@@ -139,6 +139,15 @@ Consequences:
 
 ## Open
 
+- A separate [extension artifact viewer experiment](../../research/extension-artifact-spike/README.md)
+  on 2026-10-16 opened local HTML and assets inside the real YA UI over the
+  encrypted relay, localhost and LAN, using a packaged sandbox and bounded byte
+  adapter. Sandbox subresource requests bypassed the extension worker, so this
+  did not provide transparent interception. It remains a viable alternative
+  for a declared artifact subset; a corresponding Android adapter is a possible
+  follow-up, not yet tested. The report preserves source, measured support,
+  isolation/lifecycle results and outstanding grant requirements. No delivery
+  architecture is selected by that experiment.
 - Hosting the wildcard label host: Cloudflare Pages has no wildcard custom
   domains, so a Worker route may be needed. Also wildcard TLS and how
   self-hosted hosted-client origins are configured.

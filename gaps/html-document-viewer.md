@@ -108,6 +108,15 @@ clients without a tunnel, the service-worker content origin in
 [the relay artifact frame sketch](sketches/relay-artifact-frame.md) replaces
 the static broker candidate.
 
+The [2026-10-16 extension viewer experiment](../research/extension-artifact-spike/README.md)
+also demonstrates a bounded byte adapter for ordinary HTML and local assets,
+inside a packaged extension sandbox over the existing encrypted relay. The
+extension worker did not intercept sandbox subresources; the adapter rewrites
+supported resource references instead. It is a viable alternative for a
+declared artifact subset, with server-enforced grants still required. A similar
+Android viewer is an untested possibility. This records another option rather
+than choosing between extension/native adapters and the content-origin sketch.
+
 Static and scripted documents are both part of the target. An initial static
 slice or fully inlined adapter must leave unsupported functionality explicit.
 Bound package size, file counts, and path resolution; show a clear limitation
