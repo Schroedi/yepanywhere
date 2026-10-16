@@ -17,6 +17,13 @@ native fresh pairing and static fallback pass. YA client/server
 release publication, native app delivery and WebKit qualification remain;
 custom artifact deployments retain precedence.
 
+The maintainer accepted [Android packaged service-worker delivery and secure
+transport hardening](../tactical/156-android-secure-transport-and-artifacts.md).
+Browser SRP regression protection precedes Android resume-state diagnosis and
+progressive native response/backpressure work. Packaged viewer integration and
+large-movie/many-image qualification on emulator and phone follow; the earlier
+WebView spike establishes feasibility, not production acceptance.
+
 ## 1. Publish the desktop and mobile apps with continuous delivery
 
 **Highest priority.** Make Yep Anywhere available as supported public releases
