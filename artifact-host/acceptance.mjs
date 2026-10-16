@@ -52,6 +52,9 @@ const largeMedia = process.argv.includes("--large-media");
 const nativeResume = process.argv.includes("--native-resume");
 const nativeDocumentReload = process.argv.includes("--native-document-reload");
 const nativeTabCycle = process.argv.includes("--native-tab-cycle");
+const nativeProcessRestart = process.argv.includes("--native-process-restart");
+if (nativeProcessRestart && !nativeManaged)
+  throw new Error("Process restart qualification requires the managed pane");
 if (nativeTabCycle && !nativeManaged)
   throw new Error("Native tab qualification requires the managed pane");
 if (nativeDocumentReload && !nativeManaged)
@@ -1746,6 +1749,138 @@ try {
         await expect(
           page.getByRole("link", { name: "Tab artifact", exact: true }),
         ).toBeVisible({ timeout: 45000 });
+      }
+      if (nativeProcessRestart) {
+        appendFileSync(
+          transcript,
+          JSON.stringify(
+            row(
+              990,
+              "assistant",
+              `[Restart artifact](${join(project, "index.html")})`,
+            ),
+          ) + "\n",
+        );
+        await page
+          .getByRole("link", { name: "Restart artifact", exact: true })
+          .click();
+        await until("artifact before process restart", artifact);
+        await expect(artifact().locator("#modules")).toContainText(
+          "JSON: 3 notes",
+        );
+        const previous = {
+          pid: adb("shell", "pidof", appPackage).trim(),
+          parent: await page.evaluate(() => performance.timeOrigin),
+          origin: new URL(artifact().url()).origin,
+          path: new URL(page.url()).pathname,
+          draft: await page
+            .locator("textarea.message-input, textarea[placeholder]")
+            .first()
+            .inputValue(),
+        };
+        const partial = await artifact().evaluate(async () => {
+          const response = await fetch("range.bin?process-cut=1");
+          const reader = response.body.getReader();
+          window.__yaProcessReader = reader;
+          const first = await reader.read();
+          return {
+            status: response.status,
+            firstBytes: first.value?.length ?? 0,
+          };
+        });
+        expect(partial.status).toBe(200);
+        expect(partial.firstBytes).toBeGreaterThan(0);
+        expect(partial.firstBytes).toBeLessThan(64 * 1024 * 1024);
+        const oldPage = page;
+        log(
+          "Force-stopping the owned app with an unread 64 MiB response, then cold-launching without credentials",
+        );
+        adb("shell", "am", "force-stop", appPackage);
+        await until("killed process DevTools page", () => oldPage.isClosed());
+        adb(
+          "shell",
+          "am",
+          "start",
+          "-W",
+          "-n",
+          appActivity,
+          "-a",
+          "android.intent.action.MAIN",
+          "-c",
+          "android.intent.category.LAUNCHER",
+        );
+        const pid = await until("new app process", () =>
+          adb("shell", "pidof", appPackage).trim(),
+        );
+        expect(pid).not.toBe(previous.pid);
+        const port = adb(
+          "forward",
+          "tcp:0",
+          `localabstract:webview_devtools_remote_${pid}`,
+        ).trim();
+        forwards.push(port);
+        nativeDevtoolsEndpoint = `http://127.0.0.1:${port}`;
+        await until(
+          "cold native WebView DevTools",
+          async () =>
+            (
+              await fetch(`${nativeDevtoolsEndpoint}/json/version`, {
+                signal: AbortSignal.timeout(2000),
+              })
+            ).ok,
+        );
+        androidBrowser = await chromium.connectOverCDP(nativeDevtoolsEndpoint, {
+          noDefaults: true,
+        });
+        context = androidBrowser.contexts()[0];
+        page = await until("cold native page", () => context.pages()[0]);
+        observePage(page);
+        await bindWorkerEvents();
+        const reopen = page.getByRole("link", {
+          name: "Restart artifact",
+          exact: true,
+        });
+        await until(
+          "cold session navigation",
+          async () => Boolean(artifact()) || (await reopen.isVisible()),
+        );
+        expect(new URL(page.url()).pathname).toBe(previous.path);
+        await expect(
+          page.locator("textarea.message-input, textarea[placeholder]").first(),
+        ).toHaveValue(previous.draft);
+        const filePaneRestoredAutomatically = Boolean(artifact());
+        if (!filePaneRestoredAutomatically) await reopen.click();
+        await until("cold artifact reopening", artifact);
+        await expect(artifact().locator("#modules")).toContainText(
+          "JSON: 3 notes",
+        );
+        expect(await page.evaluate(() => performance.timeOrigin)).not.toBe(
+          previous.parent,
+        );
+        expect(new URL(artifact().url()).origin).not.toBe(previous.origin);
+        const fresh = await artifact().evaluate(async () => {
+          const response = await fetch("data.json?after-process-restart=1");
+          return {
+            status: response.status,
+            notes: (await response.json()).notes,
+          };
+        });
+        expect(fresh).toEqual({ status: 200, notes: 3 });
+        evidence.checks.push({
+          name: "native-process-restart",
+          bodyBytes: 64 * 1024 * 1024,
+          ...partial,
+          processReplaced: true,
+          parentReplaced: true,
+          nativeCredentialsReused: true,
+          routeRetained: true,
+          draftRetained: true,
+          filePaneRestoredAutomatically,
+          freshArtifactOrigin: true,
+          freshRead: fresh.status,
+        });
+        await page.locator('.file-viewer-action[aria-label="Back"]').click();
+        await expect(reopen).toBeVisible({ timeout: 45000 });
       }
       if (nativeDocumentReload) {
         appendFileSync(

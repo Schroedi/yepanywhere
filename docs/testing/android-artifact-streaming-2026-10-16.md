@@ -46,6 +46,7 @@ security matrix; the real pane verifies the isolation and navigation boundary.
 | Warm launcher resume | Three real HOME/MAIN cycles (1 / 2.5 / 1 s background) each show ready→connecting→ready once, retain parent/artifact identity and draft, and read a fresh asset with status 200. No application console errors. |
 | Whole-parent reload | After lease cleanup repair, eighteen restorations pass with new parent/artifact identities and removal of all old worker registrations. |
 | Native same-host tabs | Eighteen round trips destroy both selected WebViews, retain the session route/draft and app process, and explicitly reopen an artifact with a new parent/origin and a fresh 200 asset read. |
+| Cold process restart | After consuming 65,536 bytes of a 64 MiB response, force-stop and launcher restart replace the process/document, retain route/draft, and reopen a fresh artifact using saved native credentials. |
 | Pane teardown | Eighteen successive fresh admissions pass, beyond the 16-live-leases-per-principal cap. Each has a new origin/storage context and its worker registration is removed on close. |
 | Large media through owned relay | Twenty distinct local PNGs and a real 150,254,617-byte H.264 movie (600 s, 640×360, 12 fps) pass. A 100,663,296-byte prefix matches a bounded-buffer SHA-256 digest tree. |
 | Range fidelity | A 65,536-byte bounded seek at byte 50,000,000, an 8,191-byte suffix, an open-ended final 2 MiB and an invalid range match exact bytes/status/Content-Range. The invalid response retains `bytes */N` with status 416. |
@@ -81,6 +82,7 @@ reported separately; desktop retains its existing additional round-trip gate.
 | Public-relay warm-resume run | 7.5 / 17.8 ms | 5.4 / 18.6 ms |
 | Repaired reload/fault/warm combined run | 10.5 / 32.4 ms | 21.5 / 26.7 ms |
 | Native tab-disposal run, before tab cycling | 8.3 / 20.4 ms | 8.2 / 23.8 ms |
+| Cold-process run, before termination | 26.7 / 54.6 ms | 20.6 / 24.3 ms |
 
 The complete movie run appended 33 concurrent review updates while typing.
 Its command round-trip maxima were 108/279 ms, while event/input/frame clocks
@@ -191,6 +193,17 @@ The versioned connection-window proposal remains approval-pending. This red
 baseline gives it a real-device-path regression target; it does not authorize
 a contract edit or justify raising the relay's existing limits.
 
+A final audit on the rebuilt app after the lease-cleanup repair remains red:
+two readers return 206 with 65,536-byte first chunks and six return 504 over
+20.6 seconds at the same rate. The relay circuit closure counter increases by
+one, and this attempt also records one physical mux close/reopen. The earlier
+no-physical-close inference applies to that earlier run only. Cancellation and
+removal of throttling again permit a fresh 200 asset read. Eleven main-process
+PSS samples range from 135,010 to 137,027 KiB, excluding isolated renderers;
+they do not prove aggregate memory bounds. The opt-in runner exits nonzero and
+removes its owned installation. Lifecycle and lease repairs have not resolved
+this sustained multi-reader transport failure.
+
 ## Parent document reload reproduction — 2026-10-17
 
 Two corrected actual-app runs restored an admitted artifact through fifteen
@@ -265,9 +278,30 @@ No previous worker was reported by the replacement target's CDP observer after
 discard, but a new target's observation is not a complete global registration
 inventory. Explicit-close and parent-reload registration removal have stronger
 separate evidence above. This same-profile test does not qualify a different
-profile, OS process death, or active-artifact Activity recreation. Initial
+profile or active-artifact Activity recreation; the separate cold-process case
+below supplies one narrower process-loss result. Initial
 sequential input in this run passed at the clocks above; it was not typing while
 the native tab-selection dialog was open.
+
+## Abrupt process loss — 2026-10-17
+
+One actual-app public-relay run force-stops the owned test package with a
+64 MiB file response unread after its first 65,536-byte chunk. A credential-free
+ACTION_MAIN launcher start creates a different process and parent document.
+The selected session route and draft return, and explicit file reopening yields
+a different artifact origin, working modules and a fresh JSON read with status
+200/expected data. No new username/password, pairing dialog or credential
+injection is supplied after the stop. The application consumes and clears App
+Link data during the original pairing. No application errors are observed, and
+the owned installation is removed afterward.
+
+This establishes one ready-viewer process-loss/recovery boundary, including
+persisted native pairing and client cleanup metadata. It does not establish a
+full 64 MiB transfer, exact producer/descriptor state at the moment of death,
+process death during admission/resume rotation, or the reported physical-phone
+reconnect sequence. Inline file-pane state is reopened explicitly, consistent
+with the navigation-only cold restoration above. The input clocks in the table
+were sampled before process termination, not while the process was absent.
 
 ## Verification and remaining limits
 
@@ -318,8 +352,10 @@ Unqualified or pending:
   artifact documents across native tabs are not supplied by that topology.
   Repeated parent reload is repaired and qualified as recorded above.
   Same-host artifact tab disposal/reopening is qualified above. Different-profile
-  artifact source switching, active-artifact Activity recreation/process death,
-  long half-open sockets and physical radio/route transitions remain unqualified.
+  artifact source switching, active-artifact Activity recreation, process death
+  during admission/resume rotation, long half-open sockets and physical
+  radio/route transitions remain unqualified. The ready-viewer cold-process
+  case above is narrower evidence.
   Sequential viewers and worker restart are narrower evidence.
 - The source/generated APK uses 256 MiB per file, 1 GiB produced bytes per viewer
   and a 120-second progress deadline. The currently deployed hosted worker keeps

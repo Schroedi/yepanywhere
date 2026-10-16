@@ -34,8 +34,9 @@ earlier 103.2 ms frame miss and the narrower coverage of these passes.
 Parent reload recovery now reclaims orphaned preview leases while preserving
 live owners; eighteen actual-app restorations and browser concurrency checks
 pass. Eighteen same-host native-tab round trips also pass with explicit artifact
-reopening and draft/route retention. Physical lifecycle/source acceptance and
-an unlocked-phone run remain. A
+reopening and draft/route retention. One forced process loss also recovers saved
+native pairing and fresh artifact access without credential injection. Physical
+lifecycle/source acceptance and an unlocked-phone run remain. A
 connection-wide streaming-window negotiation awaits maintainer compatibility
 approval; current per-body bounds alone do not bound cancelled relay tails.
 Nothing in this implementation phase has been published.

@@ -29,7 +29,9 @@ cleanup journal and browser locks with the existing DELETE route; eighteen
 actual-app restorations and browser concurrent-owner checks now pass. No wire
 contract or native artifact authority was added. Eighteen actual same-host
 native-tab round trips also pass with explicit artifact reopening and draft/route
-retention; inactive tabs retain navigation metadata, not their file-pane heap.
+retention; inactive tabs retain navigation metadata, not their file-pane heap. One
+forced process loss with an unread 64 MiB response also recovers the saved
+pairing, route/draft and a fresh artifact read without credential injection.
 
 ## Accepted Android viewer design
 

@@ -351,3 +351,12 @@ The runner rebinds observations to each actual replacement WebView; it does not
 create extra Playwright pages inside the native app or retain a hidden viewer.
 The new target's worker observations are diagnostic, not a complete global
 service-worker inventory after the old target has been destroyed.
+
+`--native-process-restart` requires the managed native pane. It leaves a 64 MiB
+file response unread after the first chunk, force-stops only the owned test app,
+and cold-launches it with ACTION_MAIN and no credentials or deep-link data.
+A different process and parent document must restore the route/draft, reuse the
+saved native pairing, and explicitly reopen a fresh artifact with a successful
+asset read. It reattaches to the replacement process's DevTools endpoint. This
+is one abrupt process-loss case, not a full 64 MiB transfer or proof of every
+server queue/descriptor's state at the instant of termination.
