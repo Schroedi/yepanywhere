@@ -153,10 +153,14 @@ the server below `bunx`) asynchronously (avoiding Bun's Windows synchronous
 spawn timeout) and waits for its stdio to close before deleting the
 fixture. Fixture deletion uses an explicit asynchronous retry loop on both
 Node and Bun: Bun 1.3.14 ignores `rm`'s retry options for recursive removal.
-The 2.4-second cleanup deadline is about 3.5 times the failed hosted Node
-deletion window (0.69 seconds); persistent locks still fail. The matrix runs
-real Windows child-cwd regressions under both runtimes, covering a lock released
-after one second and a lock that remains held past the cleanup deadline.
+The default 2.4-second cleanup deadline is about 3.5 times the failed hosted
+Node deletion window (0.69 seconds). Packaged startup uses 9.6 seconds after
+[run 38762851482](https://github.com/kzahel/yepanywhere/actions/runs/38762851482)
+passed startup but exhausted the 2.4-second post-close removal window. This is
+four times that observed lower bound; ordinary removals return immediately,
+and persistent locks still fail with the captured server output. The matrix
+runs real Windows child-cwd regressions under both runtimes, covering a lock
+released after three seconds and a lock held past the default cleanup deadline.
 The startup Codex-version advisory respects `ENABLED_PROVIDERS`: it runs for
 `codex`, `codex-oss`, or the default all-provider configuration. Excluding that
 family avoids unrelated installation/ACL work; checks for actual Codex use remain
