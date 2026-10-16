@@ -27,7 +27,9 @@ A separate parent reload reproduction exhausted the server preview lease cap
 after fifteen successful restorations. The repair uses a bounded, source-bound
 cleanup journal and browser locks with the existing DELETE route; eighteen
 actual-app restorations and browser concurrent-owner checks now pass. No wire
-contract or native artifact authority was added.
+contract or native artifact authority was added. Eighteen actual same-host
+native-tab round trips also pass with explicit artifact reopening and draft/route
+retention; inactive tabs retain navigation metadata, not their file-pane heap.
 
 ## Accepted Android viewer design
 

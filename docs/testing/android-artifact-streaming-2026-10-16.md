@@ -45,6 +45,7 @@ security matrix; the real pane verifies the isolation and navigation boundary.
 | Navigation and workers | Linked HTML, reload, explicit worker termination/restart and inert network fallback pass. |
 | Warm launcher resume | Three real HOME/MAIN cycles (1 / 2.5 / 1 s background) each show ready→connecting→ready once, retain parent/artifact identity and draft, and read a fresh asset with status 200. No application console errors. |
 | Whole-parent reload | After lease cleanup repair, eighteen restorations pass with new parent/artifact identities and removal of all old worker registrations. |
+| Native same-host tabs | Eighteen round trips destroy both selected WebViews, retain the session route/draft and app process, and explicitly reopen an artifact with a new parent/origin and a fresh 200 asset read. |
 | Pane teardown | Eighteen successive fresh admissions pass, beyond the 16-live-leases-per-principal cap. Each has a new origin/storage context and its worker registration is removed on close. |
 | Large media through owned relay | Twenty distinct local PNGs and a real 150,254,617-byte H.264 movie (600 s, 640×360, 12 fps) pass. A 100,663,296-byte prefix matches a bounded-buffer SHA-256 digest tree. |
 | Range fidelity | A 65,536-byte bounded seek at byte 50,000,000, an 8,191-byte suffix, an open-ended final 2 MiB and an invalid range match exact bytes/status/Content-Range. The invalid response retains `bytes */N` with status 416. |
@@ -79,6 +80,7 @@ reported separately; desktop retains its existing additional round-trip gate.
 | Focused twenty-image fault bursts | 11.9 / 22.6 ms | 26.1 / 28.4 ms |
 | Public-relay warm-resume run | 7.5 / 17.8 ms | 5.4 / 18.6 ms |
 | Repaired reload/fault/warm combined run | 10.5 / 32.4 ms | 21.5 / 26.7 ms |
+| Native tab-disposal run, before tab cycling | 8.3 / 20.4 ms | 8.2 / 23.8 ms |
 
 The complete movie run appended 33 concurrent review updates while typing.
 Its command round-trip maxima were 108/279 ms, while event/input/frame clocks
@@ -239,6 +241,34 @@ fallback and the remaining crash window before an admission response is
 received/recorded. Server expiry bounds that unknown lease. No privileged native
 artifact broker or new wire field was added.
 
+## Native tab disposal — 2026-10-17
+
+The actual app passes eighteen same-host round trips between a new Projects tab
+and the artifact's session, through native accessibility controls. Each
+selection closes the old DevTools page; both WebViews are discarded each round.
+Returning creates a new parent document, retains the draft and session route,
+and explicitly reopening the HTML creates a different artifact origin and
+reads a fresh JSON asset with status 200. The native app process stays the same.
+This runs beyond the sixteen-preview cap and passes with no observed application
+errors. Setup, the ordinary pane checks and eighteen round trips took about
+4 minutes 15 seconds; this remains an opt-in device acceptance, not a per-case
+addition to the default browser CI suite.
+
+The first attempt incorrectly required automatic inline-pane restoration and
+failed after returning to a healthy session. Plan 146 promises bounded inactive
+tab navigation state, rather than retention of the JavaScript heap; all eighteen
+measured returns required explicit file reopening. No production behavior was
+changed to satisfy this test. The initial failed expectation is not evidence of
+a transport or admission failure. Both attempts removed the owned app afterward.
+
+No previous worker was reported by the replacement target's CDP observer after
+discard, but a new target's observation is not a complete global registration
+inventory. Explicit-close and parent-reload registration removal have stronger
+separate evidence above. This same-profile test does not qualify a different
+profile, OS process death, or active-artifact Activity recreation. Initial
+sequential input in this run passed at the clocks above; it was not typing while
+the native tab-selection dialog was open.
+
 ## Verification and remaining limits
 
 Workspace lint, format and typecheck pass; full units pass with 7,022 client
@@ -287,8 +317,9 @@ Unqualified or pending:
   different native tab saves history and destroys the old document. Two live
   artifact documents across native tabs are not supplied by that topology.
   Repeated parent reload is repaired and qualified as recorded above.
-  Artifact-specific tab-switch/source-switch cleanup, Activity recreation,
-  long half-open sockets and radio/route transitions still need acceptance.
+  Same-host artifact tab disposal/reopening is qualified above. Different-profile
+  artifact source switching, active-artifact Activity recreation/process death,
+  long half-open sockets and physical radio/route transitions remain unqualified.
   Sequential viewers and worker restart are narrower evidence.
 - The source/generated APK uses 256 MiB per file, 1 GiB produced bytes per viewer
   and a 120-second progress deadline. The currently deployed hosted worker keeps

@@ -338,3 +338,16 @@ explicit-close cycles. Real-browser concurrency checks additionally preserve a
 live owner while its peer reloads and reject cleanup of a different source or
 an arbitrary API path. See the security contract for storage/lock fallback and
 the remaining admission-response crash window.
+
+`--native-tab-cycle` requires the managed native pane. It uses observed native
+accessibility labels to create a same-host tab, then makes eighteen round trips
+between Projects and the session. Each selection must close the old DevTools
+page; the next WebView must have a new parent identity. The session route and
+draft must return, and explicitly reopening the artifact must get a fresh origin
+and a successful asset read without changing the app process. This follows
+[plan 146](../docs/tactical/146-android-tabs-and-warm-resume.md): inactive tabs
+retain navigation metadata, so the inline file pane is reopened explicitly.
+The runner rebinds observations to each actual replacement WebView; it does not
+create extra Playwright pages inside the native app or retain a hidden viewer.
+The new target's worker observations are diagnostic, not a complete global
+service-worker inventory after the old target has been destroyed.

@@ -51,6 +51,9 @@ const nativeManaged = native && process.argv.includes("--native-managed");
 const largeMedia = process.argv.includes("--large-media");
 const nativeResume = process.argv.includes("--native-resume");
 const nativeDocumentReload = process.argv.includes("--native-document-reload");
+const nativeTabCycle = process.argv.includes("--native-tab-cycle");
+if (nativeTabCycle && !nativeManaged)
+  throw new Error("Native tab qualification requires the managed pane");
 if (nativeDocumentReload && !nativeManaged)
   throw new Error(
     "Document reload qualification requires the managed native pane",
@@ -118,6 +121,7 @@ const forwards = [];
 let installedPhonePackage = false;
 const hierarchyFile = `/sdcard/ya-artifact-${randomUUID()}.xml`;
 let androidBrowser;
+let nativeDevtoolsEndpoint;
 let androidPreferences;
 const chromePreferences =
   "/data/data/com.android.chrome/app_chrome/Default/Preferences";
@@ -170,6 +174,42 @@ const evidence = {
   temp,
 };
 const log = (text) => console.error(`[managed artifact] ${text}`);
+function observePage(target) {
+  target.on("pageerror", (error) => evidence.errors.push(error.message));
+  target.on("console", (message) => {
+    if (message.type() === "error") {
+      if (
+        largeMedia &&
+        message.text() ===
+          "Failed to load resource: the server responded with a status of 416 ()" &&
+        /\/media\/movie\.mp4\?invalid-range=1$/.test(message.location().url)
+      ) {
+        // This single intentional refusal is asserted byte-for-byte in the
+        // range probe. Every other failed resource remains an error.
+        evidence.expectedRangeRefusals =
+          (evidence.expectedRangeRefusals ?? 0) + 1;
+        return;
+      }
+      if (
+        nativeManaged &&
+        largeMedia &&
+        evidence.browser.startsWith("124.") &&
+        message.text() ===
+          "Permissions policy violation: accelerometer is not allowed in this document."
+      ) {
+        // Chrome 124's native rotate-to-fullscreen delegate registers an
+        // orientation listener when video controls attach. Keep sensors denied;
+        // preserve this exact upstream diagnostic separately from app errors.
+        // chromium/src@124.0.6367.219: media_controls_rotate_to_fullscreen_delegate.cc:64
+        evidence.expectedBrowserPolicyRefusals ??= [];
+        evidence.expectedBrowserPolicyRefusals.push(message.text());
+        return;
+      }
+      evidence.errors.push(message.text());
+      log(message.text().slice(0, 500));
+    }
+  });
+}
 async function recordNativeSetup(stage) {
   if (!traceNativeSetup) return;
   const response = await localRelay.app.request("/status");
@@ -598,10 +638,10 @@ try {
             })
           ).ok,
       );
-      androidBrowser = await chromium.connectOverCDP(
-        `http://127.0.0.1:${port}`,
-        { noDefaults: true },
-      );
+      nativeDevtoolsEndpoint = `http://127.0.0.1:${port}`;
+      androidBrowser = await chromium.connectOverCDP(nativeDevtoolsEndpoint, {
+        noDefaults: true,
+      });
       context = androidBrowser.contexts()[0];
       evidence.browser = androidBrowser.version();
       evidence.parentBuildDelivery = "bundled debug APK";
@@ -760,40 +800,7 @@ try {
         ? "network and script cookies refused in cross-site iframe"
         : "network and script cookies accessible in cross-site iframe";
   }
-  page.on("pageerror", (error) => evidence.errors.push(error.message));
-  page.on("console", (message) => {
-    if (message.type() === "error") {
-      if (
-        largeMedia &&
-        message.text() ===
-          "Failed to load resource: the server responded with a status of 416 ()" &&
-        /\/media\/movie\.mp4\?invalid-range=1$/.test(message.location().url)
-      ) {
-        // This single intentional refusal is asserted byte-for-byte in the
-        // range probe. Every other failed resource remains an error.
-        evidence.expectedRangeRefusals =
-          (evidence.expectedRangeRefusals ?? 0) + 1;
-        return;
-      }
-      if (
-        nativeManaged &&
-        largeMedia &&
-        evidence.browser.startsWith("124.") &&
-        message.text() ===
-          "Permissions policy violation: accelerometer is not allowed in this document."
-      ) {
-        // Chrome 124's native rotate-to-fullscreen delegate registers an
-        // orientation listener when video controls attach. Keep sensors denied;
-        // preserve this exact upstream diagnostic separately from app errors.
-        // chromium/src@124.0.6367.219: media_controls_rotate_to_fullscreen_delegate.cc:64
-        evidence.expectedBrowserPolicyRefusals ??= [];
-        evidence.expectedBrowserPolicyRefusals.push(message.text());
-        return;
-      }
-      evidence.errors.push(message.text());
-      log(message.text().slice(0, 500));
-    }
-  });
+  observePage(page);
   const origin = evidence.parent;
   const base = native ? origin : `${origin}/-/relay/${username}`;
   log("Opening actual YA over the disposable encrypted relay");
@@ -1051,18 +1058,24 @@ try {
           .catch(() => false),
     );
     evidence.checks.push({ name: "navigation-and-reload", passed: true });
-    const cdp = await context.newCDPSession(page);
+    let cdp;
     let versions = [];
     const registrations = new Map();
-    cdp.on("ServiceWorker.workerRegistrationUpdated", (event) => {
-      for (const registration of event.registrations)
-        registrations.set(registration.registrationId, registration);
-      evidence.workerRegistrations = [...registrations.values()];
-    });
-    cdp.on("ServiceWorker.workerVersionUpdated", (event) => {
-      versions = event.versions;
-    });
-    await cdp.send("ServiceWorker.enable");
+    const bindWorkerEvents = async () => {
+      cdp = await context.newCDPSession(page);
+      versions = [];
+      registrations.clear();
+      cdp.on("ServiceWorker.workerRegistrationUpdated", (event) => {
+        for (const registration of event.registrations)
+          registrations.set(registration.registrationId, registration);
+        evidence.workerRegistrations = [...registrations.values()];
+      });
+      cdp.on("ServiceWorker.workerVersionUpdated", (event) => {
+        versions = event.versions;
+      });
+      await cdp.send("ServiceWorker.enable");
+    };
+    await bindWorkerEvents();
     const versionToStop = await until("worker target", () =>
       versions.find(
         (v) =>
@@ -1588,6 +1601,152 @@ try {
         freshOrigins: origins.size,
         registrationsRemoved: true,
       });
+      if (nativeTabCycle) {
+        const processBefore = adb("shell", "pidof", appPackage).trim();
+        const draft = await page
+          .locator("textarea.message-input, textarea[placeholder]")
+          .first()
+          .inputValue();
+        const sourcePath = new URL(page.url()).pathname;
+        const tap = async (attribute, value) => {
+          const point = await until(`native ${attribute}: ${value}`, () => {
+            adb("shell", "uiautomator", "dump", hierarchyFile);
+            const xml = adb("shell", "cat", hierarchyFile);
+            const points = [];
+            for (const [tag] of xml.matchAll(/<node\b[^>]*>/g)) {
+              const actual = tag
+                .match(new RegExp(`${attribute}="([^"]*)"`))?.[1]
+                ?.replaceAll("&amp;", "&")
+                .replaceAll("&quot;", '"');
+              if (actual !== value || tag.includes('enabled="false"')) continue;
+              const bounds = tag.match(
+                /bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/,
+              );
+              if (bounds)
+                points.push([
+                  Math.floor((Number(bounds[1]) + Number(bounds[3])) / 2),
+                  Math.floor((Number(bounds[2]) + Number(bounds[4])) / 2),
+                ]);
+            }
+            return points.length === 1 && points[0];
+          });
+          adb("shell", "input", "tap", ...point.map(String));
+        };
+        const attachReplacement = async (previous) => {
+          await until("discarded native WebView", () => previous.isClosed());
+          page = await until("replacement native WebView", async () => {
+            if (!androidBrowser.isConnected())
+              androidBrowser = await chromium.connectOverCDP(
+                nativeDevtoolsEndpoint,
+                { noDefaults: true },
+              );
+            context = androidBrowser.contexts()[0];
+            return context
+              ?.pages()
+              .find(
+                (candidate) => candidate !== previous && !candidate.isClosed(),
+              );
+          });
+          observePage(page);
+          await bindWorkerEvents();
+        };
+        appendFileSync(
+          transcript,
+          JSON.stringify(
+            row(
+              975,
+              "assistant",
+              `[Tab artifact](${join(project, "index.html")})`,
+            ),
+          ) + "\n",
+        );
+        await page
+          .getByRole("link", { name: "Tab artifact", exact: true })
+          .click();
+        await until("artifact before native tab switch", artifact);
+        await expect(artifact().locator("#modules")).toContainText(
+          "JSON: 3 notes",
+        );
+        const result = { name: "native-tab-document-disposal", cycles: [] };
+        evidence.checks.push(result);
+        log(
+          "Checking eighteen native tab round trips with an admitted artifact",
+        );
+        for (let cycle = 0; cycle < 18; cycle++) {
+          const previousTime = await page.evaluate(
+            () => performance.timeOrigin,
+          );
+          const previousOrigin = new URL(artifact().url()).origin;
+          const oldPage = page;
+          if (cycle === 0) {
+            await tap("content-desc", "New tab");
+            await tap("text", username);
+          } else {
+            await tap("content-desc", "Tabs, 2 open");
+            await tap("content-desc", `Switch to tab: ${username}, /projects`);
+          }
+          await attachReplacement(oldPage);
+          await expect(
+            page.getByText("bundle", { exact: true }).first(),
+          ).toBeVisible({ timeout: 45000 });
+          expect(new URL(page.url()).pathname).toBe("/projects");
+          const priorWorkerReported = [...registrations.values()].some(
+            (registration) =>
+              registration.scopeURL.startsWith(`${previousOrigin}/`) &&
+              !registration.isDeleted,
+          );
+          const peer = page;
+          await tap("content-desc", "Tabs, 2 open");
+          await tap(
+            "content-desc",
+            `Switch to tab: ${username}, ${sourcePath}`,
+          );
+          await attachReplacement(peer);
+          const reopen = page.getByRole("link", {
+            name: "Tab artifact",
+            exact: true,
+          });
+          await until(
+            "restored tab navigation",
+            async () => Boolean(artifact()) || (await reopen.isVisible()),
+          );
+          const filePaneRestoredAutomatically = Boolean(artifact());
+          if (!filePaneRestoredAutomatically) await reopen.click();
+          await until("reopened tab artifact", artifact);
+          await expect(artifact().locator("#modules")).toContainText(
+            "JSON: 3 notes",
+          );
+          expect(await page.evaluate(() => performance.timeOrigin)).not.toBe(
+            previousTime,
+          );
+          expect(new URL(artifact().url()).origin).not.toBe(previousOrigin);
+          await expect(
+            page
+              .locator("textarea.message-input, textarea[placeholder]")
+              .first(),
+          ).toHaveValue(draft);
+          expect(adb("shell", "pidof", appPackage).trim()).toBe(processBefore);
+          const fresh = await artifact().evaluate(
+            async () => (await fetch("data.json?native-tab=1")).status,
+          );
+          expect(fresh).toBe(200);
+          result.cycles.push({
+            cycle,
+            discardedBothDocuments: true,
+            filePaneRestoredAutomatically,
+            priorWorkerReported,
+            freshArtifactOrigin: true,
+            draftRetained: true,
+            processRetained: true,
+            freshRead: fresh,
+          });
+          log(`Native tab round trip ${cycle + 1}/18 reopened the artifact`);
+        }
+        await page.locator('.file-viewer-action[aria-label="Back"]').click();
+        await expect(
+          page.getByRole("link", { name: "Tab artifact", exact: true }),
+        ).toBeVisible({ timeout: 45000 });
+      }
       if (nativeDocumentReload) {
         appendFileSync(
           transcript,
