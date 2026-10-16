@@ -350,7 +350,8 @@ manager remains available and stops apps with Hono. Persisted host ownership
 prevents this mode from duplicating or pretending to stop an app that may still
 belong to a live host: enable hosting again to inspect or stop it. Missing owner
 fields in older records mean in-process ownership. After owner loss, persisted
-state reports interruption; automatic relaunch is not implemented.
+state reports interruption; only an opted-in address's next visit relaunches
+it ([auto-start](#auto-start-on-visit)).
 
 Provider hosting supports Linux and macOS Node source launches; Unix-domain
 IPC is not Linux-specific. Project service execution still requires the
@@ -411,7 +412,8 @@ Existing pieces verified in source on 2026-09-28:
   See [app WebSocket access](active-content-security.md#app-websocket-access).
 
 The separate project runner reuses these sandbox facilities. Viewing never
-starts it. Settings refreshes status on entry and after lifecycle actions;
+starts it, except a served address's opt-in
+[auto-start](#auto-start-on-visit). Settings refreshes status on entry and after lifecycle actions;
 explicit Reload renews the current target, without background replacement of
 an interacting iframe. A changed declaration is shown alongside the active
 launch; stopping that launch remains possible even if the new file is invalid.
@@ -501,17 +503,57 @@ authority. Keep first-claim-wins persistence and superuser-only release from
 [project templates](project-templates.md#persistent-app-name-reservations).
 
 A served address reaches a process app only while it runs; otherwise visitors
-get “Project app is not serving” (503), and nothing starts it on a visit. So
+get “Project app is not serving” (503), unless auto-start is enabled. So
 for a stopped process app the principal may start, the action reads **Start
 app and serve here** and issues the ordinary start, then serve; a failed start
 serves nothing and shows its error. A static app has no process and keeps
 plain **Serve at this address**. While a process app's address is served but
 the app is stopped (after Stop, a crash or a server restart), the address
 shows that visitors see “not serving” until it runs. **Stop serving** leaves
-the app running, since the project's own pane still uses it. No lazy start
-on first visit: a public visitor could then spawn processes, and the first
-request would wait out startup. (Start on serve user-directed 2026-10-15;
-no lazy start agent-recommended and accepted with it.)
+the app running, since the project's own pane still uses it. (Start on serve
+user-directed 2026-10-15.)
+
+### Auto-start on visit
+
+By default a visit never starts an app. A principal who may serve the address
+can check **Start the app when a visitor finds it stopped or not answering**
+for a process app (user-directed 2026-10-16, revisiting the earlier
+no-lazy-start default as an opt-in). The choice is per project, stored in YA
+app data (`project-app-auto-start.json`, beside rather than inside the
+strictly parsed reservation file, so an older YA still reads its
+reservations), never in `app.json`. With it on, a stopped served address
+reads “the next visit starts it” instead of the not-serving warning.
+
+- **Trigger.** Only a request that passed the address's access check (a
+  private link or public access) on a served reservation. Either the app has
+  no running launch (stopped, failed, or interrupted by a YA restart), or YA
+  reports it running but the proxy's connection is refused. In the second
+  case YA first runs the declared readiness probe twice and restarts only if
+  both fail, so one dropped connection does not kill a busy app. An app
+  that answers with an error page is answering; its HTTP status never
+  triggers a restart.
+- **Waiting.** The visit waits for the start and is then proxied; concurrent
+  visits share one attempt. After 90 s (under a tunnel's 100 s origin
+  timeout) the visitor gets a 503 page that refreshes itself while the start
+  continues. A GET or HEAD that met a dead port is resent to the new launch;
+  any other request gets a 503 with `Retry-After` since its body was used.
+- **Loop guard.** At most one automatic start per project every 30 s. A
+  failed start, or an app unreachable within 60 s of an automatic start,
+  counts as a failure; 3 in 10 minutes pause auto-start and Settings shows the
+  failure's first line. A manual **Start** or re-saving the choice clears the
+  pause. The guard is in memory, so a YA restart also clears it.
+- **Authority.** Changing the choice needs the same authority as **Serve at
+  this address**. Each attempt rechecks that the principal who enabled it
+  still holds it; a revoked limited user's choice starts nothing. Public
+  addresses may opt in: any visitor can then cause a start, bounded by the
+  guard and the one launch per project.
+
+`project-app-auto-start` (permanent ID 130, version-implied from 0.9.4) owns
+the optional `autoStart` field on GET `/api/projects/:projectId/app/address`
+and POST `.../app/address/auto-start`. Older servers lack both; clients hide
+the checkbox and send nothing, and the not-serving warning stays. Standing
+maintainer compatibility approval applies. Relaunching apps when YA starts,
+with no visitor, remains unimplemented.
 
 The limited project owner's current public-app permission is the ceiling for
 public access a limited user chose. Revocation makes such addresses require a

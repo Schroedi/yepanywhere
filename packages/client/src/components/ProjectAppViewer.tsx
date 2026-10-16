@@ -95,6 +95,7 @@ export function ProjectAppViewer({
   const [addresses, setAddresses] = useState<ProjectAppAddresses | null>(null);
   const [name, setName] = useState("");
   const [publicAccess, setPublicAccess] = useState<boolean>();
+  const [autoStartChoice, setAutoStartChoice] = useState<boolean>();
   const [reload, setReload] = useState(0);
   const audience = artifactAudience(window.location.hostname);
   const refresh = useCallback(async () => {
@@ -563,13 +564,21 @@ export function ProjectAppViewer({
                       )}
                     {row.serving &&
                       row.namespace === addresses.namespace &&
-                      processAppStopped && (
+                      processAppStopped &&
+                      (addresses.autoStart?.enabled &&
+                      !addresses.autoStart.paused ? (
+                        <p role="status">
+                          {t("projectAppServedStoppedAutoStart", {
+                            address: `${row.name}.${row.namespace}`,
+                          })}
+                        </p>
+                      ) : (
                         <p role="status" className={styles.servedStopped}>
                           {t("projectAppServedStopped", {
                             address: `${row.name}.${row.namespace}`,
                           })}
                         </p>
-                      )}
+                      ))}
                     {!addresses.canPublish &&
                       !row.public &&
                       row.namespace === addresses.namespace && (
@@ -582,7 +591,7 @@ export function ProjectAppViewer({
                             {row.privateOnly ? (
                               <p>{t("projectAppPrivateOnly")}</p>
                             ) : (
-                              <label>
+                              <label className={styles.checkLabel}>
                                 <input
                                   type="checkbox"
                                   checked={publicAccess ?? row.public}
@@ -652,6 +661,48 @@ export function ProjectAppViewer({
                                     : "projectAppServe",
                               )}
                             </button>
+                            {addresses.autoStart &&
+                              declaration?.where.kind === "process" &&
+                              serverHasCapability(
+                                version,
+                                SERVER_CAPABILITIES.projectAppAutoStart.name,
+                              ) && (
+                                <>
+                                  <label className={styles.checkLabel}>
+                                    <input
+                                      type="checkbox"
+                                      checked={
+                                        autoStartChoice ??
+                                        addresses.autoStart.enabled
+                                      }
+                                      disabled={busy}
+                                      onChange={(event) => {
+                                        // Show the choice at once; the refreshed
+                                        // addresses then confirm or revert it.
+                                        const enabled = event.target.checked;
+                                        setAutoStartChoice(enabled);
+                                        void perform(() =>
+                                          projectAppApi.addressAction(
+                                            projectId,
+                                            "auto-start",
+                                            { enabled },
+                                          ),
+                                        ).finally(() =>
+                                          setAutoStartChoice(undefined),
+                                        );
+                                      }}
+                                    />
+                                    {t("projectAppAutoStart")}
+                                  </label>
+                                  {addresses.autoStart.paused && (
+                                    <p role="status">
+                                      {t("projectAppAutoStartPaused", {
+                                        error: addresses.autoStart.paused,
+                                      })}
+                                    </p>
+                                  )}
+                                </>
+                              )}
                           </>
                         )}
                         {(addresses.canRelease ?? addresses.canPublish) && (

@@ -44,6 +44,12 @@
   display: block;
   margin-block: 12px;
 }
+/* A wrapped checkbox label continues under its text, not under the box. */
+.details label.checkLabel {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
 .details button {
   margin: 4px;
   min-height: 32px;

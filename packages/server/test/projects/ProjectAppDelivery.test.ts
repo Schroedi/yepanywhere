@@ -3,6 +3,7 @@ import { join, resolve } from "node:path";
 import { afterAll, afterEach, describe, expect, it } from "vitest";
 import { ArtifactServer } from "../../src/artifacts/ArtifactServer.js";
 import { ProjectAppDelivery } from "../../src/artifacts/ProjectAppDelivery.js";
+import { ProjectAppAutoStart } from "../../src/projects/ProjectAppAutoStart.js";
 import { ProjectAppStore } from "../../src/projects/ProjectAppStore.js";
 import { ProjectServiceManager } from "../../src/projects/ProjectServiceManager.js";
 import { createLocalResourcePathPolicy } from "../../src/routes/local-resource-policy.js";
@@ -285,6 +286,150 @@ createServer((req, res) => {
       expect(await store.reservations("project")).toMatchObject([
         { name: "archer-canvas", owner: "archer", serving: true },
       ]);
+    },
+  );
+  native(
+    "auto-start starts a stopped app, restarts one whose port died, and pauses a crash loop",
+    { timeout: 60_000 },
+    async () => {
+      const project = await mkdtemp(join(root, "auto-"));
+      const data = await mkdtemp(join(root, "auto-data-"));
+      await mkdir(join(project, ".project-template"));
+      await writeFile(
+        join(project, ".project-template/app.json"),
+        JSON.stringify({
+          service: {
+            version: 1,
+            where: { kind: "process", cwd: ".", entry: "/" },
+            start: { argv: [process.execPath, "server.mjs"], portEnv: "PORT" },
+            status: {
+              probe: "http",
+              path: "/health",
+              readyStatus: 200,
+              startupTimeoutMs: 5000,
+            },
+            stop: { signal: "SIGTERM", graceMs: 3000 },
+            serving: { target: "sandbox-loopback", protocol: "http" },
+          },
+        }),
+      );
+      // `/close` stops listening but keeps the process alive: the case where
+      // YA still reports Running while nothing answers its port.
+      await writeFile(
+        join(project, "server.mjs"),
+        `import { createServer } from 'node:http';
+// Each sandbox has its own PID namespace, so a PID cannot tell launches apart.
+const launch = Math.random();
+const server = createServer((req, res) => {
+  if (req.url === '/health') return res.end('ok');
+  if (req.url === '/close') return res.end('closing', () => {
+    server.close();
+    server.closeAllConnections();
+    setInterval(() => {}, 1000);
+  });
+  res.end('hello ' + launch);
+}).listen(Number(process.env.PORT), '127.0.0.1');
+`,
+      );
+      services = new ProjectServiceManager(data);
+      store = new ProjectAppStore(data);
+      artifacts = new ArtifactServer(
+        { port: 4402, localOrigin: "http://artifacts.localhost:4402" },
+        createLocalResourcePathPolicy({ allowedPaths: [project] }),
+      );
+      let clock = Date.now();
+      let permitted = true;
+      const autoStart = new ProjectAppAutoStart(data, {
+        services,
+        projectPath: async () => project,
+        mayAutoStart: async () => permitted,
+        now: () => clock,
+      });
+      const delivery = new ProjectAppDelivery(
+        artifacts,
+        services,
+        store,
+        undefined,
+        undefined,
+        autoStart,
+      );
+      artifacts.setProjectAppDelivery(delivery);
+      await store.reserve(
+        {
+          namespace: "localhost",
+          name: "archer-auto",
+          projectId: "auto",
+          owner: "archer",
+        },
+        async () => {},
+      );
+      await store.setServing("auto", "localhost", true, false, async () => ({
+        allowed: false,
+        superuser: false,
+      }));
+      await delivery.refreshHosts();
+      const token = artifacts.vhostAccess.token({
+        name: "archer-auto",
+        projectId: "auto",
+      });
+      const visit = (path = "/") =>
+        artifacts!.dispatchHost(
+          new Request(
+            `http://archer-auto.localhost:4402${path}?ya_access=${token}`,
+          ),
+        );
+      // Off by default: a stopped app stays unserved, and nothing starts.
+      expect((await visit())?.status).toBe(503);
+      expect(await services.upstream("auto")).toBeNull();
+      // An unauthorized visit never starts it, even when enabled.
+      await autoStart.set("auto", true, "archer", async () => {});
+      expect(
+        (
+          await artifacts.dispatchHost(
+            new Request("http://archer-auto.localhost:4402/"),
+          )
+        )?.status,
+      ).toBe(401);
+      expect(await services.upstream("auto")).toBeNull();
+      const first = await visit();
+      expect(first?.status).toBe(200);
+      const firstLaunch = await first!.text();
+      // Alive but not listening: a refused connection plus failed readiness
+      // probes restart it, and the same GET is answered by the new launch.
+      expect(await (await visit("/close"))!.text()).toBe("closing");
+      clock += 61_000;
+      const second = await visit();
+      expect(second?.status).toBe(200);
+      const secondLaunch = await second!.text();
+      expect(secondLaunch).not.toBe(firstLaunch);
+      // A revoked enabler no longer starts anything.
+      await services.stop("auto", async () => {});
+      permitted = false;
+      clock += 61_000;
+      expect((await visit())?.status).toBe(503);
+      expect(await services.upstream("auto")).toBeNull();
+      permitted = true;
+      // Broken code fails each start; the third failure pauses auto-start.
+      await writeFile(join(project, "server.mjs"), "process.exit(3);\n");
+      for (let attempt = 0; attempt < 3; attempt++) {
+        clock += 31_000;
+        expect((await visit())?.status).toBe(503);
+      }
+      expect((await autoStart.status("auto")).paused).toMatch(/exited/);
+      clock += 31_000;
+      await writeFile(
+        join(project, "server.mjs"),
+        `import { createServer } from 'node:http';
+createServer((req, res) => res.end(req.url === '/health' ? 'ok' : 'fixed'))
+  .listen(Number(process.env.PORT), '127.0.0.1');
+`,
+      );
+      // Still paused, even though the code is fixed, until a manual reset.
+      expect((await visit())?.status).toBe(503);
+      autoStart.reset("auto");
+      const fixed = await visit();
+      expect(await fixed!.text()).toBe("fixed");
+      expect((await autoStart.status("auto")).paused).toBeUndefined();
     },
   );
 });

@@ -522,6 +522,7 @@ const BASE_CAPABILITIES: string[] = [
   SERVER_CAPABILITIES.processServiceTierChange.name,
   SERVER_CAPABILITIES.mcpAppViews.name,
   SERVER_CAPABILITIES.projectCreationGitChoice.name,
+  SERVER_CAPABILITIES.projectAppAutoStart.name,
   SERVER_CAPABILITIES.unicodeProseMath.name,
   SERVER_CAPABILITIES.projectFileViewCommand.name,
   SERVER_CAPABILITIES.fileOwnerProject.name,

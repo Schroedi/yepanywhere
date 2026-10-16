@@ -550,6 +550,30 @@ export const SERVER_CAPABILITIES = {
         "Servers through 0.9.2 have no view route or proxy, so a hosted client must not offer views there.",
     },
   },
+  projectAppAutoStart: {
+    id: CAPABILITY_ID_ALLOCATIONS.projectAppAutoStart.id,
+    name: "project-app-auto-start",
+    kind: "permanent",
+    area: "settings",
+    introducedIn: "0.9.4",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Opt-in start of a served process app when an authorized visit to its reserved address finds it stopped or unreachable, with a restart-loop pause.",
+    clientFallback:
+      "Hide the auto-start checkbox and make no auto-start request; a stopped app's address keeps showing that it is not serving.",
+    serverContract: {
+      routes: [
+        "GET /api/projects/:projectId/app/address",
+        "POST /api/projects/:projectId/app/address/auto-start",
+      ],
+      responseFields: ["autoStart"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "Servers through 0.9.2 have no auto-start route, so a hosted client must not offer the setting there.",
+    },
+  },
   projectCreationGitChoice: {
     id: CAPABILITY_ID_ALLOCATIONS.projectCreationGitChoice.id,
     name: "project-creation-git-choice",

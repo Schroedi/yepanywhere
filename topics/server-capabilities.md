@@ -81,6 +81,14 @@ routes. Without the bit clients hide app/project cleanup controls and show
 update guidance. Existing project deletion retains its meaning. See
 [app inventory](project-service.md#app-address-in-project-settings).
 
+`project-app-auto-start` (permanent ID 130, version-implied from 0.9.4) owns
+the optional `autoStart` field on GET `/api/projects/:projectId/app/address`
+and POST `/api/projects/:projectId/app/address/auto-start`. v0.9.0–v0.9.2
+lack both; without the capability clients hide the auto-start checkbox and
+send no request. No existing capability changes meaning; the maintainer's
+standing compatibility approval covers the gate. See
+[auto-start on visit](project-service.md#auto-start-on-visit).
+
 `process-service-tier-change` (permanent ID 118, version-implied from 0.9.4)
 owns the `serviceTier` request and response field on
 `POST /api/processes/:processId/config`. v0.9.0–v0.9.2 return the tier from

@@ -17,6 +17,7 @@ import { configuredVhostNames, parseVhosts } from "../artifacts/vhosts.js";
 import { principalFor } from "../auth/limitedLaunchPolicy.js";
 import { levelFor, satisfies } from "../auth/limitedUserPolicy.js";
 import type { SessionAccessResolver } from "../auth/sessionAccess.js";
+import type { ProjectAppAutoStart } from "../projects/ProjectAppAutoStart.js";
 import type { ProjectAppStore } from "../projects/ProjectAppStore.js";
 import { projectAppPublicAllowed } from "../projects/projectAppPolicy.js";
 import {
@@ -51,6 +52,7 @@ export function createProjectAppRoutes(deps: {
   activeGrants: (username: string) => LimitedUserGrants | null;
   onVisibilityChanged?: (projectId: string) => void;
   delivery?: ProjectAppDelivery;
+  autoStart?: ProjectAppAutoStart;
   openService: (
     projectId: string,
     audience: "local" | "public",
@@ -301,6 +303,7 @@ export function createProjectAppRoutes(deps: {
       },
       parsed.data.mode,
     );
+    deps.autoStart?.reset(project.id);
     return c.json({ started: true });
   });
   routes.post("/projects/:projectId/app/stop", async (c) => {
@@ -471,8 +474,31 @@ export function createProjectAppRoutes(deps: {
             }),
           )
         : [],
+      ...(deps.autoStart
+        ? { autoStart: await deps.autoStart.status(project.id) }
+        : {}),
     };
     return c.json(addresses);
+  });
+  routes.post("/projects/:projectId/app/address/auto-start", async (c) => {
+    const project = await authorize(c, "new-session");
+    await publisher(c);
+    if (!deps.autoStart)
+      throw new HTTPException(409, { message: "Auto-start is unavailable" });
+    const parsed = z
+      .strictObject({ enabled: z.boolean() })
+      .safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success)
+      return c.json({ error: "Expected an enabled choice" }, 400);
+    const principal = principalFor(c);
+    return c.json(
+      await deps.autoStart.set(
+        project.id,
+        parsed.data.enabled,
+        principal.kind === "limited" ? principal.username : "superuser",
+        () => publisher(c),
+      ),
+    );
   });
   routes.post("/projects/:projectId/app/address/reserve", async (c) => {
     const project = await authorize(c, "new-session");

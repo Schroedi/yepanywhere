@@ -96,6 +96,7 @@ import { createProjectTemplateSourceRoutes } from "./routes/project-template-sou
 import { createProjectTemplateRoutes } from "./routes/project-templates.js";
 import { TemplateSourceService } from "./projects/TemplateSourceService.js";
 import { TemplateCreationService } from "./projects/TemplateCreationService.js";
+import { ProjectAppAutoStart } from "./projects/ProjectAppAutoStart.js";
 import { ProjectAppStore } from "./projects/ProjectAppStore.js";
 import {
   ProjectServiceManager,
@@ -111,7 +112,7 @@ import { createProjectAccessRoutes } from "./routes/project-access.js";
 import { createProjectAppRoutes } from "./routes/project-app.js";
 import { SESSION_COOKIE_NAME } from "./auth/routes.js";
 import { getCookie as getRequestCookie } from "hono/cookie";
-import { levelFor } from "./auth/limitedUserPolicy.js";
+import { levelFor, satisfies } from "./auth/limitedUserPolicy.js";
 import type { DesktopBootstrapService } from "./desktop/DesktopBootstrapService.js";
 import type { DeviceBridgeService } from "./device/DeviceBridgeService.js";
 import type { FrontendProxy } from "./frontend/index.js";
@@ -1247,6 +1248,20 @@ export function createApp(options: AppOptions): AppResult {
   const projectServices = isProviderRuntimeHostAvailable()
     ? new HostedProjectServices(effectiveDataDir)
     : new ProjectServiceManager(effectiveDataDir);
+  const projectAppAutoStart = new ProjectAppAutoStart(effectiveDataDir, {
+    services: projectServices,
+    projectPath: async (projectId) =>
+      (await scanner.getProject(projectId))?.path ?? null,
+    // The enabling principal must still hold what enabling it required.
+    mayAutoStart: async (by, projectId) => {
+      if (by === "superuser") return true;
+      const grants = getActiveLimitedGrants(by);
+      return (
+        grants?.allowPublicApps === true &&
+        satisfies(levelFor(grants, projectId), "new-session")
+      );
+    },
+  });
   const projectAppDelivery = new ProjectAppDelivery(
     artifactServer,
     projectServices,
@@ -1272,6 +1287,7 @@ export function createApp(options: AppOptions): AppResult {
         )
       );
     },
+    projectAppAutoStart,
   );
   artifactServer.setProjectAppDelivery(projectAppDelivery);
   app.route(
@@ -1285,6 +1301,7 @@ export function createApp(options: AppOptions): AppResult {
       sessionPathScope,
       activeGrants: getActiveLimitedGrants,
       delivery: projectAppDelivery,
+      autoStart: projectAppAutoStart,
       onVisibilityChanged: (projectId) =>
         options.eventBus?.emit({
           type: "projects-changed",
@@ -1471,6 +1488,7 @@ export function createApp(options: AppOptions): AppResult {
       await supervisor.stopBackgroundTasks();
       await projectServices.close();
       await projectAppStore.close();
+      await projectAppAutoStart.close();
       await templateCreations.close();
       await legacyRetirement;
       conversationSubscriptions?.close();

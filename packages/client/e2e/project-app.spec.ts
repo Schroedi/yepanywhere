@@ -28,6 +28,7 @@ let listener: ReturnType<typeof createServer>;
 let directory: string;
 let base: string;
 let projectId: string;
+let serverAppId: string;
 
 test.beforeAll(async () => {
   // CI36630063508 paid 2.57s of sandbox/version readiness. Setup owns it.
@@ -76,7 +77,8 @@ test.beforeAll(async () => {
       },
     }),
   );
-  await metadata.addProject(toUrlProjectId(serverApp), serverApp, "archer");
+  serverAppId = toUrlProjectId(serverApp);
+  await metadata.addProject(serverAppId, serverApp, "archer");
   discovery = new DiscoverySqliteService({ dataDir });
   const sessionMetadata = new SessionMetadataService({
     dataDir,
@@ -399,7 +401,37 @@ test("serving a stopped process app starts it first, and a served stopped app wa
     await pane.getByText(warning).scrollIntoViewIfNeeded();
     await recordUiCapture(page, "project-app-served-stopped-1200");
 
+    // Opted in, an authorized visit to the stopped address starts the app.
+    const autoStart = pane.getByRole("checkbox", {
+      name: /Start the app when a visitor finds it stopped/,
+    });
+    await autoStart.check();
+    await expect(autoStart).toBeChecked();
+    await expect(
+      pane.getByText(/next visit to server-garden\.apps\.example starts it/),
+    ).toBeVisible();
+    await expect(pane.getByText(warning)).toHaveCount(0);
+    await autoStart.scrollIntoViewIfNeeded();
+    await recordUiCapture(page, "project-app-auto-start-1200");
+    const token = instance.artifactServer.vhostAccess.token({
+      name: "server-garden",
+      projectId: serverAppId,
+    });
+    const visit = await instance.artifactServer.dispatchHost(
+      new Request(`http://server-garden.apps.example/?ya_access=${token}`),
+    );
+    expect(visit?.status).toBe(200);
+    expect(await visit!.text()).toBe("server app");
+
     await openAt({ width: 375, height: 812 });
+    await expect(pane.getByText("App: running")).toBeVisible();
+    await expect(autoStart).toBeChecked();
+    await autoStart.scrollIntoViewIfNeeded();
+    await recordUiCapture(page, "project-app-auto-start-375");
+    await autoStart.uncheck();
+    await expect(autoStart).not.toBeChecked();
+    await pane.getByRole("button", { name: "Stop app", exact: true }).click();
+    await expect(pane.getByText(warning)).toBeVisible({ timeout: 15_000 });
     await pane.getByText(warning).scrollIntoViewIfNeeded();
     await recordUiCapture(page, "project-app-served-stopped-375");
     await pane.getByRole("button", { name: "Start app", exact: true }).click();
