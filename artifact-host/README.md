@@ -331,7 +331,10 @@ It records counts and message sizes only, without credentials or payloads.
 qualification, it reloads the whole parent document eighteen times with an
 admitted artifact, requires a new parent/document origin and working modules on
 each restoration, then closes the modal before checking the transcript. The
-current app fails after fifteen successful restorations: the server returns
-429 “Too many open previews.” Old workers are removed, but admitted server
-leases survive whole-document loss. This is a separate failing lifecycle gate,
-not an extension of the passing eighteen explicit-close cycles.
+initial app failed after fifteen successful restorations: the server returned
+429 “Too many open previews,” despite old worker removal. Source-bound lease
+recovery now passes eighteen restorations. This is separate from the eighteen
+explicit-close cycles. Real-browser concurrency checks additionally preserve a
+live owner while its peer reloads and reject cleanup of a different source or
+an arbitrary API path. See the security contract for storage/lock fallback and
+the remaining admission-response crash window.

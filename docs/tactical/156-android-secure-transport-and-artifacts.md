@@ -23,10 +23,11 @@ connection-window wire mode has been implemented. Two actual-app eight-reader
 128 KiB/s diagnostics now reproduce a relay circuit queue closure; passive
 observations distinguish the stress delta from earlier physical mux closures.
 See the measured report for the red baseline and its memory-sampling limits.
-A separate parent reload reproduction exhausts the server preview lease cap
-after fifteen successful restorations; recovery through the existing DELETE
-route must preserve live concurrent artifacts. No new wire contract is needed
-for that client cleanup repair.
+A separate parent reload reproduction exhausted the server preview lease cap
+after fifteen successful restorations. The repair uses a bounded, source-bound
+cleanup journal and browser locks with the existing DELETE route; eighteen
+actual-app restorations and browser concurrent-owner checks now pass. No wire
+contract or native artifact authority was added.
 
 ## Accepted Android viewer design
 

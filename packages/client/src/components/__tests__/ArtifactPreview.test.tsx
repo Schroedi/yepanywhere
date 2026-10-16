@@ -455,7 +455,7 @@ it("releases a managed lease admitted after its viewer closes", async () => {
       />
     </I18nProvider>,
   );
-  expect(state.fetch).toHaveBeenCalledOnce();
+  await waitFor(() => expect(state.fetch).toHaveBeenCalledOnce());
   expect(state.fetch.mock.calls[0]?.[1]?.signal).toBeUndefined();
   unmount();
   await act(async () =>
@@ -463,6 +463,7 @@ it("releases a managed lease admitted after its viewer closes", async () => {
   );
   expect(state.fetch).toHaveBeenLastCalledWith("/artifact-previews/late", {
     method: "DELETE",
+    signal: expect.any(AbortSignal),
   });
 });
 

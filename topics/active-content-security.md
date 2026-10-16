@@ -399,6 +399,31 @@ per tab; overflow fails boundedly. Expiry and lost leases expose Retry; missing 
 not invalidate the whole viewer. Late admissions after close are revoked.
 Viewing writes no state into the project and never inherits owning-artifact deletion behavior.
 
+Whole-parent reload recovery uses a bounded cleanup journal in the privileged
+client origin: at most 128 entries and 128 Ki UTF-16 code units of JSON. Entries
+contain only a captured source identity, exact preview API base, opaque lease
+ID/lock key and expiry; they contain no credentials, file paths or contents.
+Each live parent holds a browser Web Lock for its lease. A foreground managed
+admission reclaims only unlocked entries for that captured source through the
+existing authenticated DELETE route; it never guesses liveness from visibility
+or a hidden-tab timeout. A global short-lived lock serializes journal updates
+across tabs. Cleanup permits at most four concurrent deletes with a three-second deadline
+for the pass, plus bounded metadata-lock waits. Definitive absence
+(404/410) settles cleanup; transport/auth failures retain the entry for a later
+foreground attempt. No heartbeat or repeating cleanup sweep is introduced.
+
+Explicit close still revokes its own lease and releases its browser lock.
+Browser lock termination on document unload lets the next parent recover
+leases left by a discarded document without revoking a concurrently live
+viewer ([Web Locks specification](https://w3c.github.io/web-locks/#termination-of-locks)).
+If browser locks or readable origin storage are unavailable, explicit close
+and server expiry remain the fallback. A full journal fails boundedly rather
+than admitting untracked owners. The server's thirty-minute expiry remains
+authoritative, including a crash before the client receives/records an
+admission response; client-only recovery cannot identify that unknown lease.
+No new route, capability meaning, principal or native artifact fetch authority
+is added, and unsupported servers receive no journal-recovery request.
+
 Paths are relative to the admitted directory. Traversal, absolute paths,
 dotfiles, backslashes, out-of-root symlinks and changed entry mappings fail
 closed. The authenticated endpoint keeps browser-active responses inert and

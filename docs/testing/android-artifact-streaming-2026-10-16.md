@@ -1,8 +1,8 @@
 # Android packaged artifacts and native streaming — 2026-10-16
 
-Status: the selected emulator matrices below pass; the new eight-reader
-slow-link and whole-parent reload diagnostics fail. Physical and connection-wide flow-control
-acceptance remain open. Nothing was published.
+Status: the selected emulator matrices and repaired whole-parent reload gate
+pass; the eight-reader slow-link diagnostic still fails. Physical and
+connection-wide flow-control acceptance remain open. Nothing was published.
 [Plan 156](../tactical/156-android-secure-transport-and-artifacts.md) owns the
 remaining work. The [security contract](../../topics/active-content-security.md#bundled-android-fixed-shell)
 owns observable behavior, authority, limits and fallback.
@@ -44,6 +44,7 @@ security matrix; the real pane verifies the isolation and navigation boundary.
 | Fragment compatibility | Theme, widget state across inner reload, bounded follow-up insertion without submission, find and real sequential typing pass. |
 | Navigation and workers | Linked HTML, reload, explicit worker termination/restart and inert network fallback pass. |
 | Warm launcher resume | Three real HOME/MAIN cycles (1 / 2.5 / 1 s background) each show ready→connecting→ready once, retain parent/artifact identity and draft, and read a fresh asset with status 200. No application console errors. |
+| Whole-parent reload | After lease cleanup repair, eighteen restorations pass with new parent/artifact identities and removal of all old worker registrations. |
 | Pane teardown | Eighteen successive fresh admissions pass, beyond the 16-live-leases-per-principal cap. Each has a new origin/storage context and its worker registration is removed on close. |
 | Large media through owned relay | Twenty distinct local PNGs and a real 150,254,617-byte H.264 movie (600 s, 640×360, 12 fps) pass. A 100,663,296-byte prefix matches a bounded-buffer SHA-256 digest tree. |
 | Range fidelity | A 65,536-byte bounded seek at byte 50,000,000, an 8,191-byte suffix, an open-ended final 2 MiB and an invalid range match exact bytes/status/Content-Range. The invalid response retains `bytes */N` with status 416. |
@@ -77,6 +78,7 @@ reported separately; desktop retains its existing additional round-trip gate.
 | Complete movie/fault run | 4.3 / 15.0 ms | 16.8 / 23.9 ms |
 | Focused twenty-image fault bursts | 11.9 / 22.6 ms | 26.1 / 28.4 ms |
 | Public-relay warm-resume run | 7.5 / 17.8 ms | 5.4 / 18.6 ms |
+| Repaired reload/fault/warm combined run | 10.5 / 32.4 ms | 21.5 / 26.7 ms |
 
 The complete movie run appended 33 concurrent review updates while typing.
 Its command round-trip maxima were 108/279 ms, while event/input/frame clocks
@@ -213,7 +215,29 @@ wire field or privileged native artifact broker is needed. The tested WebView
 exposes Web Locks; browser lock termination on document unload offers a basis
 for distinguishing active owners from discarded documents without guessing a
 hidden-tab timeout ([specification](https://w3c.github.io/web-locks/#termination-of-locks)).
-The repair and concurrent-owner qualification remain open.
+The source-bound cleanup repair now passes eighteen actual-app restorations
+over the public encrypted relay. A final rebuilt app also passes sixty image
+reads across the three seeded faults, fresh movie playback, three real launcher
+resumes (one recovery interval each), eighteen explicit viewer closes and
+eighteen parent reloads in the same run, with no application errors. This
+focused run omits the separate 96 MiB/pause movie matrix. Its artifact/composer
+command RTT maxima are 271/235 ms; trusted input/frame maxima remain within
+100 ms as shown above. Owned packages and processes are removed after each run.
+
+Two CI browser cases use real same-origin pages, storage and Web Locks with a
+controlled HTTP transport facade. Eighteen peer reloads preserve another live
+owner and serialize concurrent journal writes. Source mismatch causes no
+request; failed DELETE remains recorded, authoritative 404 settles it, and an
+arbitrary stored API path is discarded without a request. These tests exercise
+client bookkeeping, not server authentication. The full actual desktop YA
+viewer also passes over the public encrypted relay, including concurrent
+origins and survivor refusal after close. All 24 focused browser cases pass
+in 50.7 seconds, including existing custom-deployment/settings behavior.
+
+The owning security contract documents journal/lock limits, unavailable-browser
+fallback and the remaining crash window before an admission response is
+received/recorded. Server expiry bounds that unknown lease. No privileged native
+artifact broker or new wire field was added.
 
 ## Verification and remaining limits
 
@@ -262,8 +286,8 @@ Unqualified or pending:
 - The current native tab implementation keeps one active WebView; selecting a
   different native tab saves history and destroys the old document. Two live
   artifact documents across native tabs are not supplied by that topology.
-  Repeated parent reload currently exhausts server preview leases as recorded
-  above. Artifact-specific tab-switch/source-switch cleanup, Activity recreation,
+  Repeated parent reload is repaired and qualified as recorded above.
+  Artifact-specific tab-switch/source-switch cleanup, Activity recreation,
   long half-open sockets and radio/route transitions still need acceptance.
   Sequential viewers and worker restart are narrower evidence.
 - The source/generated APK uses 256 MiB per file, 1 GiB produced bytes per viewer

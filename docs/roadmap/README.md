@@ -1,6 +1,6 @@
 # Roadmap
 
-Last updated: 2026-10-16.
+Last updated: 2026-10-17.
 
 This is Yep Anywhere's canonical product-priority overview. Keep initiative
 status, the next action, and major blockers here; keep implementation steps in
@@ -30,9 +30,10 @@ launcher resumes retain the artifact/draft and show one recovery interval each.
 The eight-reader 128 KiB/s diagnostic now reproduces a relay circuit queue
 closure in two actual-app runs; aggregate flow control remains a failing gate. The
 [measured report](../testing/android-artifact-streaming-2026-10-16.md) preserves an
-earlier 103.2 ms frame miss and the narrower coverage of these passes. Artifact
-A separate parent-reload gate fails on orphaned preview leases after fifteen
-restorations; client cleanup needs repair. Activity/source/tab lifecycle
+earlier 103.2 ms frame miss and the narrower coverage of these passes.
+Parent reload recovery now reclaims orphaned preview leases while preserving
+live owners; eighteen actual-app restorations and browser concurrency checks
+pass. Activity/source/tab lifecycle
 acceptance and an unlocked-phone run remain. A
 connection-wide streaming-window negotiation awaits maintainer compatibility
 approval; current per-body bounds alone do not bound cancelled relay tails.

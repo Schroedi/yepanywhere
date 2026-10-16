@@ -7,6 +7,10 @@ import { useScriptlessPreviewLinks } from "../hooks/useScriptlessPreviewLinks";
 import { useLocalFileScope } from "../hooks/useLocalFileScope";
 import { useOptionalSessionMetadata } from "../contexts/SessionMetadataContext";
 import { getResolvedTheme } from "../hooks/useTheme";
+import {
+  reclaimArtifactPreviewLeases,
+  retainArtifactPreviewLease,
+} from "../lib/artifactPreviewLeaseCleanup";
 import { useI18n } from "../i18n";
 import {
   type ArtifactPreviewLease,
@@ -80,29 +84,28 @@ export function ManagedArtifactPreview(props: ArtifactPreviewProps) {
       return;
     }
     let cancelled = false;
-    let admitted: ArtifactPreviewLease | undefined;
+    let cleanup: (() => Promise<void>) | undefined;
     const release = () => {
-      if (admitted)
-        void runtime.transport
-          .fetch(`${base}/${encodeURIComponent(admitted.id)}`, {
-            method: "DELETE",
-          })
-          .catch(() => {});
+      void cleanup?.().catch(() => {});
     };
     setLease(null);
     setBusy(true);
     setFailed(false);
-    void runtime.transport
-      .fetch<ArtifactPreviewLease>(base, {
-        method: "POST",
-        body: JSON.stringify({
-          path: entry,
-          ...(!sessionId && props.projectId
-            ? { projectId: props.projectId }
-            : {}),
-        }),
-      })
-      .then((value) => {
+    void reclaimArtifactPreviewLeases(runtime.sourceKey, runtime.transport)
+      .then(async () => {
+        if (cancelled) return;
+        const value = await runtime.transport.fetch<ArtifactPreviewLease>(
+          base,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              path: entry,
+              ...(!sessionId && props.projectId
+                ? { projectId: props.projectId }
+                : {}),
+            }),
+          },
+        );
         if (
           !value ||
           typeof value.id !== "string" ||
@@ -110,7 +113,12 @@ export function ManagedArtifactPreview(props: ArtifactPreviewProps) {
           typeof value.expiresAt !== "number"
         )
           throw new Error("Invalid preview lease");
-        admitted = value;
+        cleanup = await retainArtifactPreviewLease(
+          runtime.sourceKey,
+          base,
+          value,
+          runtime.transport,
+        );
         if (cancelled) {
           release();
           return;
