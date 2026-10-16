@@ -408,6 +408,11 @@ Intentional disconnect, host switching, disposal and terminal verification/auth
 failures stop automatic recovery. Late completions cannot revive stopped or
 superseded attempts.
 
+Native bridge state observations also supersede an earlier reconnect command's
+reply. A delayed success cannot mark a newer native retry ready, and a delayed
+failure cannot regress a newer connected or connecting state. Without a newer
+native observation, the command reply retains its compatibility behavior.
+
 ### Resume credentials and failure evidence
 
 A local handshake timeout, socket failure, relay outage, unknown error, or

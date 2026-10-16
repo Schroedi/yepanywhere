@@ -21,6 +21,50 @@ afterEach(() => {
 });
 
 describe("native source transport", () => {
+  it.each([
+    ["CONNECTED", "ready"],
+    ["CONNECTING", "connecting"],
+    ["RETRYING", "reconnecting"],
+  ])(
+    "ignores a recovery failure after native reports %s",
+    async (phase, state) => {
+      const { host, transport } = await setup();
+      let fail!: (error: Error) => void;
+      host.handler = () =>
+        new Promise((_, reject) => {
+          fail = reject;
+        });
+      const recovery = transport.reconnect();
+      const rejected = expect(recovery).rejects.toThrow("old recovery");
+      await vi.waitFor(() => expect(host.commands).toHaveLength(1));
+      await host.emit({ type: "state", phase, recoverable: true });
+      const current = transport.status.getSnapshot();
+      fail(new Error("old recovery"));
+      await rejected;
+      expect(transport.status.getSnapshot()).toBe(current);
+      expect(current.state).toBe(state);
+      window.dispatchEvent(new Event("online"));
+      expect(host.commands).toHaveLength(1);
+    },
+  );
+
+  it("does not promote a newer native retry when an earlier recovery succeeds", async () => {
+    const { host, transport } = await setup();
+    let finish!: () => void;
+    host.handler = () =>
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+    const recovery = transport.reconnect();
+    await vi.waitFor(() => expect(host.commands).toHaveLength(1));
+    await host.emit({ type: "state", phase: "RETRYING", recoverable: true });
+    finish();
+    await recovery;
+    expect(transport.status.getSnapshot().state).toBe("reconnecting");
+    await host.emit({ type: "state", phase: "CONNECTED", recoverable: false });
+    expect(transport.status.getSnapshot().state).toBe("ready");
+  });
+
   it("keeps Android retry exhaustion recoverable without changing the backstop", async () => {
     const { host, transport } = await setup();
     vi.useFakeTimers();

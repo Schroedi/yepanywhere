@@ -55,6 +55,7 @@ export class NativeSourceTransport implements SourceTransport, Connection {
   private phase = "CONNECTING";
   private bridgeClosed = false;
   private explicitRecovery = false;
+  private nativeStateRevision = 0;
   private recovery: Promise<void> | null = null;
   private recoveryTimer: ReturnType<typeof setTimeout> | undefined;
   private lastRecovery = -Infinity;
@@ -97,6 +98,7 @@ export class NativeSourceTransport implements SourceTransport, Connection {
     );
     this.bridge.onEvent = (message) => {
       if (message.type === "state") {
+        this.nativeStateRevision++;
         let phase = String(message.phase);
         if (typeof message.recoverable === "boolean")
           this.explicitRecovery = true;
@@ -539,16 +541,27 @@ export class NativeSourceTransport implements SourceTransport, Connection {
       );
     this.lastRecovery = Date.now();
     this.setPhase("RETRYING");
+    const nativeStateRevision = this.nativeStateRevision;
     const recovery = this.bridge.request<void>("reconnect");
     this.recovery = recovery;
     void recovery
       .then(
         () => {
-          if (this.canRecover() && this.phase === "RETRYING")
+          if (
+            this.nativeStateRevision === nativeStateRevision &&
+            this.canRecover() &&
+            this.phase === "RETRYING"
+          )
             this.setPhase("CONNECTED");
         },
         () => {
-          if (this.canRecover() && this.phase !== "OFFLINE")
+          // State events can overtake an operation reply across resume. Native
+          // observations supersede both success and failure of that old call.
+          if (
+            this.nativeStateRevision === nativeStateRevision &&
+            this.canRecover() &&
+            this.phase !== "OFFLINE"
+          )
             this.setPhase(this.explicitRecovery ? "EXHAUSTED" : "FAILED");
         },
       )

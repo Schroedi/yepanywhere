@@ -118,3 +118,22 @@ the measured acceptance before calling this reliable.
 - [ ] Progressive native responses, backpressure and cancellation.
 - [ ] Packaged viewer integration and lifecycle compatibility.
 - [ ] Large-media/many-image acceptance, fault matrix and review.
+
+## Measured progress
+
+The initial unchanged browser password-login/SRP/relay run passed 31 of 32
+cases in 1.9 minutes. Full login, verified resume after refresh/disconnect,
+credential rejection/scope, relay recovery and a streamed download beyond the
+single-message limit passed. The separate new-session startup typing case
+lost its initial space; that remains under investigation, not a clean baseline.
+
+Four deterministic native-bridge cases reproduce old reconnect completions
+overwriting newer native states. A native state revision now prevents those
+old successes/failures from publishing status. The four cases fail before the
+repair; all 44 focused bridge/transport/subscription cases pass afterward in
+4 seconds. This establishes a state-ordering defect, not the cause of the
+maintainer's particular physical-phone observation. Device diagnosis remains.
+Root lint (zero warnings), format, typecheck and the full unit suite pass
+(6,999 client / 6,583 server; about 125 seconds). Native Rust baseline fmt,
+tests and warning-denying clippy pass. Existing intentional negative-path test
+logs and console-budget debt remain recorded in their existing gaps.
