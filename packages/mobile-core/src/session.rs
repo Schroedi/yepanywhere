@@ -133,6 +133,15 @@ pub async fn login(
     password: Zeroizing<String>,
     storage: Option<Arc<dyn crate::CredentialPersistence>>,
 ) -> Result<Arc<NativeSession>> {
+    login_gated(options, password, storage, Arc::new(Mutex::new(()))).await
+}
+pub(crate) async fn login_gated(
+    options: SessionOptions,
+    password: Zeroizing<String>,
+    storage: Option<Arc<dyn crate::CredentialPersistence>>,
+    credential_gate: Arc<Mutex<()>>,
+) -> Result<Arc<NativeSession>> {
+    let _settled = credential_gate.lock().await;
     validate(&options)?;
     check(!password.is_empty() && password.len() <= 4096)?;
     let mut wire = Wire::connect(&options.endpoint, options.relay_target.as_deref()).await?;
@@ -173,7 +182,12 @@ pub async fn login(
     persist(&storage, &credential)?;
     let secure = establish(wire, &credential, nonce).await?;
     Ok(NativeSession::start(
-        options, credential, secure, storage, None,
+        options,
+        credential,
+        secure,
+        storage,
+        None,
+        credential_gate.clone(),
     ))
 }
 fn persist(
@@ -290,9 +304,16 @@ pub async fn resume(
             && credential.session_id.len() <= 128
             && credential.resume_protocol_version >= 3,
     )?;
+    let credential_gate = Arc::new(Mutex::new(()));
+    let _settled = credential_gate.lock().await;
     let secure = resume_secure(&options, &mut credential, &storage).await?;
     Ok(NativeSession::start(
-        options, credential, secure, storage, None,
+        options,
+        credential,
+        secure,
+        storage,
+        None,
+        credential_gate.clone(),
     ))
 }
 pub(crate) fn validate_routes(routes: &[NativeRoute], username: &str) -> Result<()> {
@@ -309,11 +330,21 @@ pub(crate) fn validate_routes(routes: &[NativeRoute], username: &str) -> Result<
     Ok(())
 }
 pub async fn resume_routes(
-    mut routes: Vec<NativeRoute>,
+    routes: Vec<NativeRoute>,
     username: String,
     data: &[u8],
     storage: Arc<dyn crate::CredentialPersistence>,
 ) -> Result<Arc<NativeSession>> {
+    resume_routes_gated(routes, username, data, storage, Arc::new(Mutex::new(()))).await
+}
+pub(crate) async fn resume_routes_gated(
+    mut routes: Vec<NativeRoute>,
+    username: String,
+    data: &[u8],
+    storage: Arc<dyn crate::CredentialPersistence>,
+    credential_gate: Arc<Mutex<()>>,
+) -> Result<Arc<NativeSession>> {
+    let _settled = credential_gate.lock().await;
     check(data.len() <= 4096)?;
     validate_routes(&routes, &username)?;
     let mut credential: Credential = serde_json::from_slice(data)?;
@@ -334,6 +365,7 @@ pub async fn resume_routes(
         secure,
         storage,
         Some(routes),
+        credential_gate.clone(),
     ))
 }
 async fn resume_candidates(
@@ -412,6 +444,7 @@ impl NativeSession {
         secure: Secure,
         storage: Option<Arc<dyn crate::CredentialPersistence>>,
         routes: Option<Vec<NativeRoute>>,
+        credential_gate: Arc<Mutex<()>>,
     ) -> Arc<Self> {
         let (commands, rx) = mpsc::channel(32);
 
@@ -441,7 +474,15 @@ impl NativeSession {
             lease: lease.clone(),
         });
         tokio::spawn(async move {
-            let mut actor = Actor::new(options, credential, secure, rx, lease, storage);
+            let mut actor = Actor::new(
+                options,
+                credential,
+                secure,
+                rx,
+                lease,
+                storage,
+                credential_gate,
+            );
             if let Some(routes) = routes {
                 actor.routes = routes;
             }
@@ -617,6 +658,7 @@ struct Actor {
     retired: Vec<String>,
     lease: Arc<Lease>,
     storage: Option<Arc<dyn crate::CredentialPersistence>>,
+    credential_gate: Arc<Mutex<()>>,
     pending: HashMap<String, Pending>,
     streams: HashMap<String, Stream>,
     subscriptions: HashMap<String, Value>,
@@ -630,6 +672,7 @@ impl Actor {
         commands: mpsc::Receiver<Command>,
         lease: Arc<Lease>,
         storage: Option<Arc<dyn crate::CredentialPersistence>>,
+        credential_gate: Arc<Mutex<()>>,
     ) -> Self {
         Self {
             routes: vec![NativeRoute {
@@ -644,6 +687,7 @@ impl Actor {
             retired: Vec::new(),
             lease,
             storage,
+            credential_gate,
             pending: HashMap::new(),
             streams: HashMap::new(),
             subscriptions: HashMap::new(),
@@ -727,7 +771,17 @@ impl Actor {
         self.event(json!({"type":"state","phase":"RETRYING"}))?;
         for delay in [250, 1000, 3000] {
             tokio::select! { _ = self.lease.cancel.cancelled() => return Err(Error::Closed), _ = tokio::time::sleep(Duration::from_millis(delay)) => {} }
-            let result = tokio::select! { _ = self.lease.cancel.cancelled() => return Err(Error::Closed), r = resume_candidates(&mut self.routes, &mut self.credential, &self.storage) => r };
+            let gate = self.credential_gate.clone();
+            let cancel = self.lease.cancel.clone();
+            let result = tokio::select! {
+                biased;
+                _ = cancel.cancelled() => return Err(Error::Closed),
+                r = async {
+                    let _settled = gate.lock().await;
+                    if cancel.is_cancelled() { return Err(Error::Closed); }
+                    resume_candidates(&mut self.routes, &mut self.credential, &self.storage).await
+                } => r
+            };
             match result {
                 Ok(secure) => {
                     if self.lease.cancel.is_cancelled() {
@@ -1307,6 +1361,10 @@ pub(crate) mod tests {
                 }
                 let request: Value = serde_json::from_slice(&plain[1..]).unwrap();
                 let request = &request["msg"];
+                if request["type"] == "request" && request["path"] == "/drop-for-resume" {
+                    socket.close(None).await.unwrap();
+                    break;
+                }
                 if request["type"] == "request" && request["path"] == "/invalid" {
                     socket
                         .send(Message::text("unauthenticated application data"))
@@ -1425,6 +1483,14 @@ pub(crate) mod tests {
                         stream_id = None;
                     }
                 }
+            }
+            if mutation == "reconnect-stall" {
+                let (next, _) = listener.accept().await.unwrap();
+                let mut next = accept_async(next).await.unwrap();
+                let _ = next.next().await;
+                next.send(Message::text(json!({"type":"srp_resume_challenge","sessionId":credential().session_id,"nonce":nonce}).to_string())).await.unwrap();
+                let _ = next.next().await;
+                std::future::pending::<()>().await;
             }
         });
         (

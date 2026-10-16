@@ -70,6 +70,7 @@ data class YaRoutedTransport(
 )
 
 interface YaProfileConnector {
+    suspend fun awaitCredentialSettled(profileId: String) {}
     suspend fun resume(
         profile: YaPairedServerProfile,
         credential: YaResumeCredential,

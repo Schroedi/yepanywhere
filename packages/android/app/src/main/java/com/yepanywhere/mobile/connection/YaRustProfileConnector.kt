@@ -62,6 +62,9 @@ const val SYNTHETIC_RESPONSE_TAG = "YaSyntheticResponse"
 class YaRustProfileConnector(private val repository: YaPairedServerRepository) : YaProfileConnector, Closeable {
     private val active = ConcurrentHashMap.newKeySet<YaRustMessageTransport>()
     private val runtime = NativeRuntime()
+    override suspend fun awaitCredentialSettled(profileId: String) {
+        withContext(Dispatchers.IO) { runtime.settleCredential(profileId) }
+    }
     // UniFFI polls suspended Rust futures on the calling coroutine's thread.
     // Android's TLS verifier can fetch CRLs synchronously during a poll, so
     // every connection entry point must leave Main even when called by the UI.

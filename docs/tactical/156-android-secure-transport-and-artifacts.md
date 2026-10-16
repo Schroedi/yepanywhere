@@ -181,3 +181,13 @@ and warning-denying clippy pass; actual mux and legacy relay fixture checks
 pass. Android lint/JVM checks and workspace lint/format/typecheck/full units
 pass (7,016 client / 6,583 server; about 140 seconds). These are foundation
 checks, not completed movie or device-lifecycle qualification.
+
+A real encrypted-peer/storage schedule reproduces the actor-cancellation
+credential gap. A per-profile credential barrier now orders old restoration,
+snapshot visibility and a newer v5 proof; the same regression covers explicit
+profile retirement and slot pruning. It fails before serialization and passes
+afterward, preserving the invalidation/downgrade checks. A second controlled
+regression proves catch-up is no longer held behind reconnect security check-in;
+it times out before the repair and passes afterward. Rust's 32 tests and
+warning-denying clippy and Android lint/full JVM suites pass. The maintainer's
+exact phone banner sequence still needs device correlation.

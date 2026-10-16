@@ -36,6 +36,35 @@ import org.junit.Test
 
 class YaServerConnectionManagerTest {
     @Test
+    fun drainsEventsWhileResumeSecurityBookkeepingIsPending() = runBlocking {
+        val fixture = Fixture()
+        val transport = FakeTransport(fixture.credential)
+        fixture.connector.results.send(Result.success(transport))
+        val checking = CompletableDeferred<Unit>()
+        val finish = CompletableDeferred<Unit>()
+        var calls = 0
+        val manager = fixture.manager(securityClients = YaSecurityClientLifecycle { _, _ ->
+            if (++calls > 1) { checking.complete(Unit); finish.await() }
+            fixture.profile
+        })
+        val lease = manager.acquire()
+        try {
+            withTimeout(2000) { manager.state.first { it.phase == YaConnectionPhase.CONNECTED } }
+            val subscription = lease.subscribe(channel = "activity")
+            val event = async(start = CoroutineStart.UNDISPATCHED) { subscription.events.first() }
+            val id = transport.awaitSent("subscribe").getString("subscriptionId")
+            transport.incoming.send(JSONObject().put("type", "state").put("phase", "RETRYING"))
+            transport.incoming.send(JSONObject().put("type", "state").put("phase", "CONNECTED"))
+            withTimeout(2000) { checking.await() }
+            transport.incoming.send(JSONObject().put("type", "event").put("subscriptionId", id)
+                .put("eventType", "message").put("eventId", "1").put("data", "catch-up"))
+            assertEquals("catch-up", withTimeout(2000) { event.await() }.data)
+            assertFalse(finish.isCompleted)
+            subscription.close()
+        } finally { finish.complete(Unit); lease.releaseAndAwait(); manager.shutdownAndAwait() }
+    }
+
+    @Test
     fun restoresBeforePublishingTheTransportToANewSubscriber() = runBlocking {
         val fixture = Fixture()
         val manager = fixture.manager()

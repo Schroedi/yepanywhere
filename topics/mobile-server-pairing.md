@@ -318,6 +318,19 @@ errors and one safe pre-header recovery retry match ordinary transport behavior.
 A response cut after headers never restarts its body. Streaming is not automatic
 write replay and does not change file authorization or preview lease budgets.
 
+Credential persistence is serialized per native profile across initial login,
+resume, actor reconnect and retirement. The manager waits for an old actor's
+cancellation restore before reading the stored credential. A temporary cleared
+resume window cannot become a false sign-in requirement, and an old backup
+cannot overwrite a newer verified proof. This keeps invalidation-before-proof
+and durable minimum-version verification intact. A retired profile's barrier
+survives until its outstanding actor cleanup has settled.
+
+Native inbound events keep draining while reconnect security check-in awaits
+network/storage. A newer native phase cancels the previous check-in before it
+can publish readiness; stale transports cannot write connected metadata. This
+does not grant access before security check-in succeeds.
+
 While a lease exists, an unexpected disconnect gets three bounded retries
 after 250 ms, 1 second, and 3 seconds. The manager has no recurring retry or
 heartbeat of its own. A new explicit request after a terminal failure may

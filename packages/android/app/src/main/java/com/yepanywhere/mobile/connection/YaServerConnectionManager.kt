@@ -19,6 +19,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
@@ -565,6 +568,7 @@ class YaServerConnectionManager(
                 )
                 var routed: YaRoutedTransport? = null
                 try {
+                    connector.awaitCredentialSettled(profileId)
                     val snapshot = repository.snapshot(profileId)
                         ?: throw YaConnectionUnavailableException("Paired server profile was removed")
                     val stored = snapshot.resumeCredential
@@ -680,10 +684,25 @@ class YaServerConnectionManager(
         }
     }
 
-    private suspend fun receiveMessages(generation: Long, routed: YaRoutedTransport) {
-        while (currentCoroutineContext().isActive) {
-            handleMessage(generation, routed.transport, routed.transport.receive())
-        }
+    private suspend fun receiveMessages(generation: Long, routed: YaRoutedTransport) = coroutineScope {
+        var bookkeeping: Job? = null
+        try {
+            while (currentCoroutineContext().isActive) {
+                val message = routed.transport.receive()
+                if (message.optString("type") == "state") {
+                    // Security check-in can await network/storage. Keep draining
+                    // bounded native queues, but cancel an obsolete check before
+                    // handling the next socket epoch.
+                    bookkeeping?.cancelAndJoin()
+                    bookkeeping = null
+                    if (message.optString("phase") == "CONNECTED") {
+                        bookkeeping = launch { handleMessage(generation, routed.transport, message) }
+                        continue
+                    }
+                }
+                handleMessage(generation, routed.transport, message)
+            }
+        } finally { bookkeeping?.cancelAndJoin() }
     }
 
     private suspend fun handleMessage(
@@ -706,15 +725,18 @@ class YaServerConnectionManager(
                         }
                     }
                     "CONNECTED" -> {
+                        val current = mutex.withLock { connectionGeneration == generation && connection?.transport === transport }
+                        if (!current) return
                         val snapshot = checkNotNull(repository.snapshot(profileId))
                         securityClients?.ensure(snapshot.profile, transport)
-                        val route = snapshot.profile.routes.firstOrNull { it.id == transport.routeId }
-                            ?: connection?.route ?: error("Native route is unavailable")
-                        val stored = checkNotNull(repository.snapshot(profileId)?.resumeCredential)
-                        val connectedAt = maxOf(nowEpochMs(), stored.establishedAtEpochMs)
-                        repository.recordSuccessfulAuthentication(profileId, route.id, stored.copy(credential = transport.credential, lastResumedAtEpochMs = connectedAt), connectedAt)
+                        currentCoroutineContext().ensureActive()
                         mutex.withLock {
                             if (connectionGeneration != generation || connection?.transport !== transport) return
+                            val route = snapshot.profile.routes.firstOrNull { it.id == transport.routeId }
+                                ?: connection?.route ?: error("Native route is unavailable")
+                            val stored = checkNotNull(repository.snapshot(profileId)?.resumeCredential)
+                            val connectedAt = maxOf(nowEpochMs(), stored.establishedAtEpochMs)
+                            repository.recordSuccessfulAuthentication(profileId, route.id, stored.copy(credential = transport.credential, lastResumedAtEpochMs = connectedAt), connectedAt)
                             connection = YaRoutedTransport(route, transport)
                             mutableState.value = YaConnectionState(YaConnectionPhase.CONNECTED, routeId = route.id)
                         }
