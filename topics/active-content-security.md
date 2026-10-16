@@ -372,8 +372,9 @@ no artifact listener, public origin or tunnel configuration is required.
 On qualified hosted Chrome clients, opening HTML in preview runs its scripts
 automatically; Stop restores the scriptless view. An explicitly configured
 usable custom artifact origin retains precedence.
-Custom hosted origins and native shells retain their existing delivery until
-qualified; they do not silently adopt first-party infrastructure.
+Custom hosted origins retain their configured delivery. The bundled Android
+shell can supply the fixed first-party viewer locally when it explicitly
+advertises packaged viewer version 1; its boundary is described below.
 
 The new API admits read-only, process-local preview leases independently of
 public/local artifact grants. Admission binds the acting principal, optional
@@ -385,9 +386,12 @@ execution grant, hosted identity, or authority to delete files.
 
 Leases last 30 minutes, are explicitly revocable, and end on server restart.
 Admission prunes expired entries; there are at most 128 process-wide and 16 per
-principal. Each permits 1,024 distinct canonical files, 64 MiB per file and
-256 MiB cumulative admitted response bytes (only the selected bytes for a
-range). At most 16 reads per lease and 64 process-wide are active; this gives headroom while client-side cancellation
+principal. Each permits 1,024 distinct canonical files, 256 MiB per file and
+1 GiB cumulative produced response bytes. Only bytes actually enqueued for a
+read spend that cumulative budget; cancelling an open-ended range does not
+spend its entire promised Content-Length. Repeated reads still spend their
+produced bytes. A read has a 120-second progress-based idle deadline, bounded
+by lease expiry; a paused consumer cannot retain a producer indefinitely. At most 16 reads per lease and 64 process-wide are active; this gives headroom while client-side cancellation
 propagates over the relay. Revocation, disconnect, cancellation, app disposal
 and the bounded stream deadline close active bodies. The parent queues at most
 64 waiting reads per viewer / 256 per tab, with eight active per viewer and 32
@@ -399,7 +403,11 @@ Paths are relative to the admitted directory. Traversal, absolute paths,
 dotfiles, backslashes, out-of-root symlinks and changed entry mappings fail
 closed. The authenticated endpoint keeps browser-active responses inert and
 attachment-only on the YA origin. Only the isolated content worker constructs
-executable browser responses under its own restrictive policy.
+executable browser responses under its own restrictive policy. Opened-file
+responses read at most 64 KiB per pull with one buffered chunk of read-ahead.
+Cancellation closes the descriptor after admitted I/O; late completion cannot
+enqueue into a cancelled body. A file truncated below its declared response
+length fails the body rather than silently completing it.
 
 The managed host serves a fixed, versioned bootstrap and worker, with explicit
 first-party parent allowlisting, origin-agent clustering and no ambient YA
@@ -431,11 +439,10 @@ and viewer-frame focus in the trusted parent, remain bounded, and never auto-sub
 [Host delivery and acceptance](../artifact-host/README.md) records supported
 resource types and measured results. [Plan 155](../docs/tactical/155-managed-artifact-viewer.md) records
 qualification and rollout. Android Chrome 124 on an Android 15 emulator and
-Chrome 155 on a physical Android 17 phone pass the managed delivery matrix. The actual bundled Android Debug app
-retains its scriptless fallback; its cross-site appassets origin is not an
-approved managed parent. Physical fresh UI pairing and fallback teardown pass;
-the emulator pairing stall remains separately recorded. Basic WebKit evidence
-is not native-mobile support.
+Chrome 155 on a physical Android 17 phone pass the managed delivery matrix.
+The packaged Android path below is being qualified separately; earlier native
+scriptless fallback evidence does not qualify interactive native delivery.
+Basic WebKit evidence is not native-mobile support.
 [Android evidence and setup limits](../artifact-host/README.md#android-emulator-qualification--2026-10-16)
 distinguish the browser result from the native app.
 
@@ -445,6 +452,44 @@ across clients, so overload can still return 429. The expiry notification uses
 the server timestamp against the client clock; clock skew may show Retry early.
 Lease expiry intentionally tears down in-page state after 30 minutes; dashboard
 renewal and durable widget state are not supplied by v1.
+
+### Bundled Android fixed shell
+
+A bundled Android shell advertising `packagedArtifactViewerVersion: 1` may open
+the managed viewer from `https://appassets.androidplatform.net` when its captured
+server also advertises `artifact-relay-preview`. A cached server version does
+not suppress activation when native availability arrives later. Without both
+features the existing configured viewer or scriptless/source fallback remains.
+An explicit custom public artifact origin and public-share handling retain
+precedence. Hosted-mode APKs do not install this packaged interception.
+
+Android supplies only four versioned fixed assets for exact
+`artifact-<32hex>.yepanywhere.com` HTTPS subframe/worker requests. The bootstrap
+must name its matching viewer and the exact appassets parent. Other reserved
+paths fail inertly; main-frame requests and unsupported methods are denied.
+The APK-generated worker permits only appassets as its ancestor; the hosted
+worker keeps its existing official-parent list. The shell is installed once
+before any WebView, uses application-owned immutable bytes, and holds no
+Activity, credentials, file handles or fetch authority. Both WebView resource
+loads and service-worker script/resource loads use that fixed routing boundary.
+
+The browser service worker and trusted JavaScript parent retain the same
+message protocol and authenticated lease broker. Native interception does not
+deliver artifact bytes or interpret artifact paths. Subframe HTTP(S) navigation
+stays subject to browser CSP; it cannot move the privileged main frame. The
+native bridge remains available only to the trusted main-frame appassets
+origin. Third-party cookies remain disabled. Unsupported worker interception
+fails closed to the existing fallback rather than opening the native bridge.
+
+The native data path uses progressive encrypted responses and bounded,
+pull-driven binary bridge messages. Each source admits eight bodies with 64
+FIFO waiters; individual native body queues are bounded at 1 MiB. Cancel,
+consumed EOF and document teardown release admission. Queued media alternates
+with catch-up behind small state/control messages. This does not yet establish
+a shared bound across completed/cancelled relay tails; the separately negotiated
+connection-window proposal in plan 156 remains pending approval and testing.
+The 256 MiB media limit in source/generated APK assets is not a claim that the
+currently deployed hosted worker has been updated; publication is separate.
 
 ## Open Decisions
 

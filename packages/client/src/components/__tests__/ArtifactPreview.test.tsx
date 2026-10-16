@@ -19,9 +19,25 @@ const state = vi.hoisted(() => ({
   getPublicFileShares: vi.fn(),
   createPublicFileShare: vi.fn(),
 }));
+const statusListeners = new Set<() => void>();
+let sourceSnapshot = { kind: "secure", state: "ready", channels: [] };
+const capabilities: {
+  sameOriginUrls: boolean;
+  packagedArtifactViewerVersion?: 1;
+} = { sameOriginUrls: true };
 const runtime = {
   sourceKey: "localhost",
-  transport: { fetch: state.fetch, capabilities: { sameOriginUrls: true } },
+  transport: {
+    fetch: state.fetch,
+    capabilities,
+    status: {
+      getSnapshot: () => sourceSnapshot,
+      subscribe: (listener: () => void) => {
+        statusListeners.add(listener);
+        return () => statusListeners.delete(listener);
+      },
+    },
+  },
 };
 vi.mock("../../contexts/SourceRuntimeContext", () => ({
   useCurrentSourceRuntime: () => runtime,
@@ -46,6 +62,8 @@ const PROJECT_ID = "cHJvamVjdA";
 const SHARE_URL = `https://ya.example/remote/share/secret123/file?h=relayuser&projectId=${PROJECT_ID}&path=mockup%2Findex.html&standalone=1#v=2&target=file`;
 
 beforeEach(() => {
+  delete capabilities.packagedArtifactViewerVersion;
+  sourceSnapshot = { kind: "secure", state: "ready", channels: [] };
   state.version = {
     current: "0.8.2",
     capabilities: ["artifact-viewer"],
@@ -446,4 +464,34 @@ it("releases a managed lease admitted after its viewer closes", async () => {
   expect(state.fetch).toHaveBeenLastCalledWith("/artifact-previews/late", {
     method: "DELETE",
   });
+});
+
+it("selects the packaged viewer after native hello even when version data was already cached", async () => {
+  vi.stubGlobal("location", {
+    origin: "https://appassets.androidplatform.net",
+    hostname: "appassets.androidplatform.net",
+    href: "https://appassets.androidplatform.net/",
+  });
+  vi.stubGlobal("navigator", {
+    userAgent: "Mozilla/5.0 Chrome/124.0.0.0",
+    language: "en-US",
+  });
+  state.version = {
+    current: "0.9.4",
+    capabilities: ["artifact-relay-preview"],
+    artifactViewer: { available: false },
+  };
+  state.fetch.mockImplementation(() => new Promise(() => {}));
+  sourceSnapshot = { ...sourceSnapshot, state: "connecting" };
+  mount();
+  expect(state.fetch).not.toHaveBeenCalled();
+  await act(async () => {
+    capabilities.packagedArtifactViewerVersion = 1;
+    sourceSnapshot = { ...sourceSnapshot, state: "ready" };
+    for (const listener of statusListeners) listener();
+  });
+  expect(state.fetch).toHaveBeenCalledWith(
+    "/artifact-previews",
+    expect.objectContaining({ method: "POST" }),
+  );
 });

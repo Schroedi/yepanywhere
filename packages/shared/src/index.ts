@@ -12,6 +12,9 @@ export * from "./vhost-oauth.js";
 export * from "./new-session-bootstrap.js";
 export {
   ARTIFACT_SANDBOX,
+  MANAGED_ARTIFACT_MAX_FILE_BYTES,
+  MANAGED_ARTIFACT_MAX_VIEWER_BYTES,
+  MANAGED_ARTIFACT_READ_IDLE_MS,
   ARTIFACT_TAB_PROTOCOL,
   isArtifactTabRequest,
 } from "./artifact-viewer.js";

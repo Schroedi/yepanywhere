@@ -5,7 +5,7 @@ import {
   type LocalResourceRef,
   type UrlProjectId,
 } from "@yep-anywhere/shared";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { ResourceContextMenu } from "./FileResourceActions";
 import { useSessionAppAnnouncer } from "./SessionAppLinks";
@@ -66,11 +66,29 @@ export const SCRIPTLESS_PREVIEW_SANDBOX = "allow-same-origin";
 
 export function ArtifactPreview(props: ArtifactPreviewProps) {
   const runtime = useCurrentSourceRuntime();
+  // Native capabilities arrive with hello. A retained cached version must not
+  // leave the pane on its initial fallback after that source becomes ready.
+  const statusStore = useMemo(
+    () => ({
+      subscribe: (listener: () => void) =>
+        runtime.transport.status.subscribe(listener),
+      getSnapshot: () =>
+        runtime.transport.capabilities.packagedArtifactViewerVersion ?? 0,
+    }),
+    [runtime.transport],
+  );
+  const packagedViewerVersion = useSyncExternalStore(
+    statusStore.subscribe,
+    statusStore.getSnapshot,
+    statusStore.getSnapshot,
+  );
   const version = useRetainedVersionInfo(runtime.sourceKey);
   const share = usePublicShareContext();
   const managed =
     share === null &&
-    MANAGED_ARTIFACT_PARENTS.has(location.origin) &&
+    (MANAGED_ARTIFACT_PARENTS.has(location.origin) ||
+      (location.origin === "https://appassets.androidplatform.net" &&
+        packagedViewerVersion === 1)) &&
     /Chrome|Chromium|Edg\//.test(navigator.userAgent) &&
     !version?.artifactViewer?.publicOrigin &&
     serverHasCapability(version, SERVER_CAPABILITIES.artifactRelayPreview.name);

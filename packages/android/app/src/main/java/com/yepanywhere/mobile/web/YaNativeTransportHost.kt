@@ -174,7 +174,8 @@ class YaNativeTransportHost private constructor(
                     val snapshot = checkNotNull(runtime.pairedServers.snapshot(profileId))
                     postText(JSONObject().put("type", "hello").put("protocol", 1).put("handle", handle)
                         .put("profileId", profileId).put("label", snapshot.profile.label)
-                        .put("binary", binary).put("responseStreams", true).put("stateQuery", true).toString())
+                        .put("binary", binary).put("responseStreams", true).put("stateQuery", true)
+                        .put("packagedArtifactViewerVersion", (view.context.applicationContext as? com.yepanywhere.mobile.YepAnywhereApplication)?.artifactShell?.version ?: 0).toString())
                     scope.launch {
                         try { observeForeground() }
                         catch (error: kotlinx.coroutines.CancellationException) { throw error }

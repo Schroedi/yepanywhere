@@ -1,5 +1,5 @@
 export const VERSION = "1";
-const DEFAULT_PARENTS = [
+export const DEFAULT_PARENTS = [
   "https://yepanywhere.com",
   "https://latest.yepanywhere.com",
 ];
@@ -32,7 +32,7 @@ export function serve(request, assets, env = {}) {
     if (!parents.includes(parent) || !/^[a-f0-9]{32}$/.test(viewer ?? ""))
       return new Response("Invalid viewer", { status: 400, headers });
     headers.set("Content-Type", "text/html; charset=utf-8");
-    content = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="ya-parent-origin" content="${parent}"><style>html,body,iframe{margin:0;width:100%;height:100%;border:0;display:block}html,body{overflow:hidden}</style><script defer src="/__ya/${VERSION}/bootstrap.js"></script></head><body></body></html>`;
+    content = bootstrapHtml(parent);
   } else if (
     url.pathname === `/__ya/${VERSION}/bootstrap.js` ||
     url.pathname === `/__ya/${VERSION}/worker.js` ||
@@ -47,4 +47,8 @@ export function serve(request, assets, env = {}) {
   if (content === undefined)
     return new Response("No artifact on this server", { status: 404, headers });
   return new Response(request.method === "HEAD" ? null : content, { headers });
+}
+
+export function bootstrapHtml(parent) {
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="ya-parent-origin" content="${parent}"><style>html,body,iframe{margin:0;width:100%;height:100%;border:0;display:block}html,body{overflow:hidden}</style><script defer src="/__ya/${VERSION}/bootstrap.js"></script></head><body></body></html>`;
 }

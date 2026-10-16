@@ -17,6 +17,7 @@ export interface NativeSourceDescriptor {
   binary: boolean;
   responseStreams?: boolean;
   stateQuery?: boolean;
+  packagedArtifactViewerVersion?: 1;
 }
 
 /** Native operation failure, distinct from an HTTP response and bridge closure. */
@@ -359,6 +360,9 @@ export class NativeTransportBridge {
         binary: message.binary,
         ...(message.responseStreams === true ? { responseStreams: true } : {}),
         ...(message.stateQuery === true ? { stateQuery: true } : {}),
+        ...(message.packagedArtifactViewerVersion === 1
+          ? { packagedArtifactViewerVersion: 1 as const }
+          : {}),
       };
       this.resolveReady(this.descriptor);
       return;

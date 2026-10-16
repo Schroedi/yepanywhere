@@ -1,3 +1,4 @@
+const MAX_FILE_BYTES = 256 * 1024 * 1024;
 const PROTOCOL = "yep-artifact-preview/1";
 const POLICY = [
   "sandbox allow-scripts allow-same-origin allow-downloads",
@@ -8,7 +9,13 @@ const POLICY = [
   "font-src 'self' data: blob:",
   "media-src 'self' data: blob:",
   "connect-src 'self'",
-  "frame-ancestors 'self' https://yepanywhere.com https://latest.yepanywhere.com",
+  "frame-ancestors 'self' " +
+    (
+      self.__YA_ARTIFACT_PARENTS__ ?? [
+        "https://yepanywhere.com",
+        "https://latest.yepanywhere.com",
+      ]
+    ).join(" "),
   "frame-src 'none'",
   "worker-src 'none'",
   "object-src 'none'",
@@ -85,6 +92,10 @@ async function deliver(request, url) {
     port1.close();
     return new Response("Read refused", {
       status: head?.status >= 400 && head.status <= 599 ? head.status : 502,
+      ...(head?.status === 416 &&
+      /^bytes \*\/\d+$/.test(head.headers?.["content-range"] ?? "")
+        ? { headers: { "content-range": head.headers["content-range"] } }
+        : {}),
     });
   }
   let bytes = 0;
@@ -115,7 +126,7 @@ async function deliver(request, url) {
               message.bytes instanceof ArrayBuffer
             ) {
               bytes += message.bytes.byteLength;
-              if (bytes > 64 * 1024 * 1024) {
+              if (bytes > MAX_FILE_BYTES) {
                 controller.error(new Error("File limit"));
                 cancel();
               } else controller.enqueue(new Uint8Array(message.bytes));

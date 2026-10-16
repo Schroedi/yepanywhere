@@ -1,3 +1,8 @@
+import {
+  MANAGED_ARTIFACT_MAX_FILE_BYTES,
+  MANAGED_ARTIFACT_MAX_VIEWER_BYTES,
+  MANAGED_ARTIFACT_READ_IDLE_MS,
+} from "@yep-anywhere/shared";
 import type { SourceTransport } from "./transport/types";
 
 export const ARTIFACT_PREVIEW_PROTOCOL = "yep-artifact-preview/1";
@@ -169,6 +174,7 @@ export function connectManagedArtifactViewer(options: {
     let started = false;
     let pulling = false;
     let fileBytes = 0;
+    let length: number | undefined;
     const stop = () => {
       if (finished) return;
       finished = true;
@@ -193,10 +199,15 @@ export function connectManagedArtifactViewer(options: {
         void readFile();
       },
     };
-    const deadline = setTimeout(() => {
-      port.postMessage({ type: "error" });
-      stop();
-    }, 60000);
+    let deadline: ReturnType<typeof setTimeout>;
+    const progress = () => {
+      clearTimeout(deadline);
+      deadline = setTimeout(() => {
+        port.postMessage({ type: "error" });
+        stop();
+      }, MANAGED_ARTIFACT_READ_IDLE_MS);
+    };
+    progress();
     requests.add(stop);
     port.onmessage = async (event) => {
       if (finished) return;
@@ -214,13 +225,19 @@ export function connectManagedArtifactViewer(options: {
         const part = await reader.read();
         if (finished || closed) return;
         if (part.done) {
+          if (length !== undefined && fileBytes !== length)
+            throw new Error("Incomplete preview body");
           port.postMessage({ type: "end" });
           stop();
           return;
         }
+        progress();
         fileBytes += part.value.byteLength;
         bytes += part.value.byteLength;
-        if (fileBytes > 64 * 1024 * 1024 || bytes > 256 * 1024 * 1024)
+        if (
+          fileBytes > (length ?? MANAGED_ARTIFACT_MAX_FILE_BYTES) ||
+          bytes > MANAGED_ARTIFACT_MAX_VIEWER_BYTES
+        )
           throw new Error("Preview byte limit");
         const buffer = part.value.slice().buffer;
         port.postMessage({ type: "chunk", bytes: buffer }, [buffer]);
@@ -249,8 +266,12 @@ export function connectManagedArtifactViewer(options: {
         }
         if (![200, 206].includes(response.status)) {
           const refusal = await response.json().catch(() => null);
+          const range = response.headers.get("content-range");
           port.postMessage({
             status: response.status >= 400 ? response.status : 502,
+            ...(response.status === 416 && /^bytes \*\/\d+$/.test(range ?? "")
+              ? { headers: { "content-range": range } }
+              : {}),
           });
           stop();
           if (
@@ -260,6 +281,17 @@ export function connectManagedArtifactViewer(options: {
             fail();
           return;
         }
+        const declared = response.headers.get("content-length");
+        if (declared !== null) {
+          length = Number(declared);
+          if (
+            !/^\d+$/.test(declared) ||
+            !Number.isSafeInteger(length) ||
+            length > MANAGED_ARTIFACT_MAX_FILE_BYTES
+          )
+            throw new Error("Invalid preview length");
+        }
+        progress();
         reader = (
           response.body ??
           new ReadableStream<Uint8Array>({
@@ -294,7 +326,18 @@ export function connectManagedArtifactViewer(options: {
             error.status <= 599
               ? error.status
               : 502;
-          port.postMessage({ status });
+          const range =
+            error instanceof Error &&
+            "headers" in error &&
+            error.headers instanceof Headers
+              ? error.headers.get("content-range")
+              : null;
+          port.postMessage({
+            status,
+            ...(status === 416 && /^bytes \*\/\d+$/.test(range ?? "")
+              ? { headers: { "content-range": range } }
+              : {}),
+          });
           stop();
           if (
             message.path === lease.entry ||

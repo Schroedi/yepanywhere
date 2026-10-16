@@ -1,3 +1,6 @@
+import { readFile } from "node:fs/promises";
+import { runInNewContext } from "node:vm";
+import { MANAGED_ARTIFACT_MAX_FILE_BYTES } from "../packages/shared/dist/artifact-viewer.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { serve } from "./host.mjs";
@@ -58,4 +61,15 @@ test("worker scope and HEAD stay bounded independently of artifact contents", as
   );
   assert.equal(head.status, 200);
   assert.equal(await head.text(), "");
+});
+
+test("the standalone worker's file bound matches the server and parent", async () => {
+  const source = await readFile(
+    new URL("./worker.js", import.meta.url),
+    "utf8",
+  );
+  const bound = runInNewContext(`${source}\nMAX_FILE_BYTES`, {
+    self: { addEventListener() {} },
+  });
+  assert.equal(bound, MANAGED_ARTIFACT_MAX_FILE_BYTES);
 });

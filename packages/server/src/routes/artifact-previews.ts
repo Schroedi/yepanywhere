@@ -1,3 +1,8 @@
+import {
+  MANAGED_ARTIFACT_MAX_FILE_BYTES as MAX_FILE_BYTES,
+  MANAGED_ARTIFACT_MAX_VIEWER_BYTES as MAX_VIEWER_BYTES,
+  MANAGED_ARTIFACT_READ_IDLE_MS,
+} from "@yep-anywhere/shared";
 import { randomUUID } from "node:crypto";
 import { realpath } from "node:fs/promises";
 import { basename, dirname, extname, isAbsolute, resolve } from "node:path";
@@ -17,8 +22,6 @@ import { createUntrustedFileResponseHeaders } from "./untrusted-file-response.js
 
 const LIFETIME_MS = 30 * 60_000;
 const MAX_LEASES = 128;
-const MAX_FILE_BYTES = 64 * 1024 * 1024;
-const MAX_VIEWER_BYTES = 256 * 1024 * 1024;
 
 interface PreviewLease {
   id: string;
@@ -39,11 +42,17 @@ export function createArtifactPreviewRoutes(deps: {
   scope: SessionPathScopeResolver;
   scanner: Pick<ProjectScanner, "getProject" | "listProjects">;
   now?: () => number;
+  /** Tests may lower, never widen, the production delivered-byte budget. */
+  maxViewerBytes?: number;
 }) {
   const routes = new Hono();
   // At most 128 leases, pruned on admission/access and disposed with the app.
   const leases = new Map<string, PreviewLease>();
   const now = deps.now ?? Date.now;
+  const maxViewerBytes = Math.max(
+    1,
+    Math.min(deps.maxViewerBytes ?? MAX_VIEWER_BYTES, MAX_VIEWER_BYTES),
+  );
   let readers = 0;
   let closed = false;
   const owner = (c: Context) => {
@@ -205,11 +214,19 @@ export function createArtifactPreviewRoutes(deps: {
     };
     readers++;
     lease.readers.add(stopPending);
-    const deadline = setTimeout(
-      stopPending,
-      Math.min(60_000, Math.max(1, lease.expiresAt - now())),
-    );
-    deadline.unref?.();
+    let deadline: ReturnType<typeof setTimeout>;
+    const progress = () => {
+      clearTimeout(deadline);
+      deadline = setTimeout(
+        stopPending,
+        Math.min(
+          MANAGED_ARTIFACT_READ_IDLE_MS,
+          Math.max(1, lease.expiresAt - now()),
+        ),
+      );
+      deadline.unref?.();
+    };
+    progress();
     c.req.raw.signal.addEventListener("abort", stopPending, { once: true });
     if (c.req.raw.signal.aborted) stopPending();
     try {
@@ -283,14 +300,14 @@ export function createArtifactPreviewRoutes(deps: {
         (!lease.files.has(canonical) && lease.files.size >= 1024) ||
         !Number.isSafeInteger(responseBytes) ||
         responseBytes < 0 ||
-        lease.bytes + responseBytes > MAX_VIEWER_BYTES
+        lease.bytes >= maxViewerBytes
       ) {
         await response.body?.cancel();
         return c.json({ error: "Preview byte limit" }, 413);
       }
       lease.files.add(canonical);
-      // Reserve actual response bytes, including only the selected range.
-      lease.bytes += responseBytes;
+      // Charge produced bytes, so cancelling an open-ended seek does not
+      // spend the entire promised range. Reader slots still bound concurrency.
       const headers = createUntrustedFileResponseHeaders({
         baseHeaders: response.headers,
         filePath: canonical,
@@ -326,7 +343,15 @@ export function createArtifactPreviewRoutes(deps: {
             if (part.done) {
               finish();
               controller.close();
-            } else controller.enqueue(part.value);
+            } else {
+              if (lease.bytes + part.value.byteLength > maxViewerBytes) {
+                stop();
+                return;
+              }
+              lease.bytes += part.value.byteLength;
+              progress();
+              controller.enqueue(part.value);
+            }
           } catch (error) {
             if (!finished) {
               finish();

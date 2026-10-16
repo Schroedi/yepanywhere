@@ -34,6 +34,9 @@ beforeEach(async () => {
   await writeFile(join(bundle, ".secret"), "hidden");
   allowed = [root];
   clock = Date.now();
+  mount();
+});
+function mount(maxViewerBytes?: number) {
   app = new Hono();
   app.use("*", async (c, next) => {
     c.set(
@@ -53,9 +56,10 @@ beforeEach(async () => {
     }),
     scanner: { listProjects: async () => [], getProject: async () => null },
     now: () => clock,
+    maxViewerBytes,
   });
   app.route("/api", previews.routes);
-});
+}
 afterEach(async () => {
   previews.close();
   await rm(root, { recursive: true, force: true });
@@ -219,4 +223,54 @@ it("charges only range bytes and enforces concurrent admission before filesystem
   expect(await (await file(grant.id, "data.json")).json()).toMatchObject({
     reason: "preview-unavailable",
   });
+});
+
+it("does not charge cancelled movie promises and retains late seek and 416 metadata", async () => {
+  const size = 160 * 1024 * 1024;
+  await writeFile(join(root, "bundle/movie.mp4"), "");
+  await truncate(join(root, "bundle/movie.mp4"), size);
+  const grant = await admit();
+  for (let i = 0; i < 10; i++) {
+    const response = await app.request(
+      `/api/artifact-previews/${grant.id}/file?path=movie.mp4`,
+      { headers: { Range: "bytes=0-" } },
+    );
+    expect(response.status).toBe(206);
+    expect(response.headers.get("content-length")).toBe(String(size));
+    const reader = response.body!.getReader();
+    expect((await reader.read()).value!.byteLength).toBeGreaterThan(0);
+    await reader.cancel();
+  }
+  const seek = await app.request(
+    `/api/artifact-previews/${grant.id}/file?path=movie.mp4`,
+    { headers: { Range: "bytes=150000000-150000099" } },
+  );
+  expect(seek.status).toBe(206);
+  expect(seek.headers.get("content-range")).toBe(
+    `bytes 150000000-150000099/${size}`,
+  );
+  expect((await seek.arrayBuffer()).byteLength).toBe(100);
+  const invalid = await app.request(
+    `/api/artifact-previews/${grant.id}/file?path=movie.mp4`,
+    { headers: { Range: "bytes=200000000-" } },
+  );
+  expect(invalid.status).toBe(416);
+  expect(invalid.headers.get("content-range")).toBe(`bytes */${size}`);
+});
+
+it("fails a body at the delivered-byte budget and releases all reader slots", async () => {
+  previews.close();
+  mount(65536);
+  await writeFile(join(root, "bundle/movie.mp4"), new Uint8Array(512 * 1024));
+  const grant = await admit();
+  const response = await file(grant.id, "movie.mp4");
+  expect(response.status).toBe(200);
+  await expect(response.arrayBuffer()).rejects.toThrow("Preview read ended");
+  expect((await file(grant.id, "data.json")).status).toBe(413);
+  const fresh = await admit();
+  const responses = await Promise.all(
+    Array.from({ length: 16 }, () => file(fresh.id, "data.json")),
+  );
+  expect(responses.every((r) => r.ok)).toBe(true);
+  for (const response of responses) await response.body?.cancel();
 });

@@ -146,7 +146,9 @@ export function createRelayApiError(
   if (getRelayHeader(response.headers, "X-Setup-Required") === "true") {
     error.setupRequired = true;
   }
-  return Object.assign(error, refusalFields(response.body));
+  return Object.assign(error, refusalFields(response.body), {
+    headers: new Headers(response.headers),
+  });
 }
 
 /** A Response rebuilt from a relay response's single-message body. */

@@ -34,7 +34,10 @@ import {
 export class NativeSourceTransport implements SourceTransport, Connection {
   readonly kind = "secure" as const;
   readonly mode = "secure" as const;
-  readonly capabilities = { sameOriginUrls: false };
+  readonly capabilities: {
+    sameOriginUrls: boolean;
+    packagedArtifactViewerVersion?: 1;
+  } = { sameOriginUrls: false };
   readonly bridge: NativeTransportBridge;
   private readonly responseBodies: NativeResponseBodies;
   readonly ready: NativeTransportBridge["ready"];
@@ -85,7 +88,11 @@ export class NativeSourceTransport implements SourceTransport, Connection {
   constructor(channel: NativeTransportChannel) {
     this.bridge = new NativeTransportBridge(channel);
     this.responseBodies = new NativeResponseBodies(this.bridge);
-    this.ready = this.bridge.ready;
+    this.ready = this.bridge.ready.then((descriptor) => {
+      if (descriptor.packagedArtifactViewerVersion === 1)
+        this.capabilities.packagedArtifactViewerVersion = 1;
+      return descriptor;
+    });
     this.protocol = new RelayProtocol(
       {
         sendMessage: (message) => this.send(message),
