@@ -41,8 +41,8 @@ test("session preview links suppress context menus and preserve link gestures", 
   for (const options of [
     { button: "middle" as const },
     { modifiers: ["Shift" as const] },
-    { modifiers: ["Control" as const] },
-    { modifiers: ["Meta" as const] },
+    // Native Control-click is a context-menu gesture on macOS, not a click.
+    { modifiers: ["ControlOrMeta" as const] },
   ]) {
     const popupPromise = page.context().waitForEvent("page");
     await link.click(options);
@@ -50,6 +50,15 @@ test("session preview links suppress context menus and preserve link gestures", 
     await popup.waitForURL(new URL(href!, baseURL).href);
     expect(new URL(page.url()).pathname).toBe("/settings/appearance");
     await popup.close();
+  }
+
+  if (process.platform === "darwin") {
+    await link.evaluate((element) =>
+      element.removeAttribute("data-context-menu-prevented"),
+    );
+    await link.click({ modifiers: ["Control"] });
+    await expect(link).toHaveAttribute("data-context-menu-prevented", "true");
+    expect(page.context().pages()).toHaveLength(1);
   }
 
   await page.setViewportSize({ width: 375, height: 812 });
