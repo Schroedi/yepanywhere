@@ -7,6 +7,12 @@ status, the next action, and major blockers here; keep implementation steps in
 `docs/tactical/` and durable behavior contracts in `topics/`. Planning stays in
 the repository and does not require epics, ticket numbers, or pull requests.
 
+The first-party hosted artifact viewer is authorized for implementation;
+[plan 155](../tactical/155-managed-artifact-viewer.md) owns server-scoped reads,
+managed HTTPS content delivery and compatibility. Cloudflare DNS and the
+localhost encrypted-relay proof are complete; production integration and
+browser acceptance remain.
+
 ## 1. Publish the desktop and mobile apps with continuous delivery
 
 **Highest priority.** Make Yep Anywhere available as supported public releases

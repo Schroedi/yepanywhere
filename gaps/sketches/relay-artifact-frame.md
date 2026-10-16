@@ -26,6 +26,10 @@ serving artifact URLs from a service worker on the hosted YA origin was
 rejected: untrusted HTML at a YA-origin URL is only one missing header away
 from reading relay resume state.
 
+Implementation is authorized in [the managed viewer plan](../../docs/tactical/155-managed-artifact-viewer.md).
+The first-party hosted client supplies this out of the box; explicit custom
+artifact deployments retain their behavior.
+
 ## Direction
 
 The YA page frames a static **content origin**, which holds only a versioned
@@ -139,6 +143,15 @@ Consequences:
 
 ## Open
 
+- The [2026-10-16 localhost/content-worker follow-up](../../research/content-worker-localhost-spike/README.md)
+  verifies native resource loading over actual encrypted YA relay reads with
+  no artifact network hosting. Chrome treats `localhost` to
+  `usercontent.localhost` as cross-site; nested names under `yep.localhost`
+  pass with third-party cookies blocked. Explicit worker restart, cancellation,
+  concurrent origins, unregister and post-close refusal pass. WebKit's basic
+  rendering passes but a larger fetch after navigation/reload remains an
+  unresolved failure. The report preserves the fixture and exact limits; this
+  is not production file-viewer integration or native mobile acceptance.
 - A separate [extension artifact viewer experiment](../../research/extension-artifact-spike/README.md)
   on 2026-10-16 opened local HTML and assets inside the real YA UI over the
   encrypted relay, localhost and LAN, using a packaged sandbox and bounded byte
