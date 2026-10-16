@@ -4,7 +4,7 @@ import {
   type ProjectPathLinkTarget,
   toUrlProjectId,
 } from "@yep-anywhere/shared";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { Message } from "../types";
 import type {
   RenderItem,
@@ -244,11 +244,19 @@ describe("annotateProjectPathLinksHtml", () => {
       '<p><a data-ya-resource="project-file" data-ya-path="README.md" href="/root"><code><span data-ya-directory-file="a/README.md">README.md</span></code></a> and <span data-ya-directory-file="b/README.md"><a data-ya-resource="local-file" href="/root">README.md</a></span> plus <span data-ya-directory-file="b/score.sh">score.sh</span>.</p>';
     const aliases = [{ text: "README.md", filePath: "recent/README.md" }];
     const template = document.createElement("template");
+    const setAttribute = vi.spyOn(HTMLAnchorElement.prototype, "setAttribute");
     template.innerHTML = annotateProjectPathLinksHtml(
       html,
       aliases,
       "project",
     ).html;
+    const writtenHrefs = setAttribute.mock.calls
+      .filter(([name]) => name === "href")
+      .map(([, value]) => value);
+    setAttribute.mockRestore();
+    // Directory matches must bypass the recent-name fallback entirely, rather
+    // than building an alias and overwriting it in another pass.
+    expect(writtenHrefs.some((href) => href.includes("recent%2F"))).toBe(false);
     expect(
       [...template.content.querySelectorAll("a")].map((anchor) => [
         anchor.textContent,

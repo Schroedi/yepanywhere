@@ -466,14 +466,21 @@ remains. For example, `Use ar/raghda/ ... intake (onboard.py) and scoring
 (score.sh)` displays links for `ar/raghda/onboard.py` and
 `ar/raghda/score.sh` when those files exist.
 
-The server attaches `data-ya-directory-file` to each eligible HTML occurrence,
-so two identical basenames can name different files in one body. Verification
-reuses the sparse path index, including its revision and retention rules,
+The server extracts rendered HTML path occurrences once. Exact links and
+directory context consume that same ordered list, then one rewrite emits the
+links and `data-ya-directory-file` annotations. Two identical basenames can
+therefore name different files in one body without a second HTML scan. The
+existing raw-Markdown pre-population remains: it warms the index before the
+synchronous inline-code renderer asks about files. Verification reuses the
+sparse path index, including its revision and retention rules,
 with bounded directory and file probes. Streaming known-only renders do not
 start directory discovery; settled full-body augmentation supplies it. No
 filesystem inventory reaches the client. Old clients ignore the annotation;
 new clients talking to old servers keep ordinary links without making a new
-request. Public shares do not receive these annotations.
+request. Public shares do not receive these annotations. Completed output stays
+in the existing source-versioned HTML cache, and the client makes no separate
+path-discovery requests. Client decoration applies directory matches first;
+recent full-name aliases only process unresolved occurrences.
 
 Right-clicking or long-pressing the composer formula control opens its existing
 toolbar menu with these three session-view overrides above **Hide**. Each offers

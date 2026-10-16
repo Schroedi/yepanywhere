@@ -83,9 +83,46 @@ export function annotateProjectPathLinksHtml(
     return { changed, html: changed ? template.innerHTML : html };
   }
 
+  const directoryAnchors = new Set<HTMLAnchorElement>();
+  if (settings.mentionedDirectories && !publicShare) {
+    for (const occurrence of template.content.querySelectorAll<HTMLElement>(
+      "[data-ya-directory-file]",
+    )) {
+      const filePath = occurrence.dataset.yaDirectoryFile;
+      if (!filePath) continue;
+      const anchor =
+        occurrence.closest<HTMLAnchorElement>("a") ??
+        occurrence.querySelector<HTMLAnchorElement>("a") ??
+        document.createElement("a");
+      setProjectPathAnchorTarget(anchor, projectId, filePath, null);
+      if (anchor.contains(occurrence)) {
+        occurrence.textContent = filePath;
+      } else {
+        anchor.textContent = filePath;
+        occurrence.replaceChildren(anchor);
+      }
+      const params = new URLSearchParams({ path: filePath });
+      if (anchor.dataset.yaLine) params.set("line", anchor.dataset.yaLine);
+      if (anchor.dataset.yaColumn)
+        params.set("column", anchor.dataset.yaColumn);
+      anchor.setAttribute(
+        "href",
+        `/projects/${encodeURIComponent(projectId)}/file?${params}`,
+      );
+      directoryAnchors.add(anchor);
+      changed = true;
+    }
+  }
+
+  // A previous full-name match is only a fallback. Do not retarget or tokenize
+  // an occurrence already resolved from this turn's directory context.
+  if (targets.size === 0) {
+    return { changed, html: changed ? template.innerHTML : html };
+  }
   for (const anchor of template.content.querySelectorAll<HTMLAnchorElement>(
     'a[data-ya-resource="project-file"]',
   )) {
+    if (directoryAnchors.has(anchor)) continue;
     const filePath = targets.get(anchor.textContent?.trim() ?? "");
     if (!filePath) continue;
     if (setProjectPathAnchorTarget(anchor, projectId, filePath, publicShare)) {
@@ -132,35 +169,6 @@ export function annotateProjectPathLinksHtml(
       matched.replaceWith(anchor);
       anchor.append(matched);
       void suffix;
-      changed = true;
-    }
-  }
-
-  if (settings.mentionedDirectories && !publicShare) {
-    for (const occurrence of template.content.querySelectorAll<HTMLElement>(
-      "[data-ya-directory-file]",
-    )) {
-      const filePath = occurrence.dataset.yaDirectoryFile;
-      if (!filePath) continue;
-      const anchor =
-        occurrence.closest<HTMLAnchorElement>("a") ??
-        occurrence.querySelector<HTMLAnchorElement>("a") ??
-        document.createElement("a");
-      setProjectPathAnchorTarget(anchor, projectId, filePath, null);
-      if (anchor.contains(occurrence)) {
-        occurrence.textContent = filePath;
-      } else {
-        anchor.textContent = filePath;
-        occurrence.replaceChildren(anchor);
-      }
-      const params = new URLSearchParams({ path: filePath });
-      if (anchor.dataset.yaLine) params.set("line", anchor.dataset.yaLine);
-      if (anchor.dataset.yaColumn)
-        params.set("column", anchor.dataset.yaColumn);
-      anchor.setAttribute(
-        "href",
-        `/projects/${encodeURIComponent(projectId)}/file?${params}`,
-      );
       changed = true;
     }
   }
