@@ -15,6 +15,7 @@ on:
       - 'packages/browser-extension/**'
       - 'packages/client/src/extension/**'
       - 'packages/client/scripts/extension-acceptance.mts'
+      - 'packages/client/scripts/extension-site-access-acceptance.mts'
       - 'packages/client/vite.config.extension*.ts'
       - 'docs/distribution/chrome-extension/**'
       - '.github/workflows/browser-extension.yml'
@@ -71,6 +72,10 @@ jobs:
         env:
           YA_EXTENSION_DIST: /tmp/ya-extension-candidate
         run: pnpm --filter @yep-anywhere/browser-extension acceptance
+      - name: Check site access requests without a readable tab URL
+        env:
+          YA_EXTENSION_DIST: /tmp/ya-extension-candidate
+        run: pnpm --filter @yep-anywhere/browser-extension acceptance:site-access
       - name: Upload store package
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:

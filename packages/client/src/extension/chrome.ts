@@ -11,7 +11,20 @@ export interface ChromeTab {
   windowId: number;
   url?: string;
   active: boolean;
+  index?: number;
+  pinned?: boolean;
   lastAccessed?: number;
+}
+
+export interface ChromeWindow {
+  id?: number;
+  type?: string;
+  focused?: boolean;
+  left?: number;
+  top?: number;
+  width?: number;
+  height?: number;
+  tabs?: ChromeTab[];
 }
 
 interface ChromeEvent<Listener> {
@@ -41,6 +54,15 @@ export interface ChromeApi {
     reload(): void;
     getManifest(): Record<string, unknown>;
     getURL(path: string): string;
+    getContexts(filter: { contextTypes: string[] }): Promise<
+      {
+        contextType: string;
+        documentUrl?: string;
+        frameId: number;
+        tabId: number;
+        windowId: number;
+      }[]
+    >;
     sendMessage(message: unknown): Promise<unknown>;
     onMessage: ChromeEvent<
       (
@@ -69,10 +91,16 @@ export interface ChromeApi {
     }): Promise<ChromeTab[]>;
     get(tabId: number): Promise<ChromeTab>;
     getCurrent(): Promise<ChromeTab | undefined>;
-    create(info: { url: string; active?: boolean }): Promise<ChromeTab>;
+    create(info: {
+      url: string;
+      active?: boolean;
+      windowId?: number;
+      index?: number;
+      pinned?: boolean;
+    }): Promise<ChromeTab>;
     update(
       tabId: number,
-      info: { active?: boolean; url?: string },
+      info: { active?: boolean; url?: string; pinned?: boolean },
     ): Promise<ChromeTab>;
     onActivated: ChromeEvent<
       (info: { tabId: number; windowId: number }) => void
@@ -95,8 +123,9 @@ export interface ChromeApi {
       top?: number;
       width?: number;
       height?: number;
-    }): Promise<{ id?: number; tabs?: ChromeTab[] }>;
-    getCurrent(): Promise<{ id?: number; type?: string }>;
+    }): Promise<ChromeWindow>;
+    getCurrent(): Promise<ChromeWindow>;
+    get(windowId: number): Promise<ChromeWindow>;
     update(windowId: number, info: { focused?: boolean }): Promise<unknown>;
     WINDOW_ID_CURRENT: number;
   };
@@ -129,6 +158,8 @@ export interface ChromeApi {
     }): Promise<void>;
   };
   permissions: {
+    /** Chrome 133+: ask for the tab's site without reading its URL first. */
+    addHostAccessRequest?(request: { tabId: number }): Promise<void>;
     getAll(): Promise<{ origins?: string[]; permissions?: string[] }>;
     contains(request: { origins: string[] }): Promise<boolean>;
     request(request: { origins: string[] }): Promise<boolean>;

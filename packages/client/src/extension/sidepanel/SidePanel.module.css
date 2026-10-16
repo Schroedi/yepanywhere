@@ -240,3 +240,6 @@
   flex-direction: column;
   gap: 6px;
 }
+.siteAccess button {
+  min-height: 44px;
+}

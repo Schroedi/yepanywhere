@@ -440,6 +440,7 @@ Review restart persistence, provider-native resume and archive behavior on suppo
   const context = await chromium.launchPersistentContext(join(temp, "chrome"), {
     channel: "chromium",
     headless: !headed,
+    ignoreDefaultArgs: ["--disable-extensions"],
     viewport: { width: storeAssets ? 1280 : 1000, height: 800 },
     args: [
       `--disable-extensions-except=${extension}`,
@@ -451,6 +452,15 @@ Review restart persistence, provider-native resume and archive behavior on suppo
   });
   const consoleErrors: string[] = [];
   try {
+    if (existsSync(join(dist, "dev-build.json"))) {
+      // Match Load unpacked before testing runtime.reload, as in the dev harness.
+      const prefs = await context.newPage();
+      await prefs.goto("chrome://extensions");
+      const developerMode = prefs.locator("#devMode");
+      if ((await developerMode.getAttribute("aria-pressed")) !== "true")
+        await developerMode.click();
+      await prefs.close();
+    }
     const worker =
       context.serviceWorkers()[0] ??
       (await context.waitForEvent("serviceworker"));
@@ -1178,6 +1188,118 @@ Review restart persistence, provider-native resume and archive behavior on suppo
       await app.reload();
     }
     expect(consoleErrors.filter((text) => !/favicon/.test(text))).toEqual([]);
+    if (!storeAssets && existsSync(join(dist, "dev-build.json"))) {
+      // Runtime reload closes extension tabs. Restore the real authenticated
+      // session, its locally saved draft, and the inactive panel without any
+      // manual navigation or new page to wake the replacement worker.
+      const sessionUrl = `${origin}/-/relay/${USERNAME}/projects/${Buffer.from(project).toString("base64url")}/sessions/accept-impl?restore=1#reload-proof`;
+      await app.goto(sessionUrl);
+      const draft = app.locator("[data-composer-input]");
+      await expect(draft).toBeVisible();
+      await draft.pressSequentially("Draft kept across extension reload");
+      const restorePanel = await context.newPage();
+      const panelUrl = `${origin}/sidepanel.html`;
+      await restorePanel.goto(panelUrl);
+      await expect(
+        restorePanel.getByRole("button", {
+          name: "Reload extension",
+          exact: true,
+        }),
+      ).toBeVisible();
+      await app.bringToFront();
+      const stopped = worker.waitForEvent("close");
+      await restorePanel
+        .getByRole("button", { name: "Reload extension", exact: true })
+        .evaluate((button: HTMLButtonElement) => button.click());
+      await stopped;
+      await expect
+        .poll(
+          () =>
+            context
+              .pages()
+              .find((page) => page !== app && page.url() === sessionUrl),
+          { timeout: 30_000 },
+        )
+        .toBeTruthy();
+      const restoredApp = context
+        .pages()
+        .find((page) => page !== app && page.url() === sessionUrl)!;
+      try {
+        await expect(restoredApp.locator("[data-composer-input]")).toHaveValue(
+          "Draft kept across extension reload",
+          { timeout: 30_000 },
+        );
+      } catch (error) {
+        log(
+          JSON.stringify({
+            restoredUrl: restoredApp.url(),
+            body: await restoredApp
+              .locator("body")
+              .innerText()
+              .catch(() => "Page unavailable"),
+          }),
+        );
+        throw error;
+      }
+      await expect(restoredApp.getByText(/^Opened /).first()).toBeVisible({
+        timeout: 30_000,
+      });
+      await expect
+        .poll(
+          () =>
+            context
+              .pages()
+              .find((page) => page !== restorePanel && page.url() === panelUrl),
+          { timeout: 30_000 },
+        )
+        .toBeTruthy();
+      const restoredPanel = context
+        .pages()
+        .find((page) => page !== restorePanel && page.url() === panelUrl)!;
+      await expect(
+        restoredPanel.getByText(
+          /^\d+ (?:issues and PRs|issue or PR) in this session$/,
+        ),
+      ).toBeVisible({ timeout: 30_000 });
+      const active = await restoredApp.evaluate(async () => {
+        const chrome = (
+          globalThis as unknown as {
+            chrome: {
+              tabs: {
+                getCurrent(): Promise<{ id: number }>;
+                query(options: object): Promise<{ id: number }[]>;
+              };
+            };
+          }
+        ).chrome;
+        return {
+          own: (await chrome.tabs.getCurrent()).id,
+          active: (
+            await chrome.tabs.query({ active: true, currentWindow: true })
+          )[0]?.id,
+        };
+      });
+      expect(active.own).toBe(active.active);
+      expect(
+        context.pages().filter((page) => page.url() === sessionUrl),
+      ).toHaveLength(1);
+      for (const viewport of [
+        { width: 1000, height: 600 },
+        { width: 375, height: 812 },
+      ]) {
+        await restoredApp.setViewportSize(viewport);
+        const path = join(rawShots, `restored-session-${viewport.width}.png`);
+        await restoredApp.screenshot({ path });
+        githubShots.push({
+          name: `restored-session-${viewport.width}`,
+          ...viewport,
+          path,
+        });
+      }
+      log(
+        "runtime reload restored the exact session URL, unsent draft, active tab and session panel without manual recovery",
+      );
+    }
     if (storeAssets) {
       await app.setViewportSize({ width: 375, height: 812 });
       await app.goto(

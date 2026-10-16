@@ -36,8 +36,11 @@ release `dist` alone. To watch without a dev server, run
 
 The **Yep Anywhere (Dev)** side panel has a build indicator and update button
 at the bottom right. UI-only updates refresh the panel in place; worker or
-manifest changes offer **Reload extension**. Chrome may close the panel during
-a full extension reload and reject automatic reopening without a fresh user
+manifest changes highlight **Reload extension**. That button is also always
+available for a manual full reload, even when build detection fails or no
+update is detected. Full reload saves and restores the open extension tabs,
+their session URLs and window placement. Chrome may close the panel during a full extension reload
+and reject automatic reopening without a fresh user
 gesture; click the toolbar icon to reopen it. Updates are never applied
 automatically. Failed builds retain the last successful output. One watcher
 owns each output directory, so use one owner across dev profiles. See the

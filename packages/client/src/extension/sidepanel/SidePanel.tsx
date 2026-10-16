@@ -44,6 +44,7 @@ import {
 } from "../settings";
 import { DevBuildFooter } from "./DevBuildFooter";
 import styles from "./SidePanel.module.css";
+import { SiteAccess } from "./SiteAccess";
 import { useCurrentTab } from "./useCurrentTab";
 
 const REFRESH_MS = 30_000;
@@ -112,36 +113,6 @@ function useCollapsedGroups(): [GroupKey[], (key: GroupKey) => void] {
     setCollapsed(next);
   }, []);
   return [collapsed, toggle];
-}
-
-function useSiteAccess(url: string | undefined): boolean | null {
-  const [granted, setGranted] = useState<boolean | null>(null);
-  useEffect(() => {
-    const chrome = getChrome();
-    if (!chrome || !url) {
-      setGranted(null);
-      return;
-    }
-    let origin: string;
-    try {
-      origin = new URL(url).origin;
-    } catch {
-      setGranted(null);
-      return;
-    }
-    const check = () =>
-      void chrome.permissions
-        .contains({ origins: [`${origin}/*`] })
-        .then(setGranted, () => setGranted(null));
-    check();
-    chrome.permissions.onAdded.addListener(check);
-    chrome.permissions.onRemoved.addListener(check);
-    return () => {
-      chrome.permissions.onAdded.removeListener(check);
-      chrome.permissions.onRemoved.removeListener(check);
-    };
-  }, [url]);
-  return granted;
 }
 
 function StateBadge({ session }: { session: PanelSession }) {
@@ -392,7 +363,6 @@ export function SidePanel() {
     .map((host) => `${host.id}:${host.session?.sessionId ?? ""}`)
     .join(",");
   const tab = useCurrentTab();
-  const access = useSiteAccess(tab.url);
   const [manualUrl, setManualUrl] = useState<string>();
   const [content, setContent] = useState<Content>({ kind: "idle" });
   const [loading, setLoading] = useState(false);
@@ -527,15 +497,7 @@ export function SidePanel() {
     if (chrome && item.url) void chrome.tabs.create({ url: item.url });
   };
 
-  const requestSite = () => {
-    const chrome = getChrome();
-    if (!chrome || !tab.url) return;
-    const origin = new URL(tab.url).origin;
-    void chrome.permissions.request({ origins: [`${origin}/*`] });
-  };
-
   const showHost = hosts.length > 1;
-  const site = tab.url ? new URL(tab.url).host : "";
   const lookup = content.kind === "lookup" ? content.lookup : null;
   const attention = content.kind === "attention" ? content.view : null;
   const session = content.kind === "session" ? content.issues : null;
@@ -627,6 +589,7 @@ export function SidePanel() {
       </header>
 
       <main className={styles.body}>
+        <SiteAccess tab={tab} />
         {hosts.length === 0 ? (
           <section className={styles.context}>
             <p>
@@ -781,23 +744,8 @@ export function SidePanel() {
                 />
               ))}
 
-            {(reference || route) && tab.clicked && access === false && (
-              <div className={styles.siteAccess}>
-                <button type="button" onClick={requestSite}>
-                  {t("extensionPanelAllowSite", { site })}
-                </button>
-                <p className={styles.hint}>
-                  {t("extensionPanelAllowSiteHint", { site })}
-                </p>
-              </div>
-            )}
-
-            {!reference && !route && (
-              <p className={styles.hint}>
-                {tab.url
-                  ? t("extensionPanelNoIssue")
-                  : t("extensionPanelPageUnknown")}
-              </p>
+            {tab.url && !reference && !route && (
+              <p className={styles.hint}>{t("extensionPanelNoIssue")}</p>
             )}
 
             {attention && (

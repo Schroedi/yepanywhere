@@ -22,6 +22,7 @@ import {
 } from "./appTab";
 import { type ChromeTab, getChrome } from "./chrome";
 import { countIssueSessions } from "./lookup";
+import { restoreDevReload } from "./devReload";
 import {
   activeHosts,
   loadMirroredHosts,
@@ -42,6 +43,12 @@ interface FetchEventLike {
 }
 const worker = globalThis as unknown as {
   location: Location;
+  registration: ServiceWorkerRegistration;
+  addEventListener(
+    type: "activate",
+    listener: () => void,
+    options: { once: boolean },
+  ): void;
   addEventListener(
     type: "fetch",
     listener: (event: FetchEventLike) => void,
@@ -56,38 +63,53 @@ const COUNT_CACHE_PREFIX = "ya.count.";
 const chrome = getChrome()!;
 
 // A bounded, one-shot dev reload hint survives runtime.reload's context loss.
-let devReopenWindow: number | undefined;
+// Bounded by the dev snapshot's 256-window limit, consumed on toolbar clicks.
+const devReopenWindows = __EXTENSION_DEV_WORKER_HASH__
+  ? new Set<number>()
+  : undefined;
 if (__EXTENSION_DEV_WORKER_HASH__) {
   chrome.runtime.onMessage.addListener((message, _sender, respond) => {
     if ((message as { kind?: string })?.kind === "ya-dev-worker")
       respond({ workerHash: __EXTENSION_DEV_WORKER_HASH__ });
     return false;
   });
-  void (async () => {
-    const key = "ya.dev.reopenPanel";
-    const stored = (await chrome.storage.local.get(key))[key] as
-      | { windowId?: number; at?: number }
-      | undefined;
-    if (!stored) return;
-    await chrome.storage.local.remove(key);
-    if (
-      typeof stored.windowId !== "number" ||
-      typeof stored.at !== "number" ||
-      Date.now() - stored.at > 30_000
-    )
-      return;
-    try {
-      await chrome.sidePanel.open({ windowId: stored.windowId });
-    } catch {
-      // Chrome may reject reopening without a fresh user gesture. The next
-      // toolbar click reopens the panel even if its normal action is App tab.
-      devReopenWindow = stored.windowId;
-      await chrome.action.setTitle({
-        title: "Development extension updated — click to reopen the side panel",
-      });
-      await chrome.action.setBadgeText({ text: "↻" });
-    }
-  })().catch(() => {});
+  const restore = () =>
+    void (async () => {
+      for (const windowId of await restoreDevReload(chrome)) {
+        try {
+          await chrome.sidePanel.open({ windowId });
+        } catch {
+          // Chrome may reject reopening without a fresh user gesture. The next
+          // toolbar click reopens the panel even if its normal action is App tab.
+          devReopenWindows?.add(windowId);
+          await chrome.action.setTitle({
+            title:
+              "Development extension updated — click to reopen the side panel",
+          });
+          await chrome.action.setBadgeText({ text: "↻" });
+        }
+      }
+    })().catch(() => {});
+  // Deep-link app tabs need this worker's navigation fetch handler. Opening
+  // them during installation races activation and produces ERR_FILE_NOT_FOUND.
+  if (worker.registration.active?.state === "activated") restore();
+  else
+    worker.addEventListener(
+      "activate",
+      () => {
+        const active = worker.registration.active;
+        if (active?.state === "activated") restore();
+        else {
+          const activated = () => {
+            if (active?.state !== "activated") return;
+            active.removeEventListener("statechange", activated);
+            restore();
+          };
+          active?.addEventListener("statechange", activated);
+        }
+      },
+      { once: true },
+    );
 }
 
 // The toolbar click must open the side panel within its user gesture, so
@@ -140,8 +162,7 @@ function openSidePanel(tab: ChromeTab): void {
 }
 
 chrome.action.onClicked.addListener((tab) => {
-  if (__EXTENSION_DEV_WORKER_HASH__ && devReopenWindow === tab.windowId) {
-    devReopenWindow = undefined;
+  if (__EXTENSION_DEV_WORKER_HASH__ && devReopenWindows?.delete(tab.windowId)) {
     openSidePanel(tab);
     void chrome.action.setTitle({ title: "Yep Anywhere" });
     void chrome.action.setBadgeText({ text: "" });

@@ -385,6 +385,14 @@ Opt-in extension development now rebuilds to a separate `dist-dev`, with a
 side-panel update indicator and panel-preserving UI refresh; full worker
 reloads attempt to reopen the panel within Chrome's gesture restrictions
 ([plan 154](../tactical/154-extension-development-builds.md)).
+The dev footer always offers **Reload extension** independently of build
+detection, alongside the lighter panel refresh when a full reload is not required.
+Full dev reload also snapshots and recreates the open extension tabs at their
+exact session URLs, preserves tab/window placement, and attempts panel restoration.
+The side panel now offers per-site access above its content even when the
+current address is hidden or no host is connected; Chrome 133+ handles the
+unknown-site request without broader tab permissions. Older Chrome retains
+toolbar guidance ([site access contract](../../topics/trusted-client-packaging.md#chrome-extension-client)).
 This experiment does not displace release delivery.
 
 These remain candidates behind publishing and continuous delivery, not a

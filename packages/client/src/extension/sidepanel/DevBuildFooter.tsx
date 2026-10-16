@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useI18n } from "../../i18n";
 import { getChrome } from "../chrome";
+import { saveDevReload } from "../devReload";
 import styles from "./DevBuildFooter.module.css";
 
 interface BuildInfo {
@@ -104,23 +105,19 @@ export function DevBuildFooter() {
     };
   }, [current, check]);
   const update = latest && latest.generation !== current;
-  const reload = async () => {
+  const reloadPanel = () => {
     if (!latest || error) {
       setCheck((value) => value + 1);
       return;
     }
-    if (!fullReload) {
-      window.location.reload();
-      return;
-    }
+    window.location.reload();
+  };
+  const reloadExtension = async () => {
     const chrome = getChrome();
     if (!chrome) return;
     setReloading(true);
     try {
-      const window = await chrome.windows.getCurrent();
-      await chrome.storage.local.set({
-        "ya.dev.reopenPanel": { windowId: window.id, at: Date.now() },
-      });
+      await saveDevReload(chrome);
       chrome.runtime.reload();
     } catch {
       setError(true);
@@ -136,24 +133,29 @@ export function DevBuildFooter() {
             ? t("extensionDevUpdateReady")
             : t("extensionDevCurrent", { build: current.slice(0, 8) })}
       </span>
-      <button
-        type="button"
-        className={update ? styles.update : styles.reload}
-        disabled={reloading}
-        title={
-          fullReload
-            ? t("extensionDevFullReloadHelp")
-            : t("extensionDevPanelReloadHelp")
-        }
-        onClick={() => void reload()}
-      >
-        {!latest || error
-          ? t("extensionDevCheck")
-          : fullReload
-            ? t("extensionDevReloadExtension")
+      {(!fullReload || !latest || error) && (
+        <button
+          type="button"
+          className={update && !error ? styles.update : styles.reload}
+          disabled={reloading}
+          title={t("extensionDevPanelReloadHelp")}
+          onClick={reloadPanel}
+        >
+          {!latest || error
+            ? t("extensionDevCheck")
             : update
               ? t("extensionDevUpdatePanel")
               : t("extensionDevReloadPanel")}
+        </button>
+      )}
+      <button
+        type="button"
+        className={update && fullReload ? styles.update : styles.reload}
+        disabled={reloading}
+        title={t("extensionDevFullReloadHelp")}
+        onClick={() => void reloadExtension()}
+      >
+        {t("extensionDevReloadExtension")}
       </button>
     </footer>
   );

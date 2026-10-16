@@ -87,7 +87,7 @@ export async function registerAppTab(): Promise<() => void> {
  * `chrome.storage.session` id of the tab in the new-session popup window. It
  * is an app tab, but only the new-session button ever navigates it.
  */
-const COMPOSE_TAB_KEY = "ya.composeTab";
+export const COMPOSE_TAB_KEY = "ya.composeTab";
 
 async function composeTabId(): Promise<number | undefined> {
   const chrome = getChrome();

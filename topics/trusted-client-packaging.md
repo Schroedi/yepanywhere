@@ -183,6 +183,22 @@ cannot inject into or debug its pages, and its storage belongs to it alone.
   is optional and granted per site by the user from the side panel or
   Settings → Browser extension; there are no content scripts, no `tabs`
   permission and no `externally_connectable` entry.
+- **Site access invitation.** The side panel shows **Find sessions related to
+  this page** and **Allow this site…** above its content whenever the current
+  site's access is missing, even without a recognized issue, a toolbar click,
+  or a connected host. A readable HTTP(S) address names the site and requests
+  that exact origin from the button's gesture. When Chrome hides the address,
+  Chrome 133+'s `permissions.addHostAccessRequest({tabId})` asks Chrome to offer
+  access to that tab's site; the panel explains that approval is completed in
+  Chrome's toolbar. This is persistent per-site access, not a one-page scan.
+  Granting access removes the invitation; revocation restores it. Denial or
+  failure leaves it retryable and explains what happened. Older Chrome without
+  that API instead explains how to click the Yep Anywhere toolbar button and
+  then allow the now-readable site in the panel. Known internal/extension pages
+  do not offer access; unknown restricted pages report request failure.
+  Nothing reads page contents, requests broad `tabs` permission, grants YA
+  server authority, or changes the automatic-lookup setting. This always-visible
+  invitation was explicitly authorized by the maintainer on 2026-10-16.
 - **Credentials.** Saved hosts and resume sessions stay in the extension
   origin's `localStorage` under the existing compare-and-set rules. Extension
   pages mirror that record into `chrome.storage.local` after each write, for
@@ -300,12 +316,30 @@ and worker fingerprint; it has no credentials or server data.
 
 Only development side panels show the footer. While visible, they check their
 own packaged signal every 1.5 seconds with no overlapping fetches; hiding or
-unmounting tears polling down. A button applies an update on demand. If the
-running worker fingerprint and manifest still match, refreshing the panel
-keeps Chrome's native side panel open. Otherwise `runtime.reload()` updates
-the whole extension. A one-shot, 30-second window hint attempts to reopen the
-panel. Chrome can reject this without a fresh user gesture; the next toolbar
-click then opens the panel even when the usual action is Open app. No extra
+unmounting tears polling down. **Reload extension** is always available, even
+when no update is detected or build metadata is unavailable; it calls
+`runtime.reload()` to reload the whole extension, including its worker and
+manifest. A separate **Reload panel** / **Update panel** control refreshes only
+the page, keeping Chrome's native side panel open. When a detected update
+requires a worker or manifest reload, only the full reload action is offered
+and highlighted. Controls wrap at narrow widths. A one-shot, 30-second window
+snapshot in extension-local storage preserves up to 256 open extension tabs:
+their exact URLs (including session ids, query and fragment), order, active and
+pinned state, and normal/popup window placement. `runtime.getContexts` reads
+only this extension's own top-level pages, without `tabs` permission. Chrome
+closes these pages on a full reload; the replacement worker waits for service
+worker activation before recreating them, so deep session URLs can load through
+its navigation handler without a manual page to wake it. Popup tabs reset by
+Chrome to New Tab are returned to their saved URL in place. A surviving tab with
+a readable unrelated URL is left alone. New-session popups retain their dedicated role.
+The snapshot is consumed before opening anything and ignored when older than
+30 seconds or future-dated, so later starts cannot duplicate or resurrect it.
+Sign-in URL credentials are stripped; draft text, logins and sidebar groups
+continue using their existing storage rather than being copied into this
+snapshot. Transient menus and cursor/selection state are not snapshotted.
+The worker also attempts to reopen the panels in their prior windows. Chrome
+can reject this without a fresh user gesture; the next toolbar click then opens
+the panel even when the usual action is Open app. No extra
 permission, local HTTP build endpoint, auto reload or service-worker keepalive
 is introduced. Production builds omit the signal, controls and worker hooks.
 

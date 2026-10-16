@@ -12,6 +12,7 @@
     "check:store": "node ./scripts/package-store.mjs --check",
     "typecheck:acceptance": "pnpm --filter @yep-anywhere/client exec tsc -p tsconfig.extension-acceptance.json",
     "acceptance:dev": "pnpm --filter @yep-anywhere/client exec tsx --conditions source scripts/extension-dev-acceptance.mts",
+    "acceptance:site-access": "pnpm --filter @yep-anywhere/client exec tsx --conditions source scripts/extension-site-access-acceptance.mts",
     "acceptance": "pnpm --filter @yep-anywhere/client exec tsx --conditions source scripts/extension-acceptance.mts"
   }
 }
