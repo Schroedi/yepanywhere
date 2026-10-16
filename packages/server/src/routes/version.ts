@@ -738,7 +738,10 @@ function getCapabilitiesForDeviceBridgeState(
 }
 
 export function getServerCapabilities(options?: VersionRouteOptions): string[] {
-  const capabilities: string[] = [...BASE_CAPABILITIES];
+  const capabilities: string[] = [
+    ...BASE_CAPABILITIES,
+    SERVER_CAPABILITIES.artifactRelayPreview.name,
+  ];
   if (options?.getDraftSyncAvailable?.())
     capabilities.push(SERVER_CAPABILITIES.draftSync.name);
   capabilities.push(SERVER_CAPABILITIES.vhostBearerAccess.name);

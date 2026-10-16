@@ -1,10 +1,9 @@
 # Active Content Serving and Origin Isolation
 
 > Agent- or project-authored active content must never execute with YA's
-> authenticated server origin or hosted-client origin. Ordinary HTML viewing is
-> rendered and scriptless; applications that intentionally execute need a
-> separate untrusted-content origin with no YA credentials or ambient API
-> authority.
+> authenticated server origin or hosted-client origin. Executable previews need
+> a separate untrusted-content origin with no YA credentials or ambient API
+> authority; unsupported environments retain scriptless viewing.
 
 Topic: active-content-security
 
@@ -14,7 +13,9 @@ upload, and public-share file responses now share a lightweight native-
 navigation policy. Browser-active HTML, XHTML, SVG, XML, and XSLT responses
 are attachments with `nosniff`, an inert response CSP, no-referrer policy, and
 a restrictive permissions policy. Interactive previews use the separately
-configured artifact origin described below; the normal raw endpoints remain inert.
+configured artifact origin or managed first-party relay preview described below;
+the normal raw endpoints remain inert. Managed relay delivery was implemented
+on 2026-10-16 and qualified in Chrome.
 
 See also:
 
@@ -57,8 +58,8 @@ viewer, preview, and isolated-application work lives in
 
 The shared file context menu now distinguishes Source from Preview without
 navigating either selection to a raw active response. Ordinary HTML opens as
-a rendered preview; an explicit Source choice remains available. Either viewer uses the same
-client-owned `srcdoc` wrapper with a scriptless iframe sandbox, no-referrer
+a rendered preview; an explicit Source choice remains available. The legacy
+scriptless presentation uses a client-owned `srcdoc` wrapper with a scriptless iframe sandbox, no-referrer
 policy, and a restrictive meta CSP that denies scripts, connections, frames,
 objects, workers, forms, base URLs, and ambient image/media loads. Markdown
 keeps its sanitized preview default and can be requested as source.
@@ -214,9 +215,12 @@ relay, and public-share contexts.
 1. An ordinary click, modified click, context-menu open, viewer toolbar action,
    copied viewer URL, browser restore, or redirect must never turn an untrusted
    active file into a top-level document on a YA application origin.
-2. The normal action for HTML opens the unified viewer's static preview with
-   scripts disabled; an explicit Source choice shows its bytes. Other active
-   formats retain their source or confined-media presentation.
+2. The normal action for HTML opens the unified viewer. Qualified first-party
+   hosted clients use the managed isolated preview when its capability is
+   available and no custom public origin is configured. Other environments
+   retain their configured interactive or scriptless preview. An explicit
+   Source choice shows the bytes. Other active formats retain their source
+   or confined-media presentation.
 3. "Open in new tab" means the standalone YA viewer route, not the raw-file
    endpoint. "Download" is the action that returns original active bytes.
 4. Raw active responses use attachment disposition, `nosniff`, and the inert
@@ -353,10 +357,94 @@ automatically support arbitrary navigation, workers, storage, WebSockets, or
 multi-file apps. Optional Tailscale and Cloudflare transport changes
 reachability, not this isolation requirement.
 
-A proposed hybrid frames a static, same-site content origin whose service
-worker obtains every byte from the trusted client over the encrypted relay. It
-was spiked in Chrome and is not implemented; see
-[`gaps/sketches/relay-artifact-frame.md`](../gaps/sketches/relay-artifact-frame.md).
+The managed first-party path below implements the static, same-site content
+origin whose service worker obtains every byte from the trusted client over
+the encrypted relay. The original
+[relay sketch](../gaps/sketches/relay-artifact-frame.md) retains the earlier
+experiments and remaining browser qualification work.
+
+## Managed first-party relay previews
+
+The first-party hosted client provides interactive local HTML and neighboring
+assets through the authenticated source connection when the server advertises
+`artifact-relay-preview`. This is the out-of-box first-party delivery path;
+no artifact listener, public origin or tunnel configuration is required.
+On qualified hosted Chrome clients, opening HTML in preview runs its scripts
+automatically; Stop restores the scriptless view. An explicitly configured
+usable custom artifact origin retains precedence.
+Custom hosted origins and native shells retain their existing delivery until
+qualified; they do not silently adopt first-party infrastructure.
+
+The new API admits read-only, process-local preview leases independently of
+public/local artifact grants. Admission binds the acting principal, optional
+session, canonical HTML entry and its directory. Every file read requires
+normal authenticated API access, the same principal/session and current file
+policy. Session-scoped routes apply limited-user session access and sandbox
+path mapping on every request. A lease is not a public bearer URL, provider
+execution grant, hosted identity, or authority to delete files.
+
+Leases last 30 minutes, are explicitly revocable, and end on server restart.
+Admission prunes expired entries; there are at most 128 process-wide and 16 per
+principal. Each permits 1,024 distinct canonical files, 64 MiB per file and
+256 MiB cumulative admitted response bytes (only the selected bytes for a
+range). At most 16 reads per lease and 64 process-wide are active; this gives headroom while client-side cancellation
+propagates over the relay. Revocation, disconnect, cancellation, app disposal
+and the bounded stream deadline close active bodies. The parent queues at most
+64 waiting reads per viewer / 256 per tab, with eight active per viewer and 32
+per tab; overflow fails boundedly. Expiry and lost leases expose Retry; missing individual files do
+not invalidate the whole viewer. Late admissions after close are revoked.
+Viewing writes no state into the project and never inherits owning-artifact deletion behavior.
+
+Paths are relative to the admitted directory. Traversal, absolute paths,
+dotfiles, backslashes, out-of-root symlinks and changed entry mappings fail
+closed. The authenticated endpoint keeps browser-active responses inert and
+attachment-only on the YA origin. Only the isolated content worker constructs
+executable browser responses under its own restrictive policy.
+
+The managed host serves a fixed, versioned bootstrap and worker, with explicit
+first-party parent allowlisting, origin-agent clustering and no ambient YA
+credentials. It uses fresh `artifact-<32hex>.yepanywhere.com` origins to fit
+ordinary wildcard TLS. All network artifact/API requests fail closed. Per-viewer origins
+separate storage; worker messages identify one viewer but confer no API
+permission. The trusted parent captures the source transport and lease when
+opening a viewer, validates every message, and never accepts a general URL,
+method, header set or absolute filesystem path from content. Closing a viewer
+releases reads, ports, frames and worker registration. Sharing/copying remains
+owned by the existing sharing UI; a managed content URL is not a public share.
+
+Without the new capability, the client makes no preview-lease request and
+retains the configured artifact host or scriptless/source preview. The existing
+`artifact-viewer` capability, URLs, ownership and configuration keep their
+meaning. The hosted client and relay must remain cookie-independent: same-site
+content can set parent-domain cookies, and same-site metadata is not trust.
+The bootstrap and artifact share an untrusted origin; isolation does not rely
+on keeping artifact scripts out of the bootstrap. The parent/server broker
+must remain bounded even if that entire origin is compromised. CSP restricts
+resource loads, but is not a promise of hostile-script CPU/memory isolation or
+of network containment. Artifact scripts can read and exfiltrate every non-dot
+file under the granted directory, potentially a whole project when the entry
+is at its root. WebRTC STUN/TURN is not blocked by connect-src; own-frame
+navigation and DNS also provide outbound channels. Put untrusted bundles in
+a dedicated directory. Follow-up insertions require transient user activation
+and viewer-frame focus in the trusted parent, remain bounded, and never auto-submit.
+
+[Host delivery and acceptance](../artifact-host/README.md) records supported
+resource types and measured results. [Plan 155](../docs/tactical/155-managed-artifact-viewer.md) records
+qualification and rollout. Android Chrome 124 on an Android 15 emulator and
+Chrome 155 on a physical Android 17 phone pass the managed delivery matrix. The actual bundled Android Debug app
+retains its scriptless fallback; its cross-site appassets origin is not an
+approved managed parent. Physical fresh UI pairing and fallback teardown pass;
+the emulator pairing stall remains separately recorded. Basic WebKit evidence
+is not native-mobile support.
+[Android evidence and setup limits](../artifact-host/README.md#android-emulator-qualification--2026-10-16)
+distinguish the browser result from the native app.
+
+Qualification limits: queued response heads still have the worker's 15-second
+limit; slow cellular/resource bursts can time out. Server read caps are shared
+across clients, so overload can still return 429. The expiry notification uses
+the server timestamp against the client clock; clock skew may show Retry early.
+Lease expiry intentionally tears down in-page state after 30 minutes; dashboard
+renewal and durable widget state are not supplied by v1.
 
 ## Open Decisions
 
@@ -399,7 +487,8 @@ fetches, range reads and XHTML still receive the original bytes.
 
 Settings → Apps owns artifact and static-vhost settings. Local Access and
 Remote Access link to that category.
-Serving defaults off. Enabling local access pre-fills
+Listener serving defaults off. Managed relay previews do not enable this
+listener. Enabling local access pre-fills
 `http://artifacts.localhost:<YA port>`; the complete address remains editable.
 A blank public address disables hosted artifact access. With both addresses
 absent, no grants are available and no artifact listener runs.
@@ -793,7 +882,12 @@ authorization durability does not restart an exited Plannotator process.
 
 ### Preview and authority
 
-HTML continues to open as source or scriptless preview. An explicit **Run full
+This subsection describes explicitly configured artifact origins. The
+[managed first-party path](#managed-first-party-relay-previews) instead admits
+a read-only lease automatically for its preview, without listener health checks
+or durable artifact grants.
+
+With configured origins, HTML opens as source or scriptless preview. An explicit **Run full
 HTML/CSS/JavaScript preview (current view is sanitized)** action first performs
 one credential-free `/health` request to the selected origin, with redirects
 rejected and a 2.5-second deadline.
@@ -808,8 +902,8 @@ interactive HTML directly when clicked from source; no second Run button is
 needed. Switching back to source unmounts the preview but leaves its borrowed
 grant valid until expiry, so another pane or browser tab using that URL remains
 available. The context menu's explicit Preview action uses the same path.
-Merely opening a file, restoring a source view, or receiving a link does not
-request a grant.
+On this configured-origin path, merely opening a file, restoring a source
+view, or receiving a link does not request a durable artifact grant.
 An initially requested scriptless presentation retains its explicit Run action.
 Older/disabled servers retain scriptless viewing without unsupported requests.
 

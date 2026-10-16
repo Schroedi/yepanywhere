@@ -792,6 +792,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "github-status-controls",
     introducedIn: "0.9.4",
   },
+  artifactRelayPreview: {
+    id: 129,
+    direction: "server",
+    name: "artifact-relay-preview",
+    introducedIn: "0.9.4",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [

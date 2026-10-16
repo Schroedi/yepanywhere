@@ -1704,6 +1704,34 @@ export const SERVER_CAPABILITIES = {
         "Question discovery across sessions requires server-owned previews without loading every transcript in the browser.",
     },
   },
+  artifactRelayPreview: {
+    id: CAPABILITY_ID_ALLOCATIONS.artifactRelayPreview.id,
+    name: "artifact-relay-preview",
+    kind: "permanent",
+    area: "remoteAccess",
+    introducedIn: "0.9.4",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Authenticated read-only preview leases independent of artifact listener configuration.",
+    clientFallback:
+      "Keep configured artifact serving or scriptless/source preview; make no preview lease requests.",
+    serverContract: {
+      routes: [
+        "POST /api/artifact-previews",
+        "GET /api/artifact-previews/:id/file",
+        "DELETE /api/artifact-previews/:id",
+        "POST /api/sessions/:sessionId/artifact-previews",
+        "GET /api/sessions/:sessionId/artifact-previews/:id/file",
+        "DELETE /api/sessions/:sessionId/artifact-previews/:id",
+      ],
+      routeModules: ["packages/server/src/routes/artifact-previews.ts"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "Hosted viewers must never forward arbitrary authenticated file reads to untrusted content.",
+    },
+  },
   artifactViewer: {
     id: CAPABILITY_ID_ALLOCATIONS.artifactViewer.id,
     name: "artifact-viewer",

@@ -295,6 +295,7 @@ export function sessionPageRoute(
     parsed.host === extensionId;
   const hosted =
     parsed.protocol === "https:" &&
+    !/^artifact-[a-f0-9]{32}\.yepanywhere\.com$/.test(parsed.hostname) &&
     (parsed.hostname === "yepanywhere.com" ||
       parsed.hostname.endsWith(".yepanywhere.com"));
   const match = (own || hosted) && parsed.pathname.match(SESSION_PATH);

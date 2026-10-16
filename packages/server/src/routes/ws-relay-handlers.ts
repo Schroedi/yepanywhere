@@ -913,6 +913,8 @@ function relayedResponseHeaders(response: Response): Record<string, string> {
     if (
       normalizedKey.startsWith("x-") ||
       normalizedKey === "content-type" ||
+      normalizedKey === "content-range" ||
+      normalizedKey === "accept-ranges" ||
       normalizedKey === "etag" ||
       normalizedKey === "location" ||
       normalizedKey === "server-timing"

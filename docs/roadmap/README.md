@@ -7,6 +7,16 @@ status, the next action, and major blockers here; keep implementation steps in
 `docs/tactical/` and durable behavior contracts in `topics/`. Planning stays in
 the repository and does not require epics, ticket numbers, or pull requests.
 
+The first-party hosted artifact viewer is implemented and integrated on main;
+[plan 155](../tactical/155-managed-artifact-viewer.md) records scoped reads,
+managed HTTPS content delivery and compatibility. The fixed Cloudflare host is
+live, and real YA-pane acceptance over the public encrypted relay passes in
+desktop Chrome, Android Chrome on an Android 15 emulator and the attached
+Android 17 phone. Opus 5.5 high-effort review findings are addressed; physical
+native fresh pairing and static fallback pass. YA client/server
+release publication, native app delivery and WebKit qualification remain;
+custom artifact deployments retain precedence.
+
 ## 1. Publish the desktop and mobile apps with continuous delivery
 
 **Highest priority.** Make Yep Anywhere available as supported public releases

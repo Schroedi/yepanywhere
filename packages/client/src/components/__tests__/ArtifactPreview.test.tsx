@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -7,11 +8,12 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../i18n";
+import { ManagedArtifactPreview } from "../ManagedArtifactPreview";
 import { ArtifactPreview } from "../ArtifactPreview";
 
 const state = vi.hoisted(() => ({
   fetch: vi.fn(),
-  version: {} as Record<string, unknown>,
+  version: {} as Record<string, unknown> | null,
   share: null as object | null,
   shareStatus: null as { canCreate: boolean } | null,
   getPublicFileShares: vi.fn(),
@@ -349,4 +351,99 @@ it("never offers private grants in a public share", () => {
   mount();
   expect(screen.queryByRole("button")).toBeNull();
   expect(state.fetch).not.toHaveBeenCalled();
+});
+
+it.each(["0.9.1", "0.9.2"])(
+  "keeps hosted servers at %s on the old viewer without preview lease requests",
+  (current) => {
+    vi.stubGlobal("location", {
+      origin: "https://latest.yepanywhere.com",
+      hostname: "latest.yepanywhere.com",
+      href: "https://latest.yepanywhere.com/",
+    });
+    vi.stubGlobal("navigator", {
+      userAgent: "Mozilla/5.0 Chrome/148.0.0.0",
+      language: "en-US",
+    });
+    state.version = {
+      current,
+      capabilities: [],
+      artifactViewer: { available: false, port: 4402, locked: false },
+    };
+    const { container } = mount(PROJECT_ID);
+    expect(container.querySelector("iframe")?.getAttribute("sandbox")).toBe(
+      "allow-same-origin",
+    );
+    expect(state.fetch).not.toHaveBeenCalled();
+  },
+);
+
+it("preserves an explicit custom artifact host when the managed capability exists", () => {
+  vi.stubGlobal("location", {
+    origin: "https://latest.yepanywhere.com",
+    hostname: "latest.yepanywhere.com",
+    href: "https://latest.yepanywhere.com/",
+  });
+  vi.stubGlobal("navigator", {
+    userAgent: "Mozilla/5.0 Chrome/148.0.0.0",
+    language: "en-US",
+  });
+  state.version = {
+    ...state.version,
+    current: "0.9.4",
+    capabilities: ["artifact-viewer", "artifact-relay-preview"],
+  };
+  const { container } = mount(PROJECT_ID);
+  expect(container.querySelector("iframe")?.getAttribute("sandbox")).toBe(
+    "allow-same-origin",
+  );
+  expect(screen.getByRole("button", { name: /Run full HTML/ })).toBeTruthy();
+  expect(state.fetch).not.toHaveBeenCalled();
+});
+
+it("renders the static fallback while a first-party server version is unknown", () => {
+  vi.stubGlobal("location", {
+    origin: "https://latest.yepanywhere.com",
+    hostname: "latest.yepanywhere.com",
+    href: "https://latest.yepanywhere.com/",
+  });
+  vi.stubGlobal("navigator", {
+    userAgent: "Mozilla/5.0 Chrome/155.0.0.0",
+    language: "en-US",
+  });
+  state.version = null;
+  const { container } = mount();
+  expect(container.querySelector("iframe")?.getAttribute("sandbox")).toBe(
+    "allow-same-origin",
+  );
+  expect(state.fetch).not.toHaveBeenCalled();
+});
+
+it("releases a managed lease admitted after its viewer closes", async () => {
+  let admit!: (lease: object) => void;
+  state.fetch.mockImplementation((_path: string, init?: RequestInit) =>
+    init?.method === "DELETE"
+      ? Promise.resolve({ success: true })
+      : new Promise((resolve) => {
+          admit = resolve;
+        }),
+  );
+  const { unmount } = render(
+    <I18nProvider>
+      <ManagedArtifactPreview
+        html="<p>Static</p>"
+        path="/bundle/index.html"
+        title="Managed"
+      />
+    </I18nProvider>,
+  );
+  expect(state.fetch).toHaveBeenCalledOnce();
+  expect(state.fetch.mock.calls[0]?.[1]?.signal).toBeUndefined();
+  unmount();
+  await act(async () =>
+    admit({ id: "late", entry: "index.html", expiresAt: Date.now() + 1000 }),
+  );
+  expect(state.fetch).toHaveBeenLastCalledWith("/artifact-previews/late", {
+    method: "DELETE",
+  });
 });

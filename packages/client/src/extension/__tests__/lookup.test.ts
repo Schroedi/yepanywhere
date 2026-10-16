@@ -29,6 +29,12 @@ describe("sessionPageRoute", () => {
     expect(
       sessionPageRoute(`https://yepanywhere.com/-/relay/kyle/projects/p`, ID),
     ).toBeNull();
+    expect(
+      sessionPageRoute(
+        `https://artifact-${"a".repeat(32)}.yepanywhere.com${PATH}`,
+        ID,
+      ),
+    ).toBeNull();
     expect(sessionPageRoute("not a url", ID)).toBeNull();
   });
 });
