@@ -4226,6 +4226,39 @@ describe("MessageInput", () => {
     expect(onStop).toHaveBeenCalledTimes(1);
   });
 
+  it("can unbind Escape through Stop without disabling click or overlay cancellation", () => {
+    const onStop = vi.fn();
+    const props = { isRunning: true, isThinking: true, onStop };
+    let textarea = renderMessageInput(undefined, props);
+    fireEvent.contextMenu(screen.getByLabelText("toolbarStop"));
+    expect(onStop).not.toHaveBeenCalled();
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "toolbarDisableEscInterrupt" }),
+    );
+    fireEvent.keyDown(textarea, { key: "Escape" });
+    expect(onStop).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("toolbarStop").title).not.toContain("(Esc)");
+
+    cleanup();
+    textarea = renderMessageInput(undefined, props);
+    fireEvent.keyDown(textarea, { key: "Escape" });
+    expect(onStop).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByLabelText("toolbarStop"));
+    expect(onStop).toHaveBeenCalledTimes(1);
+
+    fireEvent.contextMenu(screen.getByLabelText("toolbarStop"));
+    fireEvent.keyDown(screen.getByRole("menuitem"), { key: "Escape" });
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(onStop).toHaveBeenCalledTimes(1);
+
+    fireEvent.contextMenu(screen.getByLabelText("toolbarStop"));
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "toolbarEnableEscInterrupt" }),
+    );
+    fireEvent.keyDown(textarea, { key: "Escape" });
+    expect(onStop).toHaveBeenCalledTimes(2);
+  });
+
   it("stops active voice capture with Escape before stopping the current turn", () => {
     voiceButtonState.isListening = true;
     const onStop = vi.fn();

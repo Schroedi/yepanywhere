@@ -4,6 +4,7 @@ import { ComposerRecents } from "./ComposerRecents";
 import { useComposerHistoryScope } from "../hooks/useComposerHistoryScope";
 import { NewSessionQueueMark } from "./NewSessionQueueMark";
 import { useComposerVoiceRef } from "../hooks/useComposerVoiceRef";
+import { escapeInterruptDisabledSetting } from "../hooks/useEscapeInterruptDisabled";
 import {
   type ChosenNewSessionQueueTarget,
   type NewSessionQueueTarget,
@@ -2917,6 +2918,7 @@ export function MessageInput({
       !e.altKey &&
       isRunning &&
       isThinking &&
+      !escapeInterruptDisabledSetting.read() &&
       onStop
     ) {
       e.preventDefault();

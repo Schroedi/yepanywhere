@@ -47,6 +47,7 @@ export const UI_KEYS = {
   pdfjsRenderer: "yep-anywhere-pdfjs-renderer-enabled",
   unicodeProseMath: "yep-anywhere-unicode-prose-math",
   transcriptMarginNavigation: "yep-anywhere-transcript-margin-navigation",
+  escapeInterruptDisabled: "yep-anywhere-escape-interrupt-disabled",
   composerPromptRail: "yep-anywhere-composer-prompt-rail",
   commitReadWatermarks: "yep-anywhere-commit-read-watermarks",
   sourceControlCleanLanding: "yep-anywhere-source-control-clean-landing",

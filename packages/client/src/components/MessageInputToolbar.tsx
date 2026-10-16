@@ -1,4 +1,6 @@
 import { AttachmentButton } from "./AttachmentButton";
+import { useSourceContextMenu } from "./SourceContextMenu";
+import { useEscapeInterruptDisabled } from "../hooks/useEscapeInterruptDisabled";
 import type {
   ModelInfo,
   ProviderRuntimeStatus,
@@ -723,7 +725,6 @@ interface ToolbarProjectQueueControl {
 
 interface ToolbarStopControl {
   onStop: () => void;
-  title: string;
 }
 
 interface ToolbarDoneControl {
@@ -1345,6 +1346,13 @@ export function MessageInputToolbarView({
   actionsControl,
   hidePrimaryDeliveryActions = false,
 }: MessageInputToolbarViewProps) {
+  const { escapeInterruptDisabled, setEscapeInterruptDisabled } =
+    useEscapeInterruptDisabled();
+  const stopMenu = useSourceContextMenu(t, {
+    menu: t("toolbarStopOptions"),
+    dismiss: t("toolbarDismissStopOptions"),
+    touchTargets: true,
+  });
   const asyncQuestions = useAsyncQuestions();
   const hasAsyncQuestions =
     (asyncQuestions?.questions.length ?? 0) > 0 &&
@@ -2854,7 +2862,13 @@ export function MessageInputToolbarView({
                       <span className="session-shortcuts-keys">
                         <kbd>Esc</kbd>
                       </span>
-                      <span>{t("toolbarShortcutStopAgentCancelOverlay")}</span>
+                      <span>
+                        {t(
+                          escapeInterruptDisabled
+                            ? "toolbarShortcutCancelOverlay"
+                            : "toolbarShortcutStopAgentCancelOverlay",
+                        )}
+                      </span>
                     </div>
                     <div className="session-shortcuts-row">
                       <span className="session-shortcuts-keys">
@@ -2930,10 +2944,24 @@ export function MessageInputToolbarView({
         {showStopButton && actionsControl.stop && (
           <button
             type="button"
-            onClick={actionsControl.stop.onStop}
+            {...stopMenu.targetProps(
+              [
+                {
+                  label: t(
+                    escapeInterruptDisabled
+                      ? "toolbarEnableEscInterrupt"
+                      : "toolbarDisableEscInterrupt",
+                  ),
+                  onSelect: () =>
+                    setEscapeInterruptDisabled(!escapeInterruptDisabled),
+                },
+              ],
+              actionsControl.stop.onStop,
+            )}
             className="stop-button"
             aria-label={t("toolbarStop")}
-            title={actionsControl.stop.title}
+            aria-haspopup="menu"
+            title={`${t("toolbarStop")}${escapeInterruptDisabled ? "" : " (Esc)"} — ${t("toolbarStopOptionsHint")}`}
           >
             <span className="stop-icon" />
           </button>
@@ -3104,6 +3132,7 @@ export function MessageInputToolbarView({
           </>
         ) : null}
       </div>
+      {stopMenu.menu}
       {hidePopover && onHideControl && (
         <ToolbarHidePopover
           state={hidePopover}
@@ -3574,7 +3603,6 @@ export function MessageInputToolbar({
           ? t("toolbarQueuePrimaryActionLabel")
           : t("toolbarQueueLabel")
         : t("toolbarSend");
-  const stopTitle = `${t("toolbarStop")} (Esc)`;
   const showStopButton = !!(isRunning && onStop && isThinking && !canSend);
   const showSendButton = !!(onSend && (!showStopButton || canSend));
   const serverVoiceEnabled =
@@ -4076,7 +4104,6 @@ export function MessageInputToolbar({
         stop: showStopButton
           ? {
               onStop: onStop!,
-              title: stopTitle,
             }
           : null,
         send: showSendButton
