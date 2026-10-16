@@ -158,8 +158,6 @@ export interface ChromeApi {
     }): Promise<void>;
   };
   permissions: {
-    /** Chrome 133+: ask for the tab's site without reading its URL first. */
-    addHostAccessRequest?(request: { tabId: number }): Promise<void>;
     getAll(): Promise<{ origins?: string[]; permissions?: string[] }>;
     contains(request: { origins: string[] }): Promise<boolean>;
     request(request: { origins: string[] }): Promise<boolean>;

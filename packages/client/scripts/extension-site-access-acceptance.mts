@@ -3,6 +3,7 @@ import { copyFileSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { chromium, expect } from "@playwright/test";
+import { CLICKED_TAB_KEY } from "../src/extension/appTab";
 import type { ChromeApi } from "../src/extension/chrome";
 import { emitCapturePreview, writeCapturePreview } from "./artifact-capture";
 
@@ -20,6 +21,7 @@ const errors: string[] = [];
 const context = await chromium.launchPersistentContext(join(temp, "chrome"), {
   channel: "chromium",
   headless: true,
+  colorScheme: "dark",
   args: [`--disable-extensions-except=${dist}`, `--load-extension=${dist}`],
 });
 try {
@@ -46,21 +48,23 @@ try {
   const title = panel.getByRole("heading", {
     name: "Find sessions related to this page",
   });
-  await expect(title).toBeVisible();
+  const disclosure = panel.getByRole("button", {
+    name: "Allow scanning this page",
+  });
+  await expect(disclosure).toHaveAttribute("aria-expanded", "false");
+  await expect(title).not.toBeVisible();
   const tab = await panel.evaluate(async () => {
     const chrome = (globalThis as unknown as { chrome: ChromeApi }).chrome;
     return (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
   });
   expect(tab?.url).toBeUndefined();
   expect(tab?.id).toEqual(expect.any(Number));
-  const allow = panel.getByRole("button", { name: "Allow this site…" });
-  await expect(allow).toBeVisible();
-  // Avoid Playwright activating the extension page before its click: invoke
-  // the real DOM click while the web tab remains current. This API accepts a
-  // tab id without an activeTab grant or a permission-request user gesture.
-  await allow.evaluate((button: HTMLButtonElement) => button.click());
-  await expect(panel.getByRole("status")).toContainText(
-    "Finish allowing access",
+  const instructions = panel.getByText("Click the Yep Anywhere icon", {
+    exact: true,
+  });
+  await expect(instructions).not.toBeVisible();
+  await expect(panel.getByRole("button", { name: /^Allow .+…$/ })).toHaveCount(
+    0,
   );
   const permissions = await panel.evaluate(() =>
     (
@@ -69,56 +73,65 @@ try {
   );
   expect(permissions.permissions).not.toContain("tabs");
   expect(permissions.origins ?? []).toEqual([]);
-  console.error(
-    "Real Chrome accepted the host access request for a hidden URL",
-  );
 
-  // Capture the initial invitation, with no host or recognized issue needed.
-  await panel.reload();
-  await expect(allow).toBeVisible();
-  for (const viewport of [
-    { name: "desktop", width: 1000, height: 600 },
-    { name: "phone", width: 375, height: 812 },
-  ]) {
-    await panel.setViewportSize(viewport);
-    await panel.evaluate(() => document.fonts.ready);
-    const path = join(temp, `${viewport.name}.png`);
-    // writeCapturePreview archives/presents the owned browser's captures.
-    await panel.screenshot({ path });
-    screenshots.push({ ...viewport, path });
+  // Capture both disclosure states; DOM clicks keep the web tab current.
+  for (const state of ["collapsed", "expanded"]) {
+    if (state === "expanded") {
+      await disclosure.evaluate((button: HTMLButtonElement) => button.click());
+      await expect(instructions).toBeVisible();
+      await expect(
+        panel.getByText("Icon hidden?", { exact: false }),
+      ).toBeVisible();
+    }
+    for (const viewport of [
+      { name: "desktop", width: 1000, height: 600 },
+      { name: "phone", width: 375, height: 812 },
+    ]) {
+      await panel.setViewportSize(viewport);
+      await panel.evaluate(() => document.fonts.ready);
+      const name = `${viewport.name}-${state}`;
+      const path = join(temp, `${name}.png`);
+      // writeCapturePreview archives/presents the owned browser's captures.
+      await panel.screenshot({ path, animations: "disabled" });
+      screenshots.push({ ...viewport, name, path });
+    }
   }
 
-  // Known addresses also invite access on a site's home page, without a
-  // toolbar click being required by the CTA's render conditions.
+  // Exercise the real storage-event handoff the worker uses after a toolbar
+  // click. This supplies its URL, without pretending automation clicked Chrome
+  // UI or granted a permission. The existing panel must replace instructions.
+  await panel.evaluate(
+    async ({ key, tabId }) => {
+      const chrome = (globalThis as unknown as { chrome: ChromeApi }).chrome;
+      await chrome.storage.session.set({
+        [key]: { tabId, url: "https://github.com/" },
+      });
+    },
+    { key: CLICKED_TAB_KEY, tabId: tab?.id },
+  );
+  await expect(instructions).toHaveCount(0);
+  await expect(disclosure).toHaveAttribute("aria-expanded", "true");
+  await expect(
+    panel.getByRole("button", { name: "Allow github.com…" }),
+  ).toBeVisible();
+
+  // Known addresses also invite access on a site's home page.
   await panel.goto(`${origin}/sidepanel.html?url=https://github.com/`);
+  await expect(disclosure).toHaveAttribute("aria-expanded", "false");
+  await disclosure.click();
   await expect(
     panel.getByRole("button", { name: "Allow github.com…" }),
   ).toBeVisible();
   await panel.goto(
     `${origin}/sidepanel.html?url=https://tomfit.atlassian.net/`,
   );
+  await disclosure.click();
   await expect(
     panel.getByRole("button", { name: "Allow tomfit.atlassian.net…" }),
   ).toBeVisible();
 
-  // Old Chrome gets actionable instructions rather than a broken button.
-  await site.bringToFront();
-  await panel.goto(`${origin}/sidepanel.html`);
-  await panel.addInitScript(() => {
-    (
-      globalThis as unknown as { chrome: ChromeApi }
-    ).chrome.permissions.addHostAccessRequest = undefined;
-  });
-  await site.bringToFront();
-  await panel.reload();
-  await expect(
-    panel.getByText("This Chrome version cannot request access", {
-      exact: false,
-    }),
-  ).toBeVisible();
-  await expect(allow).toHaveCount(0);
   await panel.goto(`${origin}/sidepanel.html?url=chrome://settings/`);
-  await expect(title).toHaveCount(0);
+  await expect(disclosure).toHaveCount(0);
   expect(errors).toEqual([]);
 
   // Preserve PNGs outside the temporary profile before cleanup.

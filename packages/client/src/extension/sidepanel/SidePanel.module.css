@@ -213,7 +213,8 @@
   flex-shrink: 0;
   transition: transform 0.15s ease;
 }
-.groupHeading [aria-expanded="true"] .chevron {
+.groupHeading [aria-expanded="true"] .chevron,
+.siteAccess [aria-expanded="true"] .chevron {
   transform: rotate(90deg);
 }
 .panel .primary {
@@ -236,10 +237,105 @@
   font-size: 12px;
 }
 .siteAccess {
+  padding: 0;
+  gap: 0;
+}
+.siteAccessContent {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  padding: 0 12px 12px;
 }
-.siteAccess button {
+.siteAccessContent[hidden] {
+  display: none;
+}
+.panel .siteAccess button {
   min-height: 44px;
+}
+.panel .siteAccess .siteAccessToggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  text-align: left;
+  font-size: 12px;
+}
+.panel .siteAccess .siteAccessToggle:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+.toolbarIllustration {
+  margin: 8px 0 4px;
+  padding: 16px 10px 22px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+}
+.browserToolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-muted);
+}
+.browserToolbar > svg {
+  flex-shrink: 0;
+}
+.addressBar {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 12px;
+  border-radius: 20px;
+  background: var(--bg-surface);
+  color: var(--text-dimmed);
+  font-size: 12px;
+}
+.highlightedIcon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border: 2px solid var(--accent-color);
+  border-radius: 10px;
+  background: var(--bg-surface);
+}
+.iconPointer {
+  position: absolute;
+  right: -10px;
+  bottom: -17px;
+}
+.accessSteps {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 4px 0 8px;
+  padding-left: 22px;
+  font-size: 12px;
+}
+.accessSteps li {
+  padding-left: 3px;
+}
+.accessSteps li::marker {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.accessSteps strong {
+  font-weight: 600;
+}
+.siteAccess .hiddenIconHint {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+.hiddenIconHint svg {
+  flex-shrink: 0;
+  margin-top: 2px;
 }

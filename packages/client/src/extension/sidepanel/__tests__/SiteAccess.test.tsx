@@ -18,7 +18,6 @@ function permissions() {
   const api = {
     contains: vi.fn().mockResolvedValue(false),
     request: vi.fn().mockResolvedValue(false),
-    addHostAccessRequest: vi.fn().mockResolvedValue(undefined),
     onAdded: event,
     onRemoved: event,
   };
@@ -51,6 +50,9 @@ describe("site access invitation", () => {
       </I18nProvider>,
     );
     await act(async () => changed());
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Allow scanning this page" }),
+    );
     const allow = await screen.findByRole("button", {
       name: "Allow github.com…",
     });
@@ -68,34 +70,46 @@ describe("site access invitation", () => {
     ).toBeTruthy();
   });
 
-  it("keeps failed requests retryable and distinguishes denial from a grant", async () => {
+  it("switches toolbar instructions to a retryable site request once the URL is known", async () => {
     const { api } = permissions();
-    api.addHostAccessRequest.mockRejectedValueOnce(
-      new Error("restricted page"),
-    );
     const panel = (url?: string) => (
       <I18nProvider>
         <SiteAccess tab={{ tabId: 12, url, clicked: false }} />
       </I18nProvider>
     );
     const view = render(panel());
-    fireEvent.click(screen.getByRole("button", { name: "Allow this site…" }));
-    expect((await screen.findByRole("alert")).textContent).toContain(
-      "could not request access",
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Allow this site…" }));
-    expect((await screen.findByRole("status")).textContent).toContain(
-      "Finish allowing access",
-    );
+    const disclosure = screen.getByRole("button", {
+      name: "Allow scanning this page",
+    });
+    expect(disclosure.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByRole("heading")).toBeNull();
+    fireEvent.click(disclosure);
+    expect(disclosure.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByRole("heading")).toBeTruthy();
+    expect(api.request).not.toHaveBeenCalled();
+    fireEvent.click(disclosure);
+    expect(screen.queryByRole("heading")).toBeNull();
+    fireEvent.click(disclosure);
 
-    // Learning the URL switches to the direct permission prompt, without
-    // carrying the previous tab's feedback into the new request.
+    // The toolbar publishes the URL; the same panel can now ask for its origin.
     view.rerender(panel("https://tomfit.atlassian.net/"));
-    expect(screen.queryByRole("status")).toBeNull();
+    expect(
+      (
+        await screen.findByRole("button", { name: "Allow scanning this page" })
+      ).getAttribute("aria-expanded"),
+    ).toBe("true");
+    expect(screen.queryByText("Click the Yep Anywhere icon")).toBeNull();
+    api.request.mockRejectedValueOnce(new Error("request failed"));
     fireEvent.click(
       await screen.findByRole("button", {
         name: "Allow tomfit.atlassian.net…",
       }),
+    );
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "could not request access",
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Allow tomfit.atlassian.net…" }),
     );
     expect((await screen.findByRole("alert")).textContent).toContain(
       "was not granted",
@@ -107,5 +121,14 @@ describe("site access invitation", () => {
       );
     });
     expect(screen.queryByRole("button")).toBeNull();
+    view.rerender(panel("https://example.com/"));
+    expect(
+      (
+        await screen.findByRole("button", { name: "Allow scanning this page" })
+      ).getAttribute("aria-expanded"),
+    ).toBe("false");
+    expect(
+      screen.queryByRole("button", { name: "Allow example.com…" }),
+    ).toBeNull();
   });
 });

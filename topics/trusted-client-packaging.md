@@ -183,19 +183,28 @@ cannot inject into or debug its pages, and its storage belongs to it alone.
   is optional and granted per site by the user from the side panel or
   Settings → Browser extension; there are no content scripts, no `tabs`
   permission and no `externally_connectable` entry.
-- **Site access invitation.** The side panel shows **Find sessions related to
-  this page** and **Allow this site…** above its content whenever the current
-  site's access is missing, even without a recognized issue, a toolbar click,
-  or a connected host. A readable HTTP(S) address names the site and requests
-  that exact origin from the button's gesture. When Chrome hides the address,
-  Chrome 133+'s `permissions.addHostAccessRequest({tabId})` asks Chrome to offer
-  access to that tab's site; the panel explains that approval is completed in
-  Chrome's toolbar. This is persistent per-site access, not a one-page scan.
-  Granting access removes the invitation; revocation restores it. Denial or
-  failure leaves it retryable and explains what happened. Older Chrome without
-  that API instead explains how to click the Yep Anywhere toolbar button and
-  then allow the now-readable site in the panel. Known internal/extension pages
-  do not offer access; unknown restricted pages report request failure.
+- **Site access invitation.** When the current site's access is missing, the
+  side panel shows a compact, neutral **Allow scanning this page** disclosure
+  above its content, even without a recognized issue, a toolbar click, or a
+  connected host. It starts collapsed; the explanatory text, illustration and
+  any site permission button appear only after expansion. The disclosure can
+  be collapsed again, starts collapsed on another tab or site, and stays expanded
+  when a toolbar click reveals the same tab's address. Expanding it does not
+  request permission or scan a page. When Chrome hides the address, the invitation
+  shows an illustration of Chrome's
+  address bar with the green Yep Anywhere icon highlighted, and two steps:
+  click that browser toolbar icon, then allow the named site in the panel and
+  approve Chrome's permission prompt. If the icon is hidden, instructions point
+  to the puzzle-piece Extensions menu and its Yep Anywhere entry. This state
+  offers no permission button and does not call `addHostAccessRequest`: that
+  API can succeed without displaying Chrome's separately gated approval UI.
+  Once the toolbar click makes the HTTP(S) address readable, the same panel
+  replaces the instructions with **Allow {site}…**, requesting that exact origin
+  directly from the button's gesture. This is persistent per-site access, not
+  a one-page scan. Granting access removes the invitation; revocation restores
+  it. Denial or failure leaves it retryable and explains what happened. Known
+  internal/extension pages do not offer access; an unreadable restricted page
+  can show the generic instructions until its address becomes known.
   Nothing reads page contents, requests broad `tabs` permission, grants YA
   server authority, or changes the automatic-lookup setting. This always-visible
   invitation was explicitly authorized by the maintainer on 2026-10-16.
