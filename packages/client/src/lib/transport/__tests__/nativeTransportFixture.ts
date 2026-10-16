@@ -29,6 +29,7 @@ export class NativeTransportFixture {
     readonly binary = true,
     readonly initialPhase = "CONNECTED",
     readonly responseStreams = false,
+    readonly stateQuery = false,
   ) {
     this.channel = {
       onmessage: null,
@@ -54,6 +55,7 @@ export class NativeTransportFixture {
             label: "Test host",
             binary: this.binary,
             ...(this.responseStreams ? { responseStreams: true } : {}),
+            ...(this.stateQuery ? { stateQuery: true } : {}),
           }),
         });
         void this.emit({ type: "state", phase: this.initialPhase });

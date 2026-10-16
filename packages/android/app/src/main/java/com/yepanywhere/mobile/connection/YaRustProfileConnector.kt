@@ -222,7 +222,7 @@ internal class YaRustMessageTransport(
                         throw YaRustTerminalException(YaConnectionPhase.valueOf(event.getString("phase")), event.optBoolean("recoverable"))
                     }
                 }
-            } catch (error: CoreException) { finish(YaRustTerminalException(YaConnectionPhase.FAILED, error is CoreException.Unavailable || error is CoreException.Closed || error is CoreException.Timeout)) }
+            } catch (error: CoreException) { finish(YaRustTerminalException(YaConnectionPhase.FAILED, error is CoreException.Unavailable || error is CoreException.Closed || error is CoreException.Timeout || error is CoreException.Overflow)) }
             catch (error: Throwable) { finish(error) }
         }
         scope.launch {

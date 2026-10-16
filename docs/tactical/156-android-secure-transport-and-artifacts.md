@@ -46,9 +46,9 @@ Large explicit/suffix ranges, movies and older WebViews remain unqualified.
   background native leases while retaining the document. One recovery edge
   is expected; the maintainer reports several rapid reconnect cycles on phone
   resume. Their cause is unproven, and final healthy state alone is insufficient.
-- [Duplicate subscription](../../gaps/android-connection-manager-duplicate-subscribe-flake.md)
-  records a potentially related restore/first-dispatch race, not a proven cause
-  of the reported UI cycles.
+- The duplicate-subscription gap now has a deterministic reproduction and repair:
+  restore must finish before publishing the connected transport. It is not yet
+  proven to cause the reported physical-phone UI cycles.
 
 ## 1 — Protect ordinary browser password login and SRP recovery
 
@@ -148,3 +148,15 @@ workspace lint/format/typecheck and the full unit suite pass (7,008 client /
 The Opus 5.5 high read-only review accepted the reconnect-revision fix and
 identified further recovery/bridge-pressure races to reproduce and repair;
 its recommendations are hypotheses until checked against the current code.
+
+Resume regressions now cover native reachability independent of WebView online
+state, one recovery interval across lease edges, five-second recovery coalescing,
+late operation replies, native status reconciliation and coalesced lease
+reattachment. The focused bridge suite passes 54 cases in 4 seconds. Android JVM
+checks reproduce the duplicate subscribe before its repair and pass afterward;
+a real encrypted TCP peer also reproduces cancellation of an admitted blocked
+request disrupting sibling demand, and passes after preserving the frame write.
+The bounded outbound queue drains 200 ordered events while prioritizing lifecycle
+state and control, and releases blocked producers/budget on close. Rust fmt,
+27 tests and warning-denying clippy pass. Further stream compatibility/admission
+findings from the Opus review are being addressed before device acceptance.

@@ -23,7 +23,7 @@ afterEach(() => {
 describe("native source transport", () => {
   it.each([
     ["CONNECTED", "ready"],
-    ["CONNECTING", "connecting"],
+    ["CONNECTING", "reconnecting"],
     ["RETRYING", "reconnecting"],
   ])(
     "ignores a recovery failure after native reports %s",
@@ -300,20 +300,19 @@ describe("native source transport", () => {
         complete = resolve;
       });
     const request = transport.fetch("/projects");
-    const failed = expect(request).rejects.toThrow();
     await vi.waitFor(() => expect(host.commands).toHaveLength(1));
     await host.emit({ type: "state", phase: "SUSPENDED" });
-    await failed;
-    expect(transport.status.getSnapshot().state).toBe("disconnected");
+    expect(transport.status.getSnapshot().state).toBe("reconnecting");
     window.dispatchEvent(new Event("online"));
     window.dispatchEvent(new Event("focus"));
     await expect(transport.reconnect()).rejects.toThrow();
     expect(host.commands).toHaveLength(1);
     complete({ status: 200, body: { stale: true } });
+    host.handler = () => ({ status: 200, body: { recovered: true } });
     await host.emit({ type: "state", phase: "CONNECTING" });
     await host.emit({ type: "state", phase: "CONNECTED" });
+    await expect(request).resolves.toEqual({ recovered: true });
     expect(transport.bridge.descriptor).toBe(descriptor);
-    host.handler = () => ({ status: 200, body: { recovered: true } });
     await expect(transport.fetch("/projects")).resolves.toEqual({
       recovered: true,
     });
@@ -336,58 +335,6 @@ describe("native source transport", () => {
     await vi.waitFor(() =>
       expect(transport.status.getSnapshot().state).toBe("ready"),
     );
-  });
-
-  it.each(["before", "after"])(
-    "keeps Android radio loss recoverable when its contract arrives %s offline",
-    async (order) => {
-      const { host, transport } = await setup();
-      if (order === "before")
-        await host.emit({
-          type: "state",
-          phase: "CONNECTED",
-          recoverable: false,
-        });
-      const online = vi
-        .spyOn(navigator, "onLine", "get")
-        .mockReturnValue(false);
-      window.dispatchEvent(new Event("offline"));
-      if (order === "after")
-        await host.emit({
-          type: "state",
-          phase: "CONNECTED",
-          recoverable: false,
-        });
-      expect(transport.status.getSnapshot().state).toBe("reconnecting");
-      const request = transport.fetch("/projects");
-      const result = expect(request).resolves.toEqual({ ok: true });
-      await Promise.resolve();
-      expect(host.commands).toHaveLength(0);
-      online.mockReturnValue(true);
-      window.dispatchEvent(new Event("online"));
-      await result;
-      expect(host.commands.map((command) => command.method)).toEqual([
-        "reconnect",
-        "request",
-      ]);
-    },
-  );
-
-  it("shows loss immediately and waits for network restoration before recovery", async () => {
-    const { host, transport } = await setup();
-    const online = vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
-    window.dispatchEvent(new Event("offline"));
-    expect(transport.status.getSnapshot().state).toBe("disconnected");
-    await host.emit({ type: "state", phase: "CONNECTED" });
-    expect(transport.status.getSnapshot().state).toBe("disconnected");
-    window.dispatchEvent(new Event("focus"));
-    expect(host.commands).toHaveLength(0);
-    online.mockReturnValue(true);
-    window.dispatchEvent(new Event("online"));
-    await vi.waitFor(() =>
-      expect(transport.status.getSnapshot().state).toBe("ready"),
-    );
-    expect(host.commands).toHaveLength(1);
   });
 
   it("pauses exhausted recovery while hidden and stops it on disposal or rejection", async () => {

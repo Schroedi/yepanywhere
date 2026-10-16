@@ -22,6 +22,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -34,6 +35,29 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class YaServerConnectionManagerTest {
+    @Test
+    fun restoresBeforePublishingTheTransportToANewSubscriber() = runBlocking {
+        val fixture = Fixture()
+        val manager = fixture.manager()
+        val lease = manager.acquire()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        val subscribed = CompletableDeferred<YaSubscription>()
+        val watcher = scope.launch {
+            manager.state.collect { state ->
+                if (state.phase == YaConnectionPhase.CONNECTED && !subscribed.isCompleted) {
+                    scope.launch(start = CoroutineStart.UNDISPATCHED) {
+                        subscribed.complete(lease.subscribe("glossary", projectId = "project"))
+                    }
+                }
+            }
+        }
+        val transport = FakeTransport(fixture.credential)
+        try {
+            fixture.connector.results.send(Result.success(transport))
+            withTimeout(2_000) { subscribed.await(); transport.receiveStarted.await() }
+            assertEquals(1, transport.sent.count { it.optString("type") == "subscribe" })
+        } finally { watcher.cancel(); scope.cancel(); lease.releaseAndAwait(); manager.shutdownAndAwait() }
+    }
     @Test
     fun responseOwnershipSurvivesSiblingReleaseAndRejectsLateAdmission() = runBlocking {
         val fixture = Fixture()
@@ -703,6 +727,7 @@ class YaServerConnectionManagerTest {
         val sent = CopyOnWriteArrayList<JSONObject>()
         val chunks = CopyOnWriteArrayList<ByteArray>()
         var cancelled = false
+        val receiveStarted = CompletableDeferred<Unit>()
         var body: YaResponseBody? = null
         var bodyParams: JSONObject? = null
         var bodyGate: (suspend () -> YaResponseBody)? = null
@@ -722,7 +747,7 @@ class YaServerConnectionManagerTest {
             chunks += chunk
         }
 
-        override suspend fun receive(): JSONObject = incoming.receive()
+        override suspend fun receive(): JSONObject { receiveStarted.complete(Unit); return incoming.receive() }
 
         override suspend fun awaitClosed() {
             for (ignored in incoming) Unit

@@ -25,9 +25,9 @@ class YaWebTransportSession(
     val handle: String,
     private val lease: YaConnectionLease,
     private val scope: CoroutineScope,
-    private val emit: (JSONObject) -> Unit,
+    private val emit: suspend (JSONObject) -> Unit,
     private val recordCancellation: () -> Unit = {},
-    private val emitBytes: (ByteArray) -> Unit = {},
+    private val emitBytes: suspend (ByteArray) -> Unit = {},
     private val switchHost: () -> Unit,
 ) : Closeable {
     private val operations = ConcurrentHashMap<String, Job>()
@@ -92,6 +92,8 @@ class YaWebTransportSession(
                         uploadIds.remove(params.getString("uploadId"))?.let { lease.cancelUpload(it) }
                         JSONObject()
                     }
+                    "status" -> lease.state().let { JSONObject().put("phase", it.phase.name)
+                        .put("recoverable", it.recoverable).put("retryAttempt", it.retryAttempt) }
                     "reconnect" -> { lease.reconnect(); JSONObject() }
                     "switchHost" -> { switchHost(); JSONObject() }
                     else -> error("Unsupported native source operation")

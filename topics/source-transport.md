@@ -413,6 +413,29 @@ reply. A delayed success cannot mark a newer native retry ready, and a delayed
 failure cannot regress a newer connected or connecting state. Without a newer
 native observation, the command reply retains its compatibility behavior.
 
+Native socket observations own Android reachability; WebView `navigator.onLine`
+cannot override a connected native source. After initial readiness, lease
+suspension, connecting and retrying publish one `reconnecting` interval until
+native is ready again. Duplicate mapped states remain quiet. A new native lease
+generation forces one reattachment even when intermediate state messages were
+coalesced; departed generations cannot affect the current document. Visible safe
+reads wait through suspension within the existing readiness budget. Hidden reads
+fail with the typed recovery error. Shells advertising `stateQuery` reconcile a
+current unavailable operation against native state before retrying; delayed
+operation errors cannot regress a newer native observation. Exhausted recovery
+signals coalesce for five seconds, including native network-available events.
+
+Native bridge catch-up waits in a bounded event lane. Small lifecycle state and
+control replies take priority between complete logical messages; frame credit
+still bounds local delivery. Closing a document releases queued bytes and blocked
+producers. Event pressure may end the affected subscription with a recoverable
+overflow; it must not fail the entire document or become a proof failure.
+Subscription restore precedes publishing a new connected transport, so a newly
+admitted subscription is never restored a second time. Abandoning a caller after
+its encrypted request frame starts must allow that frame to finish; it cannot
+replace the socket used by sibling leases.
+
+
 ### Resume credentials and failure evidence
 
 A local handshake timeout, socket failure, relay outage, unknown error, or

@@ -907,7 +907,7 @@ impl Actor {
                     self.reconnect().await?;
                 }
             }
-            Command::Dispatch(method, mut p, mut reply) => {
+            Command::Dispatch(method, mut p, reply) => {
                 if reply.is_closed() {
                     return Ok(());
                 }
@@ -916,9 +916,10 @@ impl Actor {
                     let _ = reply.send(Err(Error::Overflow));
                     return Ok(());
                 }
-                let result: Result<Option<String>> = tokio::select! {
-                    _ = reply.closed() => Err(Error::Closed),
-                    result = async {
+                // Finish an admitted encrypted frame even if its caller goes
+                // away. Interrupting a backpressured send corrupts the writer
+                // and used to force unrelated owners through reconnect.
+                let result: Result<Option<String>> = async {
                     match method.as_str() {
                         "request" => {
                             let path = field(&p, "path")?;
@@ -1007,8 +1008,8 @@ impl Actor {
                         }
                         _ => Err(Error::InvalidMessage),
                     }
-                    } => result,
-                };
+                }
+                .await;
                 if matches!(result, Err(Error::Closed)) {
                     return self.reconnect().await;
                 }
@@ -1220,6 +1221,14 @@ pub(crate) mod tests {
         mutation: &str,
         held: Option<mpsc::Sender<()>>,
     ) -> (SessionOptions, tokio::task::JoinHandle<()>) {
+        peer_paused(version, mutation, held, None).await
+    }
+    async fn peer_paused(
+        version: u64,
+        mutation: &str,
+        held: Option<mpsc::Sender<()>>,
+        read_gate: Option<oneshot::Receiver<()>>,
+    ) -> (SessionOptions, tokio::task::JoinHandle<()>) {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let endpoint = format!("ws://{}/api/ws", listener.local_addr().unwrap());
         let mutation = mutation.to_owned();
@@ -1262,6 +1271,9 @@ pub(crate) mod tests {
             // No application data precedes native client capabilities.
             if !matches!(socket.next().await, Some(Ok(Message::Binary(_)))) {
                 return;
+            }
+            if let Some(gate) = read_gate {
+                let _ = gate.await;
             }
             let key = transport_key(&credential().base_key, &[9; 24]).unwrap();
             let mut seq = 0u64;
@@ -1528,6 +1540,67 @@ pub(crate) mod tests {
         task.abort();
         let _ = task.await;
     }
+    #[tokio::test]
+    async fn abandoning_a_backpressured_request_does_not_replace_the_secure_socket() {
+        let (release, gate) = oneshot::channel();
+        let (options, peer) = peer_paused(3, "", None, Some(gate)).await;
+        let session = resume(options, &fixture_credential_data(), None)
+            .await
+            .unwrap();
+        let mut requests = Vec::new();
+        for _ in 0..40 {
+            let session = session.clone();
+            requests.push(tokio::spawn(async move {
+                session
+                    .dispatch(
+                        "request".into(),
+                        json!({"method":"POST","path":"/large","body":"x".repeat(500_000)})
+                            .to_string(),
+                    )
+                    .await
+            }));
+        }
+        // The peer does not read: filling the actor's bounded command queue
+        // establishes a blocked writer without relying on a timing sleep.
+        timeout(Duration::from_secs(2), async {
+            let mut previous = usize::MAX;
+            let mut stable = 0;
+            loop {
+                tokio::task::yield_now().await;
+                let capacity = session.commands.capacity();
+                stable = if capacity <= 16 && capacity == previous {
+                    stable + 1
+                } else {
+                    0
+                };
+                previous = capacity;
+                if stable >= 32 {
+                    break;
+                }
+            }
+        })
+        .await
+        .unwrap();
+        for request in requests {
+            request.abort();
+            let _ = request.await;
+        }
+        let _ = release.send(());
+        let response = timeout(
+            Duration::from_secs(3),
+            session.dispatch(
+                "request".into(),
+                json!({"method":"GET","path":"/fixture"}).to_string(),
+            ),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        assert!(response.contains("fixture"));
+        session.shutdown();
+        peer.abort();
+    }
+
     #[tokio::test]
     async fn encrypted_body_is_progressive_and_cancel_preserves_ordinary_requests() {
         let (observed, mut canceled) = mpsc::channel(8);

@@ -16,6 +16,7 @@ export interface NativeSourceDescriptor {
   label: string;
   binary: boolean;
   responseStreams?: boolean;
+  stateQuery?: boolean;
 }
 
 /** Native operation failure, distinct from an HTTP response and bridge closure. */
@@ -356,6 +357,7 @@ export class NativeTransportBridge {
         label: message.label,
         binary: message.binary,
         ...(message.responseStreams === true ? { responseStreams: true } : {}),
+        ...(message.stateQuery === true ? { stateQuery: true } : {}),
       };
       this.resolveReady(this.descriptor);
       return;

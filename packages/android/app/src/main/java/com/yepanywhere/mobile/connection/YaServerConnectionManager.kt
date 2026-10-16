@@ -106,6 +106,10 @@ class YaConnectionLease internal constructor(
         check(!released.get()) { "Connection lease is released" }
         manager.reconnect(id)
     }
+    suspend fun state(): YaConnectionState {
+        check(!released.get()) { "Connection lease is released" }
+        return manager.stateForLease(id)
+    }
 
     suspend fun request(
         method: String,
@@ -237,6 +241,10 @@ class YaServerConnectionManager(
                 OwnedResponseBody(leaseId, id, body).also { responseBodies[id] = it }
             }
         } catch (error: Throwable) { body.close(); throw error }
+    }
+    internal suspend fun stateForLease(leaseId: String): YaConnectionState = mutex.withLock {
+        check(leases.containsKey(leaseId)) { "Connection lease is released" }
+        mutableState.value
     }
 
     init {
@@ -572,7 +580,6 @@ class YaServerConnectionManager(
                         connectedAtEpochMs = connectedAt,
                     )
                     installConnection(generation, routed)
-                    restoreSubscriptions(routed.transport)
                     ready.complete(Unit)
                     receiveMessages(generation, routed)
                     throw YaConnectionUnavailableException("Native secure connection ended")
@@ -660,19 +667,14 @@ class YaServerConnectionManager(
             check(connectionGeneration == generation && leases.isNotEmpty()) {
                 "Native connection no longer has an owner"
             }
+            // Replay and publication share one lock. A new subscriber cannot
+            // dispatch in the gap and then be replayed a second time.
+            subscriptions.values.forEach { routed.transport.send(it.subscribeMessage()) }
             connection = routed
             mutableState.value = YaConnectionState(
                 phase = YaConnectionPhase.CONNECTED,
                 routeId = routed.route.id,
             )
-        }
-    }
-
-    private suspend fun restoreSubscriptions(transport: YaMessageTransport) {
-        mutex.withLock {
-            // A concurrent close must enqueue unsubscribe after restore, never
-            // before a stale snapshot recreates the abandoned wire subscription.
-            subscriptions.values.forEach { transport.send(it.subscribeMessage()) }
         }
     }
 
