@@ -55,6 +55,41 @@ const COUNT_CACHE_PREFIX = "ya.count.";
 
 const chrome = getChrome()!;
 
+// A bounded, one-shot dev reload hint survives runtime.reload's context loss.
+let devReopenWindow: number | undefined;
+if (__EXTENSION_DEV_WORKER_HASH__) {
+  chrome.runtime.onMessage.addListener((message, _sender, respond) => {
+    if ((message as { kind?: string })?.kind === "ya-dev-worker")
+      respond({ workerHash: __EXTENSION_DEV_WORKER_HASH__ });
+    return false;
+  });
+  void (async () => {
+    const key = "ya.dev.reopenPanel";
+    const stored = (await chrome.storage.local.get(key))[key] as
+      | { windowId?: number; at?: number }
+      | undefined;
+    if (!stored) return;
+    await chrome.storage.local.remove(key);
+    if (
+      typeof stored.windowId !== "number" ||
+      typeof stored.at !== "number" ||
+      Date.now() - stored.at > 30_000
+    )
+      return;
+    try {
+      await chrome.sidePanel.open({ windowId: stored.windowId });
+    } catch {
+      // Chrome may reject reopening without a fresh user gesture. The next
+      // toolbar click reopens the panel even if its normal action is App tab.
+      devReopenWindow = stored.windowId;
+      await chrome.action.setTitle({
+        title: "Development extension updated — click to reopen the side panel",
+      });
+      await chrome.action.setBadgeText({ text: "↻" });
+    }
+  })().catch(() => {});
+}
+
 // The toolbar click must open the side panel within its user gesture, so
 // the setting it consults is kept in memory rather than read on click.
 let settings: ExtensionSettings = DEFAULT_EXTENSION_SETTINGS;
@@ -105,6 +140,13 @@ function openSidePanel(tab: ChromeTab): void {
 }
 
 chrome.action.onClicked.addListener((tab) => {
+  if (__EXTENSION_DEV_WORKER_HASH__ && devReopenWindow === tab.windowId) {
+    devReopenWindow = undefined;
+    openSidePanel(tab);
+    void chrome.action.setTitle({ title: "Yep Anywhere" });
+    void chrome.action.setBadgeText({ text: "" });
+    return;
+  }
   if (settings.toolbarAction === "side-panel") openSidePanel(tab);
   else void focusOrOpenApp();
 });

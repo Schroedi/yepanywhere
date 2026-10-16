@@ -4824,5 +4824,14 @@
   "extensionSettingsCollapseMergedHelp": "Start the session panel’s Merged PRs section collapsed. Expand it to see the saved PRs.",
   "extensionPanelMergedPrs": "Merged PRs ({count})",
   "issuesMergedOn": "Merged {date}",
-  "issuesMergeCommit": "Merge commit {sha}"
+  "issuesMergeCommit": "Merge commit {sha}",
+  "extensionDevCurrent": "Dev build {build}",
+  "extensionDevUnavailable": "Build status unavailable",
+  "extensionDevUpdateReady": "New development build available",
+  "extensionDevCheck": "Check updates",
+  "extensionDevReloadExtension": "Reload extension",
+  "extensionDevUpdatePanel": "Update panel",
+  "extensionDevReloadPanel": "Reload panel",
+  "extensionDevFullReloadHelp": "Updates the background worker or manifest. YA will try to reopen this panel; if Chrome closes it, click the toolbar icon to reopen.",
+  "extensionDevPanelReloadHelp": "Loads the latest panel code while keeping the side panel open."
 }

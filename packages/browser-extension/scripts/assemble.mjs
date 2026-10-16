@@ -16,7 +16,10 @@ import { fileURLToPath } from "node:url";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = resolve(packageRoot, "../..");
-const dist = resolve(packageRoot, "dist");
+const dist = resolve(
+  process.env.YEP_EXTENSION_OUT_DIR ?? resolve(packageRoot, "dist"),
+);
+const development = Boolean(process.env.YEP_EXTENSION_DEV_BUILD_ID);
 
 // The store identity: its public key gives unpacked builds the store's id.
 const identity = JSON.parse(
@@ -60,11 +63,11 @@ const icons = Object.fromEntries(
 
 const manifest = {
   manifest_version: 3,
-  name: "Yep Anywhere",
+  name: development ? "Yep Anywhere (Dev)" : "Yep Anywhere",
   description:
     "Supervise coding agents on your servers and find related sessions beside GitHub issues, pull requests and Jira tickets.",
   version,
-  version_name: `${version} (${revision.slice(0, 9)})`,
+  version_name: `${version}${development ? " dev" : ""} (${revision.slice(0, 9)})`,
   key: identity.key,
   icons,
   action: {

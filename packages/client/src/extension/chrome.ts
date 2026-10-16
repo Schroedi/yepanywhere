@@ -38,6 +38,8 @@ export interface ChromeMessageSender {
 export interface ChromeApi {
   runtime: {
     id: string;
+    reload(): void;
+    getManifest(): Record<string, unknown>;
     getURL(path: string): string;
     sendMessage(message: unknown): Promise<unknown>;
     onMessage: ChromeEvent<
@@ -99,6 +101,7 @@ export interface ChromeApi {
     WINDOW_ID_CURRENT: number;
   };
   action: {
+    setTitle(details: { title: string }): Promise<void>;
     setBadgeText(details: { tabId?: number; text: string }): Promise<void>;
     setBadgeBackgroundColor(details: {
       tabId?: number;

@@ -21,11 +21,16 @@ export default defineConfig((env) => {
     // (reached through shared settings hooks); a worker has no `process`.
     define: {
       ...remote.define,
+      __EXTENSION_DEV_WORKER_HASH__: JSON.stringify(
+        process.env.YEP_EXTENSION_DEV_WORKER_STAMP ?? "",
+      ),
       "process.env.NODE_ENV": JSON.stringify("production"),
     },
     publicDir: false,
     build: {
-      outDir: resolve(__dirname, "../browser-extension/dist"),
+      outDir:
+        process.env.YEP_EXTENSION_OUT_DIR ??
+        resolve(__dirname, "../browser-extension/dist"),
       emptyOutDir: false,
       copyPublicDir: false,
       sourcemap: false,

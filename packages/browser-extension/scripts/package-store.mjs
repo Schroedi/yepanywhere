@@ -28,6 +28,11 @@ const id = [
 assert.equal(id, identity.id, "Store ID must match the packaged public key");
 assert.equal(manifest.version, version);
 assert.equal(manifest.manifest_version, 3);
+assert.equal(
+  manifest.name,
+  "Yep Anywhere",
+  "Development builds cannot be packaged for the store",
+);
 assert.deepEqual([...manifest.permissions].sort(), [
   "activeTab",
   "contextMenus",
@@ -64,6 +69,10 @@ async function filesUnder(directory, prefix = "") {
   return files.sort();
 }
 const files = await filesUnder(dist);
+assert(
+  !files.includes("dev-build.json"),
+  "Development build signal in store package",
+);
 for (const name of files) {
   assert(!name.endsWith(".map"), `Source map in store package: ${name}`);
   assert(

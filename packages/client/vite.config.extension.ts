@@ -65,11 +65,21 @@ export default defineConfig((env) => {
   plugins.splice(csp, 0, extensionEntryPlugin());
   return {
     ...remote,
-    cacheDir: "node_modules/.vite-extension",
+    cacheDir: process.env.YEP_EXTENSION_DEV_BUILD_ID
+      ? "node_modules/.vite-extension-dev"
+      : "node_modules/.vite-extension",
+    define: {
+      ...remote.define,
+      __EXTENSION_DEV_BUILD_ID__: JSON.stringify(
+        process.env.YEP_EXTENSION_DEV_BUILD_ID ?? "",
+      ),
+    },
     plugins,
     build: {
       ...remote.build,
-      outDir: resolve(__dirname, "../browser-extension/dist"),
+      outDir:
+        process.env.YEP_EXTENSION_OUT_DIR ??
+        resolve(__dirname, "../browser-extension/dist"),
       emptyOutDir: true,
       sourcemap: false,
       rollupOptions: {

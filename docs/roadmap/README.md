@@ -1,6 +1,6 @@
 # Roadmap
 
-Last updated: 2026-10-14.
+Last updated: 2026-10-16.
 
 This is Yep Anywhere's canonical product-priority overview. Keep initiative
 status, the next action, and major blockers here; keep implementation steps in
@@ -381,6 +381,10 @@ cancel newer submissions. Listing/privacy edits and Google review remain
 outside CI. The release helper follows the existing tagged
 website release pattern. The [live read-only authentication check](https://github.com/kzahel/yepanywhere/actions/runs/38618552980)
 passed on 2026-10-14 and confirmed 0.1.3 remains pending review.
+Opt-in extension development now rebuilds to a separate `dist-dev`, with a
+side-panel update indicator and panel-preserving UI refresh; full worker
+reloads attempt to reopen the panel within Chrome's gesture restrictions
+([plan 154](../tactical/154-extension-development-builds.md)).
 This experiment does not displace release delivery.
 
 These remain candidates behind publishing and continuous delivery, not a

@@ -42,6 +42,7 @@ import {
   loadExtensionSettings,
   subscribeExtensionSettings,
 } from "../settings";
+import { DevBuildFooter } from "./DevBuildFooter";
 import styles from "./SidePanel.module.css";
 import { useCurrentTab } from "./useCurrentTab";
 
@@ -810,6 +811,8 @@ export function SidePanel() {
           </>
         )}
       </main>
+      {typeof __EXTENSION_DEV_BUILD_ID__ !== "undefined" &&
+        __EXTENSION_DEV_BUILD_ID__ && <DevBuildFooter />}
     </div>
   );
 }

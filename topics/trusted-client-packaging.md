@@ -273,6 +273,42 @@ cannot inject into or debug its pages, and its storage belongs to it alone.
   Store assets, setup and release commands live in
   [store preparation](../docs/distribution/chrome-extension/README.md).
 
+### Chrome extension development build
+
+`pnpm dev --extension` owns a separate, opt-in extension watcher; standalone
+`pnpm --filter @yep-anywhere/browser-extension dev` uses the same coordinator.
+Both write `packages/browser-extension/dist-dev`, never the release `dist`.
+The manifest uses the existing public key/id and permissions, with the name
+**Yep Anywhere (Dev)**. Consequently dev and store builds of that id cannot be
+installed alongside one another in one Chrome profile; use a separate browser
+profile when keeping the store installation. No YA server capability is needed:
+the build signal is a packaged file and all controls are extension-local.
+
+The coordinator serializes and debounces builds, bounds recursive watches to
+fixed source roots (at most 2,048 directories before acquisition), coalesces
+edits during a build, and publishes only completed generations. A PID/nonce
+lock excludes another owner of the same output. Shutdown releases watches,
+stops the active compiler and removes its own lock. Temporary builds and the
+lock live under ignored `node_modules/.cache/ya-extension-dev`.
+
+Successful publication copies dependency assets before entrypoints and writes
+`dev-build.json` last via rename. Compile failures leave the prior build.
+Hashed assets retain the current and previous successful generations; a panel
+left open across further builds may need a refresh before loading old lazy
+chunks. The signal records a unique generation, build time, canonical manifest
+and worker fingerprint; it has no credentials or server data.
+
+Only development side panels show the footer. While visible, they check their
+own packaged signal every 1.5 seconds with no overlapping fetches; hiding or
+unmounting tears polling down. A button applies an update on demand. If the
+running worker fingerprint and manifest still match, refreshing the panel
+keeps Chrome's native side panel open. Otherwise `runtime.reload()` updates
+the whole extension. A one-shot, 30-second window hint attempts to reopen the
+panel. Chrome can reject this without a fresh user gesture; the next toolbar
+click then opens the panel even when the usual action is Open app. No extra
+permission, local HTTP build endpoint, auto reload or service-worker keepalive
+is introduced. Production builds omit the signal, controls and worker hooks.
+
 ## Deferred Verification Setup
 
 A useful host-local regression gate would run a separate YA checkout or built

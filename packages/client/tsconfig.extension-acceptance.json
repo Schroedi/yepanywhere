@@ -4,6 +4,9 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "include": ["scripts/extension-acceptance.mts"],
+  "include": [
+    "scripts/extension-acceptance.mts",
+    "scripts/extension-dev-acceptance.mts"
+  ],
   "exclude": ["node_modules", "dist"]
 }
