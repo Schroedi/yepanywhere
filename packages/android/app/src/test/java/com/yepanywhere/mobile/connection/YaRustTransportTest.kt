@@ -164,6 +164,7 @@ class YaRustTransportTest {
         override fun routeId() = "fixture-route"
         override fun credentialData() = YaRustCredential.encode(YaResumeCredential("fixture-owner", "fixture-session", ByteArray(32), 3))
         override fun securityBinding() = NativeSecurityBinding("fixture-session", "fixture-nonce")
+        override suspend fun fetchResponse(params: String): uniffi.ya_mobile_core.NativeResponseStream = error("Not used by buffered request fixtures")
         override suspend fun nextEvent() = events.receive()
         override suspend fun uploadChunk(payload: ByteArray) {
             if (holdUploads) { uploadStarted.complete(Unit); awaitCancellation() }

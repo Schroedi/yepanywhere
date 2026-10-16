@@ -10,6 +10,7 @@ import com.yepanywhere.mobile.experimental.SimpleClientContract
 import java.io.Closeable
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
@@ -116,6 +117,11 @@ class YaConnectionLease internal constructor(
         return manager.request(id, method, path, body, headers)
     }
 
+    suspend fun fetchResponse(path: String, headers: Map<String, String>): YaResponseBody {
+        check(!released.get()) { "Connection lease is released" }
+        return manager.fetchResponse(id, path, headers)
+    }
+
     suspend fun subscribe(
         channel: String,
         sessionId: String? = null,
@@ -200,6 +206,38 @@ class YaServerConnectionManager(
     private val mutableState = MutableStateFlow(YaConnectionState(YaConnectionPhase.IDLE))
 
     val state: StateFlow<YaConnectionState> = mutableState.asStateFlow()
+    private val responseBodies = ConcurrentHashMap<String, OwnedResponseBody>()
+
+    private inner class OwnedResponseBody(val leaseId: String, val id: String, val body: YaResponseBody) : YaResponseBody {
+        private val closed = AtomicBoolean(false)
+        override val metadata get() = body.metadata
+        override suspend fun nextChunk(): ByteArray? {
+            check(!closed.get()) { "Native response closed" }
+            return body.nextChunk()
+        }
+        override fun close() {
+            if (closed.compareAndSet(false, true)) { responseBodies.remove(id, this); body.close() }
+        }
+    }
+
+    internal suspend fun fetchResponse(leaseId: String, path: String, headers: Map<String, String>): YaResponseBody {
+        require(path.startsWith("/") && !path.startsWith("//"))
+        require(headers.keys.none { it.equals("Authorization", ignoreCase = true) })
+        val transport = ensureConnected(leaseId)
+        val params = JSONObject().put("method", "GET")
+            .put("path", if (path.startsWith("/api/")) path else "/api$path")
+            .put("headers", JSONObject(headers.filterKeys { it.lowercase() !in MANAGED_REQUEST_HEADERS } +
+                mapOf("Content-Type" to "application/json", "X-Yep-Anywhere" to "true")))
+        val body = transport.fetchResponse(params) ?: error("Native response streaming unavailable")
+        try {
+            return mutex.withLock {
+                check(leases.containsKey(leaseId) && connection?.transport === transport) { "Native response owner changed" }
+                require(responseBodies.size < 8) { "Native response limit exceeded" }
+                val id = UUID.randomUUID().toString()
+                OwnedResponseBody(leaseId, id, body).also { responseBodies[id] = it }
+            }
+        } catch (error: Throwable) { body.close(); throw error }
+    }
 
     init {
         require(retryDelaysMs.all { it >= 0 })
@@ -398,6 +436,7 @@ class YaServerConnectionManager(
         val subscriptionsToClose = mutex.withLock {
             leases.remove(leaseId)?.toList().orEmpty()
         }
+        responseBodies.values.filter { it.leaseId == leaseId }.forEach { it.close() }
         subscriptionsToClose.forEach { closeSubscription(it) }
         val ownedUploads = mutex.withLock { uploads.values.filter { it.leaseId == leaseId }.map { it.id } }
         ownedUploads.forEach { cancelUpload(leaseId, it) }
@@ -816,6 +855,7 @@ class YaServerConnectionManager(
     }
 
     private fun failPendingLocked(error: Throwable) {
+        responseBodies.values.toList().forEach { it.close() }
         pendingRequests.values.forEach { it.completeExceptionally(error) }
         pendingRequests.clear()
     }

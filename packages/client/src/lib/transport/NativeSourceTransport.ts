@@ -7,6 +7,7 @@ import {
   type YepMessage,
 } from "@yep-anywhere/shared";
 import { generateUUID } from "../uuid";
+import { NativeResponseBodies } from "./nativeResponseBodies";
 import { RelayProtocol } from "../connection/RelayProtocol";
 import { observeRecoverySignals } from "../connection/recoverySignals";
 import {
@@ -35,6 +36,7 @@ export class NativeSourceTransport implements SourceTransport, Connection {
   readonly mode = "secure" as const;
   readonly capabilities = { sameOriginUrls: false };
   readonly bridge: NativeTransportBridge;
+  private readonly responseBodies: NativeResponseBodies;
   readonly ready: NativeTransportBridge["ready"];
   private readonly protocol: RelayProtocol;
   private readonly listeners = new Set<() => void>();
@@ -81,6 +83,7 @@ export class NativeSourceTransport implements SourceTransport, Connection {
 
   constructor(channel: NativeTransportChannel) {
     this.bridge = new NativeTransportBridge(channel);
+    this.responseBodies = new NativeResponseBodies(this.bridge);
     this.ready = this.bridge.ready;
     this.protocol = new RelayProtocol(
       {
@@ -105,6 +108,7 @@ export class NativeSourceTransport implements SourceTransport, Connection {
         if (phase === "FAILED" && typeof message.recoverable === "boolean")
           phase = message.recoverable ? "EXHAUSTED" : "TERMINAL_FAILED";
         if (phase === "SUSPENDED") {
+          this.responseBodies.cancelAll(new ConnectionReconnectingError());
           this.bridge.rejectPending(new ConnectionReconnectingError());
         }
         this.setPhase(
@@ -244,6 +248,7 @@ export class NativeSourceTransport implements SourceTransport, Connection {
     };
     if (previous === "ready" && state !== "ready") {
       const error = new ConnectionReconnectingError();
+      this.responseBodies.cancelAll(error);
       this.protocol?.rejectAllPending(error);
       for (const upload of this.uploads.values()) upload.reject(error);
     }
@@ -371,10 +376,24 @@ export class NativeSourceTransport implements SourceTransport, Connection {
   fetch<T>(path: string, init?: RequestInit): Promise<T> {
     return this.protocol.fetch<T>(path, init);
   }
-  fetchResponse(path: string, init?: RequestInit): Promise<Response> {
+  async fetchResponse(path: string, init?: RequestInit): Promise<Response> {
+    await this.ready;
+    if (
+      this.bridge.descriptor?.responseStreams &&
+      (init?.method ?? "GET") === "GET"
+    ) {
+      await this.ensureReady();
+      return this.responseBodies.fetch(path, init);
+    }
     return this.protocol.fetchResponse(path, init);
   }
-  fetchBlob(path: string): Promise<Blob> {
+  fetchStream(path: string, init?: RequestInit): Promise<Response> {
+    return this.fetchResponse(path, init);
+  }
+  async fetchBlob(path: string): Promise<Blob> {
+    await this.ready;
+    if (this.bridge.descriptor?.responseStreams)
+      return (await this.fetchStream(path)).blob();
     return this.protocol.fetchBlob(path);
   }
   subscribeSession(
@@ -590,6 +609,7 @@ export class NativeSourceTransport implements SourceTransport, Connection {
     window.removeEventListener("online", this.online);
     document.removeEventListener("visibilitychange", this.visibility);
     this.protocol.close();
+    this.responseBodies.cancelAll(new SourceTransportDisposedError("secure"));
     this.bridge.close();
     this.listeners.clear();
     for (const upload of this.uploads.values())

@@ -287,6 +287,25 @@ event id, and are restored after a successful reconnect. Native inbound and
 per-subscription queues are bounded; a consumer that falls behind loses that
 subscription instead of growing process memory without limit.
 
+Android shells advertising `responseStreams` can deliver GET response headers
+before the body and pull binary chunks through their document bridge. This uses
+the existing encrypted response-stream protocol; native credentials remain
+native. Each authenticated source admits at most eight response objects, with
+at most 1 MiB queued per body and 128 KiB per chunk. The actor acknowledges bytes
+only as its reader removes them; JavaScript requests the next native chunk only
+when its Response consumer pulls. Unread media cannot block ordinary requests.
+Bodies idle for 120 seconds fail and release the producer. Cancellation,
+backgrounding, lease release and connection replacement stop affected bodies;
+a cut fails the body rather than splicing bytes from a resumed connection.
+Closing one consumer preserves sibling leases and their streams.
+
+Headers, lengths and single-range responses survive the byte path. A server
+declining streaming can return an ordinary response under a 1 MiB compatibility
+bound; explicit binary downloads retain original bytes even with JSON MIME.
+Ordinary JSON envelopes retain JSON semantics. Shells without the stream signal
+keep their existing buffered API path. Streaming is not automatic write replay,
+and does not change server-side file authorization or preview lease budgets.
+
 While a lease exists, an unexpected disconnect gets three bounded retries
 after 250 ms, 1 second, and 3 seconds. The manager has no recurring retry or
 heartbeat of its own. A new explicit request after a terminal failure may

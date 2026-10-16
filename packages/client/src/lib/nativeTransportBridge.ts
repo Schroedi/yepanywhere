@@ -1,4 +1,5 @@
 import { generateUUID } from "./uuid";
+import { bytesToUuid } from "@yep-anywhere/shared";
 
 export const NATIVE_FRAME_BYTES = 65_536;
 export const NATIVE_MESSAGE_BYTES = 32 * 1024 * 1024;
@@ -14,6 +15,7 @@ export interface NativeSourceDescriptor {
   profileId: string;
   label: string;
   binary: boolean;
+  responseStreams?: boolean;
 }
 
 /** Native operation failure, distinct from an HTTP response and bridge closure. */
@@ -41,7 +43,7 @@ export function encodeNativeFrame(
   data: Uint8Array,
 ): ArrayBuffer {
   if (
-    ![1, 2].includes(kind) ||
+    ![1, 2, 3].includes(kind) ||
     id <= 0 ||
     offset < 0 ||
     total <= 0 ||
@@ -89,7 +91,7 @@ export class NativeFrameReceiver {
     if (
       header.getUint16(0) !== 0x5941 ||
       header.getUint8(2) !== 1 ||
-      ![1, 2].includes(kind) ||
+      ![1, 2, 3].includes(kind) ||
       id !== this.id ||
       offset !== this.offset ||
       total === 0 ||
@@ -353,6 +355,7 @@ export class NativeTransportBridge {
         profileId: message.profileId,
         label: message.label,
         binary: message.binary,
+        ...(message.responseStreams === true ? { responseStreams: true } : {}),
       };
       this.resolveReady(this.descriptor);
       return;
@@ -370,6 +373,16 @@ export class NativeTransportBridge {
       `ack:${this.descriptor.handle}:${result.id}:${result.offset}`,
     );
     if (!result.message) return;
+    if (new DataView(frame).getUint8(3) === 3) {
+      if (
+        result.message.length <= 16 ||
+        result.message.length > 16 + 128 * 1024
+      )
+        throw new Error("Invalid native response chunk");
+      const id = bytesToUuid(result.message.subarray(0, 16));
+      this.pending.get(id)?.resolve(result.message.subarray(16));
+      return;
+    }
     const message = JSON.parse(
       new TextDecoder("utf-8", { fatal: true }).decode(result.message),
     ) as Record<string, unknown>;

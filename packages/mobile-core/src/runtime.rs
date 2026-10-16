@@ -448,6 +448,13 @@ impl NativeSourceLease {
         }
         result
     }
+    pub async fn fetch_response(&self, params: String) -> Result<Arc<crate::NativeResponseStream>> {
+        self.open()?;
+        self.source
+            .session
+            .fetch_response_owned(params, self.owner.cancel.clone())
+            .await
+    }
     pub async fn upload_chunk(&self, mut payload: Vec<u8>) -> Result<()> {
         self.open()?;
         check(payload.len() >= 24 && payload.len() <= 65536 + 24)?;

@@ -137,3 +137,14 @@ Root lint (zero warnings), format, typecheck and the full unit suite pass
 (6,999 client / 6,583 server; about 125 seconds). Native Rust baseline fmt,
 tests and warning-denying clippy pass. Existing intentional negative-path test
 logs and console-budget debt remain recorded in their existing gaps.
+
+Progressive native responses now pass the real unchanged-server probes over
+native direct SRP, relay mux and exact legacy relay: 40 MiB original bytes,
+suffix ranges, concurrent ordinary requests and independent lease cancellation.
+The body path uses bounded byte queues and pull-driven binary bridge replies,
+not the spike's repeated HTTP ranges. Rust fmt/tests/clippy, Android JVM tests,
+workspace lint/format/typecheck and the full unit suite pass (7,008 client /
+6,583 server, about 123 seconds). Device and artifact qualification remain.
+The Opus 5.5 high read-only review accepted the reconnect-revision fix and
+identified further recovery/bridge-pressure races to reproduce and repair;
+its recommendations are hypotheses until checked against the current code.

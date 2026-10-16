@@ -289,6 +289,11 @@ internal class YaRustMessageTransport(
         }
     }
     override fun cancelRequest(id: String) { requests.remove(id)?.let { it.cancelled.set(true); it.job?.cancel() } }
+    override suspend fun fetchResponse(params: JSONObject): YaResponseBody {
+        val response = withSession { session.fetchResponse(params.toString()) }
+        return try { YaRustResponseBody(response) }
+        catch (error: Throwable) { response.cancel(); response.destroy(); throw error }
+    }
     override suspend fun directRequest(method: String, path: String, body: JSONObject?): YaApiResponse {
         val request = JSONObject().put("method", method).put("path", path).put("headers", JSONObject().put("Content-Type", "application/json").put("X-Yep-Anywhere", "true"))
         if (body != null) request.put("body", body)
@@ -318,5 +323,31 @@ internal class YaRustMessageTransport(
             synchronized(sessionLock) { session.release(); released = true }
             scope.cancel()
         }
+    }
+}
+
+/** Keep the FFI handle alive until canceled reads have actually unwound. */
+private class YaRustResponseBody(private val response: NativeResponseStream) : YaResponseBody {
+    override val metadata = JSONObject(response.metadata())
+    private val gate = Any()
+    private var calls = 0
+    private var closed = false
+    private var destroyed = false
+    override suspend fun nextChunk(): ByteArray? {
+        synchronized(gate) { check(!closed); calls++ }
+        try { return response.nextChunk() }
+        catch (error: CoreException) { throw YaNativeOperationException(error.nativeFailure()) }
+        finally { synchronized(gate) { calls--; destroyWhenIdle() } }
+    }
+    override fun close() {
+        synchronized(gate) {
+            if (closed) return
+            closed = true
+            response.cancel()
+            destroyWhenIdle()
+        }
+    }
+    private fun destroyWhenIdle() {
+        if (closed && calls == 0 && !destroyed) { destroyed = true; response.destroy() }
     }
 }

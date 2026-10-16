@@ -1,6 +1,8 @@
+use crate::response::{self, Body, NativeResponseStream, Permit};
 use crate::{Error, Result, check, crypto::*, parse, wire::Wire};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use std::sync::atomic::AtomicUsize;
 use std::{
     collections::HashMap,
     io::Read,
@@ -57,6 +59,10 @@ struct Secure {
     outbound: u64,
     inbound: Option<u64>,
 }
+enum Inbound {
+    Json(Value),
+    Chunk(String, Vec<u8>),
+}
 impl Secure {
     async fn send(&mut self, v: &Value) -> Result<()> {
         let value = json!({"seq":self.outbound,"msg":v});
@@ -65,8 +71,18 @@ impl Secure {
         bytes.extend_from_slice(&serde_json::to_vec(&value)?);
         self.wire.encrypted_send(&bytes, &self.key).await
     }
-    async fn receive(&mut self) -> Result<Value> {
+    async fn receive(&mut self) -> Result<Inbound> {
         let plain = self.wire.encrypted_receive(&self.key).await?;
+        if plain.first() == Some(&6) {
+            check(plain.len() > 25 && plain.len() <= 25 + response::CHUNK)?;
+            let seq =
+                u64::from_be_bytes(plain[1..9].try_into().map_err(|_| Error::InvalidMessage)?);
+            self.accept_sequence(seq)?;
+            let id = Uuid::from_slice(&plain[9..25])
+                .map_err(|_| Error::InvalidMessage)?
+                .to_string();
+            return Ok(Inbound::Chunk(id, plain[25..].to_vec()));
+        }
         let payload = match plain.first() {
             Some(1) => Zeroizing::new(plain[1..].to_vec()),
             Some(3) => {
@@ -86,8 +102,13 @@ impl Secure {
             v.as_object().is_some_and(|o| o.len() == 2)
                 && self.inbound.is_none_or(|prev| seq > prev),
         )?;
+        self.accept_sequence(seq)?;
+        Ok(Inbound::Json(v["msg"].clone()))
+    }
+    fn accept_sequence(&mut self, seq: u64) -> Result<()> {
+        check(self.inbound.is_none_or(|prev| seq > prev))?;
         self.inbound = Some(seq);
-        Ok(v["msg"].clone())
+        Ok(())
     }
 }
 fn validate(options: &SessionOptions) -> Result<()> {
@@ -353,6 +374,7 @@ async fn resume_candidates(
 enum Command {
     Dispatch(String, Value, oneshot::Sender<Result<String>>),
     Upload(Vec<u8>, oneshot::Sender<Result<()>>),
+    Stream(String, Value, Arc<Body>, oneshot::Sender<Result<String>>),
 }
 #[derive(Clone, uniffi::Record)]
 pub struct NativeSecurityBinding {
@@ -367,6 +389,7 @@ struct Lease {
     lagged: std::sync::Mutex<HashMap<String, String>>,
     wake: tokio::sync::Notify,
     requests_changed: Arc<tokio::sync::Notify>,
+    stream_slots: Arc<AtomicUsize>,
     credential: std::sync::Mutex<Zeroizing<Vec<u8>>>,
 }
 #[derive(uniffi::Object)]
@@ -408,6 +431,7 @@ impl NativeSession {
             lagged: std::sync::Mutex::new(HashMap::new()),
             wake: tokio::sync::Notify::new(),
             requests_changed: Arc::new(tokio::sync::Notify::new()),
+            stream_slots: Arc::new(AtomicUsize::new(0)),
             credential: std::sync::Mutex::new(Zeroizing::new(
                 serde_json::to_vec(&credential).expect("serializable credential"),
             )),
@@ -482,6 +506,10 @@ impl NativeSession {
             .map_err(|_| Error::Overflow)?;
         tokio::select! { _ = self.lease.cancel.cancelled() => Err(Error::Closed), result = timeout(Duration::from_secs(30), rx) => result.map_err(|_| Error::Timeout)?.map_err(|_| Error::Closed)? }
     }
+    pub async fn fetch_response(&self, params: String) -> Result<Arc<NativeResponseStream>> {
+        self.fetch_response_owned(params, self.lease.cancel.clone())
+            .await
+    }
     pub async fn upload_chunk(&self, payload: Vec<u8>) -> Result<()> {
         check(payload.len() >= 24 && payload.len() <= 65536 + 24)?;
         let (tx, rx) = oneshot::channel();
@@ -512,6 +540,48 @@ impl NativeSession {
         }
     }
 }
+impl NativeSession {
+    pub(crate) async fn fetch_response_owned(
+        &self,
+        params: String,
+        owner: CancellationToken,
+    ) -> Result<Arc<NativeResponseStream>> {
+        if self.lease.cancel.is_cancelled() || owner.is_cancelled() {
+            return Err(Error::Closed);
+        }
+        let mut params = parse(&params, 512 * 1024)?;
+        check(params["method"] == "GET")?;
+        let path = field(&params, "path")?;
+        check(path.starts_with('/') && !path.starts_with("//") && path.len() <= 4096)?;
+        let permit = Permit::acquire(&self.lease.stream_slots)?;
+        let body = Body::new(self.lease.requests_changed.clone(), owner.clone());
+        let mut admission = response::Admission(Some(body.clone()));
+        let watched = body.clone();
+        tokio::spawn(async move {
+            tokio::select! { _ = owner.cancelled() => watched.cancel(), _ = watched.finished.cancelled() => {} }
+        });
+        let id = Uuid::new_v4().to_string();
+        params["type"] = json!("request");
+        params["id"] = json!(id);
+        params["stream"] = json!(true);
+        let (reply, head) = oneshot::channel();
+        self.commands
+            .try_send(Command::Stream(id, params, body.clone(), reply))
+            .map_err(|_| Error::Overflow)?;
+        let head = tokio::select! {
+            _ = self.lease.cancel.cancelled() => return Err(Error::Closed),
+            _ = body.owner.cancelled() => return Err(Error::Closed),
+            result = timeout(Duration::from_secs(30), head) => result.map_err(|_| Error::Timeout)?.map_err(|_| Error::Closed)??,
+        };
+        admission.0 = None;
+        Ok(Arc::new(NativeResponseStream {
+            head,
+            body,
+            reader: Mutex::new(()),
+            _permit: permit,
+        }))
+    }
+}
 struct RequestCleanup(Arc<tokio::sync::Notify>);
 impl Drop for RequestCleanup {
     fn drop(&mut self) {
@@ -521,6 +591,14 @@ impl Drop for RequestCleanup {
 struct Pending {
     reply: oneshot::Sender<Result<String>>,
     deadline: Instant,
+}
+struct Stream {
+    head: Option<oneshot::Sender<Result<String>>>,
+    body: Arc<Body>,
+    deadline: Instant,
+    received: u64,
+    acked: u64,
+    length: Option<u64>,
 }
 struct Upload {
     wire_id: Uuid,
@@ -537,6 +615,7 @@ struct Actor {
     lease: Arc<Lease>,
     storage: Option<Arc<dyn crate::CredentialPersistence>>,
     pending: HashMap<String, Pending>,
+    streams: HashMap<String, Stream>,
     subscriptions: HashMap<String, Value>,
     uploads: HashMap<String, Upload>,
 }
@@ -563,6 +642,7 @@ impl Actor {
             lease,
             storage,
             pending: HashMap::new(),
+            streams: HashMap::new(),
             subscriptions: HashMap::new(),
             uploads: HashMap::new(),
         }
@@ -611,6 +691,12 @@ impl Actor {
         Ok(())
     }
     fn fail_pending(&mut self) {
+        for (_, stream) in self.streams.drain() {
+            if let Some(head) = stream.head {
+                let _ = head.send(Err(Error::Unavailable));
+            }
+            stream.body.finish(Err(Error::Unavailable));
+        }
         for (_, p) in self.pending.drain() {
             let _ = p.reply.send(Err(Error::Unavailable));
         }
@@ -686,7 +772,12 @@ impl Actor {
     }
     async fn run(mut self) {
         loop {
-            let deadline = self.pending.values().map(|p| p.deadline).min();
+            let deadline = self
+                .pending
+                .values()
+                .map(|p| p.deadline)
+                .chain(self.streams.values().map(|s| s.deadline))
+                .min();
             let cleanup = async {
                 if let Some(deadline) = deadline {
                     tokio::time::sleep_until(deadline).await;
@@ -710,14 +801,16 @@ impl Actor {
                 message = self.secure.receive() => match message {
                     Ok(v) => {
                         let cancel = self.lease.cancel.clone();
-                        tokio::select! { _ = cancel.cancelled() => Err(Error::Closed), result = self.message(v) => result }
+                        tokio::select! { _ = cancel.cancelled() => Err(Error::Closed), result = async {
+                            match v { Inbound::Json(v) => self.message(v).await, Inbound::Chunk(id, bytes) => self.response_chunk(&id, bytes) }
+                        } => result }
                     },
                     Err(Error::InvalidMessage) => Err(Error::InvalidMessage),
                     Err(_) => self.reconnect().await,
                 },
             };
             let outcome = if outcome.is_ok() {
-                let mut result = Ok(());
+                let mut result = self.response_progress().await;
                 while let Some(id) = self.retired.pop() {
                     let cancel = self.lease.cancel.clone();
                     let unsubscribe = json!({"type":"unsubscribe","subscriptionId":id});
@@ -756,6 +849,32 @@ impl Actor {
     }
     async fn command(&mut self, c: Command) -> Result<()> {
         match c {
+            Command::Stream(id, params, body, head) => {
+                if head.is_closed() || body.progress()?.0 {
+                    body.cancel();
+                    return Ok(());
+                }
+                self.streams.insert(
+                    id.clone(),
+                    Stream {
+                        head: Some(head),
+                        body,
+                        deadline: Instant::now() + Duration::from_secs(30),
+                        received: 0,
+                        acked: 0,
+                        length: None,
+                    },
+                );
+                if let Err(error) = self.secure.send(&params).await {
+                    if let Some(stream) = self.streams.remove(&id) {
+                        if let Some(head) = stream.head {
+                            let _ = head.send(Err(error.clone()));
+                        }
+                        stream.body.finish(Err(error));
+                    }
+                    self.reconnect().await?;
+                }
+            }
             Command::Upload(mut payload, reply) => {
                 let id = Uuid::from_slice(&payload[..16])
                     .map_err(|_| Error::InvalidMessage)?
@@ -920,8 +1039,64 @@ impl Actor {
     }
     async fn message(&mut self, mut v: Value) -> Result<()> {
         match field(&v, "type")? {
+            "response_stream_start" => {
+                let id = field(&v, "id")?.to_owned();
+                if let Some(stream) = self.streams.get_mut(&id) {
+                    check(
+                        stream.head.is_some()
+                            && v["status"]
+                                .as_u64()
+                                .is_some_and(|s| (200..=599).contains(&s)),
+                    )?;
+                    stream.length = v
+                        .get("length")
+                        .map(|v| v.as_u64().ok_or(Error::InvalidMessage))
+                        .transpose()?;
+                    stream.deadline = Instant::now() + Duration::from_secs(120);
+                    v["streaming"] = json!(true);
+                    if let Some(head) = stream.head.take() {
+                        let _ = head.send(Ok(v.to_string()));
+                    }
+                } else {
+                    self.secure
+                        .send(&json!({"type":"response_stream_cancel","id":id}))
+                        .await?;
+                }
+            }
+            "response_stream_end" => {
+                if let Some(stream) = self.streams.remove(field(&v, "id")?) {
+                    let result = if v.get("error").is_some() {
+                        Err(Error::Unavailable)
+                    } else if stream.head.is_some()
+                        || stream.length.is_some_and(|n| n != stream.received)
+                    {
+                        Err(Error::InvalidMessage)
+                    } else {
+                        Ok(())
+                    };
+                    if let Some(head) = stream.head {
+                        let _ = head.send(Err(Error::InvalidMessage));
+                    }
+                    stream.body.finish(result);
+                }
+            }
             "response" => {
-                if let Some(pending) = self.pending.remove(field(&v, "id")?) {
+                if let Some(stream) = self.streams.remove(field(&v, "id")?) {
+                    // Old servers can decline streaming. Keep their ordinary
+                    // response semantics, but never accumulate a large file.
+                    let mut head = json!({"streaming":false,"status":v["status"],"headers":v["headers"],"body":v["body"]});
+                    head["type"] = json!("response");
+                    let text = head.to_string();
+                    let result = if text.len() <= response::WINDOW {
+                        Ok(text)
+                    } else {
+                        Err(Error::Overflow)
+                    };
+                    if let Some(head) = stream.head {
+                        let _ = head.send(result);
+                    }
+                    stream.body.finish(Ok(()));
+                } else if let Some(pending) = self.pending.remove(field(&v, "id")?) {
                     let _ = pending.reply.send(Ok(
                         json!({"status":v["status"],"headers":v["headers"],"body":v["body"]})
                             .to_string(),
@@ -964,6 +1139,54 @@ impl Actor {
             }
             "pong" => {}
             _ => return Err(Error::InvalidMessage),
+        }
+        Ok(())
+    }
+    fn response_chunk(&mut self, id: &str, bytes: Vec<u8>) -> Result<()> {
+        if let Some(stream) = self.streams.get_mut(id) {
+            check(stream.head.is_none())?;
+            stream.received = stream
+                .received
+                .checked_add(bytes.len() as u64)
+                .ok_or(Error::Overflow)?;
+            check(
+                stream.received - stream.acked <= response::WINDOW as u64
+                    && stream.length.is_none_or(|n| stream.received <= n),
+            )?;
+            stream.body.push(bytes)?;
+            stream.deadline = Instant::now() + Duration::from_secs(120);
+        }
+        Ok(())
+    }
+    async fn response_progress(&mut self) -> Result<()> {
+        let mut cancel = Vec::new();
+        let mut acks = Vec::new();
+        for (id, stream) in &mut self.streams {
+            let (cancelled, consumed) = stream.body.progress()?;
+            if cancelled
+                || stream.head.as_ref().is_some_and(|head| head.is_closed())
+                || stream.deadline <= Instant::now()
+            {
+                cancel.push(id.clone());
+            } else if consumed > stream.acked {
+                stream.acked = consumed;
+                stream.deadline = Instant::now() + Duration::from_secs(120);
+                acks.push(json!({"type":"response_stream_ack","id":id,"bytes":consumed}));
+            }
+        }
+        for id in cancel {
+            if let Some(stream) = self.streams.remove(&id) {
+                if let Some(head) = stream.head {
+                    let _ = head.send(Err(Error::Timeout));
+                }
+                stream.body.finish(Err(Error::Timeout));
+            }
+            self.secure
+                .send(&json!({"type":"response_stream_cancel","id":id}))
+                .await?;
+        }
+        for ack in acks {
+            self.secure.send(&ack).await?;
         }
         Ok(())
     }
@@ -1041,7 +1264,10 @@ pub(crate) mod tests {
                 return;
             }
             let key = transport_key(&credential().base_key, &[9; 24]).unwrap();
-            let mut seq = 0;
+            let mut seq = 0u64;
+            let mut stream_id: Option<String> = None;
+            let mut sent = 0u64;
+            let mut acknowledged = 0u64;
             while let Some(Ok(Message::Binary(bytes))) = socket.next().await {
                 let plain = open(&bytes[25..], &bytes[1..25], &key).unwrap();
                 if plain.first() != Some(&1) {
@@ -1062,7 +1288,26 @@ pub(crate) mod tests {
                     }
                     continue;
                 }
-                let messages = if request["type"] == "subscribe" {
+                if request["type"] == "response_stream_cancel" {
+                    stream_id = None;
+                    if let Some(held) = &held {
+                        let _ = held.send(()).await;
+                    }
+                }
+                if request["type"] == "response_stream_ack"
+                    && request["id"].as_str() == stream_id.as_deref()
+                {
+                    acknowledged = request["bytes"].as_u64().unwrap();
+                }
+                let messages = if request["type"] == "request" && request["path"] == "/byte-stream"
+                {
+                    stream_id = Some(request["id"].as_str().unwrap().into());
+                    sent = 0;
+                    acknowledged = 0;
+                    vec![
+                        json!({"type":"response_stream_start","id":request["id"],"status":206,"headers":{"content-type":"video/mp4","content-range":"bytes 0-3145727/4194304"},"length":3*1024*1024}),
+                    ]
+                } else if request["type"] == "subscribe" {
                     let count = if request["subscriptionId"] == "lagging" {
                         200
                     } else {
@@ -1086,6 +1331,41 @@ pub(crate) mod tests {
                     frame.extend_from_slice(&seal(&inner, &[10; 24], &key).unwrap());
                     if socket.send(Message::binary(frame)).await.is_err() {
                         return;
+                    }
+                }
+                if let Some(id) = stream_id.clone() {
+                    while sent < 3 * 1024 * 1024 && sent < acknowledged + response::WINDOW as u64 {
+                        let mut plain = vec![6];
+                        plain.extend_from_slice(&seq.to_be_bytes());
+                        seq += 1;
+                        plain.extend_from_slice(Uuid::parse_str(&id).unwrap().as_bytes());
+                        plain.extend_from_slice(&vec![
+                            (sent / response::CHUNK as u64) as u8;
+                            response::CHUNK
+                        ]);
+                        sent += response::CHUNK as u64;
+                        let mut frame = vec![1];
+                        frame.extend_from_slice(&[10; 24]);
+                        frame.extend_from_slice(&seal(&plain, &[10; 24], &key).unwrap());
+                        if socket.send(Message::binary(frame)).await.is_err() {
+                            return;
+                        }
+                    }
+                    if sent == 3 * 1024 * 1024 {
+                        let mut plain = vec![1];
+                        plain.extend_from_slice(
+                            json!({"seq":seq,"msg":{"type":"response_stream_end","id":id}})
+                                .to_string()
+                                .as_bytes(),
+                        );
+                        seq += 1;
+                        let mut frame = vec![1];
+                        frame.extend_from_slice(&[10; 24]);
+                        frame.extend_from_slice(&seal(&plain, &[10; 24], &key).unwrap());
+                        if socket.send(Message::binary(frame)).await.is_err() {
+                            return;
+                        }
+                        stream_id = None;
                     }
                 }
             }
@@ -1248,6 +1528,62 @@ pub(crate) mod tests {
         task.abort();
         let _ = task.await;
     }
+    #[tokio::test]
+    async fn encrypted_body_is_progressive_and_cancel_preserves_ordinary_requests() {
+        let (observed, mut canceled) = mpsc::channel(8);
+        let (options, peer) = peer_observed(3, "", Some(observed)).await;
+        let session = resume(options, &fixture_credential_data(), None)
+            .await
+            .unwrap();
+        let body = session
+            .fetch_response(json!({"method":"GET","path":"/byte-stream"}).to_string())
+            .await
+            .unwrap();
+        let head: Value = serde_json::from_str(&body.metadata()).unwrap();
+        assert_eq!(head["status"], 206);
+        assert_eq!(head["headers"]["content-range"], "bytes 0-3145727/4194304");
+        // The producer sends its first window without demand. Ordinary JSON is
+        // still serviced while that whole window remains unread.
+        let ordinary = session
+            .dispatch(
+                "request".into(),
+                json!({"method":"GET","path":"/fixture"}).to_string(),
+            )
+            .await
+            .unwrap();
+        assert!(ordinary.contains("fixture"));
+        for index in 0..10 {
+            let chunk = body.next_chunk().await.unwrap().unwrap();
+            assert_eq!(chunk, vec![index; response::CHUNK]);
+        }
+        body.cancel();
+        timeout(Duration::from_secs(2), canceled.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        let ordinary = session
+            .dispatch(
+                "request".into(),
+                json!({"method":"GET","path":"/fixture"}).to_string(),
+            )
+            .await
+            .unwrap();
+        assert!(ordinary.contains("fixture"));
+        drop(body);
+        let body = session
+            .fetch_response(json!({"method":"GET","path":"/byte-stream"}).to_string())
+            .await
+            .unwrap();
+        let mut count = 0;
+        while let Some(chunk) = body.next_chunk().await.unwrap() {
+            assert_eq!(chunk, vec![count; response::CHUNK]);
+            count += 1;
+        }
+        assert_eq!(count, 24);
+        session.shutdown();
+        peer.abort();
+    }
+
     #[tokio::test]
     async fn actor_failure_wakes_event_consumers_and_invalidates_exports() {
         let (options, peer) = peer(3, "").await;

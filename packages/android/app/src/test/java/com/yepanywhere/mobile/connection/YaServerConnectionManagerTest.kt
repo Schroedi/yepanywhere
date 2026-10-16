@@ -35,6 +35,70 @@ import org.junit.Test
 
 class YaServerConnectionManagerTest {
     @Test
+    fun responseOwnershipSurvivesSiblingReleaseAndRejectsLateAdmission() = runBlocking {
+        val fixture = Fixture()
+        val transport = FakeTransport(fixture.credential)
+        fixture.connector.results.send(Result.success(transport))
+        val manager = fixture.manager()
+        val first = manager.acquire()
+        val sibling = manager.acquire()
+        try {
+            val body = FakeBody()
+            transport.body = body
+            val opened = first.fetchResponse("/movie", mapOf("Range" to "bytes=-17"))
+            assertEquals("bytes=-17", transport.bodyParams!!.getJSONObject("headers").getString("Range"))
+            sibling.releaseAndAwait()
+            assertFalse(body.closed)
+            first.releaseAndAwait()
+            assertTrue(body.closed)
+            assertTrue(runCatching { opened.nextChunk() }.isFailure)
+
+            val second = FakeTransport(fixture.credential)
+            fixture.connector.results.send(Result.success(second))
+            val next = manager.acquire()
+            val admission = CompletableDeferred<Unit>()
+            val finish = CompletableDeferred<YaResponseBody>()
+            second.bodyGate = { admission.complete(Unit); finish.await() }
+            val late = async { runCatching { next.fetchResponse("/movie", emptyMap()) } }
+            admission.await()
+            next.releaseAndAwait()
+            val unused = FakeBody()
+            finish.complete(unused)
+            assertTrue(late.await().isFailure)
+            assertTrue(unused.closed)
+        } finally { first.close(); sibling.close(); manager.shutdownAndAwait() }
+    }
+
+    @Test
+    fun canceledResponseAdmissionClosesEvenAfterItsReplyWasQueued() = runBlocking {
+        val fixture = Fixture()
+        val transport = FakeTransport(fixture.credential)
+        val body = FakeBody()
+        transport.body = body
+        fixture.connector.results.send(Result.success(transport))
+        val manager = fixture.manager()
+        val lease = manager.acquire()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        val emitted = CopyOnWriteArrayList<JSONObject>()
+        val web = YaWebTransportSession("document", lease, scope, { emitted += it }) {}
+        try {
+            web.dispatch(JSONObject().put("handle", "document").put("id", "admission").put("method", "responseStart")
+                .put("params", JSONObject().put("path", "/movie")))
+            withTimeout(2_000) { while (emitted.none { it.optString("id") == "admission" }) delay(1) }
+            assertFalse(body.closed)
+            web.dispatch(JSONObject().put("handle", "document").put("id", "cancel-command").put("method", "cancel")
+                .put("params", JSONObject().put("id", "admission")))
+            assertTrue(body.closed)
+        } finally { web.close(); scope.cancel(); manager.shutdownAndAwait() }
+    }
+
+    private class FakeBody : YaResponseBody {
+        var closed = false
+        override val metadata = JSONObject().put("streaming", true).put("status", 200)
+        override suspend fun nextChunk(): ByteArray? { check(!closed); return null }
+        override fun close() { closed = true }
+    }
+    @Test
     fun nativeSubscriptionFailureRetiresIntentAndPreservesItsCodeAcrossTheBridge() = runBlocking {
         val fixture = Fixture()
         val transport = FakeTransport(fixture.credential)
@@ -639,6 +703,13 @@ class YaServerConnectionManagerTest {
         val sent = CopyOnWriteArrayList<JSONObject>()
         val chunks = CopyOnWriteArrayList<ByteArray>()
         var cancelled = false
+        var body: YaResponseBody? = null
+        var bodyParams: JSONObject? = null
+        var bodyGate: (suspend () -> YaResponseBody)? = null
+        override suspend fun fetchResponse(params: JSONObject): YaResponseBody? {
+            bodyParams = params
+            return bodyGate?.invoke() ?: body
+        }
         private val cancelledSignal = CompletableDeferred<Unit>()
 
         override fun send(message: JSONObject) {

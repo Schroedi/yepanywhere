@@ -97,7 +97,7 @@ class YaNativeTransportHost private constructor(
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         val handle = UUID.randomUUID().toString()
         val receiver = NativeTransportFrames.Receiver()
-        val outbound = Channel<ByteArray>(32)
+        val outbound = Channel<NativeTransportFrames.Message>(32)
         val queuedBytes = AtomicInteger()
         val metrics = NativeTransportMetrics()
         @Volatile var session: YaWebTransportSession? = null
@@ -138,7 +138,9 @@ class YaNativeTransportHost private constructor(
                 val generation = synchronized(lifecycleLock) { ++sessionGeneration }
                 val acquired = YaWebTransportSession(handle, lease, scope, { value ->
                     synchronized(lifecycleLock) { if (!closed && generation == sessionGeneration) emit(value) }
-                }, metrics::cancelled) { view.post { if (!closed) switchHost() } }
+                }, metrics::cancelled, { bytes ->
+                    synchronized(lifecycleLock) { if (!closed && generation == sessionGeneration) emitBytes(bytes, NativeTransportFrames.RESPONSE) }
+                }) { view.post { if (!closed) switchHost() } }
                 try {
                     synchronized(lifecycleLock) {
                         if (closed || !foreground.value.active) { acquired.close(); return@collectLatest }
@@ -173,18 +175,19 @@ class YaNativeTransportHost private constructor(
                     val snapshot = checkNotNull(runtime.pairedServers.snapshot(profileId))
                     postText(JSONObject().put("type", "hello").put("protocol", 1).put("handle", handle)
                         .put("profileId", profileId).put("label", snapshot.profile.label)
-                        .put("binary", binary).toString())
+                        .put("binary", binary).put("responseStreams", true).toString())
                     scope.launch {
                         try { observeForeground() }
                         catch (error: kotlinx.coroutines.CancellationException) { throw error }
                         catch (_: Throwable) { fail() }
                     }
                     var id = 1
-                    for (bytes in outbound) {
+                    for (message in outbound) {
+                        val bytes = message.data
                         var offset = 0
                         while (offset < bytes.size) {
                             val chunk = bytes.copyOfRange(offset, minOf(offset + NativeTransportFrames.CHUNK_BYTES, bytes.size))
-                            val frame = NativeTransportFrames.encode(NativeTransportFrames.JSON, id, offset, bytes.size, chunk)
+                            val frame = NativeTransportFrames.encode(message.kind, id, offset, bytes.size, chunk)
                             acknowledgement = CompletableDeferred()
                             expectedAck = "ack:$handle:$id:${offset + chunk.size}"
                             val creditStarted = System.nanoTime()
@@ -220,11 +223,13 @@ class YaNativeTransportHost private constructor(
         }
 
         fun emit(value: JSONObject) {
-            val bytes = value.toString().toByteArray(Charsets.UTF_8)
+            emitBytes(value.toString().toByteArray(Charsets.UTF_8), NativeTransportFrames.JSON)
+        }
+        fun emitBytes(bytes: ByteArray, kind: Int) {
             val queued = queuedBytes.addAndGet(bytes.size)
             metrics.queued(queued)
             if (bytes.size > NativeTransportFrames.MAX_MESSAGE_BYTES ||
-                queued > 64 * 1024 * 1024 || outbound.trySend(bytes).isFailure) {
+                queued > 64 * 1024 * 1024 || outbound.trySend(NativeTransportFrames.Message(kind, bytes)).isFailure) {
                 metrics.overflow()
                 fail()
             }
@@ -241,6 +246,7 @@ class YaNativeTransportHost private constructor(
             val drainStarted = System.nanoTime()
             require(!closed && !receiving)
             val frame = NativeTransportFrames.decode(bytes)
+            require(frame.kind != NativeTransportFrames.RESPONSE)
             val complete = receiver.accept(frame)
             metrics.frame(bytes.size)
             metrics.mainThread(System.nanoTime() - drainStarted)
