@@ -284,6 +284,16 @@ export function BrowserExtensionSettings() {
           />
         </label>
         <SettingsItem
+          label={t("extensionSettingsCollapseMerged")}
+          description={t("extensionSettingsCollapseMergedHelp")}
+        >
+          <Toggle
+            label={t("extensionSettingsCollapseMerged")}
+            checked={settings.collapseMergedPrs}
+            onChange={(collapseMergedPrs) => update({ collapseMergedPrs })}
+          />
+        </SettingsItem>
+        <SettingsItem
           label={t("extensionSettingsIncludeDismissed")}
           description={t("extensionSettingsIncludeDismissedDescription")}
         >

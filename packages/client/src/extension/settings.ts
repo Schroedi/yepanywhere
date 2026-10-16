@@ -25,6 +25,7 @@ export interface ExtensionSettings {
    */
   lookupAllowlist: string[];
   includeDismissed: boolean;
+  collapseMergedPrs: boolean;
   toolbarAction: "side-panel" | "app-tab";
   badge: "page" | "off";
   panelFallback: "attention" | "recent" | "none";
@@ -39,6 +40,7 @@ export const DEFAULT_EXTENSION_SETTINGS: ExtensionSettings = {
   automaticLookup: true,
   lookupAllowlist: [],
   includeDismissed: false,
+  collapseMergedPrs: false,
   toolbarAction: "side-panel",
   badge: "page",
   panelFallback: "attention",
@@ -77,6 +79,10 @@ function normalize(value: unknown): ExtensionSettings {
     lookupAllowlist: pick("lookupAllowlist", strings),
     includeDismissed: pick(
       "includeDismissed",
+      (candidate) => typeof candidate === "boolean",
+    ),
+    collapseMergedPrs: pick(
+      "collapseMergedPrs",
       (candidate) => typeof candidate === "boolean",
     ),
     toolbarAction: pick("toolbarAction", (candidate) =>

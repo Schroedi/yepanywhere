@@ -200,6 +200,9 @@
   text-align: left;
   text-transform: uppercase;
 }
+.panel .mergedGroup button {
+  min-height: 44px;
+}
 .panel .groupHeading button:hover {
   color: var(--text-secondary);
 }

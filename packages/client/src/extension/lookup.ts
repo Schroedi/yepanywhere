@@ -269,6 +269,7 @@ export interface SessionIssues {
   host: SavedHost | null;
   hosts: HostAnswer[];
   items: IssueItem[];
+  statusRefreshing?: boolean;
 }
 
 const SESSION_PATH =
@@ -341,6 +342,7 @@ export async function lookupSessionIssues(
       host,
       hosts: [{ host, status: "ok" }],
       items: result.items,
+      statusRefreshing: result.statusRefreshing,
     };
   } catch (error) {
     return { route, host, hosts: [answerFor(host, error)], items: [] };

@@ -20,6 +20,7 @@ import {
   type IssueSort,
   type IssueEvidence,
   type IssueSettings,
+  type IssueTrackerStatus,
 } from "@yep-anywhere/shared";
 export type { IssueItem, IssueEvidence } from "@yep-anywhere/shared";
 export interface IssueSource {
@@ -96,6 +97,74 @@ export class IssueStore {
     private readonly settings: () => IssueSettings = () =>
       DEFAULT_ISSUE_SETTINGS,
   ) {}
+  /** Reads only the requested page; no install-wide cache is loaded. */
+  trackerStatuses(
+    ids: string[],
+  ): Map<string, { status?: IssueTrackerStatus; askedAt: number }> {
+    if (!ids.length) return new Map();
+    return new Map(
+      this.rows(
+        `SELECT * FROM issue_tracker_status WHERE issue_id IN (${ids.map(() => "?").join(",")})`,
+        ...ids,
+      ).map((row) => [
+        String(row.issue_id),
+        {
+          askedAt: Number(row.asked_at),
+          status:
+            row.state && row.checked_at
+              ? {
+                  state: row.state as IssueTrackerStatus["state"],
+                  checkedAt: String(row.checked_at),
+                  ...(row.node_id ? { nodeId: String(row.node_id) } : {}),
+                  ...(row.merged_at ? { mergedAt: String(row.merged_at) } : {}),
+                  ...(row.merge_commit_sha
+                    ? { mergeCommitSha: String(row.merge_commit_sha) }
+                    : {}),
+                }
+              : undefined,
+        },
+      ]),
+    );
+  }
+
+  /** One transaction per API batch. Missing/deleted items cannot be recreated. */
+  saveTrackerStatuses(
+    entries: Array<{
+      id: string;
+      status?: IssueTrackerStatus;
+      askedAt: number;
+    }>,
+  ): void {
+    this.database.transaction(() => {
+      for (const { id, status, askedAt } of entries) {
+        this.run(
+          `INSERT INTO issue_tracker_status
+          (issue_id,state,checked_at,node_id,merged_at,merge_commit_sha,asked_at)
+          SELECT id,?,?,?,?,?,? FROM external_issues WHERE id=?
+          ON CONFLICT(issue_id) DO UPDATE SET
+          state=COALESCE(excluded.state,issue_tracker_status.state),
+          checked_at=COALESCE(excluded.checked_at,issue_tracker_status.checked_at),
+          node_id=COALESCE(excluded.node_id,issue_tracker_status.node_id),
+          merged_at=COALESCE(excluded.merged_at,issue_tracker_status.merged_at),
+          merge_commit_sha=COALESCE(excluded.merge_commit_sha,issue_tracker_status.merge_commit_sha),
+          asked_at=excluded.asked_at
+          WHERE issue_tracker_status.state IS NOT 'merged' AND excluded.asked_at>=issue_tracker_status.asked_at`,
+          status?.state ?? null,
+          status?.checkedAt ?? null,
+          status?.nodeId ?? null,
+          status?.mergedAt ?? null,
+          status?.mergeCommitSha ?? null,
+          askedAt,
+          id,
+        );
+      }
+    });
+  }
+
+  clearTrackerStatuses(): void {
+    this.run("DELETE FROM issue_tracker_status");
+  }
+
   private rows(sql: string, ...values: SqliteValue[]): SqliteRow[] {
     const s = this.database.prepare(sql);
     try {

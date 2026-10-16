@@ -216,6 +216,65 @@ function SessionRow({
   );
 }
 
+function SessionIssueList({
+  items,
+  collapseMerged,
+  onOpen,
+}: {
+  items: IssueItem[];
+  collapseMerged: boolean;
+  onOpen: (item: IssueItem) => void;
+}) {
+  const { t } = useI18n();
+  const [expanded, setExpanded] = useState(!collapseMerged);
+  useEffect(() => setExpanded(!collapseMerged), [collapseMerged]);
+  const merged = items.filter(
+    (item) =>
+      item.provider === "github" && item.trackerStatus?.state === "merged",
+  );
+  const visible = items.filter((item) => !merged.includes(item));
+  const rows = (entries: IssueItem[]) =>
+    entries.map((item) => (
+      <IssueRow key={item.id} item={item} onOpen={() => onOpen(item)} />
+    ));
+  return (
+    <>
+      {visible.length > 0 && <ul className={styles.list}>{rows(visible)}</ul>}
+      {merged.length > 0 && (
+        <section
+          aria-label={t("extensionPanelMergedPrs", { count: merged.length })}
+        >
+          <h3 className={`${styles.groupHeading} ${styles.mergedGroup}`}>
+            <button
+              type="button"
+              aria-expanded={expanded}
+              aria-controls="panel-merged-prs"
+              onClick={() => setExpanded((value) => !value)}
+            >
+              <svg
+                className={styles.chevron}
+                width="10"
+                height="10"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="3"
+                aria-hidden="true"
+              >
+                <path d="m9 6 6 6-6 6" />
+              </svg>
+              {t("extensionPanelMergedPrs", { count: merged.length })}
+            </button>
+          </h3>
+          <ul id="panel-merged-prs" className={styles.list} hidden={!expanded}>
+            {rows(merged)}
+          </ul>
+        </section>
+      )}
+    </>
+  );
+}
+
 function IssueRow({ item, onOpen }: { item: IssueItem; onOpen: () => void }) {
   const { t } = useI18n();
   const title = item.title ?? item.confirmation?.title;
@@ -234,6 +293,22 @@ function IssueRow({ item, onOpen }: { item: IssueItem; onOpen: () => void }) {
         <span className={styles.rowMeta}>
           <IssueTypeBadge item={item} />
           <TrackerStatusBadge item={item} />
+          {item.trackerStatus?.mergedAt && (
+            <span>
+              {t("issuesMergedOn", {
+                date: new Date(
+                  item.trackerStatus.mergedAt,
+                ).toLocaleDateString(),
+              })}
+            </span>
+          )}
+          {item.trackerStatus?.mergeCommitSha && (
+            <span title={item.trackerStatus.mergeCommitSha}>
+              {t("issuesMergeCommit", {
+                sha: item.trackerStatus.mergeCommitSha.slice(0, 7),
+              })}
+            </span>
+          )}
           <span>
             {[
               title ? item.key : undefined,
@@ -339,14 +414,25 @@ export function SidePanel() {
     if (hosts.length === 0) return;
     const url = tab.url;
     let cancelled = false;
-    const load = async () => {
+    let inFlight = false;
+    let rechecks = 0;
+    let followUp: ReturnType<typeof setTimeout> | undefined;
+    const load = async (isRecheck = false) => {
+      if (cancelled || inFlight) return;
+      if (followUp) clearTimeout(followUp);
+      if (!isRecheck) rechecks = 0;
+      inFlight = true;
       setLoading(true);
       try {
         // A session page is the user's own data on a page already readable,
         // so it is always looked up.
         if (route) {
           const issues = await lookupSessionIssues(route, hosts);
-          if (!cancelled) setContent({ kind: "session", issues });
+          if (!cancelled) {
+            setContent({ kind: "session", issues });
+            if (issues.statusRefreshing && rechecks++ < 3)
+              followUp = setTimeout(() => void load(true), 1500);
+          }
         } else if (lookupWanted && url) {
           const lookup = await lookupIssue(url, hosts, {
             includeDismissed: settings.includeDismissed,
@@ -357,6 +443,7 @@ export function SidePanel() {
           if (!cancelled) setContent({ kind: "attention", view });
         } else if (!cancelled) setContent({ kind: "idle" });
       } finally {
+        inFlight = false;
         if (!cancelled) setLoading(false);
       }
     };
@@ -367,6 +454,7 @@ export function SidePanel() {
     return () => {
       cancelled = true;
       clearInterval(timer);
+      if (followUp) clearTimeout(followUp);
     };
   }, [
     hostKey,
@@ -684,15 +772,12 @@ export function SidePanel() {
                   {t("extensionPanelSessionNoIssues")}
                 </p>
               ) : (
-                <ul className={styles.list}>
-                  {session.items.map((item) => (
-                    <IssueRow
-                      key={item.id}
-                      item={item}
-                      onOpen={() => openIssue(item)}
-                    />
-                  ))}
-                </ul>
+                <SessionIssueList
+                  key={`${session.host.id}:${session.route.sessionId}`}
+                  items={session.items}
+                  collapseMerged={settings.collapseMergedPrs}
+                  onOpen={openIssue}
+                />
               ))}
 
             {(reference || route) && tab.clicked && access === false && (

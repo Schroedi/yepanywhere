@@ -31,11 +31,12 @@ import {
 import { createServer } from "node:http";
 import { hostname, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { chromium, expect } from "@playwright/test";
 import { InstallService } from "../../server/src/services/InstallService.ts";
 import { emitCapturePreview, writeCapturePreview } from "./artifact-capture";
 
+const githubStatus = process.argv.includes("--github-status");
 const storeAssets = process.argv.includes("--store-assets");
 const headed = process.argv.includes("--headed");
 const ownerRepo = storeAssets ? "kzahel/yepanywhere" : "TomFitAG/tomfit-api";
@@ -137,7 +138,17 @@ try {
       version: 1,
       settings: {
         codexUpdatePolicy: "off",
-        issueAssociations: { enabled: true, scope: "recent", recentDays: 7 },
+        issueAssociations: {
+          enabled: true,
+          scope: "recent",
+          recentDays: 7,
+          ...(githubStatus
+            ? {
+                githubStatusEnabled: true,
+                githubCli: { enabled: false, account: "" },
+              }
+            : {}),
+        },
       },
     }),
   );
@@ -205,7 +216,17 @@ if (session) {
 ### Verification
 
 Review restart persistence, provider-native resume and archive behavior on supported platforms. The public issue supplies context; this conversation is demonstration content.`
-      : "Opened " + reference + " and the local preview " + localPr,
+      : "Opened " +
+          reference +
+          " and the local preview " +
+          localPr +
+          (githubStatus
+            ? "\n" +
+              Array.from(
+                { length: 48 },
+                (_, i) => `https://github.com/${ownerRepo}/pull/${500 + i}`,
+              ).join("\n")
+            : ""),
     60_000,
   );
   transcript(
@@ -250,6 +271,34 @@ Review restart persistence, provider-native resume and archive behavior on suppo
   );
   const relayUrl = `ws://localhost:${relayPort}/ws`;
   log(`relay ${relayUrl}`);
+  const statusRequests = join(temp, "github-requests.jsonl");
+  const preload = join(temp, "github-fixture.mjs");
+  if (githubStatus)
+    writeFileSync(
+      preload,
+      `
+    import { appendFileSync } from "node:fs";
+    const original = globalThis.fetch;
+    globalThis.fetch = async (url, options) => {
+      if (String(url) !== "https://api.github.com/graphql") return original(url, options);
+      const query = JSON.parse(options.body).query;
+      appendFileSync(${JSON.stringify(statusRequests)}, JSON.stringify({ query }) + "\\n");
+      const data = {}; let repository;
+      for (const field of query.matchAll(/(r\\d+): repository\\([^)]*\\)|(i\\d+): issueOrPullRequest\\(number: (\\d+)\\)/g)) {
+        if (field[1]) { repository = {}; data[field[1]] = repository; }
+        else {
+          const number = Number(field[3]);
+          const merged = number === Number(${JSON.stringify(issueNumber)}) || number % 3 === 0;
+          repository[field[2]] = { __typename: "PullRequest", id: "PR_" + number,
+            state: merged ? "MERGED" : number % 3 === 1 ? "OPEN" : "CLOSED", isDraft: false,
+            mergedAt: merged ? "2026-10-15T12:30:00Z" : null,
+            mergeCommit: merged ? { oid: "abc1234567890" + number } : null };
+        }
+      }
+      return new Response(JSON.stringify({ data }));
+    };
+  `,
+    );
   const serverEnv = {
     HOME: home,
     USERPROFILE: home,
@@ -259,6 +308,12 @@ Review restart persistence, provider-native resume and archive behavior on suppo
     GEMINI_SESSIONS_DIR: join(temp, "gemini"),
     YEP_PROVIDER_HOST_RUNTIME_DIR: runtimeDir,
     YEP_PROVIDER_HOST_ENABLED: "false",
+    ...(githubStatus
+      ? {
+          NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ""} --import=${pathToFileURL(preload).href}`,
+          YEP_GITHUB_TOKEN: "acceptance-fixture-token",
+        }
+      : {}),
   };
   execFileSync(
     "pnpm",
@@ -283,7 +338,7 @@ Review restart persistence, provider-native resume and archive behavior on suppo
     },
   );
   const portFile = join(temp, "server.port");
-  start(
+  let serverProcess = start(
     "server",
     join(repoRoot, "packages/server"),
     ["--conditions", "source", "src/index.ts"],
@@ -327,6 +382,52 @@ Review restart persistence, provider-native resume and archive behavior on suppo
     120_000,
   );
   log(`server indexed both sessions for ${reference}`);
+  if (githubStatus) {
+    await waitFor("merged GitHub fact", async () => {
+      const result = await (
+        await api(`/issues?ref=${encodeURIComponent(reference)}`)
+      ).json();
+      return result.items?.[0]?.trackerStatus?.mergedAt || undefined;
+    });
+    const beforeRestart = readFileSync(statusRequests, "utf8");
+    await new Promise<void>((done) => {
+      serverProcess.once("exit", () => done());
+      process.kill(-serverProcess.pid!, "SIGTERM");
+    });
+    serverProcess = start(
+      "server-restarted",
+      join(repoRoot, "packages/server"),
+      ["--conditions", "source", "src/index.ts"],
+      {
+        ...serverEnv,
+        PORT: serverPort,
+        PORT_FILE: portFile,
+        MAINTENANCE_PORT: "-1",
+        AUTH_DISABLED: "true",
+        HTTPS_SELF_SIGNED: "",
+        NODE_ENV: "production",
+        SERVE_FRONTEND: "false",
+        LOG_LEVEL: "warn",
+      },
+    );
+    await waitFor(
+      "restarted server",
+      async () => (await api("/version")).ok || undefined,
+    );
+    const result = await (
+      await api(`/issues?ref=${encodeURIComponent(reference)}`)
+    ).json();
+    expect(result.items[0].trackerStatus).toMatchObject({
+      state: "merged",
+      mergedAt: "2026-10-15T12:30:00Z",
+      mergeCommitSha: expect.stringContaining("abc123"),
+    });
+    expect(result.statusRefreshing).toBeUndefined();
+    expect(readFileSync(statusRequests, "utf8")).toBe(beforeRestart);
+    log(
+      "standalone server restart retained merge facts without another GitHub request",
+    );
+  }
 
   // --- Chromium with the unpacked extension ------------------------------
   const extension = join(temp, "extension");
@@ -591,6 +692,157 @@ Review restart persistence, provider-native resume and archive behavior on suppo
     const sessionShot = join(rawShots, "panel-session.png");
     await panel.screenshot({ path: sessionShot });
     log("panel listed the PR on the extension and hosted session pages");
+    const githubShots: Array<{
+      name: string;
+      width: number;
+      height: number;
+      path: string;
+    }> = [];
+    if (githubStatus) {
+      await app.goto(`${origin}/-/relay/${USERNAME}/settings/issues`);
+      await expect(
+        app.getByLabel("Check GitHub issue and PR status"),
+      ).toBeChecked();
+      await expect(
+        app.getByLabel("Allow GitHub CLI credentials"),
+      ).not.toBeChecked();
+      for (const viewport of [
+        { width: 1000, height: 600 },
+        { width: 375, height: 812 },
+      ]) {
+        await app.setViewportSize(viewport);
+        await app
+          .locator('[data-settings-item="issue-github-status"]')
+          .evaluate((element) => {
+            element.scrollIntoView({ block: "start" });
+            for (
+              let parent = element.parentElement;
+              parent;
+              parent = parent.parentElement
+            ) {
+              if (parent.scrollTop > 0) {
+                parent.scrollTop = Math.max(0, parent.scrollTop - 64);
+                break;
+              }
+            }
+          });
+        const path = join(rawShots, `github-settings-${viewport.width}.png`);
+        await app.screenshot({ path });
+        githubShots.push({
+          name: `github-settings-${viewport.width}`,
+          ...viewport,
+          path,
+        });
+      }
+      await panel.evaluate(async () => {
+        const local = (
+          globalThis as unknown as {
+            chrome: {
+              storage: {
+                local: {
+                  get(key: string): Promise<Record<string, object>>;
+                  set(value: object): Promise<void>;
+                };
+              };
+            };
+          }
+        ).chrome.storage.local;
+        const key = "ya.extension.settings";
+        await local.set({
+          [key]: { ...(await local.get(key))[key], collapseMergedPrs: true },
+        });
+      });
+      await panel.goto(
+        `${origin}/sidepanel.html?url=${encodeURIComponent(`${origin}${sessionRoute}`)}`,
+      );
+      const mergedToggle = panel.getByRole("button", { name: /^Merged PRs/ });
+      await expect(mergedToggle).toHaveAttribute("aria-expanded", "false", {
+        timeout: 30_000,
+      });
+      // The local preview has the same key on a different host and remains
+      // visible as unknown; only the actual GitHub merged group is hidden.
+      await expect(panel.locator("#panel-merged-prs")).toBeHidden();
+      await expect(
+        panel.getByText("Open", { exact: true }).first(),
+      ).toBeVisible();
+      await expect(
+        panel.getByText("Closed", { exact: true }).first(),
+      ).toBeVisible();
+      await mergedToggle.click();
+      await expect(
+        panel.getByText("Merge commit abc1234").first(),
+      ).toBeVisible();
+      await panel.getByRole("button", { name: "Refresh" }).click();
+      await expect(mergedToggle).toHaveAttribute("aria-expanded", "true");
+      for (const viewport of [
+        { width: 1000, height: 600 },
+        { width: 375, height: 812 },
+      ]) {
+        await panel.setViewportSize(viewport);
+        await mergedToggle.scrollIntoViewIfNeeded();
+        const path = join(rawShots, `github-panel-${viewport.width}.png`);
+        await panel.screenshot({ path });
+        githubShots.push({
+          name: `github-panel-${viewport.width}`,
+          ...viewport,
+          path,
+        });
+      }
+      log(
+        "49 GitHub items plus an unknown local-host reference grouped merged PRs, kept closed/open visible and retained manual expansion on refresh",
+      );
+      const requestsBeforeDisable = readFileSync(statusRequests, "utf8");
+      await app.getByLabel("Check GitHub issue and PR status").click();
+      await expect
+        .poll(
+          async () =>
+            (await (await api("/issues/settings")).json()).settings
+              .githubStatusEnabled,
+        )
+        .toBe(false);
+      await panel.getByRole("button", { name: "Refresh" }).click();
+      await expect(mergedToggle).toBeVisible();
+      expect(readFileSync(statusRequests, "utf8")).toBe(requestsBeforeDisable);
+      await app
+        .getByRole("button", { name: "Clear cached status", exact: true })
+        .click();
+      await expect
+        .poll(async () => {
+          const result = await (
+            await api(`/issues?sessionId=accept-impl&limit=100`)
+          ).json();
+          return result.items.some(
+            (item: { trackerStatus?: unknown }) => item.trackerStatus,
+          );
+        })
+        .toBe(false);
+      await panel.getByRole("button", { name: "Refresh" }).click();
+      await expect(mergedToggle).toHaveCount(0);
+      await expect(
+        panel
+          .getByRole("button", {
+            name: `Open ${ownerRepo.toLowerCase()}#${issueNumber}`,
+            exact: true,
+          })
+          .first(),
+      ).toBeVisible();
+      await app.getByLabel("Check GitHub issue and PR status").click();
+      await expect
+        .poll(
+          async () =>
+            (await (await api("/issues/settings")).json()).settings
+              .githubStatusEnabled,
+        )
+        .toBe(true);
+      await panel.getByRole("button", { name: "Refresh" }).click();
+      await expect(mergedToggle).toBeVisible({ timeout: 15_000 });
+      log(
+        "checks off retained cached facts without requests; cache clear preserved items; re-enable reacquired status",
+      );
+
+      await app.goto(`${origin}${sessionRoute}`);
+    }
+
     if (storeAssets) {
       await expect(
         app.getByText("A storage boundary for session discovery", {
@@ -879,10 +1131,21 @@ Review restart persistence, provider-native resume and archive behavior on suppo
           );
         });
       });
+      const typingPanel = githubStatus ? await context.newPage() : undefined;
+      if (typingPanel) {
+        await typingPanel.goto(
+          `${origin}/sidepanel.html?url=${encodeURIComponent(`${origin}${sessionRoute}`)}`,
+        );
+        await app.bringToFront();
+      }
       let typed = "";
       let update = 100;
       for (const character of "Review catalog identity and resume.") {
         appendFileSync(transcriptFile, `${updateRow(update++)}\n`);
+        if (typingPanel && typed.length % 7 === 0) {
+          await typingPanel.getByRole("button", { name: "Refresh" }).click();
+          await app.bringToFront();
+        }
         await composer.press(character === " " ? "Space" : character);
         typed += character;
         await expect(composer).toHaveValue(typed, { timeout: 100 });
@@ -983,6 +1246,7 @@ Review restart persistence, provider-native resume and archive behavior on suppo
                 },
               ]
             : []),
+          ...githubShots,
           { name: "panel-pr", width: 400, height: 760, path: prShot },
           { name: "panel-session", width: 400, height: 760, path: sessionShot },
           { name: "panel-other", width: 400, height: 760, path: otherShot },

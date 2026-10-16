@@ -762,8 +762,10 @@ export function getServerCapabilities(options?: VersionRouteOptions): string[] {
     capabilities.push(SERVER_CAPABILITIES.experimentalConversation.name);
   if (options?.getSqliteStatus?.().state === "ready") {
     capabilities.push(SERVER_CAPABILITIES.speechVocabulary.name);
-    if (options.getIssueAssociationsAvailable?.())
+    if (options.getIssueAssociationsAvailable?.()) {
       capabilities.push(SERVER_CAPABILITIES.issueSessionAssociations.name);
+      capabilities.push(SERVER_CAPABILITIES.githubStatusControls.name);
+    }
     capabilities.push(SERVER_CAPABILITIES.speechVocabularySessionTerms.name);
   }
   if (options?.getArtifactViewerStatus?.().available)

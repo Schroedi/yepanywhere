@@ -12,6 +12,10 @@ export interface IssueSettings {
   jiraKeyBlocklist?: string[];
   /** Recognize unknown bare ticket keys. Absent/false requires URL evidence. */
   aggressiveMatching?: boolean;
+  /** Absent preserves the historical confirmation-enabled status policy. */
+  githubStatusEnabled?: boolean;
+  /** gh is a fallback unless a named account is explicitly selected. */
+  githubCli?: { enabled: boolean; account: string };
 }
 
 /** Issue association settings for an installation that has never saved any. */
@@ -97,6 +101,9 @@ export interface IssueCredentialStatus {
   sources: IssueCredentialSource[];
   /** Name of the source a lookup would use now, or null when none is usable. */
   active: string | null;
+  /** Non-secret CLI account identity, if known. */
+  account?: string;
+  accounts?: string[];
 }
 
 export interface IssueCredentialsResult {
@@ -109,6 +116,9 @@ export interface IssueTrackerStatus {
   state: "open" | "draft" | "merged" | "closed";
   /** ISO time of the lookup that produced this state. */
   checkedAt: string;
+  nodeId?: string;
+  mergedAt?: string;
+  mergeCommitSha?: string;
 }
 
 export interface IssueItem {

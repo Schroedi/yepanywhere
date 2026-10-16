@@ -351,7 +351,7 @@ describe("durable issue evidence", () => {
 });
 
 describe("append-only discovery migrations", () => {
-  it.each([0, 1, 2, 3, 4, 5, 6, 7])(
+  it.each(Array.from({ length: DISCOVERY_MIGRATIONS.length }, (_, i) => i))(
     "upgrades prefix %i without losing unrelated data",
     (prefix) => {
       const db = loadSqliteDriver()!.open(":memory:");

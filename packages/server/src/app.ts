@@ -2886,11 +2886,12 @@ export function createApp(options: AppOptions): AppResult {
         );
       return getSessionSources(project, deps)[0]?.reader ?? null;
     };
-    const issueCredentials = new IssueCredentials({
-      dataDir: effectiveDataDir,
-    });
     const issueSettings = () =>
       settings.getSetting("issueAssociations") ?? DEFAULT_ISSUE_SETTINGS;
+    const issueCredentials = new IssueCredentials({
+      dataDir: effectiveDataDir,
+      settings: issueSettings,
+    });
     const issueStore = new IssueStore(issueDatabase, issueSettings);
     const confirmer = new IssueConfirmer(issueStore, {
       settings: issueSettings,
@@ -2898,6 +2899,7 @@ export function createApp(options: AppOptions): AppResult {
     });
     issueConfirmer = confirmer;
     const statuses = new IssueStatusRefresher({
+      store: issueStore,
       settings: issueSettings,
       credentials: issueCredentials,
     });

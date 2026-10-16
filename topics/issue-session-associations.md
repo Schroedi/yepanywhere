@@ -243,13 +243,30 @@ answers only once a pass has settled its own row. Verdicts are per project, and
 the most decisive one wins across projects: one project confirming a key
 settles it even if another recorded only an outage.
 
-Credentials resolve from a key stored in Settings, then environment variables
+GitHub status checks have their own **Check GitHub issue and PR status**
+control, independent of reference confirmation. When the new setting is absent,
+status checks retain the historical confirmation-enabled policy. Explicit false
+is preserved; changing confirmation in a current client preserves the separate
+status choice. Credential inventory is requested only while confirmation or
+supported GitHub status checks are enabled.
+
+**Allow GitHub CLI credentials** defaults on for enabled lookups. Turning it off
+prevents this integration from invoking `gh`, including account/presence probes.
+**GitHub CLI account for YA** can use the active CLI account or a named signed-in
+account. A named account takes priority over stored/environment tokens and uses
+`gh auth token --hostname github.com --user <account>` with token environment
+overrides removed. An unavailable named account fails without credential
+fallback. YA never switches the global CLI account. Settings names the active
+source and CLI account when known, and never returns a token. The account list
+comes from bounded `gh auth status` execution, keeping only non-secret identity
+fields. No token enters the status database.
+
+Without a named CLI account, credentials resolve from a key stored in Settings, then environment variables
 (`YEP_GITHUB_TOKEN`, `GITHUB_TOKEN`, `GH_TOKEN`; `YEP_JIRA_API_TOKEN`,
 `JIRA_API_TOKEN`, `ATLASSIAN_API_TOKEN`), then, for GitHub, the signed-in `gh`
 CLI. The settings pane names every source and says whether it is present; no
-route returns a key to a client. The pane requests that inventory only while
-confirmation is on, the only state in which it is shown, so a reader who never
-opts in never causes the sources to be probed. Stored keys are written to
+route returns a key to a client. The pane requests inventory only while a tracker feature is opted in, so a
+reader who never opts in never causes CLI sources to be probed. Stored keys are written to
 `{dataDir}/issue-credentials.json` with owner-only permissions rather than into
 server settings, which the settings route hands to any authenticated client.
 Both credential routes stay reachable while discovery is off, so an
@@ -263,29 +280,49 @@ source inventory, rather than password dots, indicates configured credentials.
 
 ## Tracker status
 
-While confirmation is on, GitHub issues and PRs on `github.com` also show the
-state GitHub last reported: a PR is Open, Draft, Merged or Closed, an issue
-Open or Closed. The badge sits at the end of each header menu row and beside
-the type badge on the Issues page, in GitHub's state hues; its tooltip says
-how long ago the state was checked. An item the server has no state for shows
-no badge. Jira status and GitHub Enterprise hosts are not covered.
+While GitHub status checks and discovery are enabled, viewed GitHub issues
+and PRs on `github.com` acquire the state GitHub last reported: Open, Draft,
+Merged or Closed for PRs; Open or Closed for issues. Badges appear in the session
+header, Issues page and extension session panel. Absent/unknown states show no
+badge. Jira status and Enterprise hosts remain deferred. These operations only
+read GitHub metadata, even when the underlying token has broader permissions.
 
-States are refreshed when someone looks, not on a timer. A `GET /api/issues`
-read returns the state the server holds and queues each returned item whose
-state is missing or at least five minutes old. Merged is final and never asked
-about again. A failed lookup keeps the previous state with its old check time
-and is not retried for five minutes. Every reader joins one server-wide pass,
-which asks GitHub's GraphQL API about up to 50 items per request; at most 200
-items wait, and a read past that bound gets no refresh. States live in memory,
-at most 2,000 of them: a restart forgets them and the next look asks again.
-Turning confirmation off stops lookups and drops queued ones.
+A `GET /api/issues` read returns cached facts and queues returned items whose
+state is missing or at least five minutes old. Merged facts never automatically
+expire or refresh. A failed lookup retains the last successful state/check time
+and persists a five-minute retry delay. Readers share one server-wide pass,
+with up to 50 items per GraphQL query and at most 200 queued/in-flight items.
+There are no server polling timers or startup GitHub requests.
 
-While a pass covering the returned items is in flight the response carries
-`statusRefreshing: true`. The session header then reads again after 1.5
-seconds within its existing bounded rechecks, and the Issues page reads again
-at most three times. Opening the header menu re-reads the list when its last
-answer is more than 30 seconds old, so a session left open shows current
-states when the menu is opened; a fresher answer opens without a request.
+`issue_tracker_status` in `{dataDir}/discovery.sqlite` holds one row per canonical
+item, shared by every mentioning session: state, successful check time, last
+attempt time, GitHub node id, actual merge date and merge commit SHA. Reads load
+only the requested page; memory retains at most 2,000 entries. The existing
+`IssueStore` owns SQL and batches each response into one transaction. Deleting
+an item removes its status by foreign key. Cache writes cannot recreate deleted
+items or replace a terminal merged fact with an older/nonmerged answer.
+
+Disabling checks stops lookups but keeps cached facts visible. **Clear cached
+status** (`DELETE /api/issues/status`) deletes only tracker facts/retry times,
+including merged facts, and fences in-flight answers so they cannot undo the
+clear. Enabled checks can acquire facts again on a subsequent view. This action
+is available even with discovery disabled. Changing credential/lookup policy
+while a response is in flight prevents that response from being published.
+
+A response carries `statusRefreshing: true` while relevant items are queued or
+in flight. The session header and Issues page keep their bounded follow-ups.
+The extension session panel follows up after 1.5 seconds at most three times,
+coalesces interval/manual requests, and tears down follow-ups on navigation or
+close. Its ordinary visible refresh remains 30 seconds.
+
+The extension groups known merged PRs under **Merged PRs (N)**. Open, draft,
+closed-without-merge and unknown-status items stay in the ordinary list.
+**Browser extension → Collapse merged PRs** is browser-local and defaults off;
+when enabled, each session's merged section starts collapsed. Manual expansion
+survives refreshes and new facts; changing session or the preference resets the
+initial expansion. Expanded rows show merge date and abbreviated commit SHA;
+status tooltips expose the full SHA and check/merge times. Counts describe the
+items returned in the session's existing bounded list.
 
 ## Identity and evidence
 
@@ -461,8 +498,19 @@ additive, self-gated response fields outside the bit: older servers omit them
 and the client shows no state badge and makes no extra request; older clients
 ignore them. The bit's meaning is unchanged.
 
+Optional capability `github-status-controls` (permanent ID 128) owns the
+independent `githubStatusEnabled` and `githubCli: { enabled, account }` settings,
+non-secret CLI account inventory, durable status cache and cache-clear action.
+The approved October 16 optional corpus is v0.9.1 and v0.9.2 (latest two local
+stable tags; neither has the controls, and no local stable tags fall in the
+preceding 14 days). Without it new clients hide new server-backed controls and
+send no new settings or cache-clear requests. Existing status fields remain
+self-gated and extension grouping works with whatever status a server supplies.
+The original ID 68 is unchanged. Older-client saves preserve omitted new
+settings. No protocol floor or remote compatibility-level change is needed.
+
 The shared settings service persists `issueAssociations: { enabled, scope,
-recentDays }`. The bit requires ready SQLite and the installed indexing owner,
+recentDays, githubStatusEnabled?, githubCli? }`. The bit requires ready SQLite and the installed indexing owner,
 independently of opt-in; data routes also require enablement and ordinary app
 authorization. Without it clients hide all controls and make no issue requests.
 The Issues & PRs sidebar and direct page links open `/issues` locally and in
@@ -479,7 +527,9 @@ review for subsequent changes.
 v2/v3 SQL moved out of the mutable vocabulary schema. Migration 4 adds the domain
 and indexing tables; migration 5 adds resolution/deletion continuations;
 migration 6 adds the one-verdict-per-reference confirmation table; migration 7
-adds durable Jira project mappings and resumable reconciliation. Prefix
+adds durable Jira project mappings and resumable reconciliation. Migration 11 adds
+tracker status with a foreign key to the canonical issue; it starts empty and
+performs no network calls or backfill. Prefix
 fixtures test fresh installation, each historical upgrade, repeat initialization,
 rollback and old-reader refusal. No down migrations, resets, WAL switch or longer
 lock timeout were added. An older binary refusing the newer discovery schema
@@ -492,8 +542,8 @@ Deferred: branch/worktree inference (including YA Workstreams), Git/commit
 attribution, tracker synchronization, remote snapshots, semantic matching,
 tool-output mining and multi-server aggregation. Credentials are now used, but
 to ask whether a reference exists and, for GitHub items someone is looking at,
-what state it is in: YA writes nothing to a tracker, stores no tracker state
-durably, and asks about a reference again only under the
+what state it is in: YA writes nothing to a tracker, retains status facts durably,
+and asks about a reference again only under the
 [tracker status](#tracker-status) refresh rule. This feature does not
 close the [cold-storage startup gap](../gaps/sqlite-backed-cold-storage-startup.md),
 [commit attribution gap](../gaps/sketches/committed-change-session-attribution.md) or

@@ -105,6 +105,11 @@ export const OPTIONAL_SERVER_CAPABILITY_BIT_ALLOCATIONS = {
     index: CAPABILITY_ID_ALLOCATIONS.experimentalConversation.id,
     introducedIn: "0.8.2",
   },
+  githubStatusControls: {
+    name: "github-status-controls",
+    index: CAPABILITY_ID_ALLOCATIONS.githubStatusControls.id,
+    introducedIn: "0.9.4",
+  },
   issueSessionAssociations: {
     name: "issue-session-associations-v1",
     index: CAPABILITY_ID_ALLOCATIONS.issueSessionAssociations.id,
@@ -1464,6 +1469,31 @@ export const SERVER_CAPABILITIES = {
     lifecycle: {
       kind: "permanent",
       reason: "Requires ready SQLite draft storage.",
+    },
+  },
+  githubStatusControls: {
+    id: CAPABILITY_ID_ALLOCATIONS.githubStatusControls.id,
+    name: "github-status-controls",
+    kind: "permanent",
+    area: "sessions",
+    introducedIn: "0.9.4",
+    advertisement: {
+      kind: "optional-bit",
+      index: CAPABILITY_ID_ALLOCATIONS.githubStatusControls.id,
+    },
+    description:
+      "Independent GitHub status checks, gh disable/account controls and durable tracker cache management.",
+    clientFallback:
+      "Hide GitHub status/CLI/cache controls and send no new settings or cache requests; retain legacy tracker confirmation.",
+    serverContract: {
+      routes: ["DELETE /api/issues/status"],
+      requestFields: ["githubStatusEnabled", "githubCli"],
+      routeModules: ["packages/server/src/routes/issue-status.ts"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "Experimental issue integration availability is installation-dependent.",
     },
   },
   issueSessionAssociations: {

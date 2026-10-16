@@ -31,6 +31,19 @@ export function TrackerStatusBadge({
   if (!status || !label) return null;
   return (
     <span
+      title={[
+        status.checkedAt,
+        status.mergedAt
+          ? t("issuesMergedOn", {
+              date: new Date(status.mergedAt).toLocaleString(),
+            })
+          : "",
+        status.mergeCommitSha
+          ? t("issuesMergeCommit", { sha: status.mergeCommitSha })
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" · ")}
       className={`${styles.badge} ${CLASSES[status.state]} ${className ?? ""}`}
     >
       {t(label)}

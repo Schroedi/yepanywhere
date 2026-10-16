@@ -1,3 +1,8 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { DiscoverySqliteService } from "../../src/storage/discovery-sqlite.js";
+import { IssueStore } from "../../src/services/issues/IssueStore.js";
 import type { IssueItem, IssueSettings } from "@yep-anywhere/shared";
 import { describe, expect, it, vi } from "vitest";
 import { IssueCredentials } from "../../src/services/issues/credentials.js";
@@ -42,7 +47,7 @@ function graphql(answers: Record<string, unknown>) {
   });
 }
 
-function harness(answers: Record<string, unknown>) {
+function harness(answers: Record<string, unknown>, store?: IssueStore) {
   let now = Date.parse("2026-10-13T10:00:00Z");
   let settings: IssueSettings = {
     enabled: true,
@@ -53,6 +58,7 @@ function harness(answers: Record<string, unknown>) {
   const fetch = graphql(answers);
   const refresher = new IssueStatusRefresher({
     settings: () => settings,
+    store,
     credentials: new IssueCredentials({
       env: { GITHUB_TOKEN: "gh-secret" },
       cliToken: async () => null,
@@ -136,8 +142,98 @@ describe("tracker status refresh", () => {
 
     h.set({ confirmation: { enabled: false } });
     h.advance(5 * 60_000);
-    expect(h.read(DRAFT)).toEqual({ items: [item(DRAFT)], refreshing: false });
+    expect(h.read(DRAFT).refreshing).toBe(false);
+    expect(h.read(DRAFT).items[0]?.trackerStatus?.state).toBe("open");
     await h.refresher.settled();
     expect(h.fetch).toHaveBeenCalledTimes(2);
+  });
+  it("retains merge facts and retry backoff across a real SQLite close/reopen", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ya-status-restart-"));
+    let db = new DiscoverySqliteService({ dataDir: dir });
+    try {
+      let store = new IssueStore(db.getDatabase());
+      for (const n of [1, 2, 4])
+        store.captureManual(
+          { projectId: "p", sessionId: "s" },
+          `https://github.com/${n === 4 ? "o/gone" : "o/app"}/pull/${n}`,
+          "",
+        );
+      const first = harness(
+        {
+          "o/app#1": {
+            __typename: "PullRequest",
+            state: "MERGED",
+            id: "PR_stable",
+            mergedAt: "2026-10-12T09:00:00Z",
+            mergeCommit: { oid: "abcdef123456" },
+          },
+          "o/app#2": { __typename: "PullRequest", state: "OPEN" },
+        },
+        store,
+      );
+      first.read(MERGED, DRAFT, MISSING);
+      await first.refresher.settled();
+      await first.refresher.close();
+      db.close();
+      db = new DiscoverySqliteService({ dataDir: dir });
+      store = new IssueStore(db.getDatabase());
+      const second = harness({}, store);
+      expect(second.read(MERGED).items[0]?.trackerStatus).toMatchObject({
+        state: "merged",
+        mergedAt: "2026-10-12T09:00:00Z",
+        mergeCommitSha: "abcdef123456",
+        nodeId: "PR_stable",
+      });
+      expect(second.read(DRAFT, MISSING).refreshing).toBe(false);
+      await second.refresher.settled();
+      expect(second.fetch).not.toHaveBeenCalled();
+      second.advance(6 * 60_000);
+      second.read(MERGED, DRAFT);
+      await second.refresher.settled();
+      expect(second.fetch).toHaveBeenCalledTimes(1);
+      expect(
+        JSON.parse(String(second.fetch.mock.calls[0]?.[1]?.body)).query,
+      ).not.toContain("number: 1)");
+      expect(second.read(DRAFT).items[0]?.trackerStatus?.state).toBe("open");
+      second.set({ githubStatusEnabled: false });
+      expect(second.read(MERGED).items[0]?.trackerStatus?.state).toBe("merged");
+      second.refresher.clear();
+      expect(second.read(MERGED).items[0]?.trackerStatus).toBeUndefined();
+      expect(store.list()).toHaveLength(3);
+      await second.refresher.close();
+    } finally {
+      db.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("does not republish a response cleared or disabled while in flight", async () => {
+    const h = harness({});
+    let complete!: (response: Response) => void;
+    h.fetch.mockImplementationOnce(
+      () =>
+        new Promise<Response>((resolve) => {
+          complete = resolve;
+        }),
+    );
+    h.read(MERGED);
+    await vi.waitFor(() => expect(h.fetch).toHaveBeenCalledTimes(1));
+    h.refresher.clear();
+    complete(
+      new Response(
+        JSON.stringify({ data: { r0: { i0: { state: "MERGED" } } } }),
+      ),
+    );
+    await h.refresher.settled();
+    h.set({ githubStatusEnabled: false });
+    expect(h.read(MERGED).items[0]?.trackerStatus).toBeUndefined();
+    h.set({
+      githubStatusEnabled: true,
+      confirmation: { enabled: false, jiraSite: "", jiraEmail: "" },
+    });
+    expect(h.read(MERGED).refreshing).toBe(true);
+    await h.refresher.settled();
+    expect(h.fetch).toHaveBeenCalledTimes(2);
+    await h.refresher.close();
   });
 });

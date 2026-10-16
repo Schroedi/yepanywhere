@@ -786,6 +786,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "vhost-oauth-providers",
     introducedIn: "0.9.4",
   },
+  githubStatusControls: {
+    id: 128,
+    direction: "server",
+    name: "github-status-controls",
+    introducedIn: "0.9.4",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [

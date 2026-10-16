@@ -1153,6 +1153,18 @@ An older host advertising 70/71 does not receive new readiness requests or
 installed selections without 112. [Computer Control](optional-computer-control.md)
 owns the bounded cleanup and intentional authority change.
 
+## GitHub status controls
+
+`github-status-controls` (permanent optional ID 128) owns independent GitHub
+status enablement, CLI disable/account policy, non-secret account inventory,
+durable merge facts and `DELETE /api/issues/status`. The October 16 optional
+review checked local stable v0.9.1 and v0.9.2; neither provides these controls.
+Without the bit clients retain legacy issue behavior and send no new settings
+or cache-clear requests. Optional merge metadata remains field-presence gated.
+Older-client settings saves preserve omitted new policy values. Existing ID 68
+and remote compatibility levels keep their meaning. The maintainer approved
+this plan in the originating request. See [tracker status](issue-session-associations.md#tracker-status).
+
 ## Experimental issue/session associations
 
 The approved 2026-09-10 optional review used v0.8.0 and v0.8.1 (latest two stable

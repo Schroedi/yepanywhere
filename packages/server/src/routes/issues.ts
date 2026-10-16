@@ -1,3 +1,4 @@
+import { createIssueStatusRoutes } from "./issue-status.js";
 import { Hono, type MiddlewareHandler } from "hono";
 import type {
   IssueSettings,
@@ -74,6 +75,25 @@ export function createIssueRoutes(
   routes.put("/issues/settings", async (c) => {
     const body = (await c.req.json().catch(() => null)) as IssueSettings | null;
     const confirm = body ? confirmation(body.confirmation) : null;
+    const cli = body?.githubCli;
+    if (
+      body &&
+      ((body.githubStatusEnabled !== undefined &&
+        typeof body.githubStatusEnabled !== "boolean") ||
+        (cli !== undefined &&
+          (!cli ||
+            typeof cli.enabled !== "boolean" ||
+            typeof cli.account !== "string" ||
+            (cli.account !== "" &&
+              !/^[a-z\d][a-z\d-]{0,38}$/i.test(cli.account)))))
+    )
+      return c.json(
+        {
+          error:
+            "Expected GitHub status boolean and CLI enabled/account settings",
+        },
+        400,
+      );
     const blocked = body ? blocklist(body.jiraKeyBlocklist) : null;
     if (
       !body ||
@@ -96,10 +116,17 @@ export function createIssueRoutes(
       );
     await settings.updateSettings({
       issueAssociations: {
+        ...indexer.settings(),
         enabled: body.enabled,
         scope: body.scope,
         recentDays: body.recentDays,
         aggressiveMatching: body.aggressiveMatching ?? false,
+        ...(body.githubStatusEnabled !== undefined
+          ? { githubStatusEnabled: body.githubStatusEnabled }
+          : {}),
+        ...(cli !== undefined
+          ? { githubCli: { enabled: cli.enabled, account: cli.account } }
+          : {}),
         ...(confirm ? { confirmation: confirm } : {}),
         ...(blocked ? { jiraKeyBlocklist: blocked } : {}),
       },
@@ -139,6 +166,7 @@ export function createIssueRoutes(
     }
     return c.json({ credentials: await credentials.status() });
   });
+  routes.route("/", createIssueStatusRoutes(statuses));
   const requireEnabled: MiddlewareHandler = async (c, next) => {
     if (!indexer.settings().enabled)
       return c.json({ error: "Issue associations are disabled" }, 403);

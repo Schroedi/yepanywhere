@@ -3,6 +3,7 @@ import type {
   IssueSettings,
   IssueTrackerStatus,
 } from "@yep-anywhere/shared";
+import type { IssueStore } from "./IssueStore.js";
 import type { IssueCredentials } from "./credentials.js";
 
 /**
@@ -14,7 +15,7 @@ import type { IssueCredentials } from "./credentials.js";
  * and what the server holds is older than `FRESH_MS`; merged is final. Nothing
  * runs on a timer, so with no readers there are no requests. Every caller
  * joins one pass, which asks GitHub about up to `BATCH` items per request.
- * State lives in memory: a restart forgets it and the next look asks again.
+ * Facts and retry timestamps persist in SQLite; RAM holds at most 2,000 rows.
  */
 
 const FRESH_MS = 5 * 60_000;
@@ -26,6 +27,7 @@ const TIMEOUT_MS = 10_000;
 
 export interface IssueStatusDeps {
   settings: () => IssueSettings;
+  store?: IssueStore;
   credentials: IssueCredentials;
   fetch?: typeof fetch;
   now?: () => number;
@@ -57,6 +59,9 @@ type Answer = {
   __typename?: string;
   state?: string;
   isDraft?: boolean;
+  id?: string;
+  mergedAt?: string | null;
+  mergeCommit?: { oid?: string } | null;
 } | null;
 
 function stateOf(answer: Answer): IssueTrackerStatus["state"] | null {
@@ -70,11 +75,13 @@ function stateOf(answer: Answer): IssueTrackerStatus["state"] | null {
 }
 
 export class IssueStatusRefresher {
+  /** Page-loaded facts, evicted at MEMORY_LIMIT; durable rows belong to IssueStore. */
   private readonly known = new Map<string, Known>();
   private readonly waiting = new Set<string>();
   private readonly asking = new Set<string>();
   private running?: Promise<void>;
   private closed = false;
+  private generation = 0;
   constructor(private readonly deps: IssueStatusDeps) {}
 
   private now(): number {
@@ -83,7 +90,10 @@ export class IssueStatusRefresher {
 
   private enabled(): boolean {
     const settings = this.deps.settings();
-    return Boolean(settings.enabled && settings.confirmation?.enabled);
+    return Boolean(
+      settings.enabled &&
+        (settings.githubStatusEnabled ?? settings.confirmation?.enabled),
+    );
   }
 
   private stale(known: Known | undefined): boolean {
@@ -97,14 +107,24 @@ export class IssueStatusRefresher {
    * says a pass covering some of these items is in flight.
    */
   annotate(items: IssueItem[]): { items: IssueItem[]; refreshing: boolean } {
-    if (this.closed || !this.enabled()) return { items, refreshing: false };
+    if (this.closed) return { items, refreshing: false };
+    if (this.deps.store) {
+      const saved = this.deps.store.trackerStatuses(items.map((x) => x.id));
+      for (const item of items) {
+        const known = saved.get(item.id);
+        if (known) this.remember(item.id, known);
+        else this.known.delete(item.id);
+      }
+    }
+    const enabled = this.enabled();
     let refreshing = false;
     const annotated = items.map((item) => {
       if (!target(item.id)) return item;
       const known = this.known.get(item.id);
-      if (this.waiting.has(item.id) || this.asking.has(item.id))
+      if (enabled && (this.waiting.has(item.id) || this.asking.has(item.id)))
         refreshing = true;
       else if (
+        enabled &&
         this.stale(known) &&
         this.waiting.size + this.asking.size < QUEUE_LIMIT
       ) {
@@ -146,17 +166,27 @@ export class IssueStatusRefresher {
         this.asking.add(id);
       }
       try {
+        const generation = this.generation;
+        const policy = JSON.stringify(this.deps.settings());
         const states = await this.ask(batch);
+        if (
+          generation !== this.generation ||
+          !this.enabled() ||
+          policy !== JSON.stringify(this.deps.settings())
+        )
+          continue;
         const askedAt = this.now();
-        const checkedAt = new Date(askedAt).toISOString();
-        for (const id of batch) {
-          const state = states.get(id);
-          // A failed lookup keeps the last known state with its own check time.
-          this.remember(id, {
-            status: state ? { state, checkedAt } : this.known.get(id)?.status,
+        const entries = batch.map((id) => ({
+          id,
+          status: states.get(id),
+          askedAt,
+        }));
+        this.deps.store?.saveTrackerStatuses(entries);
+        for (const entry of entries)
+          this.remember(entry.id, {
+            status: entry.status ?? this.known.get(entry.id)?.status,
             askedAt,
           });
-        }
       } finally {
         for (const id of batch) this.asking.delete(id);
       }
@@ -171,10 +201,8 @@ export class IssueStatusRefresher {
   }
 
   /** One GraphQL request for the batch. Never throws; failures map to none. */
-  private async ask(
-    ids: string[],
-  ): Promise<Map<string, IssueTrackerStatus["state"]>> {
-    const states = new Map<string, IssueTrackerStatus["state"]>();
+  private async ask(ids: string[]): Promise<Map<string, IssueTrackerStatus>> {
+    const states = new Map<string, IssueTrackerStatus>();
     const credential = await this.deps.credentials
       .resolve("github")
       .catch(() => null);
@@ -205,8 +233,8 @@ export class IssueStatusRefresher {
     const query = `query { ${fields.join(" ")} }
 fragment S on IssueOrPullRequest {
   __typename
-  ... on PullRequest { state isDraft }
-  ... on Issue { state }
+  ... on PullRequest { id state isDraft mergedAt mergeCommit { oid } }
+  ... on Issue { id state }
 }`;
     try {
       const response = await (this.deps.fetch ?? fetch)(
@@ -229,13 +257,33 @@ fragment S on IssueOrPullRequest {
       };
       for (const [alias, id] of aliases) {
         const [r, i] = alias.split(".") as [string, string];
-        const state = stateOf(body.data?.[r]?.[i] ?? null);
-        if (state) states.set(id, state);
+        const answer = body.data?.[r]?.[i] ?? null;
+        const state = stateOf(answer);
+        if (state)
+          states.set(id, {
+            state,
+            checkedAt: new Date(this.now()).toISOString(),
+            ...(answer?.id ? { nodeId: answer.id } : {}),
+            ...(state === "merged" && answer?.mergedAt
+              ? { mergedAt: answer.mergedAt }
+              : {}),
+            ...(state === "merged" && answer?.mergeCommit?.oid
+              ? { mergeCommitSha: answer.mergeCommit.oid }
+              : {}),
+          });
       }
     } catch {
       /* Unreachable: every item in the batch keeps what it had. */
     }
     return states;
+  }
+
+  /** Fence in-flight responses so an explicit clear cannot be undone. */
+  clear(): void {
+    this.generation += 1;
+    this.waiting.clear();
+    this.known.clear();
+    this.deps.store?.clearTrackerStatuses();
   }
 
   async close(): Promise<void> {
