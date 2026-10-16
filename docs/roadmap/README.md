@@ -7,11 +7,12 @@ status, the next action, and major blockers here; keep implementation steps in
 `docs/tactical/` and durable behavior contracts in `topics/`. Planning stays in
 the repository and does not require epics, ticket numbers, or pull requests.
 
-The first-party hosted artifact viewer is authorized for implementation;
-[plan 155](../tactical/155-managed-artifact-viewer.md) owns server-scoped reads,
-managed HTTPS content delivery and compatibility. Cloudflare DNS and the
-localhost encrypted-relay proof are complete; production integration and
-browser acceptance remain.
+The first-party hosted artifact viewer is implemented in its isolated worktree;
+[plan 155](../tactical/155-managed-artifact-viewer.md) records scoped reads,
+managed HTTPS content delivery and compatibility. The fixed Cloudflare host is
+live, and real YA-pane acceptance over the public encrypted relay passes in
+Chrome. YA client/server release publication and broader mobile qualification
+remain; custom artifact deployments retain precedence.
 
 ## 1. Publish the desktop and mobile apps with continuous delivery
 

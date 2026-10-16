@@ -1,6 +1,8 @@
 # First-party hosted artifact viewing without a tunnel
 
-Status: implementation authorized 2026-10-16. Owner: hosted artifact/file viewer.
+Status: implemented and qualified in the isolated worktree on 2026-10-16.
+The fixed HTTPS host is deployed; YA client/server release publication is separate.
+Owner: hosted artifact/file viewer.
 Series: `relay-artifact-frame`.
 
 ## Product decision
@@ -143,14 +145,58 @@ client selection; do not publish a client that assumes old servers upgraded.
 - [x] DNS moved to Cloudflare; existing 18 records and service health preserved.
 - [x] Localhost service-worker/real encrypted transport feasibility measured.
 - [x] Server preview lease and capability implemented and verified.
-- [ ] Managed HTTPS host deployed and verified.
-- [ ] Actual YA pane integrated, including compatibility fallbacks.
-- [ ] End-to-end acceptance and required checks pass; slices committed.
+- [x] Managed HTTPS host deployed and verified.
+- [x] Actual YA pane integrated, including compatibility fallbacks.
+- [x] End-to-end acceptance and required checks pass; slices committed.
 
-Server slice: five real-filesystem route tests cover inert responses/ranges,
-traversal and symlinks, current policy, expiry/revocation, principal/session
-binding and live-stream cancellation. Root lint, format, typecheck and the server
-suite pass (6,582 assertions). The full client run exposed an off-window
-search assertion racing deferred alignment; its test now waits for alignment
-itself, preserving both the exact target and the retained-window bound. Full
-client verification must be repeated. Browser integration remains next.
+## Implementation and evidence
+
+- `de76c6a9c`: read-only server leases, current policy enforcement and the
+  separate permanent capability. Five real-filesystem integration tests cover
+  inert responses/ranges, traversal and symlinks, policy changes, expiry and
+  revocation, principal/session binding and live-stream cancellation.
+- `f189523cc`: the managed content host, captured-source parent broker and actual
+  YA pane. The deployed host uses `artifact-<32hex>.yepanywhere.com`, fitting
+  ordinary wildcard TLS; no artifact bytes go to Cloudflare. The shared find
+  agent and bounded theme/widget-state/follow-up adapter work inside the pane.
+- [Measured browser report](../../artifact-host/README.md#measured-qualification--2026-10-16)
+  and [selected evidence](../../artifact-host/acceptance-results.json): real
+  deployed DNS/TLS and public encrypted relay, artifact listener disabled,
+  blocked third-party cookies. The first-party parent is the actual worktree
+  build served through a test interception, not a published hosted release.
+  Resource graph, navigation/reload, explicit worker restart, stream cancel,
+  separate concurrent storage, find, fragment helpers and teardown all pass.
+  All sequential keys appear within 6 ms during live transcript updates.
+  Desktop and phone-width captures are inspected and remain untracked.
+
+Final checks: root lint (zero warnings), format and typecheck pass. Full unit
+suite passes: shared 962, push broker 45, relay 136, server 6,582 and client
+6,989 assertions, plus root Node checks. Existing artifact browser scenarios:
+18/18 pass. Capability audit: 145 registered, zero errors, two unrelated
+[overdue transition reviews](../../gaps/capability-transition-review-overdue.md).
+The console scan's 108 inherited sites and Node loader deprecation are recorded
+in [tooling debt](../../gaps/runtime-cutover-tooling-warnings.md); the managed
+browser acceptance itself has zero console/page errors.
+
+The first complete client run exposed an existing reverse-search test racing
+deferred scroll alignment; `6da1bf34b` waits for the exact target rather than
+loosening it. A later run's assertions all passed but a browser teardown hook
+timed out while the manual browser qualification was active. The full suite
+was rerun without that competing browser and passed.
+
+## Remaining release and qualification boundaries
+
+The implementation is committed on `codex/managed-artifact-viewer` in the
+requested worktree; concurrent extension edits in the primary checkout are
+untouched. No YA server/npm, hosted client or native app release is published
+by this work. A subsequent ordinary release must deliver the new server
+contract; the hosted client keeps old-server/custom-origin fallbacks throughout.
+
+Chrome is qualified. WebKit's larger-fetch behavior, native Android/iOS
+WebViews, natural browser idle termination and advanced document inspection
+remain separate work. Explicit worker termination/restart is measured; it is
+not an observation of natural idle eviction. Absolute OS paths, root-relative
+app routing, arbitrary external APIs, nested frames/workers and backends are
+outside this entry-directory viewer. Linked HTML works; linked PDF/download
+navigation has not been qualified in the managed path. Custom deployments
+retain their existing broader contracts.

@@ -267,7 +267,8 @@ replay must never traverse pre-modal history.
 The project file metadata/content endpoint includes complete HTML documents
 (`.html` and `.htm`) up to 200 MiB, including embedded assets. The ordinary
 source/preview viewer can display them without enabling an artifact service;
-the existing scriptless sandbox still governs Preview. Source highlighting
+the active-content delivery contract governs Preview, including managed
+  first-party relay delivery when qualified. Source highlighting
 uses at most the first 1 MiB and reports truncation independently of the complete
 preview content. Other text files retain their 1 MiB inline limit and bounded
 line-target windows. Above the HTML limit, metadata and the download remain
@@ -383,7 +384,8 @@ vocabulary even though their authorization routes remain distinct:
   an isearch-style find field in their header. It searches only what that
   viewer shows: rendered source, text, Markdown or diff; the scriptless HTML
   preview, searched directly because it is same-origin; or a running artifact,
-  through the find agent the artifact server appends to framed HTML. After the
+  through the shared find agent added by its artifact server or managed content
+  worker. After the
   reader clicks or focuses inside the viewer's content, Ctrl/Cmd+F opens the
   field instead of the browser's page-wide find, which still owns every other
   part of the page; a proxied live app and PDFs keep the browser's own find.
@@ -919,10 +921,10 @@ project/file-access allow-set without fallback lookup or filesystem guessing.
   call a raw `/api/local-file` URL a Viewer link. A real standalone viewer for
   those files requires a durable server/client coordinate that works across
   direct and relay connections.
-- **Static preview assets** — the scriptless HTML preview denies ambient
-  network loads. Supporting relative images or styles requires the trusted
-  viewer to fetch, bound, and broker those assets; relaxing iframe networking
-  is not the fallback.
+- **Static preview assets** — unqualified scriptless previews still deny ambient
+  network loads. Qualified first-party hosted Chrome uses the
+  [managed relay viewer](active-content-security.md#managed-first-party-relay-previews)
+  for bounded relative assets; other environments retain their fallback.
 - **Both doors share one allow-set** — as of `docs/tactical/018`, the
   project-files route enforces the same file-access allow-set as the media
   doors for absolute/`~` paths (relative paths stay project-scoped). The set is
