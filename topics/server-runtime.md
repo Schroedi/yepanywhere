@@ -66,6 +66,18 @@ The `persistence-native` CI job exercises settings, review persistence and stora
 transitions on Linux, macOS and Windows. Fault-injection tests separately enforce
 the narrow directory fallback and the before/after-replacement behavior.
 
+### Opened-file response lifecycle
+
+Artifact and mutable-file byte responses retain the descriptor that passed
+file authorization. They read at most 64 KiB per pull with one buffered chunk
+of read-ahead, and close the descriptor on the selected range's EOF, error or cancellation.
+Small unread responses close their descriptor while retaining buffered bytes. Cancelling
+a pending filesystem read waits for descriptor cleanup; late completion cannot
+enqueue into a cancelled response. Truncation below the declared response length
+fails the body rather than returning a successful short response. This avoids
+depending on Node's Readable.toWeb event/cancellation ordering for file bodies;
+HTTP range and conditional-response contracts retain their existing meanings.
+
 ## Older-server compatibility
 
 The engine floor changes immediately for new server releases. There is no
