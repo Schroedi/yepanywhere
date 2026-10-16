@@ -200,3 +200,23 @@ app routing, arbitrary external APIs, nested frames/workers and backends are
 outside this entry-directory viewer. Linked HTML works; linked PDF/download
 navigation has not been qualified in the managed path. Custom deployments
 retain their existing broader contracts.
+
+## Android emulator follow-up — 2026-10-16
+
+Requested after the desktop qualification. Stock Android Chrome 124 on an
+Android 15/API 35 emulator passes the managed-viewer resource and lifecycle
+matrix over the real public encrypted relay and deployed HTTPS host. Explicit
+cookie probes distinguish first-party acceptance from third-party refusal.
+The harness now waits for a reload's actual navigation commit before testing
+worker restart, avoiding the old document's ready state.
+
+The bundled Debug app was built from this worktree with unchanged Kotlin/Rust
+sources and the new web client. Its `appassets.androidplatform.net` origin
+selects the existing static fallback, and this is observed in the actual app:
+no managed frame, no script execution, and no relative PNG load. Native
+interactive delivery still requires its own design/implementation. A native
+fresh-pairing stall reproduces with main as well; the viewer check uses an
+explicit cold-resume setup workaround and does not qualify fresh pairing.
+See [the measured host report](../../artifact-host/README.md#android-emulator-qualification--2026-10-16)
+and [the pairing gap](../../gaps/android-native-pairing-remains-busy-after-registration.md).
+No APK, emulator state or screenshot is committed.

@@ -11,8 +11,9 @@ The first-party hosted artifact viewer is implemented in its isolated worktree;
 [plan 155](../tactical/155-managed-artifact-viewer.md) records scoped reads,
 managed HTTPS content delivery and compatibility. The fixed Cloudflare host is
 live, and real YA-pane acceptance over the public encrypted relay passes in
-Chrome. YA client/server release publication and broader mobile qualification
-remain; custom artifact deployments retain precedence.
+desktop Chrome and Android Chrome on an Android 15 emulator. YA client/server
+release publication, native app delivery and WebKit qualification remain;
+custom artifact deployments retain precedence.
 
 ## 1. Publish the desktop and mobile apps with continuous delivery
 

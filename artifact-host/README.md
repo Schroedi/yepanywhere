@@ -112,3 +112,50 @@ Selected, secret-free evidence is in [acceptance-results.json](acceptance-result
 Server tests separately cover range responses, traversal/symlink denial,
 principal/session binding, policy changes and revocation/expiry. Those security
 cases are API integration evidence, not additional browser measurements.
+
+## Android emulator qualification — 2026-10-16
+
+The same ten managed-viewer checks passed in stock Android Chrome
+124.0.6367.219 on a disposable Android 15/API 35 ARM64 emulator, against the
+real public encrypted relay and deployed content host. This covers the actual
+Android browser engine, not a desktop viewport simulation. A cross-site cookie
+probe confirms both network and script cookies are blocked; the same cookies
+are accepted when that probe is top-level. The captured parent is still the
+actual worktree build supplied by the harness, not a published hosted client.
+Final run: 32 sequential artifact keys acknowledged within 32 ms, and 33
+composer keys within 44 ms during live transcript updates; no console/page
+errors. An earlier successful run reached 95 ms for an artifact key, still
+within the 100 ms requirement.
+
+The separately built bundled Debug app uses `appassets.androidplatform.net`
+and intentionally stays on the scriptless fallback: the local PNG does not
+load, scripts do not execute, and no managed content frame is created. Opening
+and closing that fallback were exercised after a cold resume. Four console
+policy refusals (stylesheet, image, and scripts) are expected on this legacy
+fallback; unexpected errors remain failures. This is **not** native interactive
+artifact support. No production origin allowlist or WebView policy was relaxed.
+
+Fresh native pairing also exposed an independent
+[pairing stall](../gaps/android-native-pairing-remains-busy-after-registration.md),
+reproduced with the main server. Native viewer observation used the explicit
+force-stop/relaunch workaround after verifying real device registration. It
+must not be confused with a successful fresh-login flow.
+
+Reproduce with an explicitly selected **disposable** emulator, an initialized
+stock Chrome profile, SDK `adb` on PATH, and root access only for setting and
+restoring that disposable Chrome profile's cookie preferences:
+
+```bash
+ANDROID_SERIAL=<owned-emulator> pnpm exec tsx --conditions source artifact-host/acceptance.mjs --public-relay --android
+
+# Build the actual bundled app first (ANDROID_HOME points to the local SDK):
+pnpm --filter @yep-anywhere/android build:android:debug
+ANDROID_SERIAL=<owned-emulator> pnpm exec tsx --conditions source artifact-host/acceptance.mjs --public-relay --native-fallback --resume-after-pair
+```
+
+The runner refuses physical-device serials, restores Chrome preferences,
+removes its DevTools forwards and temporary command-line file, and stops its
+owned app/browser/server. Native mode clears the disposable app data. The
+caller owns emulator shutdown. Selected results are in
+[android-acceptance-results.json](android-acceptance-results.json); screenshots
+remain ignored. iOS/WebKit and interactive native delivery remain unqualified.

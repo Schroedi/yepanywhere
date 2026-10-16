@@ -419,7 +419,12 @@ of preventing every network navigation side channel.
 
 [Host delivery and acceptance](../artifact-host/README.md) records supported
 resource types and measured results. [Plan 155](../docs/tactical/155-managed-artifact-viewer.md) records
-qualification and rollout; basic WebKit evidence is not native-mobile support.
+qualification and rollout. Android Chrome 124 on an Android 15 emulator now
+passes the managed delivery matrix. The actual bundled Android Debug app
+retains its scriptless fallback; its cross-site appassets origin is not an
+approved managed parent. Basic WebKit evidence is not native-mobile support.
+[Android evidence and setup limits](../artifact-host/README.md#android-emulator-qualification--2026-10-16)
+distinguish the browser result from the native app.
 
 ## Open Decisions
 
