@@ -320,3 +320,18 @@ It currently exits before post-probe typing with a nonzero status on the
 reproduced circuit-closure failure; this is an opt-in diagnostic, not a passing acceptance or a new product
 20-second deadline. Ordinary relay limits and framing are unchanged. The gate
 holds one input chunk/timer per direction and releases all sockets on teardown.
+
+`--trace-native-setup` requires the owned local relay and records passive mux
+snapshots before pairing, at the paired home, after the harness's explicit full
+session-document navigation, and at first artifact readiness. This separates
+intentional pairing/document teardown from later artifact or fault activity.
+It records counts and message sizes only, without credentials or payloads.
+
+`--native-document-reload` requires the managed native pane. After normal close
+qualification, it reloads the whole parent document eighteen times with an
+admitted artifact, requires a new parent/document origin and working modules on
+each restoration, then closes the modal before checking the transcript. The
+current app fails after fifteen successful restorations: the server returns
+429 “Too many open previews.” Old workers are removed, but admitted server
+leases survive whole-document loss. This is a separate failing lifecycle gate,
+not an extension of the passing eighteen explicit-close cycles.

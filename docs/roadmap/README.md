@@ -31,7 +31,9 @@ The eight-reader 128 KiB/s diagnostic now reproduces a relay circuit queue
 closure in two actual-app runs; aggregate flow control remains a failing gate. The
 [measured report](../testing/android-artifact-streaming-2026-10-16.md) preserves an
 earlier 103.2 ms frame miss and the narrower coverage of these passes. Artifact
-Activity/source/tab lifecycle acceptance and an unlocked-phone run remain. A
+A separate parent-reload gate fails on orphaned preview leases after fifteen
+restorations; client cleanup needs repair. Activity/source/tab lifecycle
+acceptance and an unlocked-phone run remain. A
 connection-wide streaming-window negotiation awaits maintainer compatibility
 approval; current per-body bounds alone do not bound cancelled relay tails.
 Nothing in this implementation phase has been published.

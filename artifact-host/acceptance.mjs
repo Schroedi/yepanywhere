@@ -50,9 +50,17 @@ const android = process.argv.includes("--android") || native || physical;
 const nativeManaged = native && process.argv.includes("--native-managed");
 const largeMedia = process.argv.includes("--large-media");
 const nativeResume = process.argv.includes("--native-resume");
+const nativeDocumentReload = process.argv.includes("--native-document-reload");
+if (nativeDocumentReload && !nativeManaged)
+  throw new Error(
+    "Document reload qualification requires the managed native pane",
+  );
 if (nativeResume && !nativeManaged)
   throw new Error("Native resume requires the managed native pane");
 const localFaults = process.argv.includes("--local-faults");
+const traceNativeSetup = process.argv.includes("--trace-native-setup");
+if (traceNativeSetup && !localFaults)
+  throw new Error("Native setup tracing requires the owned fault relay");
 const slowLinkProbe = process.argv.includes("--slow-link-probe");
 if (slowLinkProbe && !localFaults)
   throw new Error("Slow-link qualification requires the owned fault relay");
@@ -162,6 +170,13 @@ const evidence = {
   temp,
 };
 const log = (text) => console.error(`[managed artifact] ${text}`);
+async function recordNativeSetup(stage) {
+  if (!traceNativeSetup) return;
+  const response = await localRelay.app.request("/status");
+  const { mux } = await response.json();
+  evidence.nativeSetup ??= [];
+  evidence.nativeSetup.push({ stage, mux, traffic: pressureRelayTraffic() });
+}
 async function until(label, fn, limit = 45000) {
   const start = Date.now();
   while (Date.now() - start < limit) {
@@ -316,7 +331,8 @@ try {
       disableTelemetry: true,
     });
     networkGate = await createNetworkGate(localRelay.port, recordFault);
-    if (slowLinkProbe) pressureRelayTraffic = observePressureRelay(localRelay);
+    if (slowLinkProbe || traceNativeSetup)
+      pressureRelayTraffic = observePressureRelay(localRelay);
     const devicePort = adb(
       "reverse",
       "tcp:0",
@@ -397,9 +413,10 @@ try {
     "server port",
     () => existsSync(serverFile) && readFileSync(serverFile, "utf8").trim(),
   );
-  const api = (path) =>
+  const api = (path, init = {}) =>
     fetch(`http://127.0.0.1:${serverPort}/api${path}`, {
-      headers: { "X-Yep-Anywhere": "true" },
+      ...init,
+      headers: { "X-Yep-Anywhere": "true", ...init.headers },
     });
   await until("relay registration", async () =>
     ["waiting", "connected"].includes(
@@ -491,6 +508,7 @@ try {
           /text="Connect"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/,
         );
       });
+      await recordNativeSetup("before-pairing");
       adb(
         "shell",
         "input",
@@ -784,14 +802,20 @@ try {
       `${origin}/login/relay#u=${username}&p=${password}&r=${encodeURIComponent(relayUrl)}`,
     );
     await page.waitForURL("**/-/relay/**", { timeout: 60000 });
-  } else
+  } else {
     await expect(page.getByText("bundle", { exact: true }).first()).toBeVisible(
       { timeout: 45000 },
     );
+    await recordNativeSetup("paired-home-ready");
+  }
   await page.goto(`${base}/projects/${projectId}/sessions/artifact-demo`);
-  await page
-    .getByRole("link", { name: "Open local artifact", exact: true })
-    .click({ timeout: 45000 });
+  const openArtifactLink = page.getByRole("link", {
+    name: "Open local artifact",
+    exact: true,
+  });
+  await expect(openArtifactLink).toBeVisible({ timeout: 45000 });
+  await recordNativeSetup("after-explicit-document-navigation");
+  await openArtifactLink.click();
   if (native && !nativeManaged) {
     const frameElement = page.locator("iframe[srcdoc]");
     await expect(frameElement).toHaveAttribute("sandbox", "allow-same-origin");
@@ -859,6 +883,7 @@ try {
     await expect(child.locator("#modules")).toContainText("JSON: 3 notes", {
       timeout: 30000,
     });
+    await recordNativeSetup("first-artifact-ready");
     const resourceResults = await child.evaluate(async () => ({
       image: document.querySelector("#chart").naturalWidth,
       classic: window.classicLoaded,
@@ -1563,6 +1588,83 @@ try {
         freshOrigins: origins.size,
         registrationsRemoved: true,
       });
+      if (nativeDocumentReload) {
+        appendFileSync(
+          transcript,
+          JSON.stringify(
+            row(
+              950,
+              "assistant",
+              `[Reload artifact](${join(project, "index.html")})`,
+            ),
+          ) + "\n",
+        );
+        const reloads = {
+          name: "native-parent-document-reload",
+          cycles: [],
+          webLocks: await page.evaluate(() => typeof navigator.locks?.request),
+        };
+        evidence.checks.push(reloads);
+        log(
+          "Checking eighteen parent document reloads with an admitted artifact",
+        );
+        await page
+          .getByRole("link", { name: "Reload artifact", exact: true })
+          .click();
+        for (let cycle = 0; cycle < 18; cycle++) {
+          await until("artifact before parent reload", artifact);
+          await expect(artifact().locator("#modules")).toContainText(
+            "JSON: 3 notes",
+          );
+          const previousOrigin = new URL(artifact().url()).origin;
+          const previousDocument = await page.evaluate(
+            () => performance.timeOrigin,
+          );
+          await page.reload({ waitUntil: "load" });
+          try {
+            await until("restored artifact after parent reload", artifact);
+          } catch (error) {
+            const response = await api(
+              "/sessions/artifact-demo/artifact-previews",
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ path: join(project, "index.html") }),
+              },
+            );
+            const body = await response.json();
+            reloads.admissionProbe = {
+              status: response.status,
+              error: body.error ?? null,
+            };
+            if (response.ok && typeof body.id === "string")
+              await api(
+                `/sessions/artifact-demo/artifact-previews/${encodeURIComponent(body.id)}`,
+                { method: "DELETE" },
+              );
+            throw error;
+          }
+          await expect(artifact().locator("#modules")).toContainText(
+            "JSON: 3 notes",
+          );
+          expect(await page.evaluate(() => performance.timeOrigin)).not.toBe(
+            previousDocument,
+          );
+          const restoredOrigin = new URL(artifact().url()).origin;
+          expect(restoredOrigin).not.toBe(previousOrigin);
+          reloads.cycles.push({
+            cycle,
+            newParentDocument: true,
+            newArtifactOrigin: true,
+            previousWorkerRemoved: await unregistered(previousOrigin),
+          });
+          log(`Parent reload ${cycle + 1}/18 restored a fresh artifact`);
+        }
+        await page.locator('.file-viewer-action[aria-label="Back"]').click();
+        await expect(
+          page.getByRole("link", { name: "Reload artifact", exact: true }),
+        ).toBeVisible({ timeout: 45000 });
+      }
     }
     await cdp.detach();
     expect(evidence.errors).toEqual([]);

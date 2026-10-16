@@ -1,7 +1,7 @@
 # Android packaged artifacts and native streaming — 2026-10-16
 
 Status: the selected emulator matrices below pass; the new eight-reader
-slow-link diagnostic fails. Physical and connection-wide flow-control
+slow-link and whole-parent reload diagnostics fail. Physical and connection-wide flow-control
 acceptance remain open. Nothing was published.
 [Plan 156](../tactical/156-android-secure-transport-and-artifacts.md) owns the
 remaining work. The [security contract](../../topics/active-content-security.md#bundled-android-fixed-shell)
@@ -164,9 +164,16 @@ After cancellation and removal of throttling, a fresh artifact read returned
 
 Both runs began with the relay circuit `relay_closed` counter already at two.
 The repeat additionally observed two physical mux closures before the stress
-phase. Their cause is not classified by this probe. The stress delta above is
-separate; neither the successful functional setup nor final recovery establishes
-that this pre-probe baseline had no connection churn.
+phase. A later owned-relay run with `--trace-native-setup` resolves the setup
+boundaries: before pairing, zero circuits/physical sockets had opened or closed;
+once the paired home rendered, two had opened and one had closed; after the
+harness's explicit top-level session navigation, three had opened and two had
+closed. First artifact readiness leaves those counts unchanged. Pairing closes
+its temporary authenticated transport, and full document navigation releases
+its document-owned native lease. This attributes the measured setup closures
+to those explicit boundaries, rather than spontaneous artifact-open churn; it
+does not diagnose the maintainer's physical-phone resume sequence. The stress
+closure delta above remains separate.
 
 Eleven main-process PSS samples per run peaked at 133,318 KiB and 145,068 KiB,
 respectively. The second ranged from 143,663 to 145,068 KiB. These short samples
@@ -179,6 +186,34 @@ Gate teardown also now waits for all owned upstream and downstream sockets.
 The versioned connection-window proposal remains approval-pending. This red
 baseline gives it a real-device-path regression target; it does not authorize
 a contract edit or justify raising the relay's existing limits.
+
+## Parent document reload reproduction — 2026-10-17
+
+Two corrected actual-app runs restored an admitted artifact through fifteen
+whole-parent document reloads, each with a new parent time origin and fresh
+artifact origin. Old worker removal was observed for all fifteen. The next
+restoration fell back to the scriptless viewer. The second run's independent
+same-principal admission probe received **429 “Too many open previews”**, which
+establishes exhaustion of the server's sixteen-preview cap. It is not a worker
+registration leak or evidence of successful server lease cleanup.
+
+An initial harness attempt waited for a transcript link after the first reload,
+even though the modal had restored successfully and intentionally froze the
+covered transcript. That attempt does not establish a connection failure. The
+corrected test inspects the restored artifact directly and closes the modal
+before its final transcript assertion. No product assertion was relaxed.
+
+`ManagedArtifactPreview` releases admitted leases on React effect cleanup, but
+whole-document destruction does not run that cleanup. Native navigation also
+closes the old bridge at `onPageStarted`, so asynchronous unload-time API calls
+cannot be assumed to finish. Client recovery must remember admitted lease IDs
+for the captured source and reclaim only abandoned owners using the existing
+authenticated DELETE route, preserving concurrent live artifacts. No new route,
+wire field or privileged native artifact broker is needed. The tested WebView
+exposes Web Locks; browser lock termination on document unload offers a basis
+for distinguishing active owners from discarded documents without guessing a
+hidden-tab timeout ([specification](https://w3c.github.io/web-locks/#termination-of-locks)).
+The repair and concurrent-owner qualification remain open.
 
 ## Verification and remaining limits
 
@@ -227,7 +262,8 @@ Unqualified or pending:
 - The current native tab implementation keeps one active WebView; selecting a
   different native tab saves history and destroys the old document. Two live
   artifact documents across native tabs are not supplied by that topology.
-  Artifact-specific tab-switch/source-switch cleanup, Activity recreation,
+  Repeated parent reload currently exhausts server preview leases as recorded
+  above. Artifact-specific tab-switch/source-switch cleanup, Activity recreation,
   long half-open sockets and radio/route transitions still need acceptance.
   Sequential viewers and worker restart are narrower evidence.
 - The source/generated APK uses 256 MiB per file, 1 GiB produced bytes per viewer
