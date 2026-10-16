@@ -442,6 +442,46 @@ the same body cannot be served for each other.
 The **Link Recent File Basenames** convenience remains owner-only; a share
 links only what the server confirmed for that body.
 
+## File-link preferences and mentioned directories
+
+Appearance groups three browser preferences: **Link Project Paths** (on),
+**Use Mentioned Directories** (on), and **Link Recent File Basenames** (off).
+The master switch gates both conveniences and automatic content links in
+authenticated sessions. Public-share rendering retains its server-confirmed
+links. The directory option is enabled by default at the maintainer's request.
+
+For completed Markdown prose, the server scans occurrences in source order.
+A verified project-relative directory mention becomes the context for later
+bare filenames throughout that prose body, including later paragraphs. A new
+verified directory replaces it; an unverified mention does not. Context resets
+at the next prose body and never carries between turns. Directory spellings
+must contain a slash or appear in inline code; filename candidates must have a
+path-like extension or appear in inline code. Explicit paths, Markdown links,
+fenced code, and math do not acquire this context.
+
+The joined file must exist. When it does, the client displays and links the
+joined path even if the same basename exists at project root or has a recent
+basename alias. Otherwise ordinary exact-file and recent-alias behavior
+remains. For example, `Use ar/raghda/ ... intake (onboard.py) and scoring
+(score.sh)` displays links for `ar/raghda/onboard.py` and
+`ar/raghda/score.sh` when those files exist.
+
+The server attaches `data-ya-directory-file` to each eligible HTML occurrence,
+so two identical basenames can name different files in one body. Verification
+reuses the sparse path index, including its revision and retention rules,
+with bounded directory and file probes. Streaming known-only renders do not
+start directory discovery; settled full-body augmentation supplies it. No
+filesystem inventory reaches the client. Old clients ignore the annotation;
+new clients talking to old servers keep ordinary links without making a new
+request. Public shares do not receive these annotations.
+
+Right-clicking or long-pressing the composer formula control opens its existing
+toolbar menu with these three session-view overrides above **Hide**. Each offers
+**Default**, **On**, and **Off**; Default follows the current browser preference.
+Overrides live only in that mounted session view, reset on unmount/reload,
+and do not change browser defaults or another session view. Turning off the
+master disables the two dependent controls without discarding their choices.
+
 ## Recent basename aliases
 
 This YA-specific convenience is configurable in Appearance and defaults off.

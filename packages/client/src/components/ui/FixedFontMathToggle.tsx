@@ -23,6 +23,8 @@ import {
   usePublicShareContext,
 } from "../../contexts/PublicShareContext";
 import { useGlossaryArtifact } from "../../contexts/GlossaryContext";
+import { useProjectPathLinkSettings } from "../../contexts/ProjectPathLinkSettingsContext";
+import { annotateProjectPathLinksHtml } from "../../lib/projectPathLinks";
 import {
   type RenderMode,
   useRenderModeToggle,
@@ -1100,6 +1102,7 @@ export function FixedFontMathToggle({
   const publicShare = usePublicShareContext();
   const basePath = useRemoteBasePath();
   const tooltipMode = useTooltipMode();
+  const { projectPaths, mentionedDirectories } = useProjectPathLinkSettings();
   const glossary = useGlossaryArtifact(baseFilePath);
   const [viewerLink, setViewerLink] = useState<{
     filePath: string;
@@ -1153,14 +1156,29 @@ export function FixedFontMathToggle({
   const { btnRef: toggleBtnRef, handleClick: handleToggleClick } =
     useScrollPreservingToggle(showRendered, toggleLocalMode);
   const presentedHtml = useMemo(() => {
-    const tooltipHtml = applyRenderedTooltipMode(rendered.html, tooltipMode);
+    const linkedHtml = annotateProjectPathLinksHtml(
+      rendered.html,
+      undefined,
+      sessionMetadata?.projectId,
+      publicShare,
+      { projectPaths, mentionedDirectories },
+    ).html;
+    const tooltipHtml = applyRenderedTooltipMode(linkedHtml, tooltipMode);
     return annotateGlossaryHtml(
       tooltipHtml,
       glossary.state === "ready" && glossary.result?.status === "ready"
         ? glossary.result.artifact
         : undefined,
     ).html;
-  }, [glossary, rendered.html, tooltipMode]);
+  }, [
+    glossary,
+    rendered.html,
+    tooltipMode,
+    projectPaths,
+    mentionedDirectories,
+    sessionMetadata?.projectId,
+    publicShare,
+  ]);
 
   useEffect(() => {
     const element = copySourceRef.current;

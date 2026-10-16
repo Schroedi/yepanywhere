@@ -14,6 +14,7 @@ import {
 import { homedir } from "node:os";
 import type { ProjectPathIndex } from "../projects/projectPathIndex.js";
 import {
+  escapeHtml,
   renderLocalFileLink,
   renderProjectFileViewerLink,
 } from "./safe-markdown.js";
@@ -500,6 +501,114 @@ export async function resolveShapedPaths(
   const paths = Array.from(shaped);
   await index.findExisting(paths);
   return paths.every((path) => index.knownFile(path) !== undefined);
+}
+
+/** Annotate each filename using the last verified directory in this prose body. */
+export async function annotateMentionedDirectoryFiles(
+  html: string,
+  options: ProjectPathLinkOptions,
+): Promise<string> {
+  if (options.pathDiscovery === "known-only") return html;
+  const tokens: Array<{
+    text: string;
+    start: number;
+    end: number;
+    code: boolean;
+  }> = [];
+  const excluded: string[] = [];
+  let codeDepth = 0;
+  for (const match of html.matchAll(/<!--[\s\S]*?-->|<[^>]*>|[^<]+/g)) {
+    const part = match[0];
+    if (part.startsWith("<")) {
+      const tag = tagName(part);
+      if (!tag) continue;
+      if (tag.closing) {
+        if (excluded.at(-1) === tag.name) excluded.pop();
+        if (tag.name === "code") codeDepth = Math.max(0, codeDepth - 1);
+      } else {
+        if (tag.name === "code") codeDepth += 1;
+        const generatedCodeLink =
+          tag.name === "a" &&
+          part.includes('class="fixed-font-file-link"') &&
+          part.includes('data-ya-resource="project-file"');
+        if (
+          ["pre", "script", "style", "textarea", "math", "annotation"].includes(
+            tag.name,
+          ) ||
+          (tag.name === "a" && !generatedCodeLink) ||
+          (tag.name === "span" && /class="[^"]*\bkatex\b/.test(part))
+        ) {
+          excluded.push(tag.name);
+        } else if (excluded.at(-1) === tag.name) {
+          excluded.push(tag.name);
+        }
+      }
+      continue;
+    }
+    if (excluded.length > 0) continue;
+    for (const token of findProjectPathTokens(part)) {
+      if (token.kind !== "relative") continue;
+      tokens.push({
+        text: token.text,
+        start: match.index + token.start,
+        end: match.index + token.end,
+        code: codeDepth > 0,
+      });
+    }
+  }
+  const directories = [
+    ...new Set(
+      tokens
+        .filter((token) => token.code || token.text.includes("/"))
+        .map((token) => token.text),
+    ),
+  ].slice(0, 64);
+  if (directories.length === 0) return html;
+  const { index } = options;
+  try {
+    const existingDirectories = await index.findExisting(
+      directories,
+      "directory",
+    );
+    if (directories.some((path) => index.knownFile(path) === undefined)) {
+      options.onUnversionedLookup?.();
+    }
+    if (existingDirectories.size === 0) return html;
+    let directory: string | undefined;
+    const candidates: Array<{ start: number; end: number; path: string }> = [];
+    const paths = new Set<string>();
+    for (const token of tokens) {
+      if (existingDirectories.has(token.text)) {
+        directory = token.text;
+      } else if (
+        directory &&
+        !/[\\/]/.test(token.text) &&
+        (token.code || mayCostLookup(token.text))
+      ) {
+        const path = join(directory, token.text);
+        if (!paths.has(path) && paths.size >= 512) continue;
+        paths.add(path);
+        candidates.push({ start: token.start, end: token.end, path });
+      }
+    }
+    const existingFiles = await index.findExisting([...paths]);
+    if ([...paths].some((path) => index.knownFile(path) === undefined)) {
+      options.onUnversionedLookup?.();
+    }
+    let out = "";
+    let cursor = 0;
+    for (const candidate of candidates) {
+      if (!existingFiles.has(candidate.path)) continue;
+      out += html.slice(cursor, candidate.start);
+      out += `<span data-ya-directory-file="${escapeHtml(candidate.path)}">${html.slice(candidate.start, candidate.end)}</span>`;
+      cursor = candidate.end;
+    }
+    return cursor ? out + html.slice(cursor) : html;
+  } catch {
+    // Filesystem discovery is advisory; preserve the original readable body.
+    options.onUnversionedLookup?.();
+    return html;
+  }
 }
 
 function collectCandidatePaths(

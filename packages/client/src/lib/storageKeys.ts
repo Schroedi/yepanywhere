@@ -136,6 +136,8 @@ export const UI_KEYS = {
   compactMultiImageGalleries:
     "yep-anywhere-compact-multi-image-galleries-enabled",
   recentProjectPathLinks: "yep-anywhere-recent-project-path-links-enabled",
+  projectPathLinks: "yep-anywhere-project-path-links-enabled",
+  mentionedDirectoryLinks: "yep-anywhere-mentioned-directory-links-enabled",
   schemaValidation: "yep-anywhere-schema-validation",
   emulatorMaxFps: "yep-anywhere-emulator-max-fps",
   emulatorMaxWidth: "yep-anywhere-emulator-max-width",

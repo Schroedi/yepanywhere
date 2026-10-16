@@ -14,6 +14,7 @@ import {
 } from "./augment-generator.js";
 import { BlockDetector } from "./block-detector.js";
 import {
+  annotateMentionedDirectoryFiles,
   linkifyProjectPaths,
   resolveShapedPaths,
 } from "./project-path-links.js";
@@ -218,7 +219,16 @@ async function renderMarkdownToHtmlUncached(
     }
   }
 
-  const html = htmlParts.join("\n");
+  const renderedHtml = htmlParts.join("\n");
+  const html =
+    index && projectLinks && !projectLinks.publicShare
+      ? await annotateMentionedDirectoryFiles(renderedHtml, {
+          projectPath: projectLinks.projectPath,
+          index,
+          pathDiscovery: projectLinks.pathDiscovery,
+          onUnversionedLookup: markUnversionedLookup,
+        })
+      : renderedHtml;
   const linkedHtml =
     index && projectLinks
       ? await linkifyProjectPaths(html, {

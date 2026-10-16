@@ -6,6 +6,7 @@ import {
   buildPublicShareFileHref,
   type PublicShareContextValue,
 } from "../contexts/PublicShareContext";
+import type { ProjectPathLinkSettings } from "./projectPathLinkPreferences";
 
 export interface AnnotatedProjectPathLinksHtml {
   changed: boolean;
@@ -51,20 +52,36 @@ export function annotateProjectPathLinksHtml(
   links: readonly ProjectPathLinkTarget[] | undefined,
   projectId: string | undefined,
   publicShare?: PublicShareContextValue | null,
+  settings: Pick<
+    ProjectPathLinkSettings,
+    "projectPaths" | "mentionedDirectories"
+  > = { projectPaths: true, mentionedDirectories: true },
 ): AnnotatedProjectPathLinksHtml {
   if (
     !html ||
-    !links?.length ||
+    (!links?.length &&
+      settings.projectPaths &&
+      !html.includes("data-ya-directory-file")) ||
     !projectId ||
     typeof document === "undefined"
   ) {
     return { changed: false, html };
   }
 
-  const targets = new Map(links.map((link) => [link.text, link.filePath]));
+  const targets = new Map(links?.map((link) => [link.text, link.filePath]));
   const template = document.createElement("template");
   template.innerHTML = html;
   let changed = false;
+
+  if (!settings.projectPaths && !publicShare) {
+    for (const anchor of template.content.querySelectorAll(
+      'a[data-ya-resource="project-file"], a[data-ya-resource="local-file"], a[data-fixed-font-file-path]',
+    )) {
+      anchor.replaceWith(...anchor.childNodes);
+      changed = true;
+    }
+    return { changed, html: changed ? template.innerHTML : html };
+  }
 
   for (const anchor of template.content.querySelectorAll<HTMLAnchorElement>(
     'a[data-ya-resource="project-file"]',
@@ -115,6 +132,35 @@ export function annotateProjectPathLinksHtml(
       matched.replaceWith(anchor);
       anchor.append(matched);
       void suffix;
+      changed = true;
+    }
+  }
+
+  if (settings.mentionedDirectories && !publicShare) {
+    for (const occurrence of template.content.querySelectorAll<HTMLElement>(
+      "[data-ya-directory-file]",
+    )) {
+      const filePath = occurrence.dataset.yaDirectoryFile;
+      if (!filePath) continue;
+      const anchor =
+        occurrence.closest<HTMLAnchorElement>("a") ??
+        occurrence.querySelector<HTMLAnchorElement>("a") ??
+        document.createElement("a");
+      setProjectPathAnchorTarget(anchor, projectId, filePath, null);
+      if (anchor.contains(occurrence)) {
+        occurrence.textContent = filePath;
+      } else {
+        anchor.textContent = filePath;
+        occurrence.replaceChildren(anchor);
+      }
+      const params = new URLSearchParams({ path: filePath });
+      if (anchor.dataset.yaLine) params.set("line", anchor.dataset.yaLine);
+      if (anchor.dataset.yaColumn)
+        params.set("column", anchor.dataset.yaColumn);
+      anchor.setAttribute(
+        "href",
+        `/projects/${encodeURIComponent(projectId)}/file?${params}`,
+      );
       changed = true;
     }
   }

@@ -16,6 +16,7 @@ import {
   usePublicShareContext,
 } from "../../contexts/PublicShareContext";
 import { useRenderModeToggle } from "../../contexts/RenderModeContext";
+import { useProjectPathLinkSettings } from "../../contexts/ProjectPathLinkSettingsContext";
 import { useOptionalSessionMetadata } from "../../contexts/SessionMetadataContext";
 import type { CommentAnchor } from "../../lib/commentAnchors";
 import { useStreamingMarkdownContext } from "../../contexts/StreamingMarkdownContext";
@@ -78,16 +79,27 @@ const RenderedHtmlIsland = memo(function RenderedHtmlIsland({
   publicShare?: PublicShareContextValue | null;
 }) {
   const rewriteHref = useSessionAppLinkRewriter();
+  const { projectPaths, mentionedDirectories } = useProjectPathLinkSettings();
   const renderedHtml = useMemo(() => {
     const withProjectPaths = annotateProjectPathLinksHtml(
       html,
       projectPathLinks,
       projectId,
       publicShare,
+      { projectPaths, mentionedDirectories },
     ).html;
     const withGlossary = annotateGlossaryHtml(withProjectPaths, artifact).html;
     return rewriteSessionAppLinksHtml(withGlossary, rewriteHref);
-  }, [artifact, html, projectId, projectPathLinks, publicShare, rewriteHref]);
+  }, [
+    artifact,
+    html,
+    projectId,
+    projectPathLinks,
+    publicShare,
+    rewriteHref,
+    projectPaths,
+    mentionedDirectories,
+  ]);
   const innerHtml = useInnerHtml(renderedHtml);
   return (
     <div
@@ -130,6 +142,7 @@ export const TextBlock = memo(function TextBlock({
   timelineAction,
 }: Props) {
   const { t } = useI18n();
+  const { projectPaths, mentionedDirectories } = useProjectPathLinkSettings();
   const [copied, setCopied] = useState(false);
   const [galleryActionHost, setGalleryActionHost] =
     useState<HTMLElement | null>(null);
@@ -156,6 +169,7 @@ export const TextBlock = memo(function TextBlock({
         projectPathLinks,
         projectId,
         publicShare,
+        { projectPaths, mentionedDirectories },
       ).html;
       const withGlossary = annotateGlossaryHtml(
         withProjectPaths,
@@ -163,7 +177,15 @@ export const TextBlock = memo(function TextBlock({
       ).html;
       return rewriteSessionAppLinksHtml(withGlossary, rewriteHref);
     },
-    [glossaryArtifact, projectId, projectPathLinks, publicShare, rewriteHref],
+    [
+      glossaryArtifact,
+      projectId,
+      projectPathLinks,
+      publicShare,
+      rewriteHref,
+      projectPaths,
+      mentionedDirectories,
+    ],
   );
   const serverMarkdownChanged = useMemo(() => {
     if (!augmentHtml) return false;

@@ -128,6 +128,7 @@ import type { ModalAnchorRect } from "../components/ui/Modal";
 import { AgentContentProvider } from "../contexts/AgentContentContext";
 import { GlossaryProjectProvider } from "../contexts/GlossaryContext";
 import { RenderModeProvider } from "../contexts/RenderModeContext";
+import { ProjectPathLinkSettingsProvider } from "../contexts/ProjectPathLinkSettingsContext";
 import { SessionMetadataProvider } from "../contexts/SessionMetadataContext";
 import { useCurrentSourceRuntime } from "../contexts/SourceRuntimeContext";
 import {
@@ -473,14 +474,16 @@ export function SessionPage({
     <GlossaryProjectProvider projectId={projectId} enabled={!isDomLingerParked}>
       <StreamingMarkdownProvider>
         <RenderModeProvider key={sessionId}>
-          <SessionPageContent
-            key={sessionId}
-            projectId={projectId}
-            sessionId={sessionId}
-            routeLocation={routeLocation}
-            isDomLingerParked={isDomLingerParked}
-            progressiveRenderPauseSignal={progressiveRenderPauseSignal}
-          />
+          <ProjectPathLinkSettingsProvider>
+            <SessionPageContent
+              key={sessionId}
+              projectId={projectId}
+              sessionId={sessionId}
+              routeLocation={routeLocation}
+              isDomLingerParked={isDomLingerParked}
+              progressiveRenderPauseSignal={progressiveRenderPauseSignal}
+            />
+          </ProjectPathLinkSettingsProvider>
         </RenderModeProvider>
       </StreamingMarkdownProvider>
     </GlossaryProjectProvider>

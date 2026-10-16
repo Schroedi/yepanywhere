@@ -239,6 +239,48 @@ describe("applyRecentProjectPathLinks", () => {
 });
 
 describe("annotateProjectPathLinksHtml", () => {
+  it("uses occurrence-specific directories over root and recent links, with reversible preferences", () => {
+    const html =
+      '<p><a data-ya-resource="project-file" data-ya-path="README.md" href="/root"><code><span data-ya-directory-file="a/README.md">README.md</span></code></a> and <span data-ya-directory-file="b/README.md"><a data-ya-resource="local-file" href="/root">README.md</a></span> plus <span data-ya-directory-file="b/score.sh">score.sh</span>.</p>';
+    const aliases = [{ text: "README.md", filePath: "recent/README.md" }];
+    const template = document.createElement("template");
+    template.innerHTML = annotateProjectPathLinksHtml(
+      html,
+      aliases,
+      "project",
+    ).html;
+    expect(
+      [...template.content.querySelectorAll("a")].map((anchor) => [
+        anchor.textContent,
+        anchor.dataset.yaPath,
+      ]),
+    ).toEqual([
+      ["a/README.md", "a/README.md"],
+      ["b/README.md", "b/README.md"],
+      ["b/score.sh", "b/score.sh"],
+    ]);
+    expect(template.content.querySelector("a a")).toBeNull();
+    const disabled = annotateProjectPathLinksHtml(
+      html,
+      undefined,
+      "project",
+      null,
+      { projectPaths: true, mentionedDirectories: false },
+    );
+    expect(disabled.html).toBe(html);
+    template.innerHTML = annotateProjectPathLinksHtml(
+      html,
+      aliases,
+      "project",
+      null,
+      { projectPaths: false, mentionedDirectories: true },
+    ).html;
+    expect(template.content.querySelector("a")).toBeNull();
+    expect(template.content.textContent).toBe(
+      "README.md and README.md plus score.sh.",
+    );
+  });
+
   it("links basename text through the current session project", () => {
     const result = annotateProjectPathLinksHtml(
       "<p>Open <code>settings.json</code>.</p>",

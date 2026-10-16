@@ -142,6 +142,7 @@ import { SpeechControlMenu } from "./SpeechControlMenu";
 import { SpeechWaveform } from "./SpeechWaveform";
 import { ThinkingControlsPanel, ThinkingIcon } from "./ThinkingControls";
 import { RenderModeGlyph } from "./ui/RenderModeGlyph";
+import { SessionPathLinkOptions } from "./SessionPathLinkOptions";
 import { SessionViewerToolbarController } from "./SessionViewerToolbarController";
 import {
   VoiceInputButton,
@@ -1052,7 +1053,7 @@ function ToolbarHidePopover({
   return createPortal(
     <div
       ref={popoverRef}
-      className={toolbarModuleStyles.hidePopover}
+      className={`${toolbarModuleStyles.hidePopover}${state.key === "renderMode" ? ` ${toolbarModuleStyles.renderOptionsPopover}` : ""}`}
       role="dialog"
       aria-label={t("toolbarHideControlMenuAria")}
       style={
@@ -1064,6 +1065,7 @@ function ToolbarHidePopover({
       <span className={toolbarModuleStyles.hidePopoverTooltip}>
         {state.tooltip}
       </span>
+      {state.key === "renderMode" && <SessionPathLinkOptions />}
       <button
         ref={hideButtonRef}
         type="button"
