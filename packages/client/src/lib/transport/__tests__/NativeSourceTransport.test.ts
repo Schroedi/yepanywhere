@@ -337,6 +337,60 @@ describe("native source transport", () => {
     );
   });
 
+  it("retains recovery demand arriving inside the five-second cooldown", async () => {
+    const { host, transport } = await setup();
+    vi.useFakeTimers();
+    host.handler = () => {
+      throw new Error("network still unavailable");
+    };
+    await expect(transport.reconnect()).rejects.toThrow(
+      "network still unavailable",
+    );
+    await vi.advanceTimersByTimeAsync(1000);
+    host.handler = async () => {
+      await host.emit({ type: "state", phase: "CONNECTED" });
+      return {};
+    };
+    window.dispatchEvent(new Event("online"));
+    window.dispatchEvent(new Event("focus"));
+    document.dispatchEvent(new Event("pointerdown"));
+    await vi.advanceTimersByTimeAsync(3999);
+    expect(host.commands).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(host.commands).toHaveLength(2);
+    expect(transport.status.getSnapshot().state).toBe("ready");
+  });
+
+  it("cancels deferred demand while hidden and on disposal", async () => {
+    const { host, transport } = await setup();
+    vi.useFakeTimers();
+    const hidden = vi.spyOn(document, "hidden", "get").mockReturnValue(false);
+    host.handler = () => {
+      throw new Error("offline");
+    };
+    await expect(transport.reconnect()).rejects.toThrow("offline");
+    window.dispatchEvent(new Event("online"));
+    hidden.mockReturnValue(true);
+    document.dispatchEvent(new Event("visibilitychange"));
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(host.commands).toHaveLength(1);
+    hidden.mockReturnValue(false);
+    host.handler = () => ({});
+    document.dispatchEvent(new Event("visibilitychange"));
+    await vi.advanceTimersByTimeAsync(1);
+    expect(transport.status.getSnapshot().state).toBe("ready");
+    host.handler = () => {
+      throw new Error("offline again");
+    };
+    await expect(transport.reconnect()).rejects.toThrow("offline again");
+    window.dispatchEvent(new Event("online"));
+    const count = host.commands.length;
+    transport.dispose();
+    await vi.advanceTimersByTimeAsync(120000);
+    expect(host.commands).toHaveLength(count);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it("pauses exhausted recovery while hidden and stops it on disposal or rejection", async () => {
     const { host, transport } = await setup();
     vi.useFakeTimers();

@@ -426,7 +426,10 @@ reads wait through suspension within the existing readiness budget. Hidden reads
 fail with the typed recovery error. Shells advertising `stateQuery` reconcile a
 current unavailable operation against native state before retrying; delayed
 operation errors cannot regress a newer native observation. Exhausted recovery
-signals coalesce for five seconds, including native network-available events.
+signals coalesce for five seconds, including native network-available events. A visible demand
+signal arriving within that cooldown retains one attempt for its boundary,
+rather than being lost until the 60-second backstop. Returning ready, beginning
+a retry, hiding, disposal and terminal failure cancel that deferred demand.
 
 Native bridge catch-up waits in a bounded event lane. Small lifecycle state and
 control replies take priority between complete logical messages; frame credit

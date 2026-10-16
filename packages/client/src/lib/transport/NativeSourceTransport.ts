@@ -67,6 +67,7 @@ export class NativeSourceTransport implements SourceTransport, Connection {
   private connectionEpoch: number | undefined;
   private recovery: Promise<void> | null = null;
   private recoveryTimer: ReturnType<typeof setTimeout> | undefined;
+  private signalRecoveryTimer: ReturnType<typeof setTimeout> | undefined;
   private lastRecovery = -Infinity;
   private removeRecoverySignals: () => void = () => {};
   private readonly online = () => this.recoverIfNeeded();
@@ -259,16 +260,34 @@ export class NativeSourceTransport implements SourceTransport, Connection {
     if (
       !this.canRecover() ||
       document.hidden ||
-      !["FAILED", "EXHAUSTED", "OFFLINE"].includes(this.phase) ||
-      Date.now() - this.lastRecovery < 5000
+      !["FAILED", "EXHAUSTED", "OFFLINE"].includes(this.phase)
     )
       return;
+    const remaining = 5000 - (Date.now() - this.lastRecovery);
+    if (remaining > 0) {
+      // Keep one demand edge through the cooldown. Dropping the last network
+      // restoration edge here used to leave recovery to the 60-second backstop.
+      if (this.signalRecoveryTimer === undefined)
+        this.signalRecoveryTimer = setTimeout(() => {
+          this.signalRecoveryTimer = undefined;
+          this.recoverIfNeeded();
+        }, remaining);
+      return;
+    }
     void this.reconnect().catch(() => {});
   }
 
   private scheduleRecovery(): void {
     clearTimeout(this.recoveryTimer);
     this.recoveryTimer = undefined;
+    if (
+      !this.canRecover() ||
+      document.hidden ||
+      !["FAILED", "EXHAUSTED", "OFFLINE"].includes(this.phase)
+    ) {
+      clearTimeout(this.signalRecoveryTimer);
+      this.signalRecoveryTimer = undefined;
+    }
     if (
       !this.canRecover() ||
       document.hidden ||
@@ -724,6 +743,7 @@ export class NativeSourceTransport implements SourceTransport, Connection {
     if (this.disposed) return;
     this.disposed = true;
     clearTimeout(this.recoveryTimer);
+    clearTimeout(this.signalRecoveryTimer);
     this.removeRecoverySignals();
     window.removeEventListener("online", this.online);
     document.removeEventListener("visibilitychange", this.visibility);
