@@ -149,5 +149,8 @@ client selection; do not publish a client that assumes old servers upgraded.
 
 Server slice: five real-filesystem route tests cover inert responses/ranges,
 traversal and symlinks, current policy, expiry/revocation, principal/session
-binding and live-stream cancellation. Root lint, format, typecheck and unit
-suites pass (6,582 server assertions). Browser integration remains next.
+binding and live-stream cancellation. Root lint, format, typecheck and the server
+suite pass (6,582 assertions). The full client run exposed an off-window
+search assertion racing deferred alignment; its test now waits for alignment
+itself, preserving both the exact target and the retained-window bound. Full
+client verification must be repeated. Browser integration remains next.
