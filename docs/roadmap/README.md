@@ -26,7 +26,9 @@ API35/WebView124 app renders a real 143 MiB movie and twenty images over the
 public encrypted relay, with exact ranges, seeking, pause/resume and typing.
 The seeded emulator cut/refusal/stall matrix and eighteen viewer teardowns pass;
 a separate burst verifies twenty image reads during each fault. Three real
-launcher resumes retain the artifact/draft and show one recovery interval each. The
+launcher resumes retain the artifact/draft and show one recovery interval each.
+The eight-reader 128 KiB/s diagnostic now reproduces a relay circuit queue
+closure in two actual-app runs; aggregate flow control remains a failing gate. The
 [measured report](../testing/android-artifact-streaming-2026-10-16.md) preserves an
 earlier 103.2 ms frame miss and the narrower coverage of these passes. Artifact
 Activity/source/tab lifecycle acceptance and an unlocked-phone run remain. A

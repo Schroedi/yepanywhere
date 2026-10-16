@@ -5,6 +5,10 @@ import {
 import { createRelayServer } from "../packages/relay/src/server.ts";
 import { createNetworkGate } from "../packages/client/e2e/lifecycle-study/network-gate.mjs";
 import { qualifyNativeFaults } from "./native-faults.mjs";
+import {
+  observePressureRelay,
+  qualifyNativePressure,
+} from "./native-pressure.mjs";
 import { beginTypingMetrics, finishTypingMetrics } from "./typing-metrics.mjs";
 // Actual YA UI + real encrypted relay + deployed HTTPS content host.
 // Run: pnpm exec tsx --conditions source artifact-host/acceptance.mjs --public-relay
@@ -49,6 +53,9 @@ const nativeResume = process.argv.includes("--native-resume");
 if (nativeResume && !nativeManaged)
   throw new Error("Native resume requires the managed native pane");
 const localFaults = process.argv.includes("--local-faults");
+const slowLinkProbe = process.argv.includes("--slow-link-probe");
+if (slowLinkProbe && !localFaults)
+  throw new Error("Slow-link qualification requires the owned fault relay");
 const faultsOnly = process.argv.includes("--faults-only");
 if (faultsOnly && !localFaults)
   throw new Error("--faults-only requires the owned local fault relay");
@@ -60,6 +67,7 @@ if (
     "Local faults require native managed large-media mode and an owned local relay",
   );
 let localRelay, networkGate;
+let pressureRelayTraffic;
 const reversePorts = [];
 const faultTimeline = [];
 const recordFault = (event) => {
@@ -131,9 +139,11 @@ const evidence = {
   parent: "https://latest.yepanywhere.com",
   temporaryParentBuild: true,
   nativeManaged,
-  qualificationScope: faultsOnly
-    ? "native faults and typing; full media matrix omitted"
-    : "complete selected matrix",
+  qualificationScope: slowLinkProbe
+    ? "eight retained native readers over a slow downlink; full transfer/media/fault matrix omitted"
+    : faultsOnly
+      ? "native faults and typing; full media matrix omitted"
+      : "complete selected matrix",
   thirdPartyCookiesBlocked: native ? null : !android,
   serverBuild: process.env.YA_ARTIFACT_TEST_SERVER_ROOT
     ? "baseline checkout"
@@ -306,6 +316,7 @@ try {
       disableTelemetry: true,
     });
     networkGate = await createNetworkGate(localRelay.port, recordFault);
+    if (slowLinkProbe) pressureRelayTraffic = observePressureRelay(localRelay);
     const devicePort = adb(
       "reverse",
       "tcp:0",
@@ -1151,7 +1162,57 @@ try {
       .click();
     await until("reopened report", artifact);
     await expect(artifact().locator("#modules")).toContainText("JSON: 3 notes");
-    if (mediaExpected && !faultsOnly) {
+    if (slowLinkProbe) {
+      log(
+        "Checking eight retained native bodies over a 128 KiB/s TCP downlink",
+      );
+      const result = await qualifyNativePressure({
+        artifact,
+        gate: networkGate,
+        relayTraffic: pressureRelayTraffic,
+        relayStatus: async () => {
+          const response = await localRelay.app.request("/status");
+          return (await response.json()).mux;
+        },
+        sampleMemory: async () => {
+          const { stdout } = await execFileAsync(
+            "adb",
+            [
+              "-s",
+              serial,
+              "shell",
+              "dumpsys",
+              "meminfo",
+              "com.yepanywhere.mobile.artifacttest",
+            ],
+            { encoding: "utf8" },
+          );
+          const match = stdout.match(/TOTAL PSS:\s*(\d+)/);
+          if (!match) throw new Error("Main application PSS was unavailable");
+          return { mainProcessPssKiB: Number(match[1]) };
+        },
+      });
+      const pressureEvidence = { name: "native-slow-link-pressure", ...result };
+      evidence.checks.push(pressureEvidence);
+      await until("fresh artifact read after pressure cancellation", () =>
+        artifact().evaluate(async () => {
+          try {
+            const response = await fetch("data.json?after-pressure=1", {
+              signal: AbortSignal.timeout(5000),
+            });
+            return response.ok && (await response.json()).notes === 3;
+          } catch {
+            return false;
+          }
+        }),
+      );
+      pressureEvidence.freshReadAfterCancellation = 200;
+      expect(
+        result.healthy,
+        "Eight retained native readers must start without response errors or circuit closure",
+      ).toBe(true);
+    }
+    if (mediaExpected && !faultsOnly && !slowLinkProbe) {
       log(
         "Checking twenty local images, a 96 MiB movie prefix, seeking and paused resume",
       );
@@ -1176,7 +1237,7 @@ try {
         path,
       });
     }
-    if (localFaults) {
+    if (localFaults && !slowLinkProbe) {
       log(
         "Exercising native socket interruption, refusal and silent stalls on the owned encrypted relay",
       );

@@ -1,7 +1,8 @@
 # Android packaged artifacts and native streaming — 2026-10-16
 
-Status: emulator acceptance passes for the matrix below; physical and stronger
-connection-wide flow-control acceptance remain open. Nothing was published.
+Status: the selected emulator matrices below pass; the new eight-reader
+slow-link diagnostic fails. Physical and connection-wide flow-control
+acceptance remain open. Nothing was published.
 [Plan 156](../tactical/156-android-secure-transport-and-artifacts.md) owns the
 remaining work. The [security contract](../../topics/active-content-security.md#bundled-android-fixed-shell)
 owns observable behavior, authority, limits and fallback.
@@ -137,6 +138,48 @@ credential serialization and unchanged-server fallback. Kotlin queue tests
 cover state/control priority, bounded event pressure and media/event fairness.
 These bounds do not establish a shared bound over cancelled relay tails.
 
+## Eight-reader slow-link reproduction — 2026-10-17
+
+Two isolated actual-app runs requested eight 16 MiB ranges from the generated
+movie, read one chunk from each response that started, and retained unread
+bodies for approximately 20.5 seconds. An owned TCP gate limited downloads to
+128 KiB/s per physical connection while preserving upload progress; this was
+not WebView network emulation. Neither relay limits nor production framing was
+changed. Both runs failed the opt-in diagnostic: the relay's `relay_closed`
+circuit counter increased by one. Four requests returned 206 and four 504 in
+the first run; five returned 206 and three 504 in the repeat. Every successful
+first chunk contained 65,536 bytes. This is not full-range completion evidence.
+
+The repeat's passive counters recorded **no physical mux close or reopen**
+during the burst. Observed incoming message maxima remained 66,843 bytes from
+the server and 1,569 bytes from the client, below the default 2 MiB frame cap.
+Given the current mux close paths, those observations isolate the circuit
+closure to the queue-limit path; this attribution is an inference from the
+observed counters and implementation, not a newly emitted subreason. One live
+circuit means its 2 MiB ceiling is reached before the 8 MiB socket queue cap.
+The relay also counted twenty additional invalid requests during the burst;
+their individual contents were not recorded.
+After cancellation and removal of throttling, a fresh artifact read returned
+200 and the owned app was removed.
+
+Both runs began with the relay circuit `relay_closed` counter already at two.
+The repeat additionally observed two physical mux closures before the stress
+phase. Their cause is not classified by this probe. The stress delta above is
+separate; neither the successful functional setup nor final recovery establishes
+that this pre-probe baseline had no connection churn.
+
+Eleven main-process PSS samples per run peaked at 133,318 KiB and 145,068 KiB,
+respectively. The second ranged from 143,663 to 145,068 KiB. These short samples
+exclude isolated WebView renderers and do not establish aggregate memory bounds
+or cleanup of all downstream buffers. The test stores bounded diagnostic data,
+not complete movie bodies. Its rate-control regression verifies exact ordered
+bytes, independent upload progress and cancellation of a pending pacing timer.
+Gate teardown also now waits for all owned upstream and downstream sockets.
+
+The versioned connection-window proposal remains approval-pending. This red
+baseline gives it a real-device-path regression target; it does not authorize
+a contract edit or justify raising the relay's existing limits.
+
 ## Verification and remaining limits
 
 Workspace lint, format and typecheck pass; full units pass with 7,022 client
@@ -178,8 +221,9 @@ Unqualified or pending:
   independent 1 MiB body windows plus completed/cancelled tails can exceed the
   relay mux's 2 MiB queue under a slow downlink. Short fault and image-burst
   passes do not settle that defect. No new production wire mode was added.
-- No process-memory high-water measurement or eight-large-stream slow-link
-  acceptance is claimed. Unit bounds are not aggregate device-memory evidence.
+- Eight-large-stream slow-link acceptance fails as recorded above. Only sampled
+  main-process PSS is available; no aggregate process-memory high-water bound
+  is established. Unit bounds are not aggregate device-memory evidence.
 - The current native tab implementation keeps one active WebView; selecting a
   different native tab saves history and destroys the old document. Two live
   artifact documents across native tabs are not supplied by that topology.

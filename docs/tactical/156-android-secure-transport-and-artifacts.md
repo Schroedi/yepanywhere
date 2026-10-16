@@ -15,10 +15,14 @@ movie/fault matrix and a focused twenty-image fault burst. The
 those results from the locked-phone, aggregate-window and lifecycle work still
 open. Three actual HOME/launcher cycles now retain the artifact/draft and each
 show one recovery interval with fresh asset reads and no app errors. One earlier
-103.2 ms emulator frame miss remains recorded. The broad browser run finished with 406 passes, ten skips and five failures;
+103.2 ms emulator frame miss remains recorded. The broad browser run finished
+with 406 passes, ten skips and five failures;
 three repaired cases pass focused reruns, while the unrelated App sandbox and
 WebRTC readiness failures remain recorded in the report. No new
-connection-window wire mode has been implemented.
+connection-window wire mode has been implemented. Two actual-app eight-reader
+128 KiB/s diagnostics now reproduce a relay circuit queue closure; passive
+observations distinguish the stress delta from earlier physical mux closures.
+See the measured report for the red baseline and its memory-sampling limits.
 
 ## Accepted Android viewer design
 

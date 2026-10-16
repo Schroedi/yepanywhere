@@ -308,3 +308,15 @@ checks a fresh asset read, and permits at most one reconnect interval with no
 terminal-disconnected banner per cycle. It records DOM visibility separately;
 some WebViews still report visible while the OS app is backgrounded. This does
 not simulate phone sleep/wake, process death or Activity recreation.
+
+For the separately scoped slow-link diagnostic, use `--native --native-managed
+--local-faults --large-media --slow-link-probe --skip-build`. It requests eight
+16 MiB movie ranges, reads one chunk from each response and retains the bodies
+for a 20-second observation at 128 KiB/s per downstream TCP connection. It
+records passive relay message-size/physical-close counters and sampled main-app
+PSS (excluding isolated WebView renderers), then cancels the burst and requires
+a fresh artifact read. It omits full movie transfer/pause and seeded faults.
+It currently exits before post-probe typing with a nonzero status on the
+reproduced circuit-closure failure; this is an opt-in diagnostic, not a passing acceptance or a new product
+20-second deadline. Ordinary relay limits and framing are unchanged. The gate
+holds one input chunk/timer per direction and releases all sockets on teardown.
