@@ -20,8 +20,9 @@ non-dot file granted under the entry directory and exfiltrate it through
 WebRTC STUN/TURN, their own frame navigation or DNS side channels. Source bytes remain inert
 on the authenticated YA API origin.
 
-Only `https://yepanywhere.com` and `https://latest.yepanywhere.com` may embed
-or connect the bootstrap. The client and bootstrap both validate exact source,
+The hosted assets allow only `https://yepanywhere.com` and
+`https://latest.yepanywhere.com` to embed or connect the bootstrap. The APK
+generates a separate copy allowing only its appassets parent. The client and bootstrap both validate exact source,
 origin, protocol and viewer identity. Content receives an entry name and theme
 and widget state, never a server credential, grant API path or general fetch
 interface. The server rechecks file authority even if content forges messages.
@@ -89,8 +90,9 @@ UTF-8 HTML, relative resources, computed modules and linked HTML documents work 
 rewriting. Absolute OS paths, root-relative web-app routing, external scripts
 or APIs, application backends and WebSockets are not supplied by this broker.
 Custom artifact hosts, app vhosts and public sharing retain their existing
-contracts. Chrome is the initial qualified engine. WebKit and native WebViews
-keep their existing viewer. Only the two official parent origins are supported;
+contracts. Chrome is the initial qualified engine. WebKit keeps its existing viewer;
+packaged Android qualification is recorded separately below. Only the two
+official parent origins are supported by hosted assets;
 `PARENT_ORIGINS` is a diagnostic override, not custom-deployment support, since
 the content response CSP also fixes its ancestors.
 
@@ -223,9 +225,14 @@ viewer focus as well as user activation for composer insertions.
 
 Leases do not renew automatically. Expiry or server lease loss exposes Retry,
 which admits the original entry through the captured trusted source. Missing
-individual files remain resource failures. Every read has a 60-second absolute
-deadline; long/paused media and linked PDF/download navigation remain outside
-this qualification. Other file bytes are transported verbatim; HTML needs UTF-8.
+individual files remain resource failures. Current source uses a 120-second
+progress-based idle deadline, bounded by lease expiry, a 256 MiB per-file limit
+and 1 GiB of produced bytes per viewer. Cancelling a range charges only bytes
+produced, preserving headroom for repeated video seeks. Linked PDF/download
+navigation remains outside this qualification. Other file bytes are transported
+verbatim; HTML needs UTF-8. The currently deployed hosted worker still has its
+earlier 64 MiB file limit until separately published; the generated APK copy
+uses the source limits.
 
 Qualification limits: queued response heads still have the worker's 15-second
 limit; slow cellular/resource bursts can time out. Server read caps are shared
@@ -233,3 +240,63 @@ across clients, so overload can still return 429. The expiry notification uses
 the server timestamp against the client clock; clock skew may show Retry early.
 Lease expiry intentionally tears down in-page state after 30 minutes; dashboard
 renewal and durable widget state are not supplied by v1.
+
+## Packaged Android acceptance
+
+The bundled shell uses the same worker/frame sources, generated with an exact
+appassets ancestor list. Native interception supplies only the four fixed shell
+assets; the parent obtains all local artifact bytes through the captured native
+encrypted connection. See the [security contract](../topics/active-content-security.md#bundled-android-fixed-shell)
+and [in-progress qualification](../docs/tactical/156-android-secure-transport-and-artifacts.md).
+
+Build an owned side-by-side test APK; it has no production app-link filters and
+never replaces or clears the installed app:
+
+```bash
+pnpm --filter @yep-anywhere/android prepare-frontend
+packages/android/gradlew -p packages/android \
+  --init-script scripts/isolated-test-app.init.gradle \
+  -PyaTestApplicationId=com.yepanywhere.mobile.artifacttest \
+  -PyaFirebaseEnabled=false -PyaNativeProbeMinify=true assembleBundledDebug
+YA_ARTIFACT_TEST_APK="$PWD/packages/android/app/build/outputs/apk/bundled/debug/app-bundled-debug.apk" \
+ANDROID_SERIAL=<owned-emulator> pnpm exec tsx --conditions source \
+  artifact-host/acceptance.mjs --native --native-managed --public-relay \
+  --skip-build --large-media
+```
+
+Use `--physical-native` instead of `--native` for the unlocked attached phone;
+the Machine Control adapter supplies its private selector. The runner verifies
+the APK identity, refuses an already installed test package, then removes only
+its owned installation/forwards/processes. Large-media mode needs local ffmpeg;
+it generates a real 600-second H.264 movie and twenty distinct PNG charts in
+temporary data. It checks a 96 MiB prefix with bounded digest buffering, exact
+bounded/suffix/open-ended ranges and 416 metadata, actual decoded frames and
+seeking, a 65-second pause/resume, and per-key event/input/paint times within
+100 ms during live chat updates. Android CDP command RTT is reported separately.
+Whole-device captures include hardware video textures.
+
+Chrome 124's built-in video controls register an orientation listener even
+when sensors are denied. The acceptance runner records that exact policy
+diagnostic separately, without granting sensors or accepting other console
+errors. The explicit invalid-range probe similarly records only its exact 416
+resource diagnostic. Native runs exercise sequential fresh viewer origins and
+worker removal; the desktop runner's concurrent newPage/surviving-frame tests
+are not treated as native coverage. Physical large-media and bad-network
+qualification remain pending. No screenshots, movie files or APKs belong in Git.
+
+
+The packaged API35/WebView124 app now passes the full public-relay baseline and
+an owned-relay movie/fault run. A focused run also verifies twenty image reads
+queued during each fault. The [measured report](../docs/testing/android-artifact-streaming-2026-10-16.md)
+records successes, failed attempts and unqualified boundaries, including the
+103.2 ms emulator frame miss and pending connection-wide tail accounting.
+
+For repeatable native socket faults, replace `--public-relay` with
+`--local-faults`. This starts an owned local relay behind a TCP gate and an
+owned ADB reverse; SRP/NaCl still encrypts the file traffic. Add `--faults-only`
+for the focused fault/image/typing matrix; it explicitly omits the already
+separate large-prefix/65-second-pause qualification. The seed and action
+timeline, exact image hashes, UI edges and cleanup result are retained in the
+ignored receipt. Covered transcript catch-up is checked after parking the
+viewer, then restoring the same document; the existing modal freeze is not
+mistaken for a native subscription failure.

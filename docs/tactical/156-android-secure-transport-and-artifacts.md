@@ -8,6 +8,14 @@ Android reconnect/streaming improvements, emulator and physical-device fault
 testing, and final artifact acceptance with large movies and many images.
 Publication is separate from this implementation.
 
+Current evidence: browser SRP's 32 cases and full workspace units pass. The
+packaged API35/WebView124 app passes the public-relay baseline, a complete
+movie/fault matrix and a focused twenty-image fault burst. The
+[measured report](../testing/android-artifact-streaming-2026-10-16.md) distinguishes
+those results from the locked-phone, aggregate-window and lifecycle work still
+open. One earlier 103.2 ms emulator frame miss remains recorded. The full browser
+suite is running. No new connection-window wire mode has been implemented.
+
 ## Accepted Android viewer design
 
 Keep the bundled privileged UI at `https://appassets.androidplatform.net`.
@@ -33,7 +41,7 @@ Relative images, CSS, fonts, scripts, modules, JSON and linked HTML worked;
 native authority was absent in content, parent access was denied, and worker
 restart/cancellation and sequential typing passed. Its 64 KiB HTTP-range
 adapter is experimental evidence, **not** the production streaming design.
-Large explicit/suffix ranges, movies and older WebViews remain unqualified.
+That spike did not qualify large explicit/suffix ranges, movies or older WebViews.
 
 ## Existing work and limits
 
@@ -113,7 +121,7 @@ the measured acceptance before calling this reliable.
 ## Progress
 
 - [x] Accepted service-worker design and ordered qualification recorded.
-- [ ] Browser SRP regression baseline and missing coverage.
+- [x] Browser SRP regression baseline and startup handoff repair (32 cases).
 - [ ] Resume diagnosis, regression repair and physical/emulator validation.
 - [ ] Progressive native responses, backpressure and cancellation.
 - [ ] Packaged viewer integration and lifecycle compatibility.
@@ -198,3 +206,106 @@ passes afterward: exactly one reattachment, no duplicate edge for the same
 epoch and no regression from an older epoch. The focused bridge suite now
 passes 60 cases. Native diagnostics retain only 128 phase/generation samples,
 with monotonic timestamps and no message contents, paths or credentials.
+
+The first complete isolated emulator foundation run passed direct (17 cases)
+and mux/100 MiB (16 cases), including their intentional runner-owned/direct-only
+assumption skips. The normal live probe's software-emulator allowance is not a
+100 ms typing qualification; preserve actual input/paint timings separately.
+The packaged actual-pane run on API35/WebView124 loaded the fragment graph and
+blocked privileged navigation. One harness assertion used Chrome154's wording
+for that refusal; after recognizing both engines' exact CSP diagnostics, the
+run reached sequential artifact typing and measured 113 ms command round-trip,
+above its 100 ms gate. Record event/input/paint clocks before attributing that
+round-trip to UI latency or changing an assertion. These are failed qualification
+attempts, not a passing artifact acceptance.
+
+### Connection-window compatibility proposal (approval pending)
+
+A sum over active streams alone is insufficient: completed/cancelled tails can
+still be queued in the relay after their bookkeeping disappears. Native readers
+will opt into a separately versioned per-request connection-window mode, and
+use it only when the response start echoes that mode. Upgraded servers retain
+window charges through final receipt/consumption, including cancelled tails;
+new native readers acknowledge discarded received bytes after cancellation.
+Older servers omit the echo and retain the existing stream path. Ordinary
+browser peers remain on their existing mode. This is optional framing/flow
+control, not a broader meaning for `artifact-relay-preview` or a new principal.
+Inspect the supported core stable corpus and preserve existing fallback before
+landing it. No publishing/deployment is part of this task.
+
+The next actual-pane attempt recorded trusted key-event timestamps through
+input and animation frame, while retaining per-key value checks. Artifact:
+32 characters, 9.2 ms max input / 21.4 ms paint / 61 ms command RTT. Composer:
+33 characters, 5.8 ms input / 17.9 ms paint / 171 ms command RTT under live
+updates. This demonstrates control-plane RTT was the failing clock in that
+attempt, not a dropped/late painted keystroke. Android acceptance now gates
+every real trusted input/paint sample at 100 ms and reports command RTT
+separately; desktop retains its existing additional round-trip gate. The
+attempt remains recorded as failed under its original assertion.
+
+
+The browser leading-space failure now has a controlled hook reproduction:
+ref/layout adoption edits before passive draft hydration; whitespace-only text
+is omitted from durable storage and the first hydration read erased it. The
+regression fails before the guard and passes afterward while preserving new-key
+hydration (26 focused draft/preboot cases, under one second). Full browser
+login/relay and startup handoff verification are still required.
+
+The next large-media attempt failed on a genuine server crash: Node 26.7.0's
+Readable.toWeb file adapter enqueued after its controller closed during media
+cancellation. A 300-iteration standalone cancellation loop did not reproduce
+that exact timing; the actual-pane crash remains the evidence. Opened authorized
+file responses now use 64 KiB pull-driven positional reads and a cancellation
+latch, also shared with mutable file responses. Range/descriptor/cancel/truncated
+file checks pass (27 cases, under one second). The actual-pane rerun is pending;
+this repair is not yet a completed media qualification.
+
+
+The repaired browser login/SRP/relay suite passes all 32 cases in 1.8 minutes,
+including the original startup leading-space case and large transfer/recovery
+checks. Workspace lint, formatting and typecheck are clean; full units continue.
+The new single-hook regression costs 35 ms with its existing preboot suite.
+
+After the opened-file cancellation repair, the actual packaged API35/WebView124
+pane passed the public encrypted relay media matrix: twenty distinct PNGs,
+100,663,296 exact prefix bytes, a 150,254,465-byte/600-second H.264 movie,
+bounded/suffix/open-ended SHA-verified ranges and 416 length metadata. Seeking
+reached 150.16, 450.17, 60.20 and 594.16 seconds; after 65 seconds paused,
+playback resumed at 300.25 seconds with 640×360 decoded pixels/72 sampled colors.
+Artifact typing painted all 32 characters within 20.2 ms; the composer painted
+all 33 within 13.1 ms during transcript updates and playback (maximum command
+RTT 106 ms, reported separately). Five exact Chrome124 denied-sensor diagnostics
+and the single intentional 416 diagnostic were classified separately; no other
+console errors occurred. Whole-device captures were individually inspected and
+presented through artifact capture, kept out of Git.
+
+That run still failed its newly added lifecycle tail: live updates removed the
+original link from the virtual transcript. The first attempted fixture correction
+did not actually insert its new tail row; a second narrow run therefore failed
+on the same missing link. The fixture now explicitly appends the row and the
+registration event history confirms all three earlier viewers were removed.
+Do not call either run complete acceptance. Eighteen fresh admissions/removals,
+seeded real-socket faults, memory/queue qualification and unlocked physical
+media/lifecycle testing remain. The Opus sessions did use tools under bypass
+permissions, but the Claude monthly spending cap now prevents a fresh final
+review; their earlier findings have been applied without changing account limits.
+
+
+The first full unit run after positional-reader integration correctly failed
+on seven unclosed FileHandles from small responses whose callers inspected only
+headers. A zero-read-ahead body had delayed all I/O/EOF until consumption. The
+reader now retains one bounded 64 KiB chunk and proactively closes on the
+selected range's end, preserving the previous small-unread-response lifecycle.
+A real-file regression checks descriptor closure before consuming retained
+bytes. All 28 focused file/preview/mutable-response cases pass in 0.45 seconds;
+the full suite is being repeated without suppressing the GC ownership errors.
+
+
+The next full unit run passed all server cases without the descriptor errors
+(6,589), then caught seven client failures from the new viewer subscription.
+Native's status snapshot is stable, but local/multiplex implementations compute
+fresh objects and use bound class methods. The viewer now subscribes through
+the transport receiver and snapshots only the primitive packaged-version value.
+All 120 existing viewer/rendering cases across five suites pass in 2.83 seconds,
+including delayed native capability arrival. The subsequent full workspace run
+is in progress; neither failed run was accepted as green.

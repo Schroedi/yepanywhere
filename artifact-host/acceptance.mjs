@@ -1,6 +1,14 @@
+import {
+  createLargeMediaFixture,
+  qualifyLargeMedia,
+} from "./media-fixture.mjs";
+import { createRelayServer } from "../packages/relay/src/server.ts";
+import { createNetworkGate } from "../packages/client/e2e/lifecycle-study/network-gate.mjs";
+import { qualifyNativeFaults } from "./native-faults.mjs";
+import { beginTypingMetrics, finishTypingMetrics } from "./typing-metrics.mjs";
 // Actual YA UI + real encrypted relay + deployed HTTPS content host.
 // Run: pnpm exec tsx --conditions source artifact-host/acceptance.mjs --public-relay
-import { spawn, execFileSync } from "node:child_process";
+import { spawn, execFile, execFileSync } from "node:child_process";
 import {
   mkdtempSync,
   mkdirSync,
@@ -12,6 +20,8 @@ import {
   readdirSync,
 } from "node:fs";
 import { createRequire } from "node:module";
+import { promisify } from "node:util";
+const execFileAsync = promisify(execFile);
 import { hostname, tmpdir } from "node:os";
 import { dirname, resolve, join } from "node:path";
 import { randomUUID, createHash } from "node:crypto";
@@ -29,9 +39,34 @@ const physical =
   process.argv.includes("--physical-chrome") ||
   process.argv.includes("--physical-native");
 const native =
+  process.argv.includes("--native") ||
   process.argv.includes("--native-fallback") ||
   process.argv.includes("--physical-native");
 const android = process.argv.includes("--android") || native || physical;
+const nativeManaged = native && process.argv.includes("--native-managed");
+const largeMedia = process.argv.includes("--large-media");
+const localFaults = process.argv.includes("--local-faults");
+const faultsOnly = process.argv.includes("--faults-only");
+if (faultsOnly && !localFaults)
+  throw new Error("--faults-only requires the owned local fault relay");
+if (
+  localFaults &&
+  (!nativeManaged || !largeMedia || process.argv.includes("--public-relay"))
+)
+  throw new Error(
+    "Local faults require native managed large-media mode and an owned local relay",
+  );
+let localRelay, networkGate;
+const reversePorts = [];
+const faultTimeline = [];
+const recordFault = (event) => {
+  faultTimeline.push({ at: Date.now(), ...event });
+};
+
+if (largeMedia && !nativeManaged)
+  throw new Error(
+    "Large-media qualification currently requires the updated native shell",
+  );
 const phoneAdapter =
   process.env.YA_ANDROID_DEVICE_ADAPTER ??
   resolve(
@@ -58,9 +93,7 @@ if (
   throw new Error(
     "Select a physical handheld through Machine Control, or an explicit ANDROID_SERIAL emulator",
   );
-const appPackage = physical
-  ? "com.yepanywhere.mobile.artifacttest"
-  : "com.yepanywhere.mobile";
+const appPackage = "com.yepanywhere.mobile.artifacttest";
 const appActivity = `${appPackage}/com.yepanywhere.mobile.MainActivity`;
 const forwards = [];
 let installedPhonePackage = false;
@@ -94,6 +127,10 @@ const evidence = {
   publicContentTLS: !native,
   parent: "https://latest.yepanywhere.com",
   temporaryParentBuild: true,
+  nativeManaged,
+  qualificationScope: faultsOnly
+    ? "native faults and typing; full media matrix omitted"
+    : "complete selected matrix",
   thirdPartyCookiesBlocked: native ? null : !android,
   serverBuild: process.env.YA_ARTIFACT_TEST_SERVER_ROOT
     ? "baseline checkout"
@@ -206,6 +243,10 @@ try {
   writeFileSync(join(project, "binary.wasm"), Buffer.from([255, 0, 128, 42]));
   writeFileSync(join(project, "range.bin"), "");
   truncateSync(join(project, "range.bin"), 64 * 1024 * 1024);
+  const mediaExpected = largeMedia
+    ? await createLargeMediaFixture(project)
+    : undefined;
+  if (mediaExpected) evidence.mediaFixture = mediaExpected;
   const install = new InstallService({ dataDir: data });
   await install.initialize();
   await install.recordSuccessfulProviders(["claude"]);
@@ -247,12 +288,34 @@ try {
     transcript,
     rows.map((value) => JSON.stringify(value)).join("\n") + "\n",
   );
-  if (!process.argv.includes("--public-relay"))
+  if (!localFaults && !process.argv.includes("--public-relay"))
     throw new Error(
       "Pass --public-relay to authorize a disposable identity on the public TLS relay",
     );
-  const relayUrl = "wss://relay.yepanywhere.com/ws";
-  evidence.publicRelay = true;
+  let relayUrl = "wss://relay.yepanywhere.com/ws";
+  let serverRelayUrl = relayUrl;
+  if (localFaults) {
+    localRelay = await createRelayServer({
+      port: 0,
+      inMemoryDb: true,
+      logLevel: "warn",
+      disablePrettyPrint: true,
+      disableTelemetry: true,
+    });
+    networkGate = await createNetworkGate(localRelay.port, recordFault);
+    const devicePort = adb(
+      "reverse",
+      "tcp:0",
+      `tcp:${networkGate.port}`,
+    ).trim();
+    if (!/^\d+$/.test(devicePort))
+      throw new Error("ADB did not allocate an owned reverse port");
+    reversePorts.push(devicePort);
+    relayUrl = `ws://127.0.0.1:${devicePort}/ws`;
+    serverRelayUrl = `ws://127.0.0.1:${localRelay.port}/ws`;
+    evidence.faultTimeline = faultTimeline;
+  }
+  evidence.publicRelay = !localFaults;
   const username = `artifact-${randomUUID().slice(0, 8)}`;
   const password = randomUUID() + randomUUID();
   const env = {
@@ -270,29 +333,40 @@ try {
     VITE_DISABLE_ONBOARDING: "true",
     VITE_DISABLE_CLI_UPDATE_NOTIFICATIONS: "true",
   };
-  execFileSync(
-    process.execPath,
-    [
-      "--import",
-      require.resolve("tsx/esm"),
-      "--conditions",
-      "source",
-      "src/cli.ts",
-      "--setup-remote-access",
-      "--username",
-      username,
-      "--password",
-      password,
-      "--relay",
-      relayUrl,
-    ],
-    {
-      cwd: join(root, "packages/server"),
-      env: { ...process.env, ...env },
-      stdio: "pipe",
-      timeout: 45000,
-    },
-  );
+  // Keep the owned relay's event loop live during CLI registration.
+  try {
+    await execFileAsync(
+      process.execPath,
+      [
+        "--import",
+        require.resolve("tsx/esm"),
+        "--conditions",
+        "source",
+        "src/cli.ts",
+        "--setup-remote-access",
+        "--username",
+        username,
+        "--password",
+        password,
+        "--relay",
+        serverRelayUrl,
+      ],
+      {
+        cwd: join(root, "packages/server"),
+        env: { ...process.env, ...env },
+        timeout: 45000,
+      },
+    );
+  } catch (error) {
+    // execFile's error message includes argv, including the fixture password.
+    writeFileSync(
+      join(output, "setup.log"),
+      `${error.stdout ?? ""}\n${error.stderr ?? ""}`,
+    );
+    throw new Error(
+      "Fixture remote-access setup failed; see private setup.log",
+    );
+  }
   const serverFile = join(temp, "server.port");
   start("server", "server", {
     ...env,
@@ -352,17 +426,12 @@ try {
       /Current WebView package \(name, version\): (.*)/,
     )?.[1];
     if (native) {
-      const apk = physical
-        ? process.env.YA_ARTIFACT_TEST_APK
-        : join(
-            root,
-            "packages/android/app/build/outputs/apk/bundled/debug/app-bundled-debug.apk",
-          );
+      const apk = process.env.YA_ARTIFACT_TEST_APK;
       if (!apk)
         throw new Error(
-          "Physical native test requires an isolated YA_ARTIFACT_TEST_APK",
+          "Native acceptance requires an isolated YA_ARTIFACT_TEST_APK",
         );
-      if (physical) {
+      {
         const sdk =
           process.env.ANDROID_HOME ??
           dirname(
@@ -384,7 +453,6 @@ try {
           );
       }
       if (
-        physical &&
         adb("shell", "pm", "list", "packages", "--user", "current", appPackage)
           .split(/\r?\n/)
           .includes(`package:${appPackage}`)
@@ -395,8 +463,8 @@ try {
       evidence.apkSHA256 = createHash("sha256")
         .update(readFileSync(apk))
         .digest("hex");
-      adb("install", "-r", apk);
-      installedPhonePackage = physical;
+      adb("install", apk);
+      installedPhonePackage = true;
       const link = `https://yepanywhere.com/open?${new URLSearchParams({ u: username, p: password, r: relayUrl })}`;
       execFileSync("adb", ["-s", serial, "shell"], {
         input: `am start -W -n ${appActivity} -a android.intent.action.VIEW -d '${link}'\n`,
@@ -584,29 +652,30 @@ try {
     });
   }
   evidence.browser ||= context.browser()?.version() ?? "persistent Chromium";
-  await context.route("https://latest.yepanywhere.com/**", async (route) => {
-    const url = new URL(route.request().url());
-    let file = join(dist, decodeURIComponent(url.pathname));
-    if (!file.startsWith(dist) || !existsSync(file) || url.pathname === "/")
-      file = join(dist, "remote.html");
-    const mime = file.endsWith(".js")
-      ? "text/javascript"
-      : file.endsWith(".css")
-        ? "text/css"
-        : file.endsWith(".html")
-          ? "text/html"
-          : file.endsWith(".svg")
-            ? "image/svg+xml"
-            : file.endsWith(".json")
-              ? "application/json"
-              : "application/octet-stream";
-    await route.fulfill({
-      status: 200,
-      contentType: mime,
-      body: readFileSync(file),
-      headers: { "Origin-Agent-Cluster": "?1", "Cache-Control": "no-store" },
+  if (!native)
+    await context.route("https://latest.yepanywhere.com/**", async (route) => {
+      const url = new URL(route.request().url());
+      let file = join(dist, decodeURIComponent(url.pathname));
+      if (!file.startsWith(dist) || !existsSync(file) || url.pathname === "/")
+        file = join(dist, "remote.html");
+      const mime = file.endsWith(".js")
+        ? "text/javascript"
+        : file.endsWith(".css")
+          ? "text/css"
+          : file.endsWith(".html")
+            ? "text/html"
+            : file.endsWith(".svg")
+              ? "image/svg+xml"
+              : file.endsWith(".json")
+                ? "application/json"
+                : "application/octet-stream";
+      await route.fulfill({
+        status: 200,
+        contentType: mime,
+        body: readFileSync(file),
+        headers: { "Origin-Agent-Cluster": "?1", "Cache-Control": "no-store" },
+      });
     });
-  });
   page = native ? context.pages()[0] : await context.newPage();
   if (android && !native) {
     await context.route(
@@ -662,6 +731,33 @@ try {
   page.on("pageerror", (error) => evidence.errors.push(error.message));
   page.on("console", (message) => {
     if (message.type() === "error") {
+      if (
+        largeMedia &&
+        message.text() ===
+          "Failed to load resource: the server responded with a status of 416 ()" &&
+        /\/media\/movie\.mp4\?invalid-range=1$/.test(message.location().url)
+      ) {
+        // This single intentional refusal is asserted byte-for-byte in the
+        // range probe. Every other failed resource remains an error.
+        evidence.expectedRangeRefusals =
+          (evidence.expectedRangeRefusals ?? 0) + 1;
+        return;
+      }
+      if (
+        nativeManaged &&
+        largeMedia &&
+        evidence.browser.startsWith("124.") &&
+        message.text() ===
+          "Permissions policy violation: accelerometer is not allowed in this document."
+      ) {
+        // Chrome 124's native rotate-to-fullscreen delegate registers an
+        // orientation listener when video controls attach. Keep sensors denied;
+        // preserve this exact upstream diagnostic separately from app errors.
+        // chromium/src@124.0.6367.219: media_controls_rotate_to_fullscreen_delegate.cc:64
+        evidence.expectedBrowserPolicyRefusals ??= [];
+        evidence.expectedBrowserPolicyRefusals.push(message.text());
+        return;
+      }
       evidence.errors.push(message.text());
       log(message.text().slice(0, 500));
     }
@@ -682,7 +778,7 @@ try {
   await page
     .getByRole("link", { name: "Open local artifact", exact: true })
     .click({ timeout: 45000 });
-  if (native) {
+  if (native && !nativeManaged) {
     const frameElement = page.locator("iframe[srcdoc]");
     await expect(frameElement).toHaveAttribute("sandbox", "allow-same-origin");
     const fallback = await until("native scriptless frame navigation", () =>
@@ -712,7 +808,12 @@ try {
         .evaluate((img) => img.naturalWidth),
     });
     const path = join(output, "native-fallback.png");
-    await page.screenshot({ path });
+    if (native)
+      writeFileSync(
+        path,
+        execFileSync("adb", ["-s", serial, "exec-out", "screencap", "-p"]),
+      );
+    else await page.screenshot({ path });
     screenshots.push({
       name: "native-app-fallback",
       ...(await page.evaluate(() => ({
@@ -747,6 +848,8 @@ try {
     const resourceResults = await child.evaluate(async () => ({
       image: document.querySelector("#chart").naturalWidth,
       classic: window.classicLoaded,
+      nativeTransport: typeof window.yaNativeTransport,
+      nativeHost: typeof window.yaNative,
       modules: window.result,
       font: await document.fonts
         .load("12px ArtifactFont")
@@ -765,9 +868,35 @@ try {
     }));
     expect(resourceResults.image).toBe(640);
     expect(resourceResults.classic).toBe(true);
+    expect(resourceResults.nativeTransport).toBe("undefined");
+    expect(resourceResults.nativeHost).toBe("undefined");
     expect(resourceResults.worker).toBe("1");
     expect(resourceResults.parent).toBe("denied");
     expect(resourceResults.font).toBe(1);
+    if (nativeManaged) {
+      evidence.mainFrameNativeTransport = await page.evaluate(
+        () => typeof window.yaNativeTransport?.postMessage,
+      );
+      expect(evidence.mainFrameNativeTransport).toBe("function");
+      const originalUrl = child.url();
+      const previousErrors = evidence.errors.length;
+      await child.evaluate(() => {
+        location.href = "https://appassets.androidplatform.net/";
+      });
+      await page.waitForTimeout(100);
+      expect(child.url()).not.toContain("appassets.androidplatform.net");
+      const refusals = evidence.errors.splice(previousErrors);
+      expect(refusals).toHaveLength(1);
+      expect(refusals[0]).toMatch(
+        /^(?:Framing|Refused to frame) 'https:\/\/appassets.androidplatform.net\/'.*violates.*frame-src 'self'/s,
+      );
+      evidence.expectedPrivilegedNavigationRefusals = refusals.length;
+      // CSP denies the target and commits an error document; restore this
+      // same admitted frame before continuing the functional measurements.
+      await child.goto(originalUrl);
+      await expect(child.locator("#modules")).toContainText("JSON: 3 notes");
+      evidence.subframePrivilegedNavigationBlocked = true;
+    }
     evidence.checks.push({ name: "native-resources", ...resourceResults });
     const exactResources = await child.evaluate(async () => {
       const dense = await Promise.all(
@@ -843,7 +972,12 @@ try {
       if (!android) await page.setViewportSize(viewport);
       await child.evaluate(() => scrollTo(0, 0));
       const path = join(output, `viewer-${viewport.width}.png`);
-      await page.screenshot({ path });
+      if (native)
+        writeFileSync(
+          path,
+          execFileSync("adb", ["-s", serial, "exec-out", "screencap", "-p"]),
+        );
+      else await page.screenshot({ path });
       screenshots.push({
         name: `managed-viewer-${viewport.width}`,
         ...viewport,
@@ -880,6 +1014,12 @@ try {
     evidence.checks.push({ name: "navigation-and-reload", passed: true });
     const cdp = await context.newCDPSession(page);
     let versions = [];
+    const registrations = new Map();
+    cdp.on("ServiceWorker.workerRegistrationUpdated", (event) => {
+      for (const registration of event.registrations)
+        registrations.set(registration.registrationId, registration);
+      evidence.workerRegistrations = [...registrations.values()];
+    });
     cdp.on("ServiceWorker.workerVersionUpdated", (event) => {
       versions = event.versions;
     });
@@ -904,12 +1044,12 @@ try {
     });
     expect(restarted.worker).toBe("1");
     evidence.checks.push({ name: "worker-restart", ...restarted });
-    await cdp.detach();
     const note = artifact().locator("#note");
     const phrase = "A local image with live updates.";
     let typed = "";
     const latencies = [];
     await note.click();
+    await beginTypingMetrics(note);
     for (const character of phrase) {
       const start = Date.now();
       await page.keyboard.type(character);
@@ -917,7 +1057,14 @@ try {
       await expect(note).toHaveValue(typed, { timeout: 100 });
       latencies.push(Date.now() - start);
     }
-    expect(Math.max(...latencies)).toBeLessThanOrEqual(100);
+    const artifactTyping = await finishTypingMetrics(note, phrase, latencies);
+    evidence.checks.push({
+      name: "artifact-input-paint-clocks",
+      ...artifactTyping,
+    });
+    // Android CDP command RTT includes control-plane delay after paint. The
+    // trusted event/input/paint recorder above owns its 100 ms UI gate.
+    if (!android) expect(Math.max(...latencies)).toBeLessThanOrEqual(100);
     evidence.checks.push({
       name: "artifact-sequential-typing",
       characters: phrase.length,
@@ -937,7 +1084,10 @@ try {
     expect(cancelled.status).toBe(200);
     expect(cancelled.firstBytes).toBeLessThan(4 * 1024 * 1024);
     expect(cancelled.nextStatus).toBe(200);
-    evidence.checks.push({ name: "stream-cancel", ...cancelled });
+    evidence.checks.push({
+      name: "stream-cancel",
+      ...cancelled,
+    });
 
     await artifact().locator("#modules").click();
     await page.keyboard.press("Control+f");
@@ -998,8 +1148,58 @@ try {
       .click();
     await until("reopened report", artifact);
     await expect(artifact().locator("#modules")).toContainText("JSON: 3 notes");
+    if (mediaExpected && !faultsOnly) {
+      log(
+        "Checking twenty local images, a 96 MiB movie prefix, seeking and paused resume",
+      );
+      evidence.checks.push({
+        name: "large-native-media",
+        ...(await qualifyLargeMedia(artifact(), mediaExpected)),
+      });
+      await artifact().locator("#local-movie").scrollIntoViewIfNeeded();
+      const path = join(output, "large-native-media.png");
+      if (native)
+        writeFileSync(
+          path,
+          execFileSync("adb", ["-s", serial, "exec-out", "screencap", "-p"]),
+        );
+      else await page.screenshot({ path });
+      screenshots.push({
+        name: "large-native-media",
+        ...(await page.evaluate(() => ({
+          width: innerWidth,
+          height: innerHeight,
+        }))),
+        path,
+      });
+    }
+    if (localFaults) {
+      log(
+        "Exercising native socket interruption, refusal and silent stalls on the owned encrypted relay",
+      );
+      evidence.checks.push({
+        name: "native-network-faults",
+        ...(await qualifyNativeFaults({
+          page,
+          artifact,
+          gate: networkGate,
+          record: recordFault,
+          until,
+          seed: 156202610,
+          images: mediaExpected.images,
+          appendUpdate: (text) =>
+            appendFileSync(
+              transcript,
+              JSON.stringify(
+                row(500 + faultTimeline.length, "assistant", text),
+              ) + "\n",
+            ),
+        })),
+      });
+    }
     await composer.fill("");
     await composer.click();
+    await beginTypingMetrics(composer);
     await page.evaluate(() => {
       window.__artifactMutations = 0;
       window.__artifactObserver = new MutationObserver(
@@ -1046,7 +1246,12 @@ try {
       window.__artifactObserver.disconnect();
       return window.__artifactMutations;
     });
-    expect(Math.max(...composerLatencies)).toBeLessThanOrEqual(100);
+    evidence.checks.push({
+      name: "composer-input-paint-clocks",
+      ...(await finishTypingMetrics(composer, composerText, composerLatencies)),
+    });
+    if (!android)
+      expect(Math.max(...composerLatencies)).toBeLessThanOrEqual(100);
     expect(updates).toBeGreaterThan(0);
     expect(mutations).toBeGreaterThan(0);
     evidence.checks.push({
@@ -1060,90 +1265,165 @@ try {
     await artifact().evaluate(() =>
       localStorage.setItem("viewer-only", "first"),
     );
-    const second = await context.newPage();
-    await second.goto(
-      `${origin}/login/relay#u=${username}&p=${password}&r=${encodeURIComponent(relayUrl)}`,
-    );
-    await second.waitForURL("**/-/relay/**");
-    await second.goto(
-      `${base}/projects/${projectId}/file?${new URLSearchParams({ path: join(project, "index.html") })}`,
-    );
-    const secondFrame = await until("second viewer", () =>
-      second
-        .frames()
-        .find((f) => /\/v\/[a-f0-9]{32}\/index.html/.test(f.url())),
-    );
-    await expect(secondFrame.locator("#modules")).toContainText(
-      "JSON: 3 notes",
-    );
-    expect(new URL(secondFrame.url()).origin).not.toBe(
-      new URL(artifact().url()).origin,
-    );
-    expect(
-      await secondFrame.evaluate(() => localStorage.getItem("viewer-only")),
-    ).toBeNull();
-    await second.close();
-    evidence.checks.push({ name: "concurrent-viewer-origins", passed: true });
+    if (!nativeManaged) {
+      const second = await context.newPage();
+      await second.goto(
+        `${origin}/login/relay#u=${username}&p=${password}&r=${encodeURIComponent(relayUrl)}`,
+      );
+      await second.waitForURL("**/-/relay/**");
+      await second.goto(
+        `${base}/projects/${projectId}/file?${new URLSearchParams({ path: join(project, "index.html") })}`,
+      );
+      const secondFrame = await until("second viewer", () =>
+        second
+          .frames()
+          .find((f) => /\/v\/[a-f0-9]{32}\/index.html/.test(f.url())),
+      );
+      await expect(secondFrame.locator("#modules")).toContainText(
+        "JSON: 3 notes",
+      );
+      expect(new URL(secondFrame.url()).origin).not.toBe(
+        new URL(artifact().url()).origin,
+      );
+      expect(
+        await secondFrame.evaluate(() => localStorage.getItem("viewer-only")),
+      ).toBeNull();
+      await second.close();
+      evidence.checks.push({ name: "concurrent-viewer-origins", passed: true });
+    }
 
     evidence.documentUrl = artifact().url();
     evidence.networkFallback = (await fetch(evidence.documentUrl)).status;
     expect(evidence.networkFallback).toBe(404);
     const documentUrl = artifact().url();
     const artifactOrigin = new URL(documentUrl).origin;
-    const orphan = await context.newPage();
-    const otherViewer = randomUUID().replaceAll("-", "");
-    await orphan.goto(
-      `${artifactOrigin}/__ya/1/bootstrap.html?${new URLSearchParams({ viewer: otherViewer, parent: origin })}`,
-    );
-    await orphan.evaluate((url) => {
-      const frame = document.createElement("iframe");
-      frame.src = url;
-      document.body.append(frame);
-    }, documentUrl);
-    const orphanDocument = await until("controlled survivor", () =>
-      orphan.frames().find((f) => f.url() === documentUrl),
-    );
-    await expect(orphanDocument.locator("#modules")).toContainText(
-      "JSON: 3 notes",
-    );
-    await page.locator('.file-viewer-action[aria-label="Back"]').click();
-    await until(
-      "worker unregister",
-      async () =>
-        (await orphan.evaluate(() =>
-          navigator.serviceWorker.getRegistrations().then((r) => r.length),
-        )) === 0,
-    );
-    const afterClose = await orphanDocument.evaluate(
-      async () => (await fetch("data.json?afterClose=1")).status,
-    );
-    expect(afterClose).toBe(503);
-    await orphan.close();
-    evidence.checks.push({
-      name: "teardown-and-survivor-refusal",
-      registrations: 0,
-      afterClose,
-    });
-
+    if (!nativeManaged) {
+      const orphan = await context.newPage();
+      const otherViewer = randomUUID().replaceAll("-", "");
+      await orphan.goto(
+        `${artifactOrigin}/__ya/1/bootstrap.html?${new URLSearchParams({ viewer: otherViewer, parent: origin })}`,
+      );
+      await orphan.evaluate((url) => {
+        const frame = document.createElement("iframe");
+        frame.src = url;
+        document.body.append(frame);
+      }, documentUrl);
+      const orphanDocument = await until("controlled survivor", () =>
+        orphan.frames().find((f) => f.url() === documentUrl),
+      );
+      await expect(orphanDocument.locator("#modules")).toContainText(
+        "JSON: 3 notes",
+      );
+      await page.locator('.file-viewer-action[aria-label="Back"]').click();
+      await until(
+        "worker unregister",
+        async () =>
+          (await orphan.evaluate(() =>
+            navigator.serviceWorker.getRegistrations().then((r) => r.length),
+          )) === 0,
+      );
+      const afterClose = await orphanDocument.evaluate(
+        async () => (await fetch("data.json?afterClose=1")).status,
+      );
+      expect(afterClose).toBe(503);
+      await orphan.close();
+      evidence.checks.push({
+        name: "teardown-and-survivor-refusal",
+        registrations: 0,
+        afterClose,
+      });
+    } else {
+      await page.locator('.file-viewer-action[aria-label="Back"]').click();
+      await expect(
+        page.locator(`iframe[src^="${artifactOrigin}"]`),
+      ).toHaveCount(0);
+      const unregistered = async (viewerOrigin) => {
+        const matching = [...registrations.values()].filter((r) =>
+          r.scopeURL.startsWith(`${viewerOrigin}/`),
+        );
+        return matching.length > 0 && matching.every((r) => r.isDeleted);
+      };
+      await until("closed native worker registration", () =>
+        unregistered(artifactOrigin),
+      );
+      // More than the server's 16-per-principal admission bound. Every new
+      // fragment must receive a fresh origin and the old worker must disappear.
+      // This exercises the actual native pane, without unsupported newPage().
+      const origins = new Set([artifactOrigin]);
+      // Live updates can move the original link out of the virtual transcript.
+      appendFileSync(
+        transcript,
+        JSON.stringify(
+          row(
+            900,
+            "assistant",
+            `[Reopen fragment](${join(project, "fragment.html")})`,
+          ),
+        ) + "\n",
+      );
+      log(
+        "Checking eighteen fresh native viewer admissions and worker removals",
+      );
+      for (let cycle = 0; cycle < 18; cycle++) {
+        await page
+          .getByRole("link", { name: "Reopen fragment", exact: true })
+          .click();
+        const reopened = await until("fresh fragment", () =>
+          page
+            .frames()
+            .find((f) => /\/v\/[a-f0-9]{32}\/fragment.html/.test(f.url())),
+        );
+        await expect(reopened.locator("#widget")).toBeVisible();
+        const nextOrigin = new URL(reopened.url()).origin;
+        expect(origins.has(nextOrigin)).toBe(false);
+        expect(
+          await reopened.evaluate(() => localStorage.getItem("viewer-only")),
+        ).toBeNull();
+        origins.add(nextOrigin);
+        await until("native worker registration", () =>
+          [...registrations.values()].some(
+            (r) => r.scopeURL.startsWith(`${nextOrigin}/`) && !r.isDeleted,
+          ),
+        );
+        await page.locator('.file-viewer-action[aria-label="Back"]').click();
+        await until("native worker unregister after close", () =>
+          unregistered(nextOrigin),
+        );
+      }
+      evidence.checks.push({
+        name: "native-pane-teardown",
+        cycles: 18,
+        freshOrigins: origins.size,
+        registrationsRemoved: true,
+      });
+    }
+    await cdp.detach();
     expect(evidence.errors).toEqual([]);
   }
   if (process.argv.includes("--smoke")) log("Smoke assertions complete");
   emitCapturePreview(
     await writeCapturePreview({
-      input: native
-        ? "Bundled Android YA: scriptless fallback over the encrypted public relay"
-        : "Managed artifact viewer: actual YA, encrypted relay and deployed HTTPS content host",
+      input: nativeManaged
+        ? `Bundled Android YA: packaged artifact shell, native transport and encrypted ${localFaults ? "owned fault-controlled" : "public"} relay${faultsOnly ? " (focused faults/typing; full media matrix omitted)" : ""}`
+        : native
+          ? "Bundled Android YA: scriptless fallback over the encrypted public relay"
+          : "Managed artifact viewer: actual YA, encrypted relay and deployed HTTPS content host",
       out: join(output, "capture"),
       screenshots,
-      warnings: [],
+      warnings: evidence.expectedBrowserPolicyRefusals?.length
+        ? [
+            "Chrome 124 native video controls attempted orientation sensing; the viewer denied it. Exact browser policy diagnostics are recorded separately.",
+          ]
+        : [],
     }),
   );
   evidence.passed = true;
   log(
-    `PASS: ${native ? "bundled app scriptless fallback" : "actual pane and local assets"} over encrypted relay. Evidence: ${output}`,
+    `PASS: ${nativeManaged ? "bundled app interactive artifact" : native ? "bundled app scriptless fallback" : "actual pane and local assets"} over encrypted relay. Evidence: ${output}`,
   );
 } catch (error) {
   evidence.failure = String(error);
+  if (error?.typingEvidence) evidence.typingFailure = error.typingEvidence;
   process.exitCode = 1;
   log(error.stack ?? String(error));
   if (page) {
@@ -1163,6 +1443,11 @@ try {
   if (android) {
     if (physical && !native) await context?.close();
     await androidBrowser?.close().catch(() => {});
+    for (const port of reversePorts) {
+      try {
+        adb("reverse", "--remove", `tcp:${port}`);
+      } catch {}
+    }
     for (const port of forwards) {
       try {
         adb("forward", "--remove", `tcp:${port}`);
@@ -1183,8 +1468,9 @@ try {
           "force-stop",
           native ? appPackage : "com.android.chrome",
         );
-        if (native) {
-          adb("shell", "pm", "clear", appPackage);
+        if (native && installedPhonePackage) {
+          adb("uninstall", appPackage);
+          evidence.testPackageRemoved = true;
           adb("shell", "rm", "-f", hierarchyFile);
         }
         if (androidPreferences)
@@ -1218,6 +1504,15 @@ try {
         if (process.platform === "win32") child.kill("SIGKILL");
         else process.kill(-child.pid, "SIGKILL");
       } catch {}
+  }
+  for (const resource of [networkGate, localRelay]) {
+    try {
+      await resource?.close();
+    } catch (error) {
+      evidence.cleanupError = String(error);
+      evidence.passed = false;
+      process.exitCode = 1;
+    }
   }
   writeFileSync(
     join(output, "evidence.json"),

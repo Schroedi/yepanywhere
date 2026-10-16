@@ -19,10 +19,19 @@ custom artifact deployments retain precedence.
 
 The maintainer accepted [Android packaged service-worker delivery and secure
 transport hardening](../tactical/156-android-secure-transport-and-artifacts.md).
-Browser SRP regression protection precedes Android resume-state diagnosis and
-progressive native response/backpressure work. Packaged viewer integration and
-large-movie/many-image qualification on emulator and phone follow; the earlier
-WebView spike establishes feasibility, not production acceptance.
+Native resume races now have controlled regressions and repairs; direct and
+mux emulator foundation runs pass. Browser login/SRP/relay protection passes
+32 cases, including the repaired startup leading-space handoff. The packaged
+API35/WebView124 app renders a real 143 MiB movie and twenty images over the
+public encrypted relay, with exact ranges, seeking, pause/resume and typing.
+The seeded emulator cut/refusal/stall matrix and eighteen viewer teardowns pass;
+a separate burst verifies twenty image reads during each fault. The
+[measured report](../testing/android-artifact-streaming-2026-10-16.md) preserves an
+earlier 103.2 ms frame miss and the narrower coverage of these passes. Artifact
+Activity/source/tab lifecycle acceptance and an unlocked-phone run remain. A
+connection-wide streaming-window negotiation awaits maintainer compatibility
+approval; current per-body bounds alone do not bound cancelled relay tails.
+Nothing in this implementation phase has been published.
 
 ## 1. Publish the desktop and mobile apps with continuous delivery
 

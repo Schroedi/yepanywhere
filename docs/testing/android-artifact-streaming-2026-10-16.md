@@ -1,0 +1,162 @@
+# Android packaged artifacts and native streaming — 2026-10-16
+
+Status: emulator acceptance passes for the matrix below; physical and stronger
+connection-wide flow-control acceptance remain open. Nothing was published.
+[Plan 156](../tactical/156-android-secure-transport-and-artifacts.md) owns the
+remaining work. The [security contract](../../topics/active-content-security.md#bundled-android-fixed-shell)
+owns observable behavior, authority, limits and fallback.
+
+## Test boundary
+
+Tests used the actual bundled, minified Debug app on an owned Android 15/API35
+ARM64 emulator with WebView 124.0.6367.219. The side-by-side artifact test package
+has no production app-link filters. Every run refused an existing test install,
+created temporary YA/profile/file data, paired through the real native UI,
+verified the app's captured-source viewer and removed only its owned app,
+forwards/reverse ports and server/relay processes. The installed primary app's
+profiles were untouched. Screenshots, APKs, credentials and private selectors
+are not repository artifacts.
+
+There were two network boundaries:
+
+- Public `wss://relay.yepanywhere.com/ws`, with a disposable identity and normal
+  TLS/SRP/encrypted transport. The APK supplies its four fixed viewer assets;
+  it does not use a hosted artifact tunnel.
+- An owned local relay, reached by the native socket through an ADB reverse and
+  a TCP fault gate. This leg uses loopback WebSocket plus the normal SRP/NaCl
+  encryption, not TLS. The YA server connects directly to that owned relay;
+  faults affect the native client's real socket. WebView network emulation
+  would not exercise this connection.
+
+The native interceptor supplies no artifact bytes or file authority. The same
+browser service worker and trusted parent broker used by the web viewer obtain
+bytes through authenticated, principal/session-bound preview leases. The
+privileged main frame remains at appassets; artifact frames have no native
+bridge and cannot embed the privileged parent. Fixed shell routing has a JVM
+security matrix; the real pane verifies the isolation and navigation boundary.
+
+## Passing emulator matrix
+
+| Boundary | Measured outcome |
+| --- | --- |
+| Actual public-relay pane | PNG/srcset, CSS/background assets, WOFF2, classic scripts, static/computed modules, exact JSON/binary/empty files and range metadata pass. |
+| Fragment compatibility | Theme, widget state across inner reload, bounded follow-up insertion without submission, find and real sequential typing pass. |
+| Navigation and workers | Linked HTML, reload, explicit worker termination/restart and inert network fallback pass. |
+| Pane teardown | Eighteen successive fresh admissions pass, beyond the 16-live-leases-per-principal cap. Each has a new origin/storage context and its worker registration is removed on close. |
+| Large media through owned relay | Twenty distinct local PNGs and a real 150,254,617-byte H.264 movie (600 s, 640×360, 12 fps) pass. A 100,663,296-byte prefix matches a bounded-buffer SHA-256 digest tree. |
+| Range fidelity | A 65,536-byte bounded seek at byte 50,000,000, an 8,191-byte suffix, an open-ended final 2 MiB and an invalid range match exact bytes/status/Content-Range. The invalid response retains `bytes */N` with status 416. |
+| Playback | Real user activation starts playback; seeks reach 150.17, 450.19, 60.16 and 594.20 s. After 65 s paused, playback resumes at 300.25 s. A presented-frame callback and 72 sampled pixel colors establish decoded video, beyond metadata-only success. |
+| Interrupted body | Cutting the real socket after the first 65,536 bytes of a 16 MiB response fails that body in 124 ms. Another queued 65,536 bytes arrive before failure; it does not silently splice/replay the response. A fresh artifact read succeeds. |
+| Seeded recovery | Seed `156202610`: disconnect, 2,329 ms connection refusal and 3,171 ms silent stall recover. The disconnect observation lasts 2,002 ms. Draft retention, one visible recovered update and restoration of the same artifact document pass. |
+| Images during faults | A separate focused run queues twenty local image reads during each of those three faults. All sixty recovered responses match their expected SHA-256 bytes. It intentionally omits the full prefix/pause media matrix, which passed separately. |
+| Movie retry | Playback works again after the network faults using a fresh media request and a real play gesture. |
+
+The full media/fault run showed two visible recovery intervals: one for the
+initial cut/immediate second cut, and one for refusal. The short silent stall
+needed no visible reconnect. This is a measured schedule, not proof that the
+maintainer's particular physical-phone resume sequence is resolved.
+
+The transcript assertion parks the covering modal before inspecting catch-up,
+then restores it and checks document identity. Covered transcript rendering is
+intentionally frozen under the existing
+[covered-viewer gap](../../gaps/covered-viewer-live-transcript.md). DOM mutation
+counts during typing do not establish that a covered transcript advanced.
+
+## Typing and diagnostics
+
+Every test types sequential trusted characters, checks each retained prefix,
+and records event creation, input and animation-frame acknowledgement. Each
+sample must remain within 100 ms. Android CDP command round-trip time is
+reported separately; desktop retains its existing additional round-trip gate.
+
+| Run | Artifact: 32 characters, max input/frame | Composer: 33 characters, max input/frame |
+| --- | --- | --- |
+| Public-relay complete baseline | 9.7 / 30.7 ms | 6.8 / 17.2 ms |
+| Complete movie/fault run | 4.3 / 15.0 ms | 16.8 / 23.9 ms |
+| Focused twenty-image fault bursts | 11.9 / 22.6 ms | 26.1 / 28.4 ms |
+
+The complete movie run appended 33 concurrent review updates while typing.
+Its command round-trip maxima were 108/279 ms, while event/input/frame clocks
+passed. The emulator foundation runner's historical 2,000 ms software-renderer
+allowance is **not** this strict typing qualification.
+
+An earlier owned-relay attempt missed the unchanged frame gate at **103.2 ms**
+for composer key 22. It remains a failed qualification attempt. Later runs
+passing do not explain that miss or establish its absence under every load.
+The manual recorder now preserves bounded long-task and per-key evidence on a
+failure. Physical-device timing and further reproduction remain necessary.
+
+Chrome 124's built-in video controls register an orientation listener; sensors
+remain denied. The runner separates only that exact diagnostic from app errors,
+and separately recognizes the explicit invalid-range probe's exact 416 resource
+diagnostic. It keeps every other console error fatal. The
+[pinned Blink implementation](https://chromium.googlesource.com/chromium/src/+/refs/tags/124.0.6367.219/third_party/blink/renderer/modules/media_controls/media_controls_rotate_to_fullscreen_delegate.cc)
+explains the listener. Whole-device captures were visually inspected, including
+actual colored video pixels, and presented through artifact capture.
+
+## Defects exposed and repaired
+
+- A browser startup leading space was erased when ref/layout adoption preceded
+  passive draft hydration and whitespace-only storage read back as empty.
+  The controlled regression fails before the repair; new-draft hydration still
+  works. The unchanged browser login/SRP/relay matrix then passes all 32 cases.
+- Movie cancellation crashed the server in Node 26.7.0's Readable.toWeb adapter
+  after a controller closed. Authorized file responses now use bounded
+  positional reads with a cancellation latch. A 300-iteration standalone loop
+  did not reproduce the original timing; the actual-pane crash is the evidence.
+- A zero-read-ahead first implementation leaked descriptors for small unread
+  responses inspected only for headers. The full suite caught seven GC errors.
+  One bounded 64 KiB chunk plus proactive EOF closure fixes that ownership path;
+  a real-file regression checks closure before consuming retained bytes.
+- The first new viewer status subscription assumed all transports returned
+  stable, unbound snapshots. Seven existing local/relay viewer cases failed.
+  The viewer now subscribes through the receiver and snapshots only the primitive
+  packaged-version value; all 120 focused viewer cases and full units pass.
+
+Native resume/credential, catch-up, writer-cancellation, source admission and
+coalesced-state repairs are recorded in plan 156 and their commits. Existing
+Rust real-peer tests cover per-body queues, FIFO admission, cancellation/EOF,
+credential serialization and unchanged-server fallback. Kotlin queue tests
+cover state/control priority, bounded event pressure and media/event fairness.
+These bounds do not establish a shared bound over cancelled relay tails.
+
+## Verification and remaining limits
+
+Workspace lint, format and typecheck pass; full units pass with 7,019 client
+and 6,589 server cases. Rust's 32 tests/fmt/warning-denying clippy and Android
+BundledDebug JVM/lint/build/instrumentation compilation pass. The earlier
+isolated actual-app foundation runs pass direct (17 cases) and mux/100 MiB
+(16 cases), including their declared runner-owned/direct-only skips. The new
+sanitized instrumentation status proof is compiled but still needs a device run.
+The broader 421-case browser suite is still being checked; only the focused
+32-case browser matrix is accepted here until its full result is recorded.
+
+Unqualified or pending:
+
+- The attached API37 phone is PIN-locked. Its earlier isolated main probe passed,
+  but sleep/wake and native large-media/fault qualification are not complete.
+- A separately negotiated connection-wide window is approval-pending. Eight
+  independent 1 MiB body windows plus completed/cancelled tails can exceed the
+  relay mux's 2 MiB queue under a slow downlink. Short fault and image-burst
+  passes do not settle that defect. No new production wire mode was added.
+- No process-memory high-water measurement or eight-large-stream slow-link
+  acceptance is claimed. Unit bounds are not aggregate device-memory evidence.
+- The current native tab implementation keeps one active WebView; selecting a
+  different native tab saves history and destroys the old document. Two live
+  artifact documents across native tabs are not supplied by that topology.
+  Artifact-specific tab-switch/source-switch cleanup, Activity recreation,
+  long half-open sockets and radio/route transitions still need acceptance.
+  Sequential viewers and worker restart are narrower evidence.
+- The source/generated APK uses 256 MiB per file, 1 GiB produced bytes per viewer
+  and a 120-second progress deadline. The currently deployed hosted worker keeps
+  its earlier 64 MiB file limit until separately published. Old-server and custom
+  viewer fallbacks retain their existing limits.
+- No iOS/WebKit or Tauri implementation/qualification is implied.
+- Opus 5.5 high reviewers did use tools with bypass permissions. Earlier findings
+  were addressed; the account's monthly spending limit prevented a fresh final
+  review. No billing limit was changed.
+
+Reproduction commands and ownership safeguards live in
+[artifact-host/README.md](../../artifact-host/README.md#packaged-android-acceptance)
+and [the native testing guide](../development/testing.md). Raw receipts/captures
+remain in ignored `.artifacts/managed-artifact/`, not in this report or Git.

@@ -4,17 +4,18 @@ import { deflateSync } from "node:zlib";
 const require = createRequire(
   new URL("../../packages/client/package.json", import.meta.url),
 );
-function chart() {
+export function chart(seed = 0) {
   const w = 640,
     h = 180,
     data = Buffer.alloc(h * (w * 4 + 1));
   for (let y = 0; y < h; y++)
     for (let x = 0; x < w; x++) {
-      const line = Math.abs(y - (110 - 44 * Math.sin(x / 70) - x / 18)) < 3;
+      const line =
+        Math.abs(y - (110 - 44 * Math.sin((x + seed * 11) / 70) - x / 18)) < 3;
       const grid = x % 80 === 0 || y % 45 === 0;
       data.set(
         line
-          ? [25, 127, 104, 255]
+          ? [25 + ((seed * 7) % 150), 127, 104, 255]
           : grid
             ? [215, 228, 225, 255]
             : [245, 250, 248, 255],
@@ -54,7 +55,7 @@ export const files = {
   ],
   "report/style.css": [
     "text/css",
-    `@import "more.css";@font-face{font-family:ArtifactFont;src:url('../assets/font.woff2')}*{box-sizing:border-box}body{margin:0;padding:20px;background:#f8faf9;color:#15382d;font:15px system-ui}main{max-width:740px;margin:auto}h1{font-size:25px;margin:10px 0}p{line-height:1.45}img{display:block;width:100%;border:1px solid #d8e6df;border-radius:10px}.tag{font:12px ArtifactFont,monospace;color:#376d5b;text-transform:uppercase}.card{background-color:white;border:1px solid #d8e6df;border-radius:10px;padding:12px;margin:12px 0}input{width:100%;padding:10px;font:inherit;border:1px solid #b9ccc5;border-radius:6px}button{padding:10px 14px;font:inherit;background:#176b51;color:white;border:0;border-radius:6px}#modules,#tick{font:12px ArtifactFont,monospace}#tick{display:none}a{color:#176b51}@media(max-width:440px){body{padding:12px}h1{font-size:22px}}`,
+    `@import "more.css";@font-face{font-family:ArtifactFont;src:url('../assets/font.woff2')}*{box-sizing:border-box}body{margin:0;padding:20px;background:#f8faf9;color:#15382d;font:15px system-ui}main{max-width:740px;margin:auto}h1{font-size:25px;margin:10px 0}p{line-height:1.45}img{display:block;width:100%;border:1px solid #d8e6df;border-radius:10px}.tag{font:12px ArtifactFont,monospace;color:#376d5b;text-transform:uppercase}.card{background-color:white;border:1px solid #d8e6df;border-radius:10px;padding:12px;margin:12px 0}input{background:white;color:#15382d;width:100%;padding:10px;font:inherit;border:1px solid #b9ccc5;border-radius:6px}button{padding:10px 14px;font:inherit;background:#176b51;color:white;border:0;border-radius:6px}#modules,#tick{font:12px ArtifactFont,monospace}#tick{display:none}a{color:#176b51}@media(max-width:440px){body{padding:12px}h1{font-size:22px}}`,
   ],
   "report/more.css": [
     "text/css",
