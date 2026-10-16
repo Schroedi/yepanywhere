@@ -350,3 +350,51 @@ it("never offers private grants in a public share", () => {
   expect(screen.queryByRole("button")).toBeNull();
   expect(state.fetch).not.toHaveBeenCalled();
 });
+
+it.each(["0.9.1", "0.9.2"])(
+  "keeps hosted servers at %s on the old viewer without preview lease requests",
+  (current) => {
+    vi.stubGlobal("location", {
+      origin: "https://latest.yepanywhere.com",
+      hostname: "latest.yepanywhere.com",
+      href: "https://latest.yepanywhere.com/",
+    });
+    vi.stubGlobal("navigator", {
+      userAgent: "Mozilla/5.0 Chrome/148.0.0.0",
+      language: "en-US",
+    });
+    state.version = {
+      current,
+      capabilities: [],
+      artifactViewer: { available: false, port: 4402, locked: false },
+    };
+    const { container } = mount(PROJECT_ID);
+    expect(container.querySelector("iframe")?.getAttribute("sandbox")).toBe(
+      "allow-same-origin",
+    );
+    expect(state.fetch).not.toHaveBeenCalled();
+  },
+);
+
+it("preserves an explicit custom artifact host when the managed capability exists", () => {
+  vi.stubGlobal("location", {
+    origin: "https://latest.yepanywhere.com",
+    hostname: "latest.yepanywhere.com",
+    href: "https://latest.yepanywhere.com/",
+  });
+  vi.stubGlobal("navigator", {
+    userAgent: "Mozilla/5.0 Chrome/148.0.0.0",
+    language: "en-US",
+  });
+  state.version = {
+    ...state.version,
+    current: "0.9.4",
+    capabilities: ["artifact-viewer", "artifact-relay-preview"],
+  };
+  const { container } = mount(PROJECT_ID);
+  expect(container.querySelector("iframe")?.getAttribute("sandbox")).toBe(
+    "allow-same-origin",
+  );
+  expect(screen.getByRole("button", { name: /Run full HTML/ })).toBeTruthy();
+  expect(state.fetch).not.toHaveBeenCalled();
+});

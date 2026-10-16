@@ -1,5 +1,7 @@
 import {
   ARTIFACT_SANDBOX,
+  serverHasCapability,
+  SERVER_CAPABILITIES,
   type LocalResourceRef,
   parseLocalResourceAttributes,
   type UrlProjectId,
@@ -18,9 +20,14 @@ import { reuseOrCreatePublicFileShareUrl } from "../lib/publicFileShareLink";
 import { publicSharePlayUrlFromFileShareUrl } from "../lib/publicSharePlay";
 import { createScriptlessHtmlPreviewDocument } from "../lib/scriptlessHtmlPreview";
 import type { ViewerFindSource } from "../lib/viewerFind";
+import { useCurrentSourceRuntime } from "../contexts/SourceRuntimeContext";
+import { usePublicShareContext } from "../contexts/PublicShareContext";
+import { useRetainedVersionInfo } from "../hooks/useVersion";
+import { MANAGED_ARTIFACT_PARENTS } from "../lib/managedArtifactViewer";
+import { ManagedArtifactPreview } from "./ManagedArtifactPreview";
 import styles from "./ArtifactPreview.module.css";
 
-interface Props {
+export interface ArtifactPreviewProps {
   html: string;
   path: string;
   projectId?: string;
@@ -57,7 +64,35 @@ interface Props {
  */
 export const SCRIPTLESS_PREVIEW_SANDBOX = "allow-same-origin";
 
-export function ArtifactPreview(props: Props) {
+export function ArtifactPreview(props: ArtifactPreviewProps) {
+  const runtime = useCurrentSourceRuntime();
+  const version = useRetainedVersionInfo(runtime.sourceKey);
+  const share = usePublicShareContext();
+  const firstParty =
+    share === null &&
+    MANAGED_ARTIFACT_PARENTS.has(location.origin) &&
+    /Chrome|Chromium|Edg\//.test(navigator.userAgent);
+  const { t } = useI18n();
+  if (firstParty && !version)
+    return (
+      <div className={styles.notice} role="status">
+        {t("artifactChecking")}
+      </div>
+    );
+  const managed =
+    share === null &&
+    MANAGED_ARTIFACT_PARENTS.has(location.origin) &&
+    /Chrome|Chromium|Edg\//.test(navigator.userAgent) &&
+    !version?.artifactViewer?.publicOrigin &&
+    serverHasCapability(version, SERVER_CAPABILITIES.artifactRelayPreview.name);
+  return managed ? (
+    <ManagedArtifactPreview {...props} />
+  ) : (
+    <ConfiguredArtifactPreview {...props} />
+  );
+}
+
+function ConfiguredArtifactPreview(props: ArtifactPreviewProps) {
   const { t } = useI18n();
   const [attempt, setAttempt] = useState(props.autoStart ? 1 : 0);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
