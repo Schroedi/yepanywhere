@@ -57,9 +57,11 @@ Contributing-model: gpt-6-astra
 The maintainer reports approximately 1px jiggling at 20Hz in the latest sent
 messages with the Claude provider. The screenshot shows two sent user rows
 above the compact “Cooking...” indicator; no thinking preview is visible.
-Direction, browser zoom, exact deployed revision, and whether pausing the
-status-text animation stops it are not yet established. Similarity to the
-earlier Grok report does not establish a shared cause.
+Pausing the status-text animation does not stop the jiggling, according to
+the maintainer's follow-up. This weakens the typewriter-text hypothesis;
+it does not pause the dot animation or transcript scroll adjustments.
+Direction, browser zoom, and exact deployed revision remain unknown.
+Similarity to the earlier Grok report does not establish a shared cause.
 
 At `803d82140`, a Chromium probe through the real `MessageList` component
 with two user messages and processing/streaming enabled stayed stationary
@@ -69,6 +71,6 @@ height at 17.59375px throughout phrase rotation. An isolated current-CSS
 probe also found constant indicator height across typed phrase prefixes at
 CSS zoom 0.67, 0.8, 1, 1.25, and 1.5. These probes do not reproduce live
 provider events, the user's retained history/settings, or browser page zoom.
-No behavior change is justified yet. Next discriminating evidence is whether
-pausing “Cooking...” stops the movement, followed by a live geometry trace
-of the affected viewport and its scroll writes.
+No behavior change is justified yet. Next discriminating evidence is a live
+geometry trace of the affected viewport and its scroll writes, through an
+explicit per-tab Remote Browser Debugging grant.
