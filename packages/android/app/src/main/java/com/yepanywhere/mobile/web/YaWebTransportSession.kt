@@ -93,7 +93,7 @@ class YaWebTransportSession(
                         JSONObject()
                     }
                     "status" -> lease.state().let { JSONObject().put("phase", it.phase.name)
-                        .put("recoverable", it.recoverable).put("retryAttempt", it.retryAttempt) }
+                        .put("recoverable", it.recoverable).put("retryAttempt", it.retryAttempt).put("connectionEpoch", it.connectionEpoch) }
                     "reconnect" -> { lease.reconnect(); JSONObject() }
                     "switchHost" -> { switchHost(); JSONObject() }
                     else -> error("Unsupported native source operation")

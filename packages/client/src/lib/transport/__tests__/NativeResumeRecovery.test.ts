@@ -127,3 +127,34 @@ it("reattaches once when a coalesced connected state belongs to a new native lea
   await host.emit({ type: "state", phase: "SUSPENDED", leaseGeneration: 2 });
   expect(states).toEqual(["reconnecting", "ready"]);
 });
+
+it("reattaches when native socket epochs change even if retry state was coalesced", async () => {
+  const { host, source } = await setup();
+  await host.emit({
+    type: "state",
+    phase: "CONNECTED",
+    leaseGeneration: 1,
+    connectionEpoch: 4,
+  });
+  const states: string[] = [];
+  source.status.subscribe(() => states.push(source.status.getSnapshot().state));
+  await host.emit({
+    type: "state",
+    phase: "CONNECTED",
+    leaseGeneration: 1,
+    connectionEpoch: 5,
+  });
+  await host.emit({
+    type: "state",
+    phase: "CONNECTED",
+    leaseGeneration: 1,
+    connectionEpoch: 5,
+  });
+  await host.emit({
+    type: "state",
+    phase: "CONNECTED",
+    leaseGeneration: 1,
+    connectionEpoch: 4,
+  });
+  expect(states).toEqual(["reconnecting", "ready"]);
+});

@@ -61,6 +61,7 @@ export class NativeSourceTransport implements SourceTransport, Connection {
   private queryingState: Promise<void> | null = null;
   private nativeStateRevision = 0;
   private leaseGeneration: number | undefined;
+  private connectionEpoch: number | undefined;
   private recovery: Promise<void> | null = null;
   private recoveryTimer: ReturnType<typeof setTimeout> | undefined;
   private lastRecovery = -Infinity;
@@ -162,23 +163,35 @@ export class NativeSourceTransport implements SourceTransport, Connection {
   }
 
   private observeNativeState(message: Record<string, unknown>): void {
+    const generation =
+      typeof message.leaseGeneration === "number"
+        ? message.leaseGeneration
+        : undefined;
+    const epoch =
+      typeof message.connectionEpoch === "number" && message.connectionEpoch > 0
+        ? message.connectionEpoch
+        : undefined;
+    if (
+      (generation !== undefined &&
+        this.leaseGeneration !== undefined &&
+        generation < this.leaseGeneration) ||
+      (epoch !== undefined &&
+        this.connectionEpoch !== undefined &&
+        epoch < this.connectionEpoch)
+    )
+      return;
+    const replaced =
+      (generation !== undefined &&
+        this.leaseGeneration !== undefined &&
+        generation !== this.leaseGeneration) ||
+      (epoch !== undefined &&
+        this.connectionEpoch !== undefined &&
+        epoch !== this.connectionEpoch);
     this.nativeStateRevision++;
-    const generation = message.leaseGeneration;
-    if (typeof generation === "number") {
-      if (
-        this.leaseGeneration !== undefined &&
-        generation < this.leaseGeneration
-      )
-        return;
-      if (
-        this.leaseGeneration !== undefined &&
-        generation !== this.leaseGeneration &&
-        this.phase === "CONNECTED" &&
-        message.phase === "CONNECTED"
-      )
-        this.setPhase("CONNECTING");
-      this.leaseGeneration = generation;
-    }
+    if (replaced && this.phase === "CONNECTED" && message.phase === "CONNECTED")
+      this.setPhase("CONNECTING");
+    if (generation !== undefined) this.leaseGeneration = generation;
+    if (epoch !== undefined) this.connectionEpoch = epoch;
     let phase = String(message.phase);
     if (typeof message.recoverable === "boolean") this.explicitRecovery = true;
     if (phase === "FAILED" && typeof message.recoverable === "boolean")

@@ -418,7 +418,10 @@ cannot override a connected native source. After initial readiness, lease
 suspension, connecting and retrying publish one `reconnecting` interval until
 native is ready again. Duplicate mapped states remain quiet. A new native lease
 generation forces one reattachment even when intermediate state messages were
-coalesced; departed generations cannot affect the current document. Visible safe
+coalesced; departed generations cannot affect the current document. A native
+connection epoch also preserves replacement-socket reattachment when retry
+observations were coalesced before reaching the document. Duplicate connected
+observations in the same epoch stay quiet. Visible safe
 reads wait through suspension within the existing readiness budget. Hidden reads
 fail with the typed recovery error. Shells advertising `stateQuery` reconcile a
 current unavailable operation against native state before retrying; delayed

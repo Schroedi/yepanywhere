@@ -54,6 +54,7 @@ data class YaConnectionState(
     val retryAttempt: Int = 0,
     val errorMessage: String? = null,
     val recoverable: Boolean = false,
+    val connectionEpoch: Long = 0,
 )
 
 data class YaApiResponse(
@@ -210,6 +211,7 @@ class YaServerConnectionManager(
     private var connectionJob: Job? = null
     private var connectionGeneration = 0L
     private var connectionReady = CompletableDeferred<Unit>()
+    private var connectedEpoch = 0L
     private val mutableState = MutableStateFlow(YaConnectionState(YaConnectionPhase.IDLE))
 
     val state: StateFlow<YaConnectionState> = mutableState.asStateFlow()
@@ -680,6 +682,7 @@ class YaServerConnectionManager(
             mutableState.value = YaConnectionState(
                 phase = YaConnectionPhase.CONNECTED,
                 routeId = routed.route.id,
+                connectionEpoch = ++connectedEpoch,
             )
         }
     }
@@ -734,11 +737,14 @@ class YaServerConnectionManager(
                             if (connectionGeneration != generation || connection?.transport !== transport) return
                             val route = snapshot.profile.routes.firstOrNull { it.id == transport.routeId }
                                 ?: connection?.route ?: error("Native route is unavailable")
-                            val stored = checkNotNull(repository.snapshot(profileId)?.resumeCredential)
+                            // A newer native retry may have opened its persistence
+                            // window before its state event is consumed. It must
+                            // publish its own ready edge after verification.
+                            val stored = repository.snapshot(profileId)?.resumeCredential ?: return
                             val connectedAt = maxOf(nowEpochMs(), stored.establishedAtEpochMs)
                             repository.recordSuccessfulAuthentication(profileId, route.id, stored.copy(credential = transport.credential, lastResumedAtEpochMs = connectedAt), connectedAt)
                             connection = YaRoutedTransport(route, transport)
-                            mutableState.value = YaConnectionState(YaConnectionPhase.CONNECTED, routeId = route.id)
+                            mutableState.value = YaConnectionState(YaConnectionPhase.CONNECTED, routeId = route.id, connectionEpoch = ++connectedEpoch)
                         }
                     }
                     "FAILED", "REAUTHENTICATION_REQUIRED" -> throw YaRustTerminalException(YaConnectionPhase.valueOf(message.getString("phase")), message.optBoolean("recoverable"))

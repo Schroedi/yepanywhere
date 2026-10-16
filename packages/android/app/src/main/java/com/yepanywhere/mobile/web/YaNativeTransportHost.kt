@@ -152,6 +152,7 @@ class YaNativeTransportHost private constructor(
                             if (generation == sessionGeneration && foreground.value.active) {
                                 emit(JSONObject().put("type", "state").put("phase", state.phase.name)
                                     .put("retryAttempt", state.retryAttempt)
+                                    .put("connectionEpoch", state.connectionEpoch)
                                     .put("recoverable", state.recoverable)
                                     .put("error", state.errorMessage ?: JSONObject.NULL))
                             }
@@ -228,6 +229,8 @@ class YaNativeTransportHost private constructor(
         fun emit(value: JSONObject) {
             if (closed) return
             value.put("leaseGeneration", sessionGeneration)
+            if (value.optString("type") == "state") metrics.state(value.optString("phase"),
+                sessionGeneration, value.optLong("connectionEpoch"), foregroundGeneration)
             val message = NativeOutboundQueue.Message(NativeTransportFrames.JSON,
                 value.toString().toByteArray(Charsets.UTF_8), sessionGeneration)
             if (value.optString("type") in setOf("state", "networkAvailable")) outbound.state(message)

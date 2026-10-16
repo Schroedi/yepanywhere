@@ -191,3 +191,10 @@ regression proves catch-up is no longer held behind reconnect security check-in;
 it times out before the repair and passes afterward. Rust's 32 tests and
 warning-denying clippy and Android lint/full JVM suites pass. The maintainer's
 exact phone banner sequence still needs device correlation.
+
+A coalesced retry can leave only a connected observation from a replacement
+socket. The new regression fails before adding a native connection epoch and
+passes afterward: exactly one reattachment, no duplicate edge for the same
+epoch and no regression from an older epoch. The focused bridge suite now
+passes 60 cases. Native diagnostics retain only 128 phase/generation samples,
+with monotonic timestamps and no message contents, paths or credentials.
