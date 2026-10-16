@@ -300,3 +300,11 @@ timeline, exact image hashes, UI edges and cleanup result are retained in the
 ignored receipt. Covered transcript catch-up is checked after parking the
 viewer, then restoring the same document; the existing modal freeze is not
 mistaken for a native subscription failure.
+
+Add `--native-resume` to the managed native invocation for three actual
+HOME/launcher cycles. The runner requires OS evidence that the app left the
+resumed Activity, retains parent/artifact document identity and composer draft,
+checks a fresh asset read, and permits at most one reconnect interval with no
+terminal-disconnected banner per cycle. It records DOM visibility separately;
+some WebViews still report visible while the OS app is backgrounded. This does
+not simulate phone sleep/wake, process death or Activity recreation.

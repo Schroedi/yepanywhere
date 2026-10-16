@@ -42,6 +42,7 @@ security matrix; the real pane verifies the isolation and navigation boundary.
 | Actual public-relay pane | PNG/srcset, CSS/background assets, WOFF2, classic scripts, static/computed modules, exact JSON/binary/empty files and range metadata pass. |
 | Fragment compatibility | Theme, widget state across inner reload, bounded follow-up insertion without submission, find and real sequential typing pass. |
 | Navigation and workers | Linked HTML, reload, explicit worker termination/restart and inert network fallback pass. |
+| Warm launcher resume | Three real HOME/MAIN cycles (1 / 2.5 / 1 s background) each show ready→connecting→ready once, retain parent/artifact identity and draft, and read a fresh asset with status 200. No application console errors. |
 | Pane teardown | Eighteen successive fresh admissions pass, beyond the 16-live-leases-per-principal cap. Each has a new origin/storage context and its worker registration is removed on close. |
 | Large media through owned relay | Twenty distinct local PNGs and a real 150,254,617-byte H.264 movie (600 s, 640×360, 12 fps) pass. A 100,663,296-byte prefix matches a bounded-buffer SHA-256 digest tree. |
 | Range fidelity | A 65,536-byte bounded seek at byte 50,000,000, an 8,191-byte suffix, an open-ended final 2 MiB and an invalid range match exact bytes/status/Content-Range. The invalid response retains `bytes */N` with status 416. |
@@ -74,6 +75,7 @@ reported separately; desktop retains its existing additional round-trip gate.
 | Public-relay complete baseline | 9.7 / 30.7 ms | 6.8 / 17.2 ms |
 | Complete movie/fault run | 4.3 / 15.0 ms | 16.8 / 23.9 ms |
 | Focused twenty-image fault bursts | 11.9 / 22.6 ms | 26.1 / 28.4 ms |
+| Public-relay warm-resume run | 7.5 / 17.8 ms | 5.4 / 18.6 ms |
 
 The complete movie run appended 33 concurrent review updates while typing.
 Its command round-trip maxima were 108/279 ms, while event/input/frame clocks
@@ -94,6 +96,12 @@ diagnostic. It keeps every other console error fatal. The
 explains the listener. Whole-device captures were visually inspected, including
 actual colored video pixels, and presented through artifact capture.
 
+The warm-resume run's command RTT maxima were 41/124 ms under eighteen live
+updates. Android reported `document.visibilityState === "visible"` even while
+the OS confirmed the app had left the resumed Activity. Native foreground and
+lease state, rather than DOM visibility alone, must own this boundary. These
+three short launcher cycles do not qualify phone sleep/wake or process death.
+
 ## Defects exposed and repaired
 
 - A browser startup leading space was erased when ref/layout adoption preceded
@@ -108,6 +116,15 @@ actual colored video pixels, and presented through artifact capture.
   responses inspected only for headers. The full suite caught seven GC errors.
   One bounded 64 KiB chunk plus proactive EOF closure fixes that ownership path;
   a real-file regression checks closure before consuming retained bytes.
+- A warm-resume attempt retained the artifact and draft through three cycles
+  and read fresh assets, but failed acceptance on settings GETs reporting the typed expected
+  reconnect interruption as errors. The settings owner now retains its snapshot
+  and lets the connection indicator own that transient read state. A controlled
+  red/green regression preserves genuine read failures and failed writes, and
+  verifies reconnect revalidation without mutation replay. The fresh actual-app
+  run passes, including banner edges and eighteen more teardown cycles. One
+  intervening attempt failed only the harness's OS Activity-field parser; the
+  corrected parser requires a recognized resumed Activity outside the test app.
 - The first new viewer status subscription assumed all transports returned
   stable, unbound snapshots. Seven existing local/relay viewer cases failed.
   The viewer now subscribes through the receiver and snapshots only the primitive
@@ -122,14 +139,36 @@ These bounds do not establish a shared bound over cancelled relay tails.
 
 ## Verification and remaining limits
 
-Workspace lint, format and typecheck pass; full units pass with 7,019 client
+Workspace lint, format and typecheck pass; full units pass with 7,022 client
 and 6,589 server cases. Rust's 32 tests/fmt/warning-denying clippy and Android
 BundledDebug JVM/lint/build/instrumentation compilation pass. The earlier
 isolated actual-app foundation runs pass direct (17 cases) and mux/100 MiB
-(16 cases), including their declared runner-owned/direct-only skips. The new
-sanitized instrumentation status proof is compiled but still needs a device run.
-The broader 421-case browser suite is still being checked; only the focused
-32-case browser matrix is accepted here until its full result is recorded.
+(16 cases), including their declared runner-owned/direct-only skips. A fresh
+isolated mux main-app probe also passes: 100 MiB uploaded, 3,559
+bridge frames / 106,451,685 bytes, 1,053,190-byte measured queue high water,
+zero overflows, 23.5 ms maximum typing acknowledgement. Its sanitized status
+proof records one initial CONNECTING→CONNECTED epoch, native credit latency
+p50/p95 3,515/28,138 µs and main-thread dispatch 32/194 µs. This upload probe is
+not aggregate movie-stream memory evidence.
+The broader browser run finished with 406 passes, ten skips and five failures
+in 16.8 minutes. Two native-WebView failures exposed lost recovery demand inside
+the five-second cooldown; a controlled regression fails before retaining one
+attempt for the cooldown boundary. The repaired desktop/phone browser-fixture
+cases pass in 53 seconds, with 68 real keys at 20 Hz/1 MiB incoming frames and
+15.2/13.4 ms maximum frame acknowledgement. This is a browser bridge fixture,
+not physical Android evidence. Full units and the actual Android main-app probe
+pass after that repair.
+
+The other broad-run failures were process-app startup requiring Linux/Bubblewrap
+on this macOS host, opportunistic WebRTC device streaming against the generic
+native-app emulator, and a context-menu test expecting macOS Control-click to
+open a page. A separately identified Chromium probe confirms Control-click
+emits only contextmenu on macOS while Meta/Shift clicks open pages. The test now
+uses the primary platform modifier and separately checks macOS Control-click
+context suppression; the focused check passes in 25 seconds. The remaining
+[App sandbox](../../gaps/e2e-local-instructions-and-project-app-failures.md) and
+[WebRTC readiness](../../gaps/opportunistic-emulator-webrtc-readiness.md)
+findings are tracked separately. No full-green browser result is claimed.
 
 Unqualified or pending:
 

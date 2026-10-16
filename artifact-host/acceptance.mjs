@@ -45,6 +45,9 @@ const native =
 const android = process.argv.includes("--android") || native || physical;
 const nativeManaged = native && process.argv.includes("--native-managed");
 const largeMedia = process.argv.includes("--large-media");
+const nativeResume = process.argv.includes("--native-resume");
+if (nativeResume && !nativeManaged)
+  throw new Error("Native resume requires the managed native pane");
 const localFaults = process.argv.includes("--local-faults");
 const faultsOnly = process.argv.includes("--faults-only");
 if (faultsOnly && !localFaults)
@@ -1262,6 +1265,109 @@ try {
       mutations,
     });
 
+    if (nativeResume) {
+      const rootIdentity = await page.evaluate(() => performance.timeOrigin);
+      const frameIdentity = await artifact().evaluate(
+        () => (window.__yaWarmIdentity = Math.random()),
+      );
+      const draft = await composer.inputValue();
+      const cycles = [];
+      log("Checking three real launcher resumes with the artifact retained");
+      for (const sleepMs of [1000, 2500, 1000]) {
+        await page.evaluate(() => {
+          window.__yaResumeEdges = [];
+          let previous;
+          const sample = () => {
+            const state =
+              document
+                .querySelector("[data-connection-status]")
+                ?.getAttribute("data-connection-status") ?? "ready";
+            if (state === previous) return;
+            previous = state;
+            window.__yaResumeEdges.push({ at: performance.now(), state });
+            if (window.__yaResumeEdges.length > 128)
+              window.__yaResumeEdges.shift();
+          };
+          window.__yaResumeObserver = new MutationObserver(sample);
+          window.__yaResumeObserver.observe(document.body, {
+            attributes: true,
+            childList: true,
+            subtree: true,
+            attributeFilter: ["data-connection-status"],
+          });
+          sample();
+        });
+        adb("shell", "input", "keyevent", "KEYCODE_HOME");
+        await until("native app left the resumed activity", () => {
+          const activities = adb("shell", "dumpsys", "activity", "activities");
+          const resumed = activities.match(
+            /^.*(?:mResumedActivity|topResumedActivity|ResumedActivity)[:=].*$/gm,
+          );
+          return (
+            Boolean(resumed?.length) &&
+            resumed.every(
+              (line) => !line.includes("com.yepanywhere.mobile.artifacttest"),
+            )
+          );
+        });
+        const visibility = await page.evaluate(() => document.visibilityState);
+        await new Promise((resolve) => setTimeout(resolve, sleepMs));
+        adb(
+          "shell",
+          "am",
+          "start",
+          "-W",
+          "-n",
+          appActivity,
+          "-a",
+          "android.intent.action.MAIN",
+          "-c",
+          "android.intent.category.LAUNCHER",
+        );
+        await until("resumed native artifact", async () => {
+          if (await page.evaluate(() => document.hidden)) return false;
+          return artifact()?.evaluate(async () => {
+            try {
+              const response = await fetch("data.json?warm=1");
+              return response.ok && (await response.json()).notes === 3;
+            } catch {
+              return false;
+            }
+          });
+        });
+        expect(await page.evaluate(() => performance.timeOrigin)).toBe(
+          rootIdentity,
+        );
+        expect(await artifact().evaluate(() => window.__yaWarmIdentity)).toBe(
+          frameIdentity,
+        );
+        await expect(composer).toHaveValue(draft);
+        await until("warm resume connection ready", () =>
+          page
+            .locator("[data-connection-status]")
+            .count()
+            .then((count) => count === 0),
+        );
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        const edges = await page.evaluate(() => {
+          window.__yaResumeObserver.disconnect();
+          return window.__yaResumeEdges;
+        });
+        expect(edges.some((edge) => edge.state === "disconnected")).toBe(false);
+        expect(
+          edges.filter((edge) => edge.state === "connecting").length,
+        ).toBeLessThanOrEqual(1);
+        cycles.push({
+          sleepMs,
+          edges,
+          visibility,
+          freshRead: 200,
+          documentRetained: true,
+          draftRetained: true,
+        });
+      }
+      evidence.checks.push({ name: "native-artifact-launcher-resume", cycles });
+    }
     await artifact().evaluate(() =>
       localStorage.setItem("viewer-only", "first"),
     );

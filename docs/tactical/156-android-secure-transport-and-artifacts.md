@@ -13,8 +13,12 @@ packaged API35/WebView124 app passes the public-relay baseline, a complete
 movie/fault matrix and a focused twenty-image fault burst. The
 [measured report](../testing/android-artifact-streaming-2026-10-16.md) distinguishes
 those results from the locked-phone, aggregate-window and lifecycle work still
-open. One earlier 103.2 ms emulator frame miss remains recorded. The full browser
-suite is running. No new connection-window wire mode has been implemented.
+open. Three actual HOME/launcher cycles now retain the artifact/draft and each
+show one recovery interval with fresh asset reads and no app errors. One earlier
+103.2 ms emulator frame miss remains recorded. The broad browser run finished with 406 passes, ten skips and five failures;
+three repaired cases pass focused reruns, while the unrelated App sandbox and
+WebRTC readiness failures remain recorded in the report. No new
+connection-window wire mode has been implemented.
 
 ## Accepted Android viewer design
 
@@ -232,6 +236,18 @@ browser peers remain on their existing mode. This is optional framing/flow
 control, not a broader meaning for `artifact-relay-preview` or a new principal.
 Inspect the supported core stable corpus and preserve existing fallback before
 landing it. No publishing/deployment is part of this task.
+
+The inspected core compatibility corpus is v0.8.0, v0.8.1, v0.9.0, v0.9.1
+and v0.9.2; none implements response streaming or this proposed negotiation.
+The concrete proposal is optional request `streamWindow: "connection-v1"`,
+activated only by the same echo in `response_stream_start`, with one shared
+1 MiB connection window. No echo selects the existing stream/buffered fallback;
+no new endpoint is requested and ordinary browser requests remain unchanged.
+The proposed shared accounting includes completed and cancelled tails until
+acknowledged, rather than freeing credit when the request leaves the active map.
+[Minimum compatibility horizons](../../topics/server-capabilities.md#minimum-compatibility-horizons)
+explicitly requires maintainer approval before this contract edit. That question
+is pending; no production implementation of this mode has been added.
 
 The next actual-pane attempt recorded trusted key-event timestamps through
 input and animation frame, while retaining per-key value checks. Artifact:
