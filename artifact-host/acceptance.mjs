@@ -196,14 +196,16 @@ function observePage(target) {
       if (
         nativeManaged &&
         largeMedia &&
-        evidence.browser.startsWith("124.") &&
+        (evidence.browser.startsWith("124.") ||
+          evidence.browser.startsWith("154.")) &&
         message.text() ===
           "Permissions policy violation: accelerometer is not allowed in this document."
       ) {
-        // Chrome 124's native rotate-to-fullscreen delegate registers an
+        // Chrome's native rotate-to-fullscreen delegate registers an
         // orientation listener when video controls attach. Keep sensors denied;
         // preserve this exact upstream diagnostic separately from app errors.
         // chromium/src@124.0.6367.219: media_controls_rotate_to_fullscreen_delegate.cc:64
+        // The identical refusal is measured on phone WebView 154.0.8037.106.
         evidence.expectedBrowserPolicyRefusals ??= [];
         evidence.expectedBrowserPolicyRefusals.push(message.text());
         return;
@@ -1302,8 +1304,26 @@ try {
         })),
       });
     }
+    const composerArtifactIdentity = nativeManaged
+      ? await artifact().evaluate(() => performance.timeOrigin)
+      : null;
+    if (nativeManaged) {
+      // A covering phone viewer can correctly intercept composer taps. Use its
+      // real minimize control, retaining the loaded frame while typing against
+      // the live transcript; restore that same document afterward.
+      await page
+        .getByRole("button", { name: "Minimize file viewer", exact: true })
+        .click();
+    }
     await composer.fill("");
-    await composer.click();
+    // fill has already focused the native composer and opened the IME. A
+    // redundant CDP mouse click races that viewport resize on physical WebView.
+    if (!nativeManaged) await composer.click();
+    await expect(composer).toBeFocused();
+    if (physical)
+      await page.screenshot({
+        path: join(output, "composer-before-typing.png"),
+      });
     await beginTypingMetrics(composer);
     await page.evaluate(() => {
       window.__artifactMutations = 0;
@@ -1365,7 +1385,63 @@ try {
       maxMs: Math.max(...composerLatencies),
       updates,
       mutations,
+      viewerParked: nativeManaged,
     });
+    if (nativeManaged) {
+      if (physical) {
+        // Keep OS-level proof of the typed result and native keyboard alongside
+        // CDP captures made around the physical IME resize.
+        const path = join(output, "native-composer-typed.png");
+        const png = execFileSync(
+          "adb",
+          ["-s", serial, "exec-out", "screencap", "-p"],
+          { timeout: 30000, maxBuffer: 16 * 1024 * 1024 },
+        );
+        writeFileSync(path, png);
+        screenshots.push({
+          name: "native-composer-typed",
+          path,
+          width: png.readUInt32BE(16),
+          height: png.readUInt32BE(20),
+        });
+        evidence.nativeComposerViewport = await composer.evaluate((element) => {
+          const rect = element.getBoundingClientRect(),
+            viewport = window.visualViewport;
+          return {
+            top: rect.top,
+            bottom: rect.bottom,
+            viewportTop: viewport?.offsetTop,
+            viewportHeight: viewport?.height,
+            focused: document.activeElement === element,
+          };
+        });
+      }
+      // Read only the current flag: a phone's full IME dump can include a large
+      // input history that neither this check nor its receipt should collect.
+      const ime = adb(
+        "shell",
+        "dumpsys input_method | sed -n '/mInputShown=/p'",
+      );
+      const imeShown = /mInputShown=true/.test(ime);
+      evidence.composerImeDismissed = imeShown;
+      if (imeShown) adb("shell", "input", "keyevent", "KEYCODE_BACK");
+      await page.screenshot({
+        path: join(output, "composer-before-restore.png"),
+      });
+      evidence.composerRestoreControls = await page
+        .getByRole("button", { includeHidden: true })
+        .evaluateAll((buttons) =>
+          buttons
+            .map((b) => b.getAttribute("aria-label"))
+            .filter((label) => /viewer/i.test(label ?? "")),
+        );
+      await page
+        .getByRole("button", { name: /^Restore file viewer:.*index\.html$/ })
+        .click();
+      expect(await artifact().evaluate(() => performance.timeOrigin)).toBe(
+        composerArtifactIdentity,
+      );
+    }
 
     if (nativeResume) {
       const rootIdentity = await page.evaluate(() => performance.timeOrigin);
@@ -1975,7 +2051,7 @@ try {
       screenshots,
       warnings: evidence.expectedBrowserPolicyRefusals?.length
         ? [
-            "Chrome 124 native video controls attempted orientation sensing; the viewer denied it. Exact browser policy diagnostics are recorded separately.",
+            "Native WebView video controls attempted orientation sensing; the viewer denied it. Exact browser policy diagnostics are recorded separately.",
           ]
         : [],
     }),

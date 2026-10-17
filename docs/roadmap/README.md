@@ -27,8 +27,10 @@ public encrypted relay, with exact ranges, seeking, pause/resume and typing.
 The seeded emulator cut/refusal/stall matrix and eighteen viewer teardowns pass;
 a separate burst verifies twenty image reads during each fault. Three real
 launcher resumes retain the artifact/draft and show one recovery interval each.
-The eight-reader 128 KiB/s diagnostic now reproduces a relay circuit queue
-closure in three actual-app runs; aggregate flow control remains a failing gate. The
+The eight-reader 128 KiB/s diagnostic reproduced a relay circuit queue closure
+in three original runs. A native connection window with retained-tail accounting
+and reader progress reservations repairs that failure; eight-reader acceptance
+passes without relay closure, including on the physical phone. The
 [measured report](../testing/android-artifact-streaming-2026-10-16.md) preserves an
 earlier 103.2 ms frame miss and the narrower coverage of these passes.
 Parent reload recovery now reclaims orphaned preview leases while preserving
@@ -36,10 +38,13 @@ live owners; eighteen actual-app restorations and browser concurrency checks
 pass. Eighteen same-host native-tab round trips also pass with explicit artifact
 reopening and draft/route retention. One forced process loss also recovers saved
 native pairing and fresh artifact access without credential injection. Physical
-lifecycle/source acceptance and a fresh phone run remain. The maintainer approved
+source switching and long sleep/radio acceptance remain. The final emulator and
+physical full media/fault/warm/cold/reload matrices pass, along with final
+large-media matrices over the public TLS relay on both. The maintainer approved
 a coordinated beta native/server connection window without an echo negotiation
-or old-Android compatibility layer; implementation and qualification are next.
-Current per-body bounds alone do not bound cancelled relay tails.
+or old-Android compatibility layer. The shared 1 MiB body budget includes
+completed/cancelled tails until receipt, with spare credit lent while preserving
+progress for other native readers.
 Nothing in this implementation phase has been published.
 
 ## 1. Publish the desktop and mobile apps with continuous delivery

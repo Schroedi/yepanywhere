@@ -316,9 +316,11 @@ for a 20-second observation at 128 KiB/s per downstream TCP connection. It
 records passive relay message-size/physical-close counters and sampled main-app
 PSS (excluding isolated WebView renderers), then cancels the burst and requires
 a fresh artifact read. It omits full movie transfer/pause and seeded faults.
-It currently exits before post-probe typing with a nonzero status on the
-reproduced circuit-closure failure; this is an opt-in diagnostic, not a passing acceptance or a new product
-20-second deadline. Ordinary relay limits and framing are unchanged. The gate
+Before connection-window repair it reproduced circuit closures and exited
+nonzero. The repaired mode requires all eight 206 first chunks, no relay closure
+and a fresh read after cancellation before continuing through typing/teardown.
+This is opt-in qualification, not a new product 20-second deadline. Relay limits
+remain unchanged. The gate
 holds one input chunk/timer per direction and releases all sockets on teardown.
 
 `--trace-native-setup` requires the owned local relay and records passive mux
@@ -360,3 +362,8 @@ saved native pairing, and explicitly reopen a fresh artifact with a successful
 asset read. It reattaches to the replacement process's DevTools endpoint. This
 is one abrupt process-loss case, not a full 64 MiB transfer or proof of every
 server queue/descriptor's state at the instant of termination.
+
+The full `--large-media` matrix also fetches and verifies all twenty image files
+while the real movie remains paused for 65 seconds, then resumes/seeks and
+checks presented pixels. This guards native shared-credit isolation between a
+paused body and other admitted readers; it does not prove total process memory.

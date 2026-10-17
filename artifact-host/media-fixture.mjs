@@ -182,6 +182,7 @@ export async function qualifyLargeMedia(frame, expected) {
           return { path: image.path, sha256: hash, width: node.naturalWidth };
         }),
       );
+      const prefixStarted = performance.now();
       const response = await fetch("media/movie.mp4", {
         headers: { Range: "bytes=0-" },
       });
@@ -226,6 +227,7 @@ export async function qualifyLargeMedia(frame, expected) {
       const prefixRoot = await digest(all);
       if (prefixRoot !== expected.prefixRoot)
         throw new Error("Movie prefix bytes changed");
+      const prefixTransferMs = performance.now() - prefixStarted;
       const ranges = [];
       for (const item of expected.ranges) {
         const response = await fetch("media/movie.mp4", {
@@ -254,6 +256,7 @@ export async function qualifyLargeMedia(frame, expected) {
         ranges,
         invalidRangeStatus: invalid.status,
         prefixBytes: bytes,
+        prefixTransferMs,
         prefixRoot,
         movieSize: expected.size,
       };
@@ -287,7 +290,35 @@ export async function qualifyLargeMedia(frame, expected) {
     return { duration: video.duration, positions };
   });
   const pauseMs = 65_000;
-  await new Promise((resolve) => setTimeout(resolve, pauseMs));
+  const [, pausedImages] = await Promise.all([
+    new Promise((resolve) => setTimeout(resolve, pauseMs)),
+    frame.evaluate(async (images) => {
+      const video = document.querySelector("#local-movie");
+      if (!video.paused) throw new Error("Movie did not remain paused");
+      return await Promise.all(
+        images.map(async (image) => {
+          const response = await fetch(`${image.path}?while-movie-paused=1`, {
+            signal: AbortSignal.timeout(30_000),
+          });
+          const hash = [
+            ...new Uint8Array(
+              await crypto.subtle.digest(
+                "SHA-256",
+                await response.arrayBuffer(),
+              ),
+            ),
+          ]
+            .map((byte) => byte.toString(16).padStart(2, "0"))
+            .join("");
+          if (response.status !== 200 || hash !== image.sha256 || !video.paused)
+            throw new Error(
+              "Paused movie blocked or changed a sibling image read",
+            );
+          return { path: image.path, status: response.status, sha256: hash };
+        }),
+      );
+    }, expected.images),
+  ]);
   await frame.evaluate(() => {
     document.querySelector("#local-movie").currentTime = 300;
   });
@@ -338,5 +369,5 @@ export async function qualifyLargeMedia(frame, expected) {
       height: video.videoHeight,
     };
   });
-  return { ...resource, ...playback, pauseMs, resumed };
+  return { ...resource, ...playback, pauseMs, pausedImages, resumed };
 }

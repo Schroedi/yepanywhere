@@ -24,3 +24,11 @@ be folded safely into native lease ownership. No global filter was added.
 
 Found 2026-10-02 while validating the installed Machine Control consumer with
 the full unit suite (server 6,307 and client 6,634 passing tests).
+
+2026-10-17: native response-window validation passes 6,595 server and 7,022
+client cases. It still observes expected `[WS Relay] File response capped`
+(`bytes=67108865`) and `Replay/old encrypted sequence rejected` (`seq=0,
+last=1`) from separate download/security refusal fixtures. The touched streamed
+response tests now capture and assert their own injected stall warnings. The
+remaining cross-owner negative-path diagnostic debt above is not hidden with a
+global logger or process-warning filter; production diagnostics are unchanged.

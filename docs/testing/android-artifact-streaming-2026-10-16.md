@@ -1,8 +1,9 @@
 # Android packaged artifacts and native streaming — 2026-10-16
 
-Status: the selected emulator matrices and repaired whole-parent reload gate
-pass; the eight-reader slow-link diagnostic still fails. Physical and
-connection-wide flow-control acceptance remain open. Nothing was published.
+Status: shared-window repair, slow-link and large-media acceptance pass on the
+actual phone and emulator, including public TLS relay and owned fault tests.
+The final qualification below supersedes the historical red baseline. Remaining
+coverage limits stay explicit. Nothing was published.
 [Plan 156](../tactical/156-android-secure-transport-and-artifacts.md) owns the
 remaining work. The [security contract](../../topics/active-content-security.md#bundled-android-fixed-shell)
 owns observable behavior, authority, limits and fallback.
@@ -306,7 +307,7 @@ were sampled before process termination, not while the process was absent.
 ## Verification and remaining limits
 
 Workspace lint, format and typecheck pass; full units pass with 7,022 client
-and 6,589 server cases. Rust's 32 tests/fmt/warning-denying clippy and Android
+and 6,595 server cases. Rust's 32 tests/fmt/warning-denying clippy and Android
 BundledDebug JVM/lint/build/instrumentation compilation pass. The earlier
 isolated actual-app foundation runs pass direct (17 cases) and mux/100 MiB
 (16 cases), including their declared runner-owned/direct-only skips. A fresh
@@ -338,15 +339,12 @@ findings are tracked separately. No full-green browser result is claimed.
 
 Unqualified or pending:
 
-- The attached API37 phone is PIN-locked. Its earlier isolated main probe passed,
-  but sleep/wake and native large-media/fault qualification are not complete.
-- A separately negotiated connection-wide window is approval-pending. Eight
-  independent 1 MiB body windows plus completed/cancelled tails can exceed the
-  relay mux's 2 MiB queue under a slow downlink. Short fault and image-burst
-  passes do not settle that defect. No new production wire mode was added.
-- Eight-large-stream slow-link acceptance fails as recorded above. Only sampled
-  main-process PSS is available; no aggregate process-memory high-water bound
-  is established. Unit bounds are not aggregate device-memory evidence.
+- Long physical sleep/doze remains unqualified. The phone is available again,
+  and actual-app media/fault, warm-resume and cold-process evidence is below.
+- The original independent-window slow-link failure is repaired by the native
+  connection window recorded below. Only sampled main-process PSS is available;
+  no aggregate process-memory high-water bound is established. Unit bounds are
+  not aggregate device-memory evidence.
 - The current native tab implementation keeps one active WebView; selecting a
   different native tab saves history and destroys the old document. Two live
   artifact documents across native tabs are not supplied by that topology.
@@ -362,11 +360,136 @@ Unqualified or pending:
   its earlier 64 MiB file limit until separately published. Old-server and custom
   viewer fallbacks retain their existing limits.
 - No iOS/WebKit or Tauri implementation/qualification is implied.
-- Opus 5.5 high reviewers did use tools with bypass permissions. Earlier findings
-  were addressed; the account's monthly spending limit prevented a fresh final
-  review. No billing limit was changed.
+- The earlier reviewer account limit was lifted. Fresh Opus 5.5 high review
+  used bypass permissions and real tools; its final pass found no serious
+  accounting/deadlock issue. The owned reviewer was verified stopped afterward.
 
 Reproduction commands and ownership safeguards live in
 [artifact-host/README.md](../../artifact-host/README.md#packaged-android-acceptance)
 and [the native testing guide](../development/testing.md). Raw receipts/captures
 remain in ignored `.artifacts/managed-artifact/`, not in this report or Git.
+
+## Shared native connection window — 2026-10-17
+
+The maintainer approved a coordinated unreleased native/server beta update,
+without the earlier proposed response-echo negotiation or old-native mode.
+Native selects `stream: "connection"`; browser requests retain `true`, and
+all 32 normal browser login/SRP/relay cases pass again (1.8 minutes). The shared
+window is 1 MiB, including completed/cancelled tails until receipt ACKs.
+Each of eight reader slots reserves one 64 KiB piece, while a lone stream
+borrows spare capacity up to 576 KiB before an ACK. A paused body does not stay
+at the connection FIFO head. The initially tried fixed 128 KiB per-body ceiling
+was replaced after review identified its latency/throughput cost. Receipt and
+send-wait
+deadlines retain a 15-second margin over native's 120-second idle discard.
+These are body-byte limits, not an aggregate process-memory claim.
+
+Opus 5.5 high reviews ran through YA with `bypassPermissions` and real Bash/grep
+access. Review-driven repairs cover FIFO fairness, browser deadline isolation,
+earned-progress timer renewal, duplicate IDs, late starts after an abandoned
+head, and preserving space for sibling readers beside a paused body. Thirteen
+focused server cases and 35 Rust tests/clippy pass. The new encrypted-peer
+regressions require final consumption ACK after end, cancelled-tail receipt ACK,
+and adoption/ACK of a late start after head abandonment. Live Rust source-lease,
+mux and login/resume tests also pass.
+
+An intermediate minified emulator app passed the former red reproduction:
+eight 206 responses with 65,536-byte first chunks at 128 KiB/s over 20.5 seconds,
+no new relay closure, no physical mux close/reopen and fresh status 200 after
+cancellation. Eleven main-app PSS samples ranged from 141,024 to 144,830 KiB,
+excluding renderers. Its full movie/range/fault/warm/cold/reload matrix also
+passed. These receipts predate the final reservation rule; final qualification
+is recorded separately, rather than treating them as tests of later code.
+
+The first Pixel 7a/API37/WebView154 run also passed all eight transport readers
+and post-cancel read without relay closure/churn, but failed the final console
+assertion on five exact denied-accelerometer diagnostics from native video
+controls. This remains a failed acceptance attempt. The harness now records
+that same known exact refusal separately on the two measured engines (124 and
+154); sensor permission stays denied and other application errors remain fatal.
+An earlier emulator attempt was blocked by a stale bundled build's update
+banner intercepting a link click; preparing matching frontend/APK inputs fixes
+that test setup. Neither attempt is discarded from the evidence.
+
+A subsequent phone full-matrix attempt passed media and all seeded transport
+faults but failed when the harness tried to tap a composer covered by the viewer
+iframe. No app errors were recorded. Composer qualification now uses the real
+minimize control, types with live transcript updates while retaining the loaded
+artifact, restores it and verifies the same document identity. It does not
+force a tap through the overlay or replace the artifact. Actual typing and
+presentation timings remain mandatory.
+
+### Final coordinated-beta qualification
+
+The final minified app passes the full owned-relay matrix on both API35 /
+WebView124 emulator and Pixel 7a / API37 / WebView154. Each run verifies twenty
+image hashes, a real approximately 143 MiB movie, a bounded-memory 96 MiB prefix
+digest, explicit/suffix/open-ended/invalid ranges, four seeks and presented
+pixels. During the 65-second pause, twenty fresh image reads complete with exact
+hashes, then playback resumes. This is actual media behavior; the server
+regression separately holds a producer unread to prove the reservation invariant.
+
+| Run | 96 MiB prefix verification | Artifact max input / frame | Composer max input / frame |
+| --- | --- | --- | --- |
+| Emulator, owned encrypted relay | 12.54 s (7.65 MiB/s) | 11.4 / 24.3 ms | 13.4 / 33.3 ms |
+| Pixel 7a, owned encrypted relay | 29.68 s (3.23 MiB/s) | 5.1 / 19.6 ms | 9.1 / 22.1 ms |
+| Emulator, public TLS encrypted relay | 8.74 s (10.99 MiB/s) | 6.3 / 23.9 ms | 5.4 / 20.6 ms |
+| Pixel 7a, public TLS encrypted relay | 34.90 s (2.75 MiB/s) | 9.0 / 25.1 ms | 12.8 / 28.5 ms |
+
+Prefix time includes the byte checks and bounded-buffer digest work, not just
+wire transfer. These single-run measurements are not a controlled bandwidth or
+RTT benchmark; no general throughput parity claim follows. The server regression
+proves nine 64 KiB-sized pieces can be sent before any ACK, avoiding the rejected
+one-chunk window. Non-aligned producer pieces plus a tiny retained tail expose
+reservation loss at retirement; after it retires, all seven sibling readers
+finish while the large body receives no ACK.
+
+Both full owned-relay device runs also pass the body-cut case (no implicit
+splice), the seeded disconnect/refusal/stall burst with twenty images per fault,
+three HOME/launcher cycles with one ready→connecting→ready interval each, eighteen
+fresh viewer closes, an abrupt cold process restart and eighteen parent reloads
+beyond the sixteen-live-leases cap. Route/draft, saved native pairing and fresh
+artifact access survive their intended lifecycle boundaries. Inactive/cold file
+pane reopening remains explicit; native tabs do not retain live WebViews.
+No app console/page errors occur; the exact browser sensor denials stay separate.
+The maintainer's original intermittent resume sequence was not reproduced as
+reported, so these results qualify the measured cases and repaired races.
+
+The final phone slow-link acceptance also passes eight 206 first chunks of
+65,536 bytes over 22.05 seconds at 128 KiB/s, with no new relay circuit closure,
+no mux close/reopen and a fresh 200 read after cancellation. Eleven main-app
+PSS samples span 250,352–309,618 KiB, excluding isolated renderers. Its input/frame
+maxima are 5.4/32.2 ms inside the artifact and 15.3/39.6 ms in the composer.
+All temporary packages and owned processes/ports are removed after these runs.
+
+Physical typing uses the loaded viewer's normal minimize/restore controls and
+retains document identity. Clearing the draft already focuses the native input;
+a second CDP click raced the physical IME resize and is removed. The actual
+keyboard is dismissed through Back only when its current shown flag is true.
+Reading the whole IME diagnostic previously exceeded the subprocess buffer;
+the harness now collects only that flag and drains the producer, preserving no
+input history and avoiding the initial early-pipe-close diagnostic. These
+failed harness attempts remain distinct from passing device acceptance.
+
+The final public TLS-relay phone matrix passes too, including twenty paused
+image reads, ranges/seeks/presented pixels, three warm launcher cycles and
+eighteen viewer closes. Its actual OS screenshot shows the full typed draft
+above the visible native keyboard; the focused input bounds are inside the
+visual viewport. This provides OS-level evidence alongside CDP captures made
+during physical IME resize. No temporary test installation remains.
+
+The final exact-source emulator slow-link run passes all eight 206 first chunks
+in 20.46 seconds, with zero new relay closure or physical mux close/reopen,
+post-cancel read 200 and eighteen viewer closes. Sampled main-process PSS ranges
+from 150,386 to 152,851 KiB; artifact input/frame maxima are 11.5/18.5 ms and
+composer 9.1/17.5 ms. These are the final reservation rule's results, separate
+from the intermediate fixed-window experiments above.
+
+Final workspace lint, formatting and typecheck pass. Full units pass with
+7,022 client and 6,595 server cases (declared skips retained). The touched
+stream-stall negative tests capture and assert their expected diagnostic;
+unrelated failure-path warning debt remains recorded in the existing gap.
+Android unit/lint and the minified four-ABI APK build pass; 35 Rust tests,
+format/clippy and the three live lease/mux/login cases pass. The normal browser
+SRP/login/relay rerun passes 32/32. Final review found no serious unresolved
+flow-control issue; the owned Opus reviewer was stopped with resume blocked.

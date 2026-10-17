@@ -12,16 +12,21 @@ Current evidence: browser SRP's 32 cases and full workspace units pass. The
 packaged API35/WebView124 app passes the public-relay baseline, a complete
 movie/fault matrix and a focused twenty-image fault burst. The
 [measured report](../testing/android-artifact-streaming-2026-10-16.md) distinguishes
-those results from the locked-phone, aggregate-window and lifecycle work still
+those results from the aggregate-window and physical lifecycle work still
 open. Three actual HOME/launcher cycles now retain the artifact/draft and each
 show one recovery interval with fresh asset reads and no app errors. One earlier
 103.2 ms emulator frame miss remains recorded. The broad browser run finished
 with 406 passes, ten skips and five failures;
 three repaired cases pass focused reruns, while the unrelated App sandbox and
-WebRTC readiness failures remain recorded in the report. No new
-connection-window wire mode has been implemented. Three actual-app eight-reader
-128 KiB/s diagnostics now reproduce a relay circuit queue closure; passive
-observations distinguish the stress delta from earlier physical mux closures.
+WebRTC readiness failures remain recorded in the report. Native beta requests
+now directly select connection-wide flow control. Three original eight-reader
+128 KiB/s diagnostics reproduced relay circuit queue closure; the repaired
+emulator run passes all eight 206 first chunks without closure or mux churn.
+Final progress-reservation isolation and physical qualification are recorded in
+the report: both full media/fault/warm/cold/reload matrices pass, as does the
+phone eight-reader slow-link case without closure/churn. Both final public TLS
+relay media matrices pass too. See the report for input clocks, throughput samples
+and the still-unqualified long sleep/radio/source transitions.
 See the measured report for the red baseline and its memory-sampling limits.
 A separate parent reload reproduction exhausted the server preview lease cap
 after fifteen successful restorations. The repair uses a bounded, source-bound
