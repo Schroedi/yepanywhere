@@ -34,6 +34,7 @@ import { createArtifactRoutes } from "../../src/routes/artifacts.js";
 import { createProjectAppRoutes } from "../../src/routes/project-app.js";
 import { createLocalResourcePathPolicy } from "../../src/routes/local-resource-policy.js";
 import { createSessionPathScopeResolver } from "../../src/routes/session-path-scope.js";
+import { probeSessionSandboxAvailability } from "../../src/session-sandbox.js";
 
 let root: string;
 let projectPath: string;
@@ -345,6 +346,9 @@ it("opens a static app on the isolated artifact origin without starting any proc
 });
 
 it("starts a stopped process app on open, survives a YA restart, respects Stop, and stops retrying a crash loop", {
+  // This case launches a real confined process, like ProjectServiceManager's
+  // native lifecycle checks; route-only cases above remain cross-platform.
+  skip: (await probeSessionSandboxAvailability()).state !== "available",
   timeout: 30_000,
 }, async () => {
   await writeFile(
