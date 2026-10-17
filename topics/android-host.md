@@ -65,6 +65,14 @@ Assistant invocation, custom hotwords, locked-screen behavior, runtime wake and
 ADB re-arming require distinct validation; none follows from a permission
 toggle alone. This exploration does not change the existing incubation order.
 
+The [Machine Control resident spike](../../machine-control/platforms/android/resident-spike/README.md#acceptance)
+now proves the stateful Python bridge on the Pixel 7a with real on-phone Codex
+and Claude sessions, fixture-file effect witnesses, inline screenshots and
+stale/grant/revocation refusals. Its native fixture is a separate APK; the test
+uses this host's Alpine runtime but does not automatically register phone
+control in ordinary YA sessions. It does not implement the broader capabilities
+listed above or establish background, remote or reboot acceptance.
+
 ## Implemented scaffold contracts
 
 - A separate application id coexists with the existing companion and original
