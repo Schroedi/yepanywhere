@@ -98,8 +98,12 @@ Native provider setup shortcuts open focused shared YA routes, also available
 to desktop and remote clients. Pending requests, CLI output and errors remain
 visible. The Android WebView handles user-initiated new-window HTTPS links via
 the browser, using the existing companion's bounded popup-resolver pattern.
-Actual browser handoff/account completion still awaits an unlocked physical
-phone; a synthetic desktop/mobile browser test is not that proof.
+After the phone was unlocked, real taps on its native Set up Codex shortcut,
+the focused page's Sign in button and its new-window sign-in link successfully
+opened Chrome on the official provider authentication host. That Codex flow is
+left running for the user. Account approval, credential persistence/refresh and
+Claude's complete browser/code round trip remain unproved; synthetic browser
+tests do not replace those checks.
 
 Focused browser checks exercise both the existing flow and the dedicated page,
 including visible startup failures, retry, and sequential code entry across
