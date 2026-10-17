@@ -230,6 +230,28 @@ start-time configuration. There is no separate restart endpoint. A declared
 reload signal that avoids the restart is a
 [sketch](project-service.sketches.md#reload-signal-without-restart-october-15-2026).
 
+### Start on open
+
+Opening a process app in YA (the App view, its Reload, or a pane that opens
+it) starts it when no launch runs and its last state still wants it running:
+never started, interrupted by a YA or provider-host shutdown, or crashed.
+This needs no address, reservation or opt-in, and uses the opener's own
+**Start** authority (a view grant). An explicit **Stop** is respected: the
+app stays stopped and the view shows **Start** until someone presses it. A
+live-preview launch is not restarted this way. The open request waits for
+readiness, then returns the view. (User-directed 2026-10-17: a project app
+should work after a YA restart without a reserved address.)
+
+These starts share the [auto-start](#auto-start-on-visit) loop guard, so a
+crashing app is not relaunched forever: at most one automatic start per
+project every 30 s, an app gone within 60 s of starting counts as a failure,
+and 3 failures in 10 minutes pause automatic starts. A held-back or failed
+open answers 409 with the latest failure's first line (or the pause); a
+manual **Start** clears the guard. Shutting YA down stops each app but keeps
+it desired, so a clean shutdown and an abrupt one both read as interrupted.
+A provider-host record that its host cleanly halted no longer blocks the
+in-process manager from starting or stopping that app.
+
 For process delivery without a wildcard hostname, `serving.basePathEnv` names
 an environment variable through which YA supplies the app's scoped URL prefix.
 Use `BASE_PATH` or an uppercase name ending in `_BASE_PATH`, excluding `YA_`,
@@ -350,8 +372,9 @@ manager remains available and stops apps with Hono. Persisted host ownership
 prevents this mode from duplicating or pretending to stop an app that may still
 belong to a live host: enable hosting again to inspect or stop it. Missing owner
 fields in older records mean in-process ownership. After owner loss, persisted
-state reports interruption; only an opted-in address's next visit relaunches
-it ([auto-start](#auto-start-on-visit)).
+state reports interruption; the next open in YA relaunches it
+([start on open](#start-on-open)), as does an opted-in address's next visit
+([auto-start](#auto-start-on-visit)).
 
 Provider hosting supports Linux and macOS Node source launches; Unix-domain
 IPC is not Linux-specific. Project service execution still requires the
@@ -411,8 +434,8 @@ Existing pieces verified in source on 2026-09-28:
   Static artifact paths and YA control endpoints are not app WebSocket targets.
   See [app WebSocket access](active-content-security.md#app-websocket-access).
 
-The separate project runner reuses these sandbox facilities. Viewing never
-starts it, except a served address's opt-in
+The separate project runner reuses these sandbox facilities. Viewing starts
+it only through [start on open](#start-on-open) or a served address's opt-in
 [auto-start](#auto-start-on-visit). Settings refreshes status on entry and after lifecycle actions;
 explicit Reload renews the current target, without background replacement of
 an interacting iframe. A changed declaration is shown alongside the active

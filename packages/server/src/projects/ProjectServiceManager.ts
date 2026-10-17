@@ -163,8 +163,19 @@ export class ProjectServiceManager {
       const saved = projectServiceRecordSchema.parse(
         JSON.parse(await readFile(this.file(projectId), "utf8")),
       );
-      if (["starting", "running", "stopping"].includes(saved.observed)) {
-        if (saved.owner === "provider-host" && this.owner === "server")
+      // A launch its owner stopped while shutting down still wants to run,
+      // but no host can still be running it.
+      const halted =
+        saved.observed === "stopped" && saved.desired === "running";
+      if (
+        ["starting", "running", "stopping"].includes(saved.observed) ||
+        halted
+      ) {
+        if (
+          !halted &&
+          saved.owner === "provider-host" &&
+          this.owner === "server"
+        )
           return {
             ...saved,
             observed: "failed",
@@ -175,7 +186,7 @@ export class ProjectServiceManager {
           ...saved,
           observed: "stopped",
           error:
-            "Service interrupted by YA restart; start explicitly to launch again",
+            "Service interrupted by YA restart; opening the app starts it again",
         };
       }
       return saved;
@@ -247,7 +258,8 @@ export class ProjectServiceManager {
       if (
         saved?.owner === "provider-host" &&
         this.owner === "server" &&
-        saved.desired === "running"
+        saved.desired === "running" &&
+        saved.observed !== "stopped"
       )
         throw new Error(
           "App belongs to the provider host; enable hosting before starting another app",
@@ -334,7 +346,8 @@ export class ProjectServiceManager {
         if (
           saved.owner === "provider-host" &&
           this.owner === "server" &&
-          saved.desired === "running"
+          saved.desired === "running" &&
+          saved.observed !== "stopped"
         )
           throw new Error("Enable provider hosting to stop its app");
         const stopped = {
@@ -349,22 +362,27 @@ export class ProjectServiceManager {
         return stopped;
       }
       service.record.desired = "stopped";
-      try {
-        await service.process.stop();
-      } finally {
-        await this.save(projectId, service);
-      }
-      this.live.delete(projectId);
+      await this.halt(projectId, service);
       return this.status(projectId);
     });
   }
 
+  private async halt(projectId: string, service: LiveService): Promise<void> {
+    try {
+      await service.process.stop();
+    } finally {
+      await this.save(projectId, service);
+    }
+    this.live.delete(projectId);
+  }
+
+  /** Stops every launch but keeps it desired, so opening it after restart starts it. */
   async close(): Promise<void> {
     this.closed = true;
     await Promise.allSettled(this.operations.values());
     const stopped = await Promise.allSettled(
-      [...this.live.keys()].map((projectId) =>
-        this.stop(projectId, async () => {}),
+      [...this.live.entries()].map(([projectId, service]) =>
+        this.serial(projectId, () => this.halt(projectId, service)),
       ),
     );
     const errors = stopped

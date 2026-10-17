@@ -368,8 +368,19 @@ export function createProjectAppRoutes(deps: {
         throw new HTTPException(404, {
           message: "Project has no app declaration",
         });
-      if (declaration.where.kind === "process")
+      if (declaration.where.kind === "process") {
+        try {
+          await deps.autoStart?.startForOpen(project.id, project.path, () =>
+            authorize(c).then(() => undefined),
+          );
+        } catch (error) {
+          if (error instanceof HTTPException) throw error;
+          throw new HTTPException(409, {
+            message: error instanceof Error ? error.message : String(error),
+          });
+        }
         return c.json(await deps.openService(project.id, request.audience));
+      }
       const staticApp = await projectServiceStaticApp(
         project.path,
         declaration,

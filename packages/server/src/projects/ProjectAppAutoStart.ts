@@ -43,13 +43,16 @@ interface Guard {
   lastReadyAt?: number;
   failures: number[];
   paused?: string;
+  /** First line of the latest failure, shown while starts are held back. */
+  lastError?: string;
   inFlight?: Promise<ProjectServiceUpstream | null>;
 }
 
 /**
  * Opt-in start of a served process app on an authorized visit
- * (topics/project-service.md § Auto-start on visit). Rate and crash-loop
- * guards are in memory, so a YA restart clears them.
+ * (topics/project-service.md § Auto-start on visit), and start of a stopped
+ * app its viewer opens in YA (§ Start on open). Both share the rate and
+ * crash-loop guards, which are in memory, so a YA restart clears them.
  */
 export class ProjectAppAutoStart {
   private state: AutoStartFile = { version: 1, projects: {} };
@@ -144,6 +147,7 @@ export class ProjectAppAutoStart {
     if (!guard) return;
     guard.failures = [];
     guard.paused = undefined;
+    guard.lastError = undefined;
     guard.lastAttemptAt = undefined;
     guard.lastReadyAt = undefined;
   }
@@ -161,6 +165,42 @@ export class ProjectAppAutoStart {
   ): Promise<ProjectServiceUpstream | null> {
     await this.ready;
     if (!Object.hasOwn(this.state.projects, projectId)) return null;
+    return this.guarded(projectId, (guard) =>
+      this.attempt(projectId, cause, current, guard),
+    );
+  }
+
+  /**
+   * Start a process app its viewer opened in YA while no launch runs: never
+   * started, interrupted by a YA restart, or crashed. Opening the app is the
+   * request to run it, so unlike {@link recover} this needs no opt-in and
+   * uses the opener's own start authority; an explicit Stop is respected.
+   * Shares the loop guard, and throws its reason when no start was made.
+   */
+  async startForOpen(
+    projectId: string,
+    projectPath: string,
+    authorize: () => Promise<void>,
+  ): Promise<void> {
+    await this.ready;
+    const saved = await this.deps.services.status(projectId);
+    if (saved?.desired === "stopped" || saved?.mode === "live-preview") return;
+    const started = await this.guarded(projectId, (guard) =>
+      this.launch(projectId, projectPath, "not-running", authorize, guard),
+    );
+    if (started) return;
+    const guard = this.guard(projectId);
+    throw new Error(
+      guard.paused
+        ? `Automatic start paused after repeated failures: ${guard.paused}`
+        : (guard.lastError ?? "App start was attempted moments ago"),
+    );
+  }
+
+  private async guarded(
+    projectId: string,
+    run: (guard: Guard) => Promise<ProjectServiceUpstream | null>,
+  ): Promise<ProjectServiceUpstream | null> {
     const guard = this.guard(projectId);
     if (guard.inFlight) return guard.inFlight;
     if (guard.paused) return null;
@@ -179,7 +219,7 @@ export class ProjectAppAutoStart {
       now - guard.lastAttemptAt < AUTO_START_MIN_INTERVAL_MS
     )
       return null;
-    const attempt = this.attempt(projectId, cause, current, guard);
+    const attempt = run(guard);
     guard.inFlight = attempt;
     try {
       return await attempt;
@@ -195,8 +235,9 @@ export class ProjectAppAutoStart {
       now,
     ];
     // The first line names the failure; the app's own error keeps the log tail.
+    guard.lastError = (message.split("\n")[0] ?? message).slice(0, 300);
     if (guard.failures.length >= AUTO_START_FAILURE_LIMIT)
-      guard.paused = (message.split("\n")[0] ?? message).slice(0, 300);
+      guard.paused = guard.lastError;
   }
 
   private async attempt(
@@ -218,11 +259,26 @@ export class ProjectAppAutoStart {
       for (let tries = 0; tries < 2; tries++)
         if (await probe(current, declaration.status)) return current;
     }
+    return this.launch(
+      projectId,
+      projectPath,
+      cause,
+      async () => {
+        if (!(await this.deps.mayAutoStart(setting.by, projectId)))
+          throw new Error("Auto-start is no longer permitted");
+      },
+      guard,
+    );
+  }
+
+  private async launch(
+    projectId: string,
+    projectPath: string,
+    cause: AutoStartCause,
+    authorize: () => Promise<void>,
+    guard: Guard,
+  ): Promise<ProjectServiceUpstream | null> {
     guard.lastAttemptAt = this.now();
-    const authorize = async () => {
-      if (!(await this.deps.mayAutoStart(setting.by, projectId)))
-        throw new Error("Auto-start is no longer permitted");
-    };
     try {
       if (cause === "unreachable")
         await this.deps.services.stop(projectId, authorize);
