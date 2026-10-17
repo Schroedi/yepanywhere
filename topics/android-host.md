@@ -17,12 +17,53 @@ remains while Codex's incompatible additional Linux sandbox is disabled.
 Normal use should eventually require only the phone and internet. A desktop
 helper may bootstrap/re-arm same-phone ADB after reboot. AAR is optional
 development infrastructure, not a normal-use dependency or credential service
-that ships by default. Provider authentication belongs on the phone eventually.
+that ships by default. Provider authentication runs on the phone.
 
-The existing YA sign-in panel has not been validated on this device and is not
-the onboarding baseline. Future guided setup should draw on the demonstrated
-Buddy and AAR experiences. First prove runtime install, supported subscription
-login, credential persistence/refresh and a real agent task; polish follows.
+The focused shared YA sign-in pages are the current onboarding baseline.
+Native **Set up Codex** and **Set up Claude** shortcuts open those pages, which
+relay the actual local CLI login flow and hand authorization to the system
+browser. The user completed and confirmed both subscription sign-ins on the
+Pixel 9 on 2026-10-17. Buddy and AAR informed the approach; their flows are no
+longer a placeholder for unimplemented host onboarding. Credential refresh,
+sign-out and recovery still need independent validation; see the
+[physical sign-in evidence](../docs/testing/android-host-scaffold-2026-10-17.md#completed-provider-sign-in).
+
+## Phone capabilities and assistant entry points
+
+**Exploration recorded 2026-10-17; these capabilities are not implemented in
+the host and are not new release prerequisites.** The phone should be useful
+without ADB through user-enabled native Android capabilities, while ADB remains
+an optional stronger route. Keep detailed platform research and reusable device
+operations in Machine Control's
+[Android exploration](../../machine-control/topics/android-family-control.md#app-resident-provider-exploration)
+and [source/API research](../../machine-control/research/platforms/android.md#app-resident-capabilities-without-adb).
+APK/module packaging and permission isolation remain open.
+
+YA supplies the provider sessions, onboarding, supervision and full work UI.
+Quick assistant entry points should lead into that same work: share a photo or
+document to a session, ask by voice, invoke an optional default-assistant
+surface, or ask about the current screen. A request that becomes substantial
+should continue in the existing full interface with its conversation, files,
+tool results and approvals. Do not create a second agent harness or a parallel
+reduced conversation product for quick tasks.
+
+Candidate capabilities include accessibility observations/actions/screenshots;
+SAF documents with explicit workspace import/export; photo selection or media
+access; contacts and calendars; camera/microphone; location; notifications;
+native intents for sharing, maps, calls/messages and alarms; and optional
+assistant-role integration. Health Connect is a further possibility. Offer
+grants in context when a requested task needs them, query focused data, and
+show unavailable/revoked capabilities honestly. Native API access and UI
+automation complement one another; neither grants arbitrary app-private data.
+
+MC should expose one native operation implementation through CLI/MCP facades
+usable by either local provider and authenticated remote callers. Like the
+ChromeOS composition, different Android facilities can serve different
+operations without duplicating the user-facing control vocabulary. YA should
+consume those operations rather than accumulate independent device drivers.
+Assistant invocation, custom hotwords, locked-screen behavior, runtime wake and
+ADB re-arming require distinct validation; none follows from a permission
+toggle alone. This exploration does not change the existing incubation order.
 
 ## Implemented scaffold contracts
 
@@ -97,8 +138,9 @@ readiness; a push cannot re-arm TCP adbd after reboot.
 
 1. Finish the service lifecycle on the physical phone, including safe shutdown,
    process-death recovery and real provider resume.
-2. Use AAR for repeatable development turns; independently prove phone-local
-   subscription sign-in/refresh without importing host credentials.
+2. Keep the user-confirmed phone-local Claude/Codex subscription sign-in flows;
+   validate credential persistence across restart, refresh and sign-out without
+   importing host credentials. AAR remains optional for repeatable development.
 3. Integrate the already-demonstrated same-phone ADB bridge behind explicit
    setup/readiness and the app's own ADB key.
 4. Test screen-off work and bounded idle resource use, with no external desktop

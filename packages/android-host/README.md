@@ -126,16 +126,20 @@ lease, and revokes the grant before phone cleanup, verifying 401 for both
 providers. A failed cleanup retains the lease for retry. It never enables TCP
 adbd or modifies other device mappings. Use explicit enrolled subscription
 accounts; leave real selectors and account ids outside Git. Stopping returns
-future launches to direct mode; actual phone-local direct sign-in is unproved.
+future launches to direct mode. Phone-local direct subscription sign-in has
+been completed and confirmed by the user for both Claude and Codex on the
+Pixel 9; it does not require AAR or imported workstation credentials.
 
 ## Current boundaries
 
 - ARM64 only, manually provisioned runtime. No first-launch downloader or updates.
 - Runtime/foreground-service scaffold, not a background/Doze acceptance result.
 - Existing full YA frontend is reused; no separate conversation UI.
-- Guided subscription login, refresh/sign-out, real session resume after process
-  death, remote wake/relay lifecycle, same-phone ADB setup and agent MCP registration
-  are remaining integration work. ADB is in the payload but is not auto-started.
+- Focused subscription login works for both providers, confirmed by the user on
+  the Pixel 9. Credential persistence across restart, refresh/sign-out, real
+  session resume after process death, remote wake/relay lifecycle, same-phone
+  ADB setup and agent MCP registration remain validation/integration work.
+  ADB is in the payload but is not auto-started.
 - External tracking/inventory is disabled. Native history discovery stays scoped
   to this app's own provider profiles; no external desktop histories are mounted.
 - Downloaded Claude/native libraries retain their upstream terms and notices.

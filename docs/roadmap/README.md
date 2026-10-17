@@ -4,8 +4,10 @@ On-device Android hosting is authorized as a separate incubation effort
 (2026-10-17), not a blocker or replacement for the published mobile companion.
 The [Android host contract](../../topics/android-host.md) owns the scaffold,
 shared Alpine runtime, disabled external desktop observers and the remaining
-lifecycle/authentication work. Remote wake is a later experiment. The existing
-YA sign-in UI is not assumed to be the validated phone onboarding baseline.
+lifecycle/authentication work. Remote wake is a later experiment. Native setup
+shortcuts and focused shared YA sign-in pages now form the onboarding baseline:
+the user completed both Claude and Codex subscription sign-ins on the Pixel 9.
+Refresh, sign-out and restart persistence remain separate validation work.
 
 Last updated: 2026-10-17.
 

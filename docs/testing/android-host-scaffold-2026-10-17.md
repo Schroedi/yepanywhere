@@ -68,9 +68,10 @@ in Git. No provider secret, account id, real device selector or binary is tracke
 
 This is a manually provisioned Debug runtime with a native foreground service,
 not a proof of Doze survival or a production packaging/update path. Direct
-phone sign-in/refresh, real turn continuation after process death, same-phone
-ADB registration in the new app, remote push wake, relay lifecycle, idle battery
-behavior and store distribution remain open. Building unsigned Release alone
+phone sign-in was subsequently user-confirmed for both providers (see below).
+Credential restart persistence/refresh, real turn continuation after process
+death, same-phone ADB registration in the new app, remote push wake, relay
+lifecycle, idle battery behavior and store distribution remain open. Building unsigned Release alone
 does not establish physical Release execution. Reading retained history is
 not proof that a provider session resumed.
 
@@ -101,9 +102,9 @@ the browser, using the existing companion's bounded popup-resolver pattern.
 After the phone was unlocked, real taps on its native Set up Codex shortcut,
 the focused page's Sign in button and its new-window sign-in link successfully
 opened Chrome on the official provider authentication host. That Codex flow is
-left running for the user. Account approval, credential persistence/refresh and
-Claude's complete browser/code round trip remain unproved; synthetic browser
-tests do not replace those checks.
+left running for the user. At this initial handoff checkpoint, account approval,
+credential persistence/refresh and Claude's complete browser/code round trip
+were unproved; the later user-confirmed completions are recorded below.
 
 Focused browser checks exercise both the existing flow and the dedicated page,
 including visible startup failures, retry, and sequential code entry across
@@ -113,3 +114,18 @@ suite pass. An initial concurrent build/test run hit one unrelated CLI process
 test failure; that file and the subsequent full suite pass without test edits.
 Provisioning now distinguishes unlocked user storage from an unlocked screen:
 APK/runtime replacement can proceed while the screen remains securely locked.
+
+## Completed provider sign-in
+
+On 2026-10-17, the user completed the focused Codex sign-in flow on the Pixel 9
+and reported that it worked. The user subsequently completed and confirmed the
+Claude browser/authorization-code flow on the same phone. These are real
+user-confirmed subscription sign-ins through the native setup shortcuts and
+shared YA pages, not synthetic browser results or AAR-backed authentication.
+The provider CLIs and credentials belong to the phone's direct profile; no
+workstation credential import is part of this flow.
+
+This supersedes the initial account-approval and Claude-round-trip uncertainty
+above. It does not establish credential refresh, sign-out, persistence across a
+runtime/device restart, or resuming a real turn after process death. Those
+remain distinct acceptance checks.

@@ -8,8 +8,10 @@ external spike during tests.
 The product is local YA: real provider CLIs and the existing server/UI run in
 app-private Alpine/PRoot. Normal use should eventually need only the phone and
 internet; AAR is optional development infrastructure. Do not replace provider
-CLIs with a custom harness or assume YA's existing sign-in UI is a proven phone
-onboarding flow. The working Buddy/AAR experiences inform future onboarding.
+CLIs with a custom harness. The native provider setup shortcuts and focused
+shared YA sign-in pages are the onboarding baseline: the user completed both
+Claude and Codex subscription sign-ins on the Pixel 9. Keep refresh, sign-out
+and restart-persistence validation distinct from that successful initial login.
 
 Use one payload and launch/profile contract for Android and the Linux harness.
 Build YA from this checkout, not a nested source snapshot. Do not add desktop
