@@ -223,8 +223,8 @@ export class RelayClientService {
         this.handleMessage(ws, data, isBinary);
       });
 
-      ws.on("close", () => {
-        this.handleClose(ws);
+      ws.on("close", (code?: number, reason?: Buffer) => {
+        this.handleClose(ws, code, reason?.toString());
       });
 
       ws.on("error", (error: Error) => {
@@ -386,7 +386,7 @@ export class RelayClientService {
     this.connect();
   }
 
-  private handleClose(ws: WebSocket): void {
+  private handleClose(ws: WebSocket, code?: number, reason?: string): void {
     // Only handle close for connections we're managing
     // Claimed connections are handed off and managed elsewhere
     if (ws === this.connectingWs) {
@@ -397,7 +397,9 @@ export class RelayClientService {
     }
 
     if (ws === this.waitingWs) {
-      console.log("[RelayClient] Connection closed");
+      console.log(
+        `[RelayClient] Connection closed (code ${code}${reason ? `: ${reason}` : ""})`,
+      );
       this.stopKeepalive();
       this.waitingWs = null;
       this.scheduleReconnect();
