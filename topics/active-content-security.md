@@ -511,8 +511,11 @@ pull-driven binary bridge messages. Each source admits eight bodies with 64
 FIFO waiters; individual native body queues are bounded at 1 MiB. Cancel,
 consumed EOF and document teardown release admission. Queued media alternates
 with catch-up behind small state/control messages. This does not yet establish
-a shared bound across completed/cancelled relay tails; the separately negotiated
-connection-window proposal in plan 156 remains pending approval and testing.
+a shared bound by itself across completed/cancelled relay tails. Native beta
+requests now select the connection-wide flow control documented in
+[relay transfer size](media-rendering-and-routing.md#relay-transfer-size): one
+shared MiB with receipt accounting through completion/cancellation, bounded
+retained records and source-owned deadlines. This adds no artifact authority.
 The 256 MiB media limit in source/generated APK assets is not a claim that the
 currently deployed hosted worker has been updated; publication is separate.
 

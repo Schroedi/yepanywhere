@@ -106,6 +106,35 @@ limit.
   direct WebSocket connections, and unauthenticated public-share reads keep
   the single `response` message.
 
+Native beta peers select `stream: "connection"` instead of `true`. This is a
+coordinated native/server update without an echo negotiation or old-beta mode.
+All such responses on one authenticated connection share a single 1 MiB body
+window, with FIFO send admission so a large stream cannot repeatedly take
+credit ahead of waiting small streams. Each of the eight native reader slots reserves one
+64 KiB piece of progress space. A stream can borrow unused space beyond that
+floor while preserving the other current/future slots' reservations; a lone
+stream can send 576 KiB before an ACK. This avoids a one-chunk stop-and-wait
+limit while leaving room for other readers when one is paused. A stream blocked
+on these reservations leaves the connection FIFO head and wakes when credit
+or producer lifecycle changes. Browser `true` requests retain the
+per-response window above; their login, framing and stall deadlines are unchanged.
+
+The shared window includes completed and cancelled tails until the client
+acknowledges bytes actually consumed or received and discarded. Native
+cancellation receives an end marker even though the file producer stops.
+Up to 128 started/retained native stream records are allowed per connection,
+plus the native reader slots' eight not-yet-started requests;
+duplicate live/retained IDs are refused. Unknown late starts after a caller
+abandons its response head acquire bounded discard-only records, never a new
+consumer. A native reader's 120-second idle deadline cancels/discards its body;
+a native server sender's wait deadline is 135 seconds without its own progress;
+a completed server tail's receipt deadline is 135 seconds since completion or
+its last advancing ACK. That margin allows native idle discard to settle first.
+If receipt never arrives, the server closes that logical connection rather
+than freeing credit for bytes that might remain in the relay. Source closure
+releases waiters, receipt timers, retained records and producers. These are
+body-byte bounds, not a claim about total process memory or non-body traffic.
+
 Consumers:
 
 - **Downloads** (`useSaveResourceDownload`) on a transport with `fetchStream`

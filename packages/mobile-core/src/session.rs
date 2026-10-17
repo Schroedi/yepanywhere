@@ -607,7 +607,7 @@ impl NativeSession {
         let id = Uuid::new_v4().to_string();
         params["type"] = json!("request");
         params["id"] = json!(id);
-        params["stream"] = json!(true);
+        params["stream"] = json!("connection");
         let (reply, head) = oneshot::channel();
         self.commands
             .try_send(Command::Stream(id, params, body.clone(), reply))
@@ -643,6 +643,9 @@ struct Stream {
     received: u64,
     acked: u64,
     length: Option<u64>,
+    ended: bool,
+    discarding: bool,
+    started: bool,
 }
 struct Upload {
     wire_id: Uuid,
@@ -911,6 +914,11 @@ impl Actor {
                     body.cancel();
                     return Ok(());
                 }
+                if self.streams.len() >= 128 + response::MAX_STREAMS {
+                    let _ = head.send(Err(Error::Overflow));
+                    body.cancel();
+                    return Ok(());
+                }
                 self.streams.insert(
                     id.clone(),
                     Stream {
@@ -920,6 +928,9 @@ impl Actor {
                         received: 0,
                         acked: 0,
                         length: None,
+                        ended: false,
+                        discarding: false,
+                        started: false,
                     },
                 );
                 if let Err(error) = self.secure.send(&params).await {
@@ -1100,6 +1111,13 @@ impl Actor {
             "response_stream_start" => {
                 let id = field(&v, "id")?.to_owned();
                 if let Some(stream) = self.streams.get_mut(&id) {
+                    stream.started = true;
+                    if stream.discarding {
+                        return self
+                            .secure
+                            .send(&json!({"type":"response_stream_cancel","id":id}))
+                            .await;
+                    }
                     let length = v
                         .get("length")
                         .map(|n| n.as_u64().ok_or(Error::InvalidMessage))
@@ -1119,13 +1137,37 @@ impl Actor {
                         let _ = head.send(Ok(v.to_string()));
                     }
                 } else {
+                    // A caller may have abandoned its head before the server
+                    // started producing. Adopt only the late wire tail, bounded
+                    // independently of the gone caller, until its end marker.
+                    check(
+                        self.streams.values().filter(|s| s.started).count() < 128
+                            && Uuid::parse_str(&id).is_ok(),
+                    )?;
+                    self.streams.insert(
+                        id.clone(),
+                        Stream {
+                            head: None,
+                            body: Body::new(
+                                self.lease.requests_changed.clone(),
+                                CancellationToken::new(),
+                            ),
+                            deadline: Instant::now() + Duration::from_secs(120),
+                            received: 0,
+                            acked: 0,
+                            length: None,
+                            ended: false,
+                            discarding: true,
+                            started: true,
+                        },
+                    );
                     self.secure
                         .send(&json!({"type":"response_stream_cancel","id":id}))
                         .await?;
                 }
             }
             "response_stream_end" => {
-                if let Some(stream) = self.streams.remove(field(&v, "id")?) {
+                if let Some(stream) = self.streams.get_mut(field(&v, "id")?) {
                     let result = if v.get("error").is_some() {
                         Err(Error::Unavailable)
                     } else if stream.head.is_some()
@@ -1135,9 +1177,11 @@ impl Actor {
                     } else {
                         Ok(())
                     };
-                    if let Some(head) = stream.head {
+                    if let Some(head) = stream.head.take() {
                         let _ = head.send(Err(Error::InvalidMessage));
                     }
+                    stream.ended = true;
+                    stream.discarding |= result.is_err();
                     stream.body.finish(result);
                 }
             }
@@ -1204,10 +1248,11 @@ impl Actor {
         Ok(())
     }
     async fn reject_stream(&mut self, id: &str, error: Error) -> Result<()> {
-        if let Some(stream) = self.streams.remove(id) {
-            if let Some(head) = stream.head {
+        if let Some(stream) = self.streams.get_mut(id) {
+            if let Some(head) = stream.head.take() {
                 let _ = head.send(Err(error.clone()));
             }
+            stream.discarding = true;
             stream.body.finish(Err(error));
         }
         self.secure
@@ -1215,8 +1260,23 @@ impl Actor {
             .await
     }
     async fn response_chunk(&mut self, id: &str, bytes: Vec<u8>) -> Result<()> {
+        let outstanding: u64 = self
+            .streams
+            .values()
+            .map(|s| s.received.saturating_sub(s.acked))
+            .sum();
+        check(outstanding + bytes.len() as u64 <= response::WINDOW as u64)?;
         if let Some(stream) = self.streams.get_mut(id) {
+            check(!stream.ended)?;
+            if stream.discarding {
+                stream.received = stream
+                    .received
+                    .checked_add(bytes.len() as u64)
+                    .ok_or(Error::Overflow)?;
+                return Ok(());
+            }
             let received = stream.received.checked_add(bytes.len() as u64);
+            stream.received = received.ok_or(Error::Overflow)?;
             if stream.head.is_some()
                 || received.is_none_or(|n| {
                     n.saturating_sub(stream.acked) > response::WINDOW as u64
@@ -1225,7 +1285,6 @@ impl Actor {
             {
                 return self.reject_stream(id, Error::InvalidMessage).await;
             }
-            stream.received = received.ok_or(Error::Overflow)?;
             if let Err(error) = stream.body.push(bytes) {
                 return self.reject_stream(id, error).await;
             }
@@ -1236,32 +1295,56 @@ impl Actor {
     async fn response_progress(&mut self) -> Result<()> {
         let mut cancel = Vec::new();
         let mut acks = Vec::new();
+        let mut settled = Vec::new();
         for (id, stream) in &mut self.streams {
             let (cancelled, consumed) = stream.body.progress()?;
-            if cancelled
-                || stream.head.as_ref().is_some_and(|head| head.is_closed())
-                || stream.deadline <= Instant::now()
+            if stream.discarding && stream.deadline <= Instant::now() {
+                return Err(Error::Timeout);
+            }
+            if !stream.discarding
+                && (cancelled
+                    || stream.head.as_ref().is_some_and(|head| head.is_closed())
+                    || stream.deadline <= Instant::now())
             {
-                cancel.push(id.clone());
-            } else if consumed > stream.acked {
+                stream.discarding = true;
+                if let Some(head) = stream.head.take() {
+                    let _ = head.send(Err(Error::Timeout));
+                }
+                stream.body.finish(Err(Error::Timeout));
+                stream.deadline = Instant::now() + Duration::from_secs(120);
+                if !stream.ended {
+                    cancel.push(id.clone());
+                }
+                if !stream.started {
+                    settled.push(id.clone());
+                }
+            }
+            // Discarded bytes have really arrived; they return connection credit
+            // just like consumed bytes. Keep cancelled tails until the end marker.
+            let consumed = if stream.discarding {
+                stream.received
+            } else {
+                consumed
+            };
+            if consumed > stream.acked {
                 stream.acked = consumed;
                 stream.deadline = Instant::now() + Duration::from_secs(120);
                 acks.push(json!({"type":"response_stream_ack","id":id,"bytes":consumed}));
             }
+            if stream.ended && stream.acked == stream.received {
+                settled.push(id.clone());
+            }
         }
         for id in cancel {
-            if let Some(stream) = self.streams.remove(&id) {
-                if let Some(head) = stream.head {
-                    let _ = head.send(Err(Error::Timeout));
-                }
-                stream.body.finish(Err(Error::Timeout));
-            }
             self.secure
                 .send(&json!({"type":"response_stream_cancel","id":id}))
                 .await?;
         }
         for ack in acks {
             self.secure.send(&ack).await?;
+        }
+        for id in settled {
+            self.streams.remove(&id);
         }
         Ok(())
     }
@@ -1354,6 +1437,9 @@ pub(crate) mod tests {
             let mut stream_id: Option<String> = None;
             let mut sent = 0u64;
             let mut acknowledged = 0u64;
+            let mut cancelled_tail: Option<(String, u64)> = None;
+            let mut late_id: Option<String> = None;
+            let mut stream_size = 3 * 1024 * 1024;
             while let Some(Ok(Message::Binary(bytes))) = socket.next().await {
                 let plain = open(&bytes[25..], &bytes[1..25], &key).unwrap();
                 if plain.first() != Some(&1) {
@@ -1378,9 +1464,34 @@ pub(crate) mod tests {
                     }
                     continue;
                 }
-                if request["type"] == "response_stream_cancel" {
-                    stream_id = None;
+                if request["type"] == "request" && request["path"] == "/late-body" {
+                    late_id = Some(request["id"].as_str().unwrap().into());
                     if let Some(held) = &held {
+                        let _ = held.send(()).await;
+                    }
+                    continue;
+                }
+                if request["type"] == "response_stream_cancel" {
+                    cancelled_tail = Some((request["id"].as_str().unwrap().into(), sent));
+                    stream_id = None;
+                    if let Some(held) = &held
+                        && !matches!(mutation.as_str(), "observe-cancel-ack" | "observe-late-ack")
+                    {
+                        let _ = held.send(()).await;
+                    }
+                }
+                if request["type"] == "response_stream_ack" {
+                    let final_ack =
+                        mutation == "observe-final-ack" && request["bytes"] == 3 * 1024 * 1024;
+                    let cancel_ack = mutation == "observe-cancel-ack"
+                        && cancelled_tail.as_ref().is_some_and(|(id, bytes)| {
+                            request["id"] == *id && request["bytes"].as_u64() == Some(*bytes)
+                        });
+                    let late_ack = mutation == "observe-late-ack"
+                        && request["bytes"].as_u64() == Some(response::CHUNK as u64);
+                    if (final_ack || cancel_ack || late_ack)
+                        && let Some(held) = &held
+                    {
                         let _ = held.send(()).await;
                     }
                 }
@@ -1394,8 +1505,26 @@ pub(crate) mod tests {
                     stream_id = Some(request["id"].as_str().unwrap().into());
                     sent = 0;
                     acknowledged = 0;
+                    stream_size = 3 * 1024 * 1024;
                     vec![
                         json!({"type":"response_stream_start","id":request["id"],"status":206,"headers":{"content-type":"video/mp4","content-range":"bytes 0-3145727/4194304"},"length":3*1024*1024}),
+                    ]
+                } else if request["type"] == "request"
+                    && request["path"] == "/release-late"
+                    && late_id.is_some()
+                {
+                    let id = late_id.take().unwrap();
+                    stream_id = Some(id.clone());
+                    sent = 0;
+                    acknowledged = 0;
+                    stream_size = response::CHUNK as u64;
+                    vec![
+                        json!({"type":"response_stream_start","id":id,"status":200,"length":stream_size}),
+                        json!({"type":"response","id":request["id"],"status":200,"body":{}}),
+                    ]
+                } else if request["type"] == "response_stream_cancel" {
+                    vec![
+                        json!({"type":"response_stream_end","id":request["id"],"error":"cancelled"}),
                     ]
                 } else if request["type"] == "request" && request["path"] == "/buffered-text" {
                     vec![
@@ -1449,7 +1578,7 @@ pub(crate) mod tests {
                     }
                 }
                 if let Some(id) = stream_id.clone() {
-                    while sent < 3 * 1024 * 1024 && sent < acknowledged + response::WINDOW as u64 {
+                    while sent < stream_size && sent < acknowledged + response::CHUNK as u64 {
                         let mut plain = vec![6];
                         plain.extend_from_slice(&seq.to_be_bytes());
                         seq += 1;
@@ -1466,7 +1595,7 @@ pub(crate) mod tests {
                             return;
                         }
                     }
-                    if sent == 3 * 1024 * 1024 {
+                    if sent == stream_size {
                         let mut plain = vec![1];
                         plain.extend_from_slice(
                             json!({"seq":seq,"msg":{"type":"response_stream_end","id":id}})
@@ -1502,6 +1631,117 @@ pub(crate) mod tests {
             peer,
         )
     }
+    #[tokio::test]
+    async fn abandoned_head_adopts_and_acknowledges_a_late_response_tail() {
+        let (tx, mut observed) = mpsc::channel(8);
+        let (options, peer) = peer_observed(3, "observe-late-ack", Some(tx)).await;
+        let session = resume(options, &fixture_credential_data(), None)
+            .await
+            .unwrap();
+        let caller = session.clone();
+        let pending = tokio::spawn(async move {
+            caller
+                .fetch_response(json!({"method":"GET","path":"/late-body"}).to_string())
+                .await
+        });
+        timeout(Duration::from_secs(3), observed.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        pending.abort();
+        let _ = pending.await;
+        session
+            .dispatch(
+                "request".into(),
+                json!({"method":"GET","path":"/ordinary"}).to_string(),
+            )
+            .await
+            .unwrap();
+        session
+            .dispatch(
+                "request".into(),
+                json!({"method":"GET","path":"/release-late"}).to_string(),
+            )
+            .await
+            .unwrap();
+        timeout(Duration::from_secs(3), observed.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        session
+            .dispatch(
+                "request".into(),
+                json!({"method":"GET","path":"/ordinary"}).to_string(),
+            )
+            .await
+            .unwrap();
+        session.close();
+        peer.abort();
+    }
+
+    #[tokio::test]
+    async fn completed_body_returns_final_credit_after_end_and_delayed_consumption() {
+        let (tx, mut observed) = mpsc::channel(8);
+        let (options, peer) = peer_observed(3, "observe-final-ack", Some(tx)).await;
+        let session = resume(options, &fixture_credential_data(), None)
+            .await
+            .unwrap();
+        let body = session
+            .fetch_response(json!({"method":"GET","path":"/byte-stream"}).to_string())
+            .await
+            .unwrap();
+        let mut bytes = 0;
+        while bytes < 3 * 1024 * 1024 - response::CHUNK {
+            bytes += body.next_chunk().await.unwrap().unwrap().len();
+        }
+        // The ordered ordinary response follows the producer's final window and
+        // end marker. Its last unread chunk must still have a credit owner.
+        session
+            .dispatch(
+                "request".into(),
+                json!({"method":"GET","path":"/ordinary"}).to_string(),
+            )
+            .await
+            .unwrap();
+        while let Some(chunk) = body.next_chunk().await.unwrap() {
+            bytes += chunk.len();
+        }
+        assert_eq!(bytes, 3 * 1024 * 1024);
+        timeout(Duration::from_secs(3), observed.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        session.close();
+        peer.abort();
+    }
+
+    #[tokio::test]
+    async fn cancelled_body_acknowledges_received_tail_before_retirement() {
+        let (tx, mut observed) = mpsc::channel(8);
+        let (options, peer) = peer_observed(3, "observe-cancel-ack", Some(tx)).await;
+        let session = resume(options, &fixture_credential_data(), None)
+            .await
+            .unwrap();
+        let body = session
+            .fetch_response(json!({"method":"GET","path":"/byte-stream"}).to_string())
+            .await
+            .unwrap();
+        body.cancel();
+        timeout(Duration::from_secs(3), observed.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        session
+            .dispatch(
+                "request".into(),
+                json!({"method":"GET","path":"/ordinary"}).to_string(),
+            )
+            .await
+            .unwrap();
+        session.close();
+        peer.abort();
+    }
+
     #[tokio::test]
     async fn buffered_stream_fallback_preserves_the_existing_message_limit() {
         let (options, peer) = peer(3, "").await;

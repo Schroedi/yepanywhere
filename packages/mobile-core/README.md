@@ -21,7 +21,10 @@ GET response objects also have independent bounded byte queues. `fetch_response`
 returns metadata before `next_chunk` pulls the body, with at most eight live
 objects and 1 MiB queued each. Raw format-6 chunks share JSON's replay sequence;
 bytes never pass through the event queue or whole-file JSON/base64. Read demand
-advances the existing server window. Cancel, owner release, timeout and connection
+advances one shared 1 MiB server body window across native requests, including
+completed/cancelled tails until consumed or received and discarded. Native beta
+selects `stream: "connection"` directly; ordinary browser peers retain `true`.
+There is no extra response-echo negotiation. Cancel, owner release, timeout and connection
 loss stop the stream; reconnect never resumes an incomplete body implicitly.
 A document releases only its own demand; the final owner closes the source. Concurrent eligible
 relay sources share a physical mux socket with independently bounded circuits;
