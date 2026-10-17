@@ -89,6 +89,18 @@ The native controls are an incubation surface, not final onboarding. Notificatio
 permission and the battery exemption are offered only through explicit actions.
 Battery settings do not enable remote access or guarantee process survival.
 
+Use **Set up Codex** or **Set up Claude** from the native controls to open the
+shared focused sign-in page, then choose **Sign in**. These pages also work in
+desktop/remote YA without navigating the long advanced provider settings list.
+The actual CLI's output and errors stay visible. Provider links open the Android
+browser; return to YA for Claude's authorization-code field. Codex uses device
+code approval. Complete account authorization yourself in the provider browser.
+
+The Android service mirrors the active network's DNS servers into Alpine while
+it runs, including network changes. It does not force a public DNS service.
+Encrypted DNS enforcement and unusual VPN DNS configurations need independent
+validation; musl does not use Android's resolver automatically.
+
 ## Optional AAR development mode
 
 This uses the existing computer router's **inference** listener through a scoped

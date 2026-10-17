@@ -32,6 +32,8 @@ public final class HostActivity extends Activity {
         status = new TextView(this); status.setTextIsSelectable(true); layout.addView(status);
         button(layout, "Start local host", () -> startForegroundService(new Intent(this, HostService.class)));
         button(layout, "Open Yep Anywhere", () -> startActivity(new Intent(this, LocalWebActivity.class)));
+        button(layout, "Set up Codex", () -> startActivity(new Intent(this, LocalWebActivity.class).putExtra("provider", "codex")));
+        button(layout, "Set up Claude", () -> startActivity(new Intent(this, LocalWebActivity.class).putExtra("provider", "claude")));
         button(layout, "Stop local host", () -> {
             stopService(new Intent(this, HostService.class));
             HostService.status(this, "Stopped. Saved sessions remain on disk."); updateStatus();

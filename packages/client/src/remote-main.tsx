@@ -275,6 +275,11 @@ const SettingsLayout = lazy(() =>
     default: SettingsLayout,
   })),
 );
+const ProviderSignInPage = lazy(() =>
+  import("./pages/ProviderSignInPage").then((m) => ({
+    default: m.ProviderSignInPage,
+  })),
+);
 const WorkstreamsPage = lazy(() =>
   loadWorkstreamsPageModule().then(({ WorkstreamsPage }) => ({
     default: WorkstreamsPage,
@@ -416,6 +421,10 @@ const APP_ROUTES = (
       <Route path="bang-commands" element={routeModule(<BangCommandsPage />)} />
       <Route path="devices" element={routeModule(<EmulatorPage />)} />
       <Route path="devices/:deviceId" element={routeModule(<EmulatorPage />)} />
+      <Route
+        path="provider-sign-in/:provider"
+        element={routeModule(<ProviderSignInPage />)}
+      />
       <Route path="settings" element={routeModule(<SettingsLayout />)} />
       <Route
         path="settings/:category"

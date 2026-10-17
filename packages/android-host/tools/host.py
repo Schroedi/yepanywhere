@@ -143,9 +143,13 @@ def prepare(cache, skip_build):
 
 def device(serial, action):
     controller = Path(os.environ.get('MACHINE_CONTROL_ANDROID', Path.home() / 'code/machine-control/platforms/android/bin/android-device'))
-    doctor = json.loads(subprocess.check_output([str(controller), '--serial', serial, 'doctor', '--json']))
-    if not doctor['ready']:
-        raise RuntimeError('Selected device is not ready')
+    result = subprocess.run([str(controller), '--serial', serial, 'doctor', '--json'], capture_output=True, text=True)
+    doctor = json.loads(result.stdout)
+    # Provisioning needs authorized ADB and decrypted app storage, not an
+    # unlocked display. Overall doctor readiness also includes UI interaction.
+    if (any(doctor.get('states', {}).get(name) != 'ready' for name in ['connection', 'boot', 'administration'])
+            or doctor.get('extensions', {}).get('userStorage') != 'unlocked'):
+        raise RuntimeError('Selected device needs authorized ADB, completed boot and unlocked user storage')
     if action == 'install':
         run(str(controller), '--serial', serial, 'install', str(PACKAGE / 'app/build/outputs/apk/debug/app-debug.apk'))
         return

@@ -142,6 +142,11 @@ const SettingsLayout = lazy(() =>
     default: SettingsLayout,
   })),
 );
+const ProviderSignInPage = lazy(() =>
+  import("./pages/ProviderSignInPage").then((m) => ({
+    default: m.ProviderSignInPage,
+  })),
+);
 const WorkstreamsPage = lazy(() =>
   import("./pages/WorkstreamsPage").then(({ WorkstreamsPage }) => ({
     default: WorkstreamsPage,
@@ -395,6 +400,10 @@ if (import.meta.env.DEV && window.location.port === String(__VITE_DEV_PORT__)) {
                     <Route
                       path="/git-status"
                       element={routeModule(<GitStatusPage />)}
+                    />
+                    <Route
+                      path="/provider-sign-in/:provider"
+                      element={routeModule(<ProviderSignInPage />)}
                     />
                     <Route
                       path="/bang-commands"

@@ -79,3 +79,33 @@ neither runs PRoot nor simulates Android's kernel or service lifecycle. Its
 restart persistence check is deliberately separate from physical Android
 acceptance. See the [owning topic](../../topics/android-host.md) and
 [development commands](../../packages/android-host/README.md).
+
+## Provider setup follow-up
+
+The first Pixel 9 sign-in attempt failed before a device code could be issued.
+The phone's exported Alpine `/etc/resolv.conf` was empty; a guest HTTPS probe
+returned curl exit 6 (could not resolve the provider host). Docker's successful
+networking had not tested the exported filesystem's phone DNS configuration.
+
+The Android foreground service now mirrors its active network's advertised
+DNS into an app-private file bound into Alpine, updates that file on network
+callbacks, and unregisters when stopped. No public DNS fallback is selected.
+The updated service runs on the physical Pixel 9 and real CLI sign-in requests
+now produce a Codex device code/link and Claude authorization link. Those test
+flows are cancelled without completing account authorization or inference.
+
+Native provider setup shortcuts open focused shared YA routes, also available
+to desktop and remote clients. Pending requests, CLI output and errors remain
+visible. The Android WebView handles user-initiated new-window HTTPS links via
+the browser, using the existing companion's bounded popup-resolver pattern.
+Actual browser handoff/account completion still awaits an unlocked physical
+phone; a synthetic desktop/mobile browser test is not that proof.
+
+Focused browser checks exercise both the existing flow and the dedicated page,
+including visible startup failures, retry, and sequential code entry across
+CLI progress updates. Desktop/phone captures are retained locally. Android
+build/lint, shared Alpine smoke, root lint/format/typecheck and the full unit
+suite pass. An initial concurrent build/test run hit one unrelated CLI process
+test failure; that file and the subsequent full suite pass without test edits.
+Provisioning now distinguishes unlocked user storage from an unlocked screen:
+APK/runtime replacement can proceed while the screen remains securely locked.

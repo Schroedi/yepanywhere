@@ -17,6 +17,7 @@ public final class HostService extends Service {
     private final Object lock = new Object();
     private Process child;
     private File groupFile;
+    private HostResolver resolver;
     private boolean started, stopping;
 
     @Override public IBinder onBind(Intent intent) { return null; }
@@ -52,9 +53,14 @@ public final class HostService extends Service {
             File home = state(this); home.mkdirs();
             File tmp = new File(getCacheDir(), "proot"); tmp.mkdirs();
             String lib = getApplicationInfo().nativeLibraryDir;
+            synchronized (lock) {
+                if (stopping) return;
+                resolver = new HostResolver(this);
+            }
             List<String> command = new ArrayList<>(Arrays.asList(
                 lib + "/libproot.so", "--kill-on-exit", "--link2symlink", "-0",
                 "-r", root.toString(), "-b", "/dev", "-b", "/proc", "-b", "/sys",
+                "-b", resolver.file + ":/etc/resolv.conf",
                 "-b", home + ":/home/host", "-w", "/home/host", "/usr/bin/env", "-i",
                 "HOME=/home/host", "LANG=C.UTF-8", "PATH=/usr/bin:/bin",
                 "/usr/bin/node", "/opt/host/launch.mjs"));
@@ -99,7 +105,10 @@ public final class HostService extends Service {
         running = false;
         Process process;
         File pidFile;
-        synchronized (lock) { stopping = true; process = child; pidFile = groupFile; }
+        synchronized (lock) {
+            stopping = true; process = child; pidFile = groupFile;
+            if (resolver != null) resolver.close();
+        }
         if (process != null) {
             new Thread(() -> {
                 try {

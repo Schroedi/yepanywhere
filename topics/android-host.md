@@ -39,6 +39,13 @@ login, credential persistence/refresh and a real agent task; polish follows.
 - The runtime binds only loopback. A private persistent local access token uses
   YA's existing desktop-token API/WebSocket mechanism; anonymous API requests
   cannot access the host. The scaffold does not use `AUTH_DISABLED=true`.
+- Android supplies the guest's DNS configuration from its active network's
+  advertised DNS servers. The service owns one network callback, updates the
+  bound resolver file in place on network changes, and unregisters on Stop.
+  There is no hard-coded public resolver fallback. Docker's empty exported
+  resolver cannot establish phone networking. This does not implement Android's
+  DNS-over-TLS policy inside musl; strict encrypted-DNS-only networks still need
+  separate validation.
 - Provider profiles, YA data, local credentials and development config are under
   the app-private persistent home, separate from the replaceable runtime. Direct,
   AAR and mock profiles remain separate. Existing direct Codex config wins over
@@ -53,6 +60,10 @@ login, credential persistence/refresh and a real agent task; polish follows.
 - Permission actions are contextual and explicit. Notification state and battery
   optimization state are visible. Battery exemption supports continuing active
   sessions; it does not authorize remote access or promise unlimited execution.
+- Native Set up Claude/Codex controls open the shared focused YA provider sign-in
+  page. User-initiated HTTPS new-window links open the Android browser, with no
+  privileged JS bridge or external access to local host credentials. Actual
+  account authorization remains an explicit browser step by the user.
 - AAR development setup creates an account-scoped temporary grant and USB
   inference tunnel. Upstream OAuth and router control stay on the computer.
   Cleanup revokes first and retains a local recovery lease on failure.
