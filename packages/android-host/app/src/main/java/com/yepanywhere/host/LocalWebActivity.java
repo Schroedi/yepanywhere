@@ -12,6 +12,14 @@ import java.nio.file.Files;
 public final class LocalWebActivity extends Activity {
     private WebView web;
     private WebView popup;
+    private void openBrowser(Uri uri) {
+        if (!"http".equalsIgnoreCase(uri.getScheme()) && !"https".equalsIgnoreCase(uri.getScheme())) return;
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW, uri).addCategory(Intent.CATEGORY_BROWSABLE));
+        } catch (android.content.ActivityNotFoundException error) {
+            android.widget.Toast.makeText(this, R.string.browser_unavailable, android.widget.Toast.LENGTH_LONG).show();
+        }
+    }
     private void closePopup(WebView child) {
         if (popup == child) { popup = null; child.destroy(); }
     }
@@ -26,13 +34,14 @@ public final class LocalWebActivity extends Activity {
             web.getSettings().setSupportMultipleWindows(true);
             web.setWebViewClient(new WebViewClient() {
                 @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                    if (!request.isForMainFrame()) return false;
                     Uri uri = request.getUrl();
                     if ("http".equals(uri.getScheme()) && "127.0.0.1".equals(uri.getHost()) && uri.getPort() == 13400) return false;
-                    if ("https".equals(uri.getScheme())) startActivity(new Intent(Intent.ACTION_VIEW, uri));
+                    openBrowser(uri);
                     return true;
                 }
             });
-            // Provider links use target=_blank. Android needs an explicit
+            // Ordinary links can use target=_blank. Android needs an explicit
             // window transport or the tap can silently do nothing.
             web.setWebChromeClient(new WebChromeClient() {
                 @Override public boolean onCreateWindow(WebView view, boolean dialog, boolean gesture, android.os.Message message) {
@@ -45,7 +54,7 @@ public final class LocalWebActivity extends Activity {
                         }
                         @Override public boolean shouldOverrideUrlLoading(WebView child, WebResourceRequest request) {
                             Uri uri = request.getUrl();
-                            if (request.isForMainFrame() && "https".equals(uri.getScheme())) startActivity(new Intent(Intent.ACTION_VIEW, uri));
+                            if (request.isForMainFrame()) openBrowser(uri);
                             child.post(() -> closePopup(child));
                             return true;
                         }

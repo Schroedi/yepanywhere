@@ -61,7 +61,11 @@ login, credential persistence/refresh and a real agent task; polish follows.
   optimization state are visible. Battery exemption supports continuing active
   sessions; it does not authorize remote access or promise unlimited execution.
 - Native Set up Claude/Codex controls open the shared focused YA provider sign-in
-  page. User-initiated HTTPS new-window links open the Android browser, with no
+  page. HTTP and HTTPS links outside YA's exact loopback origin open the system
+  browser, including localhost development-server links. Both ordinary links
+  and user-initiated new-window links support this handoff. Ordinary navigation
+  within YA's own origin stays in the WebView; subframe loads do not launch a
+  browser. An unavailable browser produces visible feedback. There is no
   privileged JS bridge or external access to local host credentials. Actual
   account authorization remains an explicit browser step by the user.
 - AAR development setup creates an account-scoped temporary grant and USB

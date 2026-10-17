@@ -1,4 +1,5 @@
 <resources>
+    <string name="browser_unavailable">No browser is available to open this link.</string>
   <string name="host_heading">Yep Anywhere Host · Experimental</string>
   <string name="host_planned">Remote wake and guided provider setup are planned.</string>
   <string name="host_status">\n%1$s\nNotifications: %2$s\nBackground battery setting: %3$s\n</string>
