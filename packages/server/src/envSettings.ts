@@ -108,6 +108,12 @@ export function redactSecretValue(value: string): string {
 }
 
 export const ENV_VAR_REGISTRY: EnvVarDescriptor[] = [
+  {
+    name: "YEP_EXTERNAL_SESSIONS",
+    group: "Sessions & scanning",
+    description:
+      "Enable external-session activity tracking and host process inventory. Default true; self-contained hosts set false. Native history in configured provider stores remains readable.",
+  },
   // Server & network
   {
     name: "PORT",

@@ -1,5 +1,12 @@
 # Roadmap
 
+On-device Android hosting is authorized as a separate incubation effort
+(2026-10-17), not a blocker or replacement for the published mobile companion.
+The [Android host contract](../../topics/android-host.md) owns the scaffold,
+shared Alpine runtime, disabled external desktop observers and the remaining
+lifecycle/authentication work. Remote wake is a later experiment. The existing
+YA sign-in UI is not assumed to be the validated phone onboarding baseline.
+
 Last updated: 2026-10-17.
 
 This is Yep Anywhere's canonical product-priority overview. Keep initiative

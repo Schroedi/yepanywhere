@@ -398,6 +398,8 @@ import {
 import { LifecycleWebhookService } from "./webhooks/LifecycleWebhookService.js";
 
 export interface AppOptions {
+  /** False for self-contained hosts with no external provider sessions. */
+  externalSessionsEnabled?: boolean;
   /** Owned update-service lookup for embedded applications and test fixtures. */
   getLatestVersion?: VersionRouteOptions["getLatestVersion"];
   artifacts?: ArtifactConfig;
@@ -2211,19 +2213,20 @@ export function createApp(options: AppOptions): AppResult {
   );
 
   // Create external session tracker if eventBus is available
-  const externalTracker = options.eventBus
-    ? new ExternalSessionTracker({
-        eventBus: options.eventBus,
-        supervisor,
-        scanner,
-        projectDisplayName,
-        decayMs: 30000, // 30 seconds
-        // Callback to get session summary for new external sessions
-        // projectId is now UrlProjectId (base64url) - ExternalSessionTracker converts it
-        getSessionSummary,
-        getSessionListSummary,
-      })
-    : undefined;
+  const externalTracker =
+    options.eventBus && options.externalSessionsEnabled !== false
+      ? new ExternalSessionTracker({
+          eventBus: options.eventBus,
+          supervisor,
+          scanner,
+          projectDisplayName,
+          decayMs: 30000, // 30 seconds
+          // Callback to get session summary for new external sessions
+          // projectId is now UrlProjectId (base64url) - ExternalSessionTracker converts it
+          getSessionSummary,
+          getSessionListSummary,
+        })
+      : undefined;
 
   let projectQueueScheduler: ProjectQueueScheduler | undefined;
   if (options.eventBus && options.projectQueueService) {
@@ -2814,6 +2817,7 @@ export function createApp(options: AppOptions): AppResult {
       createHostAgentProcessesRoutes({
         supervisor,
         serverSettingsService: options.serverSettingsService,
+        enabled: options.externalSessionsEnabled !== false,
       }),
     );
   }

@@ -1,0 +1,7 @@
+<resources>
+  <string name="host_heading">Yep Anywhere Host · Experimental</string>
+  <string name="host_planned">Remote wake and guided provider setup are planned.</string>
+  <string name="host_status">\n%1$s\nNotifications: %2$s\nBackground battery setting: %3$s\n</string>
+  <string name="allowed">allowed</string><string name="off">off</string><string name="optimized">optimized</string>
+  <string name="start_first">Start the local host first, then reopen Yep Anywhere.</string>
+</resources>

@@ -5,6 +5,8 @@ import type { ServerSettingsService } from "../services/ServerSettingsService.js
 import type { Supervisor } from "../supervisor/Supervisor.js";
 
 export interface HostAgentProcessesRoutesDeps {
+  /** Immutable deployment ceiling, independent of the editable setting. */
+  enabled?: boolean;
   supervisor: Supervisor;
   serverSettingsService: ServerSettingsService;
   service?: HostAgentProcessService;
@@ -31,6 +33,7 @@ export function createHostAgentProcessesRoutes(
 
   routes.get("/", async (c) => {
     if (
+      deps.enabled === false ||
       !deps.serverSettingsService.getSettings().hostProcessObservabilityEnabled
     ) {
       service.clear();
