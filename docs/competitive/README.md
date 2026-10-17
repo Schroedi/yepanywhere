@@ -5,6 +5,12 @@ Analysis of similar tools in the AI coding agent supervisor space.
 **[Feature Matrix](feature-matrix.md)** — Historical checklist plus links to
 dated source reviews; use the newer reviews for current comparisons.
 
+**[Happy and T3 Android health](happy.md#android-adoption-and-project-health-versus-t3-code)**
+— 2026-10-17 public-evidence review of Happy's unified-harness pivot,
+implemented team mode, mobile/runtime boundaries, Android adoption and issue
+reports. [T3's October follow-up](t3code.md#october-17-follow-up-android-health-and-adoption)
+records its 2.0 mobile release and qualifies Android reliability comparisons.
+
 **[T3 Code remote environments](t3code-remote-sessions.md)** — 2026-10-03
 source review of enrollment, SSH server ownership, target-local credentials and
 worktrees, Git/PR workflows, disconnect/restart recovery, and implications for
@@ -30,7 +36,7 @@ Official apps from AI providers:
 | [emdash](emdash.md) | Desktop app | 20+ | Multi-agent orchestration, git worktrees |
 | [Conductor](conductor.md) | macOS app | Claude, Codex | Git worktree isolation |
 | [HAPI](hapi.md) | Web + CLI | Claude, Codex, Gemini, OpenCode | CLI-wrapper architecture, terminal page |
-| [Happy](happy.md) | Mobile + CLI | Claude, Codex | Voice commands, native mobile apps |
+| [Happy](happy.md) | Desktop + headless runtime + native mobile; legacy CLI | Claude, Codex, Grok | Unified harness, persistent bots, encrypted mobile sync, shared team sessions and collaborative documents |
 | [CosmoRemote](cosmoremote.md) | Native mobile + Mac bridge | Claude, Codex, Cursor, terminal | Multi-Mac mobile fleet and interactive simulator/emulator streaming |
 
 See also [Community Projects](community-projects.md) for smaller tools shared on Reddit/forums.
@@ -41,6 +47,8 @@ See also [Community Projects](community-projects.md) for smaller tools shared on
 2026-09-30 product review of HumanLayer, Delta, Coshell, mpai, Slack Code, and
 YC activity; distinguishes shared conversations from shared projects and records
 permission boundaries, open-source status, and relevance to YA's proposals.
+A dated October 17 follow-up adds Happy's implemented shared-server team mode
+and its broad access/membership-management limits.
 
 | Product | Type | Key Differentiator |
 |---------|------|-------------------|
@@ -104,6 +112,11 @@ encrypted authenticated relay boundary. Warp's published session content is
 uploaded to its service; its open execution worker does not replace the hosted
 control plane.
 
+The [Happy review](happy.md) now confirms daemon-owned execution, worktrees,
+mixed-model orchestration and human multiplayer. Against Happy, distinguish
+YA's provider-owned runtimes and native history from Happy's recreated
+execution harness; do not reuse the February process/worktree absence claims.
+
 ## Common Gaps
 
 Features competitors have that we should consider:
@@ -124,5 +137,5 @@ See **[Ecosystem](../ecosystem/)** for adjacent projects — agent-to-agent coor
 
 ## Last Updated
 
-2026-10-03 (focused T3 remote-environment source review added;
-other competitor snapshots retain their own dates)
+2026-10-17 (Happy pivot/multiplayer/mobile review and T3 Android health
+follow-up; other competitor snapshots retain their own dates)
