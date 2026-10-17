@@ -28,7 +28,7 @@ The seeded emulator cut/refusal/stall matrix and eighteen viewer teardowns pass;
 a separate burst verifies twenty image reads during each fault. Three real
 launcher resumes retain the artifact/draft and show one recovery interval each.
 The eight-reader 128 KiB/s diagnostic now reproduces a relay circuit queue
-closure in two actual-app runs; aggregate flow control remains a failing gate. The
+closure in three actual-app runs; aggregate flow control remains a failing gate. The
 [measured report](../testing/android-artifact-streaming-2026-10-16.md) preserves an
 earlier 103.2 ms frame miss and the narrower coverage of these passes.
 Parent reload recovery now reclaims orphaned preview leases while preserving
@@ -36,9 +36,10 @@ live owners; eighteen actual-app restorations and browser concurrency checks
 pass. Eighteen same-host native-tab round trips also pass with explicit artifact
 reopening and draft/route retention. One forced process loss also recovers saved
 native pairing and fresh artifact access without credential injection. Physical
-lifecycle/source acceptance and an unlocked-phone run remain. A
-connection-wide streaming-window negotiation awaits maintainer compatibility
-approval; current per-body bounds alone do not bound cancelled relay tails.
+lifecycle/source acceptance and a fresh phone run remain. The maintainer approved
+a coordinated beta native/server connection window without an echo negotiation
+or old-Android compatibility layer; implementation and qualification are next.
+Current per-body bounds alone do not bound cancelled relay tails.
 Nothing in this implementation phase has been published.
 
 ## 1. Publish the desktop and mobile apps with continuous delivery

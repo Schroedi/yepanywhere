@@ -19,7 +19,7 @@ show one recovery interval with fresh asset reads and no app errors. One earlier
 with 406 passes, ten skips and five failures;
 three repaired cases pass focused reruns, while the unrelated App sandbox and
 WebRTC readiness failures remain recorded in the report. No new
-connection-window wire mode has been implemented. Two actual-app eight-reader
+connection-window wire mode has been implemented. Three actual-app eight-reader
 128 KiB/s diagnostics now reproduce a relay circuit queue closure; passive
 observations distinguish the stress delta from earlier physical mux closures.
 See the measured report for the red baseline and its memory-sampling limits.
@@ -236,31 +236,33 @@ above its 100 ms gate. Record event/input/paint clocks before attributing that
 round-trip to UI latency or changing an assertion. These are failed qualification
 attempts, not a passing artifact acceptance.
 
-### Connection-window compatibility proposal (approval pending)
+### Accepted native connection window — 2026-10-17
 
-A sum over active streams alone is insufficient: completed/cancelled tails can
-still be queued in the relay after their bookkeeping disappears. Native readers
-will opt into a separately versioned per-request connection-window mode, and
-use it only when the response start echoes that mode. Upgraded servers retain
-window charges through final receipt/consumption, including cancelled tails;
-new native readers acknowledge discarded received bytes after cancellation.
-Older servers omit the echo and retain the existing stream path. Ordinary
-browser peers remain on their existing mode. This is optional framing/flow
-control, not a broader meaning for `artifact-relay-preview` or a new principal.
-Inspect the supported core stable corpus and preserve existing fallback before
-landing it. No publishing/deployment is part of this task.
+The maintainer clarified that Android is unreleased beta and approved a
+coordinated native/server update without extra compatibility negotiation or
+old-beta support. Native requests select `stream: "connection"` directly;
+there is no response echo, new capability, or version-dependent native branch.
+Ordinary browser requests retain `stream: true` and the existing per-response
+window. SRP login, pairing, encryption and browser server compatibility remain
+unchanged. The shared Rust native core is also used by the unreleased iOS app;
+this implementation phase qualifies Android, not iOS artifact rendering.
 
-The inspected core compatibility corpus is v0.8.0, v0.8.1, v0.9.0, v0.9.1
-and v0.9.2; none implements response streaming or this proposed negotiation.
-The concrete proposal is optional request `streamWindow: "connection-v1"`,
-activated only by the same echo in `response_stream_start`, with one shared
-1 MiB connection window. No echo selects the existing stream/buffered fallback;
-no new endpoint is requested and ordinary browser requests remain unchanged.
-The proposed shared accounting includes completed and cancelled tails until
-acknowledged, rather than freeing credit when the request leaves the active map.
-[Minimum compatibility horizons](../../topics/server-capabilities.md#minimum-compatibility-horizons)
-explicitly requires maintainer approval before this contract edit. That question
-is pending; no production implementation of this mode has been added.
+One 1 MiB window covers all native response streams on a logical authenticated
+connection. Completed and cancelled tails stay charged until the client
+acknowledges bytes actually consumed or received and discarded. Cancelling a
+producer does not pretend queued relay bytes have disappeared. Native end
+markers settle cancelled tails; receipt deadlines and retained-entry ceilings
+bound abandoned bookkeeping. The relay limits are preserved. A server can still
+return an ordinary buffered response for non-streamed content. This is flow
+control within the existing authenticated source, not a new principal or fetch
+bridge.
+
+The earlier proposal required an optional `streamWindow: "connection-v1"`
+request and matching response echo, with old-native fallback. It was not
+implemented and is superseded by this explicit beta decision. The earlier
+stable-corpus audit remains historical evidence, not an approval blocker.
+The maintainer also authorized emulator substitution if the physical phone
+locks again and confirmed Claude reviewers may be used with bypass permissions.
 
 The next actual-pane attempt recorded trusted key-event timestamps through
 input and animation frame, while retaining per-key value checks. Artifact:
