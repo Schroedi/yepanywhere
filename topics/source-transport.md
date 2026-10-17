@@ -402,7 +402,9 @@ ordinary exponential backoff is not reset by every focus or key event.
 The source transport remains the recovery owner after authentication. Before
 there is an attached connection, the context or relay route's failed acquisition
 can retry on the same signals or visible slow cadence, never both concurrently.
-Success restores the existing route and live managed subscriptions. Recovery
+A failed acquisition makes exactly one attempt; re-renders caused by that
+failure, including a rebuilt but equal authentication scope, never start
+another. Success restores the existing route and live managed subscriptions. Recovery
 must preserve in-memory drafts and acknowledge sequential typing within 100 ms.
 Intentional disconnect, host switching, disposal and terminal verification/auth
 failures stop automatic recovery. Late completions cannot revive stopped or
