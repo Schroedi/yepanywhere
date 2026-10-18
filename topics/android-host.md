@@ -223,6 +223,14 @@ explicitly opt-in. Push may request a wake, never carry arbitrary shell commands
 or replace relay authentication. See [principals and grants](principals-and-grants.md)
 and [native push](android-fcm-push.md).
 
+## Web appearance
+
+The shared YA wizard and main web UI follow the Android system light/dark
+preference when appearance is Auto, including after a system theme change.
+Explicit Light, Dark and Very Dark choices remain authoritative. WebView's
+`prefers-color-scheme` comes from the native theme's day/night-qualified
+`isLightTheme` value; native toolbar colors do not override the web preference.
+
 ## Test boundary
 
 Portable unit checks protect configuration/persistence decisions. The real ARM64

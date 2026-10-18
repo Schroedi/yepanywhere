@@ -62,6 +62,13 @@ or recreating the view must not retain duplicate or stale safe-area padding.
 The shared web client's safe-area rules remain available to browsers and PWAs;
 Android does not override those rules globally.
 
+The WebView exposes the Android system light/dark preference through
+`prefers-color-scheme`, on initial entry and after a system theme change.
+YA's Auto appearance follows that preference; explicit Light, Dark and Very
+Dark choices remain authoritative. Native toolbar and system-bar colors do
+not determine the web preference. The Android theme's `isLightTheme` value
+follows day/night resources independently of the Compose palette.
+
 Native background work cannot depend on the WebView. The native connection core
 must support Compose and an explicitly enabled foreground activity
 service without allocating a WebView or JavaScript runtime. Native FCM receipt
