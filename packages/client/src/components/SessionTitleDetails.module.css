@@ -47,3 +47,9 @@
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
 }
+
+.singleLine {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

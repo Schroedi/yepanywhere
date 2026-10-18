@@ -151,6 +151,7 @@ for (const viewport of [
     await expect(list.getByText(text, { exact: true })).toHaveCount(1);
     await expect(list.locator('[data-render-type="text"]')).toHaveCount(1);
     await expect.poll(() => Boolean(emit)).toBe(true);
+    await expect(page.locator(".session-header-thinking")).toHaveCount(0);
     const composer = page.locator("[data-composer-input]");
     await composer.click();
     let typed = "";

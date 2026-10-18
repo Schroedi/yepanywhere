@@ -14887,10 +14887,6 @@ body:has(.session-page)
   justify-content: flex-end;
 }
 
-.session-header-thinking {
-  flex-shrink: 0;
-}
-
 .session-share-small-button,
 .session-share-icon-button {
   border: 1px solid var(--border-color);

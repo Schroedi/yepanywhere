@@ -63,6 +63,8 @@ reverse-of-removal by construction — form 1 above.
 ## Session Header Space
 
 The session header reserves space for the session title and the `…` menu.
+The model pill carries the activity indicator at every width; the header does
+not repeat it as a separate thinking icon.
 Its responsive tiers use the header column's width, including space taken by
 the sidebar or a docked pane, and restore controls in the reverse order:
 
@@ -72,7 +74,7 @@ the sidebar or a docked pane, and restore controls in the reverse order:
   filtered issue list. Hidden controls do not keep polling behind the menu.
 - Below 600 pixels, the model pill keeps model identity with abbreviated effort
   (`L`, `M`, `H`, `XH`), retains full accessible labels and its configuration
-  action, and carries the activity dot instead of a second thinking control.
+  action, and carries the activity dot.
   The project breadcrumb yields to the title; an enabled short project code
   may remain, while the full project name stays available in navigation.
 

@@ -40,11 +40,11 @@ Related topics: [recaps](recaps.md), [side-session-config](side-session-config.m
 The compact session header may ellipsize its title, but the complete title
 must remain reachable on touch devices without hovering or entering rename.
 The recent-sessions dropdown pins a **Current session** section above the
-other sessions. Its title wraps without a line limit, can be selected and
+other sessions. Its title stays on one line with ellipsis, can be selected and
 copied, and is sourced from the open session rather than the recent feed, so
 an old, archived or locally renamed session still shows correctly. The current
 session is not duplicated among navigation links. The whole dropdown scrolls
-within the viewport so a long title cannot make other sessions unreachable.
+within the viewport so the other sessions remain reachable.
 
 **Session Info** also starts with the complete, selectable title and a
 **Copy title** action. Copy failure leaves the text available for manual copy.

@@ -106,7 +106,7 @@ test("reads the full session title on phone and desktop without losing the draft
     { width: 375, height: 812 },
   ]) {
     await page.setViewportSize(size);
-    // The full text wraps and is selectable; selecting it never follows a
+    // The title stays on one line and is selectable; selecting it never follows a
     // current-session link or closes the dropdown.
     await header.locator(".session-title-recent-trigger").click();
     const current = page.getByRole("region", { name: "Current session" });
@@ -135,9 +135,9 @@ test("reads the full session title on phone and desktop without losing the draft
         userSelect: style.userSelect,
       };
     });
-    expect(geometry.height).toBeGreaterThan(geometry.lineHeight * 2);
-    expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.width);
-    expect(geometry.whiteSpace).toBe("pre-wrap");
+    expect(geometry.height).toBeLessThanOrEqual(geometry.lineHeight + 1);
+    expect(geometry.scrollWidth).toBeGreaterThan(geometry.width);
+    expect(geometry.whiteSpace).toBe("nowrap");
     expect(geometry.userSelect).toBe("text");
     await current.getByRole("button", { name: "Copy title" }).click();
     await expect(current.getByRole("status")).toHaveText("Title copied");

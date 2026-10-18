@@ -128,7 +128,6 @@ import { SessionRenameEditor } from "../components/SessionRenameEditor";
 import { useSessionHeaderLayout } from "../hooks/useSessionHeaderLayout";
 import { useProjectCodeNamePreferences } from "../hooks/useProjectCodeNamePreferences";
 import { SessionRecapModal } from "../components/SessionRecapModal";
-import { ThinkingIndicator } from "../components/ThinkingIndicator";
 import { ToolApprovalPanel } from "../components/ToolApprovalPanel";
 import type { ModalAnchorRect } from "../components/ui/Modal";
 import { AgentContentProvider } from "../contexts/AgentContentContext";
@@ -6418,25 +6417,6 @@ function SessionPageContent({
                 }}
                 t={t}
               />
-              {canStopOwnedProcess && !condensedHeader && (
-                <ThinkingIndicator
-                  variant="icon"
-                  className="session-header-thinking"
-                  label={
-                    providerRuntimeStatus
-                      ? t("toolbarProviderRuntimeAria", {
-                          summary:
-                            providerRuntimeStatus.kind === "terminal"
-                              ? providerRuntimeStatus.scope ===
-                                "provider_process"
-                                ? t("processInfoRuntimeProcessTerminal")
-                                : t("processInfoRuntimeTerminal")
-                              : t("processInfoRuntimeRetrying"),
-                        })
-                      : undefined
-                  }
-                />
-              )}
               {!hideHeaderSecondary && !loading && actualSessionId && (
                 <SessionIssuesLink
                   sessionId={actualSessionId}

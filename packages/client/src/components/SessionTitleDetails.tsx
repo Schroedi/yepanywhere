@@ -7,9 +7,11 @@ import styles from "./SessionTitleDetails.module.css";
 export function SessionTitleDetails({
   title,
   label,
+  singleLine = false,
 }: {
   title: string;
   label: string;
+  singleLine?: boolean;
 }) {
   const { t } = useI18n();
   const [copyResult, setCopyResult] = useState<{
@@ -33,7 +35,11 @@ export function SessionTitleDetails({
           {t("sessionCopyTitle")}
         </button>
       </div>
-      <p className={styles.title}>{title}</p>
+      <p
+        className={`${styles.title}${singleLine ? ` ${styles.singleLine}` : ""}`}
+      >
+        {title}
+      </p>
       {result && (
         <span className={styles.feedback} role="status">
           {t(result.success ? "sessionTitleCopied" : "sessionTitleCopyFailed")}
