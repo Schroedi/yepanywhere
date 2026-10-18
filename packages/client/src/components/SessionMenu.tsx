@@ -29,6 +29,8 @@ export interface SessionMenuProps {
   onToggleArchive: () => void | Promise<void>;
   onToggleRead?: () => void | Promise<void>;
   onRename: () => void;
+  /** Open Session Info directly, without visiting model configuration. */
+  onShowInfo?: () => void;
   /** Generate and apply a title through the provider helper flow. */
   onGenerateTitle?: () => void | Promise<void>;
   /** Copy the session's initial prompt, when available. */
@@ -100,6 +102,7 @@ export function SessionMenu({
   onToggleArchive,
   onToggleRead,
   onRename,
+  onShowInfo,
   onGenerateTitle,
   onCopyPrompt,
   onOpenNewTab,
@@ -334,6 +337,23 @@ export function SessionMenu({
 
   const dropdownContent = (
     <div ref={dropdownRef} className={styles.dropdown} style={dropdownStyle}>
+      {onShowInfo && (
+        <button type="button" onClick={() => handleAction(onShowInfo)}>
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 11v6M12 7h.01" />
+          </svg>
+          {t("sessionInfoShortcut")}
+        </button>
+      )}
       <button type="button" onClick={() => handleAction(onToggleStar)}>
         <svg
           width="14"

@@ -16,6 +16,7 @@ import { getProviderRuntimeReasonLabel } from "../lib/providerRuntimeStatus";
 import { isStandardServiceTier, serviceTierLabel } from "../lib/serviceTiers";
 import type { SessionStatus } from "../types";
 import styles from "./ProcessInfoModal.module.css";
+import { SessionTitleDetails } from "./SessionTitleDetails";
 import type { RouterBinding } from "./RouterPoolSelector";
 import { Modal } from "./ui/Modal";
 
@@ -44,6 +45,7 @@ interface ProcessInfo {
 
 interface ProcessInfoBodyProps {
   sessionId: string;
+  sessionTitle: string;
   provider: ProviderName;
   model?: string;
   /** Last persisted launch tier; null is Standard, undefined is unknown. */
@@ -278,6 +280,7 @@ function Section({
 
 export function ProcessInfoBody({
   sessionId,
+  sessionTitle,
   provider,
   model,
   savedServiceTier,
@@ -392,6 +395,7 @@ export function ProcessInfoBody({
 
   return (
     <div className={styles.content}>
+      <SessionTitleDetails title={sessionTitle} label={t("sessionFullTitle")} />
       {/* Session Info - always available */}
       <Section title={t("processInfoSectionSession")}>
         <InfoRow

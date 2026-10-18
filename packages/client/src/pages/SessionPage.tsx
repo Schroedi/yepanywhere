@@ -2541,6 +2541,11 @@ function SessionPageContent({
   const [modelPanelInitialTab, setModelPanelInitialTab] = useState<
     "model" | "info"
   >("model");
+  const openSessionInfo = useCallback(() => {
+    setShowRecentSessions(false);
+    setModelPanelInitialTab("info");
+    setShowModelSwitchModal(true);
+  }, []);
   const [showHandoffModal, setShowHandoffModal] = useState(false);
 
   // Track user engagement to mark session as "seen"
@@ -6310,6 +6315,7 @@ function SessionPageContent({
                     )}
                     <RecentSessionsDropdown
                       currentSessionId={sessionId}
+                      currentSessionTitle={titleTooltip}
                       isOpen={showRecentSessions}
                       onClose={() => setShowRecentSessions(false)}
                       onNavigate={() => setShowRecentSessions(false)}
@@ -6338,6 +6344,7 @@ function SessionPageContent({
                     onToggleArchive={handleToggleArchive}
                     onToggleRead={handleToggleRead}
                     onRename={handleStartEditingTitle}
+                    onShowInfo={openSessionInfo}
                     onGenerateTitle={
                       supportsTitleGeneration
                         ? handleGenerateAndApplyTitle
@@ -6575,6 +6582,7 @@ function SessionPageContent({
               session ? (
                 <ProcessInfoBody
                   sessionId={actualSessionId}
+                  sessionTitle={titleTooltip}
                   provider={session.provider}
                   model={session.model}
                   savedServiceTier={savedLaunchSettings?.serviceTier}
@@ -7264,6 +7272,27 @@ function SessionPageContent({
                       : undefined
                   }
                 />
+              )}
+              {!loading && session && (
+                <button
+                  type="button"
+                  className={styles.sessionInfoShortcut}
+                  onClick={openSessionInfo}
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    aria-hidden="true"
+                  >
+                    <circle cx="12" cy="12" r="9" />
+                    <path d="M12 11v6M12 7h.01" />
+                  </svg>
+                  {t("sessionInfoShortcut")}
+                </button>
               )}
             </div>
           </footer>
