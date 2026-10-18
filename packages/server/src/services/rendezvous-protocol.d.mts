@@ -25,6 +25,8 @@ export function subscribe(
   options?: { route?: string; latest?: boolean; receivedAt?: number },
 ): Promise<RendezvousSubscription>;
 
+export function settleLatest(root: string): Promise<void>;
+
 export function publishLatest(
   root: string,
   route: string,

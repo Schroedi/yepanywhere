@@ -1,10 +1,15 @@
 import {
+  lstat,
+  mkdir,
   mkdtemp,
   readdir,
   readFile,
+  readlink,
   realpath,
   rename,
   rm,
+  unlink,
+  utimes,
   writeFile,
 } from "node:fs/promises";
 import { hostname, tmpdir } from "node:os";
@@ -228,6 +233,61 @@ it.skipIf(process.platform !== "linux")(
       wait,
     );
     expect(sent).toHaveLength(1);
+  },
+  20_000,
+);
+
+it.skipIf(process.platform === "win32")(
+  "delivers nested files, skips unchanged originals, and sets aside an unlistened latest-session",
+  async () => {
+    const { root, sent, start, stop } = await harness();
+    await start();
+    const latest = join(root, "latest-session");
+    // Before any session is messaged the pointer leads nowhere, so senders
+    // fail instead of creating a directory.
+    await vi.waitFor(
+      async () =>
+        expect(await readlink(latest)).toBe(".no-session-messaged-yet/inbox"),
+      wait,
+    );
+    await subscribe(root, target, { latest: true, receivedAt: 100 });
+    await stop();
+    // rsync into a missing pointer creates a real directory; its files
+    // arrived with nobody listening and are moved aside undelivered.
+    await unlink(latest);
+    await mkdir(latest);
+    await writeFile(join(latest, "early.txt"), "before anyone listened");
+    await start();
+    // The marker start() awaits precedes this repair, so wait for it too.
+    await vi.waitFor(
+      async () => expect((await lstat(latest)).isSymbolicLink()).toBe(true),
+      wait,
+    );
+    const [aside] = await readdir(join(root, "unrouted"));
+    expect(await readdir(join(root, "unrouted", aside ?? ""))).toEqual([
+      "early.txt",
+    ]);
+
+    // A folder created while watching is watched; each file in it is
+    // delivered under its inbox-relative name.
+    await mkdir(join(latest, "123", "456"), { recursive: true });
+    const part = join(latest, "123", "456", ".notes.part");
+    await writeFile(part, "first");
+    await utimes(part, 1000, 1000);
+    await rename(part, join(latest, "123", "456", "notes.txt"));
+    await vi.waitFor(() => expect(sent).toHaveLength(1), wait);
+    expect(sent[0]?.text).toContain("[123/456/notes.txt]");
+
+    // Same size and mtime is rsync's test for unchanged: not reread, even
+    // though the bytes differ.
+    await stop();
+    const notes = join(latest, "123", "456", "notes.txt");
+    await writeFile(notes, "other");
+    await utimes(notes, 1000, 1000);
+    await start();
+    await writeFile(notes, "changed");
+    await vi.waitFor(() => expect(sent).toHaveLength(2), wait);
+    expect(sent[1]?.text).toContain("[123/456/notes.txt]");
   },
   20_000,
 );

@@ -89,8 +89,26 @@ second, so a direct `scp` that stalls longer, or is interrupted, can deliver an
 incomplete file; the completed file then arrives as a new upload. rsync's final
 rename avoids both. Destination files
 stay in place, so subsequent rsync runs can compare size and modification time.
-The watcher compares file content to avoid redelivery of unchanged uploads and
-to notice a filename overwritten with new content.
+The watcher applies the same test: an original whose size and modification
+time match its last capture is not reread, so restarts stay cheap however many
+originals accumulate. A changed one is compared by content, so an unchanged
+upload is never delivered twice and an overwritten name with new content is.
+
+Uploads may sit in nested folders, such as `latest-session/123/shot.png`.
+Folders are noticed when created or moved in, and each file in them is
+delivered separately under its inbox-relative name. Symlinks are not followed.
+rsync creates only the last component of a missing destination path, and
+`--mkpath` creates its parents.
+
+Write into `latest-session/`, never over `latest-session` itself. Until a
+session in the project has been messaged, the watcher points it at
+`.no-session-messaged-yet/inbox`, which never exists, so `test -d`, scp and
+rsync fail instead of creating a directory nobody delivers from. After the
+first user message it stays pointed at the latest session. If `latest-session`
+is nevertheless an ordinary directory, which rsync creates when the pointer is
+missing, nothing was listening for those files: the next user turn, or the
+watcher's start, moves that directory to `.rendez/unrouted/<epoch-ms>-<id>/`
+without delivering it and restores the pointer.
 
 ## Accidental bulk transfers
 

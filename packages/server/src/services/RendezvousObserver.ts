@@ -9,6 +9,7 @@ import {
   MAX_ROUTES,
   type RendezvousTarget,
   atomicJson,
+  settleLatest,
 } from "./rendezvous-protocol.mjs";
 
 /**
@@ -74,6 +75,9 @@ export interface RendezvousRecord {
   path?: string;
   originalName?: string;
   originalPath?: string;
+  originalSize?: number;
+  /** Nanoseconds as a decimal string; JSON numbers cannot hold them exactly. */
+  originalMtimeNs?: string;
   sha256?: string;
   mimeType?: string;
   size?: number;
@@ -405,22 +409,43 @@ class BurstAdmission {
   }
 }
 
+/**
+ * Size and mtime of the last captured original, by route and inbox-relative
+ * name. An original that still matches is not copied and hashed again, the
+ * same test rsync uses to skip unchanged files.
+ */
+type Seen = Map<string, string>;
+
+function seenKey(route: string, name: string): string {
+  return `${route}\0${name}`;
+}
+
+function fingerprint(size: bigint | number, mtimeNs: bigint | string): string {
+  return `${size}:${mtimeNs}`;
+}
+
 /** Copy one completed incoming file into a new immutable delivery record. */
 async function snapshot(
   root: string,
   route: string,
   name: string,
+  seen: Seen,
 ): Promise<RendezvousRecord | undefined> {
-  if (name.startsWith(".")) return undefined;
+  if (name.split("/").some((part) => part.startsWith("."))) return undefined;
   const source = join(root, "routes", route, "inbox", name);
   let stats: Awaited<ReturnType<typeof fs.lstat>>;
   try {
-    stats = await fs.lstat(source);
+    stats = await fs.lstat(source, { bigint: true });
   } catch (error) {
     if (errorCode(error) === "ENOENT") return undefined;
     throw error;
   }
   if (!stats.isFile()) return undefined;
+  if (
+    seen.get(seenKey(route, name)) === fingerprint(stats.size, stats.mtimeNs)
+  ) {
+    return undefined;
+  }
   if (stats.size > MAX_UPLOAD_BYTES) {
     getLogger().warn(
       { source, size: stats.size },
@@ -440,13 +465,15 @@ async function snapshot(
     scratch,
     `file${/^\.[\p{L}\p{N}]+$/u.test(suffix) ? suffix : ""}`,
   );
+  let original: { size: bigint; mtimeNs: bigint } | undefined;
   try {
     const hash = createHash("sha256");
     const input = await fs.open(source, "r");
     try {
       const output = await fs.open(copied, "wx");
       try {
-        const before = await input.stat();
+        const before = await input.stat({ bigint: true });
+        original = before;
         const buffer = Buffer.alloc(1024 * 1024);
         let total = 0;
         for (;;) {
@@ -463,12 +490,12 @@ async function snapshot(
           hash.update(buffer.subarray(0, bytesRead));
           await output.write(buffer, 0, bytesRead);
         }
-        const after = await input.stat();
+        const after = await input.stat({ bigint: true });
         await output.sync();
         if (
           before.size !== after.size ||
-          before.mtimeMs !== after.mtimeMs ||
-          before.ctimeMs !== after.ctimeMs
+          before.mtimeNs !== after.mtimeNs ||
+          before.ctimeNs !== after.ctimeNs
         ) {
           return undefined;
         }
@@ -481,7 +508,11 @@ async function snapshot(
     const sha256 = hash.digest("hex");
     const id = uuid5(`${root}/${route}/${name}/${sha256}`);
     const destination = join(directory, id);
-    if (await exists(destination)) return undefined;
+    const captured = fingerprint(original.size, original.mtimeNs);
+    if (await exists(destination)) {
+      seen.set(seenKey(route, name), captured);
+      return undefined;
+    }
     const record: RendezvousRecord = {
       version: 1,
       id,
@@ -489,6 +520,8 @@ async function snapshot(
       target,
       originalName: name,
       originalPath: source,
+      originalSize: Number(original.size),
+      originalMtimeNs: original.mtimeNs.toString(),
       sha256,
       path: join(destination, basename(copied)),
       state: "pending",
@@ -498,15 +531,17 @@ async function snapshot(
     await atomicJson(join(scratch, "record.json"), record);
     // Renaming onto an existing, never-empty event directory fails, so
     // exactly one observer captures each upload without a lock.
+    let created: RendezvousRecord | undefined = record;
     try {
       await fs.rename(scratch, destination);
     } catch (error) {
-      if (errorCode(error) === "EEXIST" || errorCode(error) === "ENOTEMPTY") {
-        return undefined;
+      if (errorCode(error) !== "EEXIST" && errorCode(error) !== "ENOTEMPTY") {
+        throw error;
       }
-      throw error;
+      created = undefined;
     }
-    return record;
+    seen.set(seenKey(route, name), captured);
+    return created;
   } finally {
     await fs.rm(scratch, { recursive: true, force: true });
   }
@@ -592,6 +627,7 @@ export class RendezvousObserver {
   private root = "";
   private admission?: BurstAdmission;
   private readonly watchers = new Map<string, FSWatcher>();
+  private readonly seen: Seen = new Map();
   private readonly settling = new Map<
     string,
     { timer: ReturnType<typeof setTimeout>; observed: number }
@@ -617,6 +653,7 @@ export class RendezvousObserver {
     this.root = await initializeRoot(this.project);
     await acquireObserverMarker(this.root);
     this.markerOwned = true;
+    await settleLatest(this.root);
     this.admission = await BurstAdmission.load(
       this.root,
       this.options.windowMs,
@@ -626,10 +663,11 @@ export class RendezvousObserver {
       this.scheduleRouteRescan(),
     );
     const routes = await listRoutes(this.root);
-    for (const route of routes) this.watchInbox(route);
-    await this.reconcilePending(routes);
+    await this.loadRecords(routes);
     const observed = Date.now();
-    for (const route of routes) await this.scanInbox(route, observed);
+    for (const route of routes)
+      await this.observeDirectory(route, "", observed);
+    await this.intake;
   }
 
   private fail(error: unknown): void {
@@ -663,12 +701,74 @@ export class RendezvousObserver {
     this.options.budget.used--;
   }
 
-  private watchInbox(route: string): void {
-    this.watchDirectory(
-      join(this.root, "routes", route, "inbox"),
-      route,
-      (name) => this.settle(route, name),
-    );
+  /** Watches are keyed by route and inbox-relative directory. */
+  private directoryKey(route: string, relative: string): string {
+    return `${route}/${relative}`;
+  }
+
+  /** Release the watches of a removed directory and everything below it. */
+  private unwatchTree(route: string, relative: string): void {
+    const key = this.directoryKey(route, relative);
+    for (const watched of this.watchers.keys()) {
+      if (watched === key || watched.startsWith(relative ? `${key}/` : key)) {
+        this.unwatch(watched);
+      }
+    }
+  }
+
+  /**
+   * Watch a directory and every non-hidden one below it, queueing capture of
+   * files already present. Symlinks are never followed and a directory
+   * reached twice (a bind-mount loop) is skipped, so this ends without a
+   * depth limit.
+   */
+  private async observeDirectory(
+    route: string,
+    relative: string,
+    observed: number,
+  ): Promise<void> {
+    const inbox = join(this.root, "routes", route, "inbox");
+    const visited = new Set<string>();
+    const pending = [relative];
+    let entries = 0;
+    for (
+      let current = pending.pop();
+      current !== undefined;
+      current = pending.pop()
+    ) {
+      const path = join(inbox, current);
+      let stats: Awaited<ReturnType<typeof fs.stat>>;
+      try {
+        stats = await fs.stat(path, { bigint: true });
+      } catch (error) {
+        if (errorCode(error) === "ENOENT") continue;
+        throw error;
+      }
+      const identity = `${stats.dev}:${stats.ino}`;
+      if (visited.has(identity)) continue;
+      visited.add(identity);
+      const key = this.directoryKey(route, current);
+      const directory = current;
+      // Watch before listing, so nothing created in between is missed.
+      if (!this.watchers.has(key)) {
+        this.watchDirectory(path, key, (name) =>
+          this.settle(route, directory, name),
+        );
+      }
+      for (const entry of await fs.readdir(path, { withFileTypes: true })) {
+        if (entry.name.startsWith(".") || entry.isSymbolicLink()) continue;
+        if (++entries > MAX_FILES) {
+          getLogger().warn(
+            { projectPath: this.project, route, directory: relative },
+            `Rendezvous directory exceeds ${MAX_FILES} entries; the rest are skipped`,
+          );
+          return;
+        }
+        const child = current ? `${current}/${entry.name}` : entry.name;
+        if (entry.isDirectory()) pending.push(child);
+        else if (entry.isFile()) this.capture(route, child, observed);
+      }
+    }
   }
 
   private scheduleRouteRescan(): void {
@@ -684,19 +784,24 @@ export class RendezvousObserver {
     if (this.closed) return;
     const routes = new Set(await listRoutes(this.root));
     for (const key of this.watchers.keys()) {
-      if (key && !routes.has(key)) this.unwatch(key);
+      if (key && !routes.has(key.slice(0, key.indexOf("/")))) this.unwatch(key);
     }
     const observed = Date.now();
     for (const route of routes) {
-      if (this.watchers.has(route)) continue;
-      this.watchInbox(route);
-      await this.scanInbox(route, observed);
+      if (this.watchers.has(this.directoryKey(route, ""))) continue;
+      await this.observeDirectory(route, "", observed);
     }
+    await this.intake;
   }
 
-  private settle(route: string, name: string | undefined): void {
+  private settle(
+    route: string,
+    directory: string,
+    name: string | undefined,
+  ): void {
     if (!name || name.startsWith(".") || this.closed) return;
-    const key = `${route}/${name}`;
+    const relative = directory ? `${directory}/${name}` : name;
+    const key = `${route}/${relative}`;
     const previous = this.settling.get(key);
     if (previous) clearTimeout(previous.timer);
     else if (this.settling.size >= MAX_FILES) {
@@ -706,37 +811,45 @@ export class RendezvousObserver {
     const observed = previous?.observed ?? Date.now();
     const timer = setTimeout(() => {
       this.settling.delete(key);
-      this.capture(route, name, observed);
+      this.capture(route, relative, observed);
     }, QUIET_MS);
     timer.unref();
     this.settling.set(key, { timer, observed });
   }
 
-  private capture(route: string, name: string, observed: number): void {
+  /** Capture a settled file, or start watching a settled new directory. */
+  private capture(route: string, relative: string, observed: number): void {
     this.intake = this.intake
       .then(async () => {
-        const record = await snapshot(this.root, route, name);
+        const path = join(this.root, "routes", route, "inbox", relative);
+        let stats: Awaited<ReturnType<typeof fs.lstat>>;
+        try {
+          stats = await fs.lstat(path);
+        } catch (error) {
+          if (errorCode(error) !== "ENOENT") throw error;
+          this.unwatchTree(route, relative);
+          return;
+        }
+        if (stats.isDirectory()) {
+          // Its files are queued behind this step, not awaited inside it.
+          await this.observeDirectory(route, relative, observed);
+          return;
+        }
+        const record = await snapshot(this.root, route, relative, this.seen);
         if (record) await this.admit(record, observed);
       })
       .catch((error) => this.fail(error));
   }
 
-  private async scanInbox(route: string, observed: number): Promise<void> {
-    const names = await fs.readdir(join(this.root, "routes", route, "inbox"));
-    if (names.length > MAX_FILES) {
-      throw new Error(`Rendezvous inbox exceeds the ${MAX_FILES}-file limit`);
-    }
-    for (const name of names) this.capture(route, name, observed);
-    await this.intake;
-  }
-
   /**
-   * After a restart, send records that were captured but never sent, and
-   * check provider receipts for interrupted sends. Records already found
-   * uncertain stay so until someone inspects the transcript.
+   * After a restart, send records that were captured but never sent, check
+   * provider receipts for interrupted sends, and index captured originals.
+   * Records already found uncertain stay so until someone inspects the
+   * transcript.
    */
-  private async reconcilePending(routes: string[]): Promise<void> {
+  private async loadRecords(routes: string[]): Promise<void> {
     let pending = 0;
+    const captured = new Map<string, number>();
     for (const route of routes) {
       const directory = join(this.root, "delivered", route);
       if (!(await exists(directory))) continue;
@@ -748,6 +861,19 @@ export class RendezvousObserver {
         } catch (error) {
           if (errorCode(error) === "ENOENT") continue;
           throw error;
+        }
+        if (
+          record.originalMtimeNs !== undefined &&
+          record.originalSize !== undefined
+        ) {
+          const key = seenKey(route, record.originalName ?? "");
+          if (record.createdAt >= (captured.get(key) ?? 0)) {
+            captured.set(key, record.createdAt);
+            this.seen.set(
+              key,
+              fingerprint(record.originalSize, record.originalMtimeNs),
+            );
+          }
         }
         if (record.state === "pending") {
           if (++pending > MAX_FILES) {

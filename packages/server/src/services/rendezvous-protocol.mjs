@@ -10,9 +10,17 @@ import { dirname, join } from "node:path";
  */
 
 export const MAX_ROUTES = 128;
+// latest-session's target before any user turn is recorded. Its parent never
+// exists, so a sender gets an error instead of creating the directory.
+const UNSET_TARGET = join(".no-session-messaged-yet", "inbox");
 const LATEST_PASSES = 8;
 const ROUTE_PATTERN = /^[A-Za-z0-9_-]{1,160}$/;
-const RESERVED_ROUTES = new Set(["latest-session", "delivered", "routes"]);
+const RESERVED_ROUTES = new Set([
+  "latest-session",
+  "delivered",
+  "routes",
+  "unrouted",
+]);
 
 export function routeName(value) {
   if (!ROUTE_PATTERN.test(value)) {
@@ -130,21 +138,50 @@ export async function publishLatest(root, route, receivedAt) {
       "a",
     )
   ).close();
+  await settleLatest(root);
+}
+
+/**
+ * Point `latest-session` at the newest recorded user turn. Before any, it
+ * points at UNSET_TARGET, so `test -d`, scp and rsync fail rather than
+ * create a directory nobody delivers from; observers settle it when they
+ * start. A real directory in its place, which rsync creates when the pointer
+ * is absent, held files nobody was listening for: it moves aside to
+ * `unrouted/<epoch-ms>-<id>/` undelivered and the pointer takes the name
+ * back. Anything else that is not a symlink is left alone and reported.
+ */
+export async function settleLatest(root) {
+  const entries = join(root, "latest.d");
   const link = join(root, "latest-session");
+  try {
+    const stats = await fs.lstat(link);
+    if (stats.isDirectory()) {
+      const unrouted = join(root, "unrouted");
+      await fs.mkdir(unrouted, { recursive: true });
+      await fs.rename(link, join(unrouted, `${Date.now()}-${randomUUID()}`));
+    } else if (!stats.isSymbolicLink()) {
+      throw new Error(
+        `Rendezvous ${link} is a file, not the pointer symlink; remove it`,
+      );
+    }
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
   let newest;
   for (let pass = 0; pass < LATEST_PASSES; pass++) {
-    const names = (await fs.readdir(entries))
-      .filter((name) => !name.startsWith("."))
-      .sort();
+    const names = await latestEntries(entries);
     const candidate = names.at(-1);
-    if (candidate === newest) {
+    if (pass > 0 && candidate === newest) {
       for (const name of names.slice(0, -1)) {
         await fs.rm(join(entries, name), { force: true });
       }
       return;
     }
     newest = candidate;
-    const want = join("routes", newest.slice(17), "inbox");
+    const want =
+      newest === undefined
+        ? UNSET_TARGET
+        : join("routes", newest.slice(17), "inbox");
     let current;
     try {
       current = await fs.readlink(link);
@@ -158,4 +195,15 @@ export async function publishLatest(root, route, receivedAt) {
     }
   }
   throw new Error("Rendezvous latest-session kept changing; retry the turn");
+}
+
+async function latestEntries(entries) {
+  try {
+    return (await fs.readdir(entries))
+      .filter((name) => !name.startsWith("."))
+      .sort();
+  } catch (error) {
+    if (error.code === "ENOENT") return [];
+    throw error;
+  }
 }
