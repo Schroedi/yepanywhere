@@ -7,7 +7,8 @@ Topic: rendez
 
 The current monitoring backend uses
 the `rendez` executable from graehl/agents on the YA server's PATH. It requires
-Linux for watching, Python 3.10+, and ImageMagick's `magick` for image preparation.
+Linux for watching and `uv` on that PATH, which supplies Python 3.10+ and Pillow
+for image preparation; no system image packages are needed.
 Claude and Codex sessions are supported. Other platforms can use explicit scans
 of completed transfers; filesystem watching does not require provider hosting.
 
