@@ -34,3 +34,9 @@ Linux checks prove Linux behavior only. Do not claim Android background, Doze,
 resume, provider sign-in, reboot recovery, or remote wake from a container test.
 Match docs and evidence to what ran. Run the existing root checks plus the
 focused host tests, Alpine smoke and Android build/lint when affected.
+
+For on-phone APK builds, signing inventory or disposable Lab testing, read
+`docs/phone-build.md`. Use the separate `com.yepanywhere.host.lab` package and
+its own port/state; never install, stop or restage the controller hosting the
+active agent. Keep per-device inventory and all keys/captures in private local
+storage, with only reusable tooling and generic evidence in Git.

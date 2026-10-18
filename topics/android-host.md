@@ -628,3 +628,22 @@ and reconnect worker, with 1–30 second backoff and bounded HTTP timeouts; tear
 closes both. Lost connectivity drops stale counts and explicitly reports
 activity unavailable, rather than claiming idle. Closing all UI does not retire
 this service-owned notification feed; stopping the host does.
+
+
+## On-phone native build and disposable test host
+
+The opt-in [phone build workflow](../packages/android-host/docs/phone-build.md)
+compiles the native shell from this checkout into a separate purple **YA Host
+Lab** (`com.yepanywhere.host.lab`, port 13410). It stages identity/resources,
+includes MC storage sources, and leaves normal Android build defaults intact.
+It does not replace the protected agent/build host (`com.yepanywhere.host.experimental`,
+port 13400), rebuild its server payload, copy its persistent HOME or expose keys.
+
+The companion install tool verifies the actual APK package, content hash and
+same-signer updates, and provisions only a fresh Lab's independent runtime.
+The verifier checks distinct credentials, own-token acceptance, cross-token
+refusal and optionally Lab-only force-stop/restart while the build host retains
+its PID and readiness. Its inventory contains public signing identity, never
+private keys or token values. This is same-phone, Android-user-0 experimental
+development tooling; shared hardware pressure, background survival, real provider
+inference, release builds and full Gradle equivalence remain outside its proof.

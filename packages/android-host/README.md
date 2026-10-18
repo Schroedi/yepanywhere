@@ -256,3 +256,13 @@ folders. It preserves the normal host's data and permissions and uninstalls the
 fixture in cleanup. Raw captures, private receipts and results stay in `.local/`;
 present selected reviewed captures through the repository artifact facility.
 Rebuild without `-PworkspaceFixture` before installing the normal host APK.
+
+## Build a disposable Lab APK on the phone
+
+The [on-phone build guide](docs/phone-build.md) covers the verified ARM64 Alpine
+path without Gradle: pinned SDK JARs, Android-native AAPT2 through same-phone
+ADB, javac/D8, signing and the separate purple **YA Host Lab** application.
+It builds the native shell from this checkout and does not rebuild the server
+payload. The Lab uses its own application ID, private data and port 13410;
+its installer cannot target the build controller's application ID. Public
+signing identity inventory and bounded stop/restart verification are included.
