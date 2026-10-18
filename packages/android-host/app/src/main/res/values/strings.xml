@@ -2,8 +2,13 @@
     <string name="browser_unavailable">No browser is available to open this link.</string>
   <string name="host_heading">Yep Anywhere Host · Experimental</string>
   <string name="host_planned">Remote wake is planned. Provider sign-in is available above.</string>
-  <string name="host_status">\n%1$s\nNotifications: %2$s\nBackground battery setting: %3$s\n</string>
-  <string name="allowed">allowed</string><string name="off">off</string><string name="optimized">optimized</string>
+  <string name="host_status">\n%1$s\n</string>
+  <string name="host_two_lines">%1$s\n%2$s</string>
+  <string name="workspace_saving">Saving…</string>
+  <string name="workspace_pick_count">Pick folder · %1$d/16 saved</string>
+  <string name="host_session_counts">Working: %1$d · Needs attention: %2$d</string>
+  <plurals name="host_attention"><item quantity="one">%1$d session needs attention</item><item quantity="other">%1$d sessions need attention</item></plurals>
+  <plurals name="host_working"><item quantity="one">%1$d session working</item><item quantity="other">%1$d sessions working</item></plurals>
   <string name="host_connecting">Starting the local host… Your saved sessions will be available when it is ready.</string>
   <string name="host_retry">Retry</string>
   <string name="host_controls">Host controls</string>
@@ -32,7 +37,7 @@
   <string name="workspace_intro">Save folders for agents. SAF document tools work with individual folder grants. Optional broad storage access exposes primary shared storage at /sdcard and enables selected direct paths under /workspaces. Runtime, sign-ins and YA data remain private.</string>
   <string name="workspace_shared">Primary shared storage · /sdcard\n%1$s</string>
   <string name="workspace_rw_required">Folder needs read and write access</string>
-  <string name="workspace_saved">Saved. Direct mapping changes apply on the next host start.</string>
+  <string name="workspace_saved">Saved.</string>
   <string name="workspace_pending">Folder mappings have pending changes. Restart the host to apply them; existing processes keep their old paths until then.</string>
   <string name="workspace_empty">No folder shortcuts selected. With all-files access, agents can use /sdcard directly. Private projects remain available.</string>
   <string name="workspace_row">\n%1$s  →  %2$s</string>
@@ -43,4 +48,5 @@
   <string name="workspace_overlap">\nShares files with: %1$s</string>
   <string name="workspace_direct">Direct access: %1$s</string>
   <item name="workspace_name" type="id" />
+  <item name="workspace_pick_action" type="id" />
 </resources>

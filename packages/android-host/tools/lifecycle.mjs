@@ -80,7 +80,17 @@ function controls() {
   return found;
 }
 function tap(label, buttons = controls()) {
-  const at = buttons.get(label.toLowerCase());
+  const key = label.toLowerCase();
+  const at =
+    buttons.get(key) ??
+    (key === "open yep anywhere"
+      ? (buttons.get("start and open yep anywhere") ??
+        buttons.get("open when ready"))
+      : key === "/projects"
+        ? [...buttons].find(
+            ([text]) => text.endsWith("/projects") && !text.startsWith("✓ "),
+          )?.[1]
+        : undefined);
   assert(at, `Missing native control: ${label}`);
   shell("input", "tap", ...at);
 }
@@ -301,10 +311,13 @@ try {
   tap("Home");
   const buttons = controls();
   tap("Stop local host", buttons);
-  tap("Open Yep Anywhere", buttons); // No intervening dump/wait: overlap Stop.
+  tap("Stop host");
+  // Resolve the current control after the confirmation window has gone. The
+  // disposable native probe separately covers Start during the stopping phase.
+  tap("Open Yep Anywhere");
   await disconnect();
   await page();
-  passed("rapidStopOpen");
+  passed("confirmedStopOpen");
   await disconnect();
   stop();
   native("launch", app);

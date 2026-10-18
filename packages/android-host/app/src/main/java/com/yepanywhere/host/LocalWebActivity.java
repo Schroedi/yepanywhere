@@ -34,6 +34,7 @@ public final class LocalWebActivity extends Activity {
     private FrameLayout page;
     private TextView title;
     private Button tabButton;
+    private Button addButton;
     private boolean activityResumed;
     private WebView web;
     private WebView popup;
@@ -49,6 +50,7 @@ public final class LocalWebActivity extends Activity {
     private Future<?> pending;
     private int generation;
     private int navigation;
+    private int verification;
     private boolean resumed, pageLoaded;
     private String lastToken;
     private Uri lastRoute;
@@ -97,12 +99,14 @@ public final class LocalWebActivity extends Activity {
     }
     private void verifyNavigation(String url, boolean complete) {
         if (!resumed) return;
-        int attempt = generation, load = navigation;
+        // Duplicate page-finished callbacks can replace a probe without a new
+        // navigation. A cancelled HTTP probe must not fail that newer check.
+        int check = ++verification, attempt = generation, load = navigation;
         if (pending != null) pending.cancel(true);
         pending = probes.submit(() -> {
-            String token = HostConnection.ready(HostService.state(this));
+            String token = HostConnection.ready(this);
             handler.post(() -> {
-                if (!current(attempt) || navigation != load || web.getVisibility() != View.VISIBLE) return;
+                if (!current(attempt) || check != verification || navigation != load || web.getVisibility() != View.VISIBLE) return;
                 if (token == null || !local(Uri.parse(url))) { failed(R.string.host_open_failed); return; }
                 if (complete) {
                     pageLoaded = true; mainNavigation = null;
@@ -143,14 +147,14 @@ public final class LocalWebActivity extends Activity {
         if (!new File(getFilesDir(), "runtime/opt/host/launch.mjs").isFile()) { failed(R.string.host_runtime_missing); return; }
         if (!pageLoaded) showConnecting();
         pending = probes.submit(() -> {
-            String token = HostConnection.ready(HostService.state(this));
+            String token = HostConnection.ready(this);
             handler.post(() -> {
                 if (!current(attempt)) return;
                 if (token != null) { ready(token, false); return; }
                 showConnecting();
                 // This is a visible user-open/retry, not boot or background
                 // auto-restart. Service startup is idempotent in its process.
-                try { startForegroundService(new Intent(this, HostService.class)); }
+                try { HostService.command(this, HostService.START); }
                 catch (RuntimeException denied) { failed(R.string.host_start_failed); return; }
                 pending = probes.submit(() -> awaitReady(attempt));
             });
@@ -159,7 +163,7 @@ public final class LocalWebActivity extends Activity {
     private void awaitReady(int attempt) {
         long deadline = SystemClock.uptimeMillis() + 45000;
         while (!Thread.currentThread().isInterrupted() && SystemClock.uptimeMillis() < deadline) {
-            String token = HostConnection.ready(HostService.state(this));
+            String token = HostConnection.ready(this);
             if (token != null) {
                 handler.post(() -> { if (current(attempt)) ready(token, true); }); return;
             }
@@ -305,6 +309,7 @@ public final class LocalWebActivity extends Activity {
                     .put("tabs", records).toString()).apply();
         } catch (org.json.JSONException ignored) { }
         tabButton.setText(getString(R.string.host_tabs_count, tabs.size()));
+        if (addButton != null) { addButton.setEnabled(tabs.size() < MAX_TABS); addButton.setContentDescription(tabs.size() < MAX_TABS ? getString(R.string.host_new_tab) : "Tab limit reached: 32 tabs"); }
         title.setText(selected == null ? getString(R.string.host_web_title) :
             selected.title != null && !"Yep Anywhere".equals(selected.title) ? selected.title : safePath(selected.route.getPath()));
     }
@@ -385,6 +390,8 @@ public final class LocalWebActivity extends Activity {
             row.addView(close, new LinearLayout.LayoutParams(dp(48), dp(48))); list.addView(row);
         }
         dialog.show();
+        dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setEnabled(tabs.size() < MAX_TABS);
+        if (tabs.size() >= MAX_TABS) dialog.setTitle("Tabs · 32-tab limit reached");
     }
     private void provider(Intent intent) {
         String provider = intent.getStringExtra("provider");
@@ -409,7 +416,7 @@ public final class LocalWebActivity extends Activity {
         toolbar.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
         tabButton = new Button(this, null, android.R.attr.borderlessButtonStyle);
         tabButton.setOnClickListener(view -> showTabs()); toolbar.addView(tabButton, new LinearLayout.LayoutParams(-2, dp(48)));
-        Button add = new Button(this, null, android.R.attr.borderlessButtonStyle); add.setText("+");
+        Button add = new Button(this, null, android.R.attr.borderlessButtonStyle); addButton = add; add.setText("+");
         add.setContentDescription(getString(R.string.host_new_tab)); add.setOnClickListener(view -> newTab("/projects"));
         toolbar.addView(add, new LinearLayout.LayoutParams(dp(48), dp(48)));
         frame.addView(toolbar, new LinearLayout.LayoutParams(-1, dp(56)));

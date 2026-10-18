@@ -3,6 +3,7 @@
     <!-- The disposable fixture deliberately accepts controller operations; absent from normal builds. -->
     <receiver tools:ignore="ExportedReceiver" android:name="com.yepanywhere.host.WorkspaceAcceptanceReceiver" android:exported="true" />
   </application>
+  <instrumentation android:name="com.yepanywhere.host.HostControlsProbe" android:targetPackage="${applicationId}" />
   <instrumentation android:name="com.yepanywhere.host.WorkspaceTypingProbe" android:targetPackage="${applicationId}" />
   <instrumentation android:name="com.yepanywhere.host.SharedStorageProbe" android:targetPackage="${applicationId}" />
 </manifest>

@@ -14,19 +14,24 @@ import org.json.*;
 public final class WorkspacesActivity extends Activity {
     private TextView message;
     private TextView shared;
+    private TextView mapping;
+    private Button allFiles, apply, pick;
+    private final java.util.List<android.view.View> actions = new java.util.ArrayList<>();
+    private HostState.Watch watch;
+    private boolean busy, visible;
     private LinearLayout rows;
     private WorkspaceRegistry registry;
     private String pending;
-    private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private final ThreadPoolExecutor worker = new ThreadPoolExecutor(1, 1, 0, TimeUnit.MILLISECONDS,
+        new ArrayBlockingQueue<>(1), new ThreadPoolExecutor.DiscardOldestPolicy());
     private final ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor();
     private CancellationSignal query;
     private boolean destroyed;
     private int generation;
-    private boolean pendingMappings;
     private boolean renaming;
-    private void button(LinearLayout parent, String title, Runnable action) {
+    private Button button(LinearLayout parent, String title, Runnable action) {
         Button button = new Button(this); button.setText(title); button.setAllCaps(false);
-        button.setOnClickListener(view -> action.run()); parent.addView(button);
+        button.setOnClickListener(view -> action.run()); parent.addView(button); actions.add(button); button.setEnabled(!busy); return button;
     }
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved); registry = new WorkspaceRegistry(this);
@@ -35,20 +40,23 @@ public final class WorkspacesActivity extends Activity {
         int pad = (int)(20 * getResources().getDisplayMetrics().density); content.setPadding(pad, pad, pad, pad);
         TextView title = new TextView(this); title.setText(R.string.workspace_title); title.setTextSize(24); content.addView(title);
         TextView intro = new TextView(this); intro.setText(R.string.workspace_intro); content.addView(intro);
-        button(content, getString(R.string.workspace_pick), () -> choose(null));
-        button(content, "All-files access (optional)", () -> new AlertDialog.Builder(this).setTitle("Allow broad storage access?")
-            .setMessage("This lets the app read, modify and delete files throughout accessible shared storage, including Downloads, Documents and photos. After restarting the host, primary shared storage is available at /sdcard without picking a folder. This access is broader than your selected folders. PRoot does not restrict that authority. SAF tools do not require this permission.")
-            .setNegativeButton("Cancel", null).setPositiveButton("Open settings", (dialog, which) -> startActivity(new Intent(
-                Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:" + getPackageName())))).show());
-        button(content, "Apply mappings / restart host", () -> new AlertDialog.Builder(this).setTitle("Apply folder mappings?")
-            .setMessage("This restarts the local host and interrupts any active agent turns. Saved sessions stay on disk. Newly enabled, renamed or removed paths take effect on restart. You can cancel and finish current work first.")
-            .setNegativeButton("Cancel", null).setPositiveButton("Restart host", (dialog, which) -> {
-                stopService(new Intent(this, HostService.class));
-                new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                    if (!destroyed) startForegroundService(new Intent(this, HostService.class));
-                    refresh();
-                }, 500);
-            }).show());
+        pick = button(content, getString(R.string.workspace_pick), () -> choose(null));
+        pick.setId(R.id.workspace_pick_action);
+        allFiles = button(content, "All-files access", () -> {
+            Runnable settings = () -> startActivity(new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:" + getPackageName())));
+            if (Environment.isExternalStorageManager()) { settings.run(); return; }
+            new AlertDialog.Builder(this).setTitle("Allow broad storage access?")
+                .setMessage("This lets the app read, modify and delete files throughout accessible shared storage, including Downloads, Documents and photos. After restarting the host, primary shared storage is available at /sdcard without picking a folder. This access is broader than your selected folders. PRoot does not restrict that authority. SAF tools do not require this permission.")
+                .setNegativeButton("Cancel", null).setPositiveButton("Open settings", (dialog, which) -> settings.run()).show();
+        });
+        apply = button(content, "Checking mappings…", () -> {
+            Bundle state = HostState.read(this);
+            if (HostState.active(state)) new AlertDialog.Builder(this).setTitle("Apply folder mappings?")
+                .setMessage("This restarts the local host and interrupts active agent turns. Saved sessions stay on disk. Newly enabled, renamed or removed paths take effect on restart.")
+                .setNegativeButton("Cancel", null).setPositiveButton("Restart host", (dialog, which) -> HostService.command(this, HostService.RESTART)).show();
+            else HostService.command(this, HostService.START);
+        }); apply.setEnabled(false);
+        mapping = new TextView(this); content.addView(mapping);
         shared = new TextView(this); shared.setTextIsSelectable(true); content.addView(shared);
         message = new TextView(this); message.setTextIsSelectable(true); content.addView(message);
         rows = new LinearLayout(this); rows.setOrientation(LinearLayout.VERTICAL); content.addView(rows);
@@ -91,9 +99,21 @@ public final class WorkspacesActivity extends Activity {
     }
     private interface Mutation { void run() throws Exception; }
     private void mutate(Mutation mutation) {
+        if (busy || destroyed) return;
+        busy = true; for (android.view.View action : actions) action.setEnabled(false);
+        message.setText(R.string.workspace_saving);
+        if (query != null) query.cancel();
         worker.execute(() -> {
-            try { mutation.run(); runOnUiThread(() -> { message.setText(R.string.workspace_saved); refresh(); }); }
-            catch (Exception error) { runOnUiThread(() -> message.setText(String.valueOf(error.getMessage()))); }
+            String error = null;
+            try { mutation.run(); } catch (Exception failure) { error = String.valueOf(failure.getMessage()); }
+            String result = error;
+            runOnUiThread(() -> {
+                if (destroyed) return;
+                busy = false;
+                for (android.view.View action : actions) action.setEnabled(true);
+                message.setText(result == null ? getString(R.string.workspace_saved) : result);
+                refresh();
+            });
         });
     }
     EditText rename(String old) {
@@ -111,18 +131,30 @@ public final class WorkspacesActivity extends Activity {
         })); dialog.show(); return edit;
     }
     void refresh() {
-        if (destroyed) return;
+        // Refresh again on dismiss; results have no visible consumer during Rename.
+        if (destroyed || !visible || busy || renaming) return;
+        String access = Environment.isExternalStorageManager() ? "All-files access: Allowed\nManage access" : "All-files access: Off (optional)\nAllow access";
+        if (!access.contentEquals(allFiles.getText())) allFiles.setText(access);
+        Bundle snapshot = HostState.read(this);
+        String phase = snapshot.getString("phase", "stopped");
+        boolean active = "ready".equals(phase);
+        java.util.Map<String, String> applied = active ? HostState.mappings(snapshot) : java.util.Collections.emptyMap();
+        String appliedShared = active ? snapshot.getString("shared") : null;
+        boolean transitioning = "starting".equals(phase) || "stopping".equals(phase);
+        if (transitioning) { apply.setText("starting".equals(phase) ? "Starting host…" : "Stopping host…"); apply.setEnabled(false); }
         int current = ++generation;
         if (query != null) query.cancel();
         CancellationSignal signal = new CancellationSignal(); query = signal;
-        ScheduledFuture<?> deadline = timer.schedule(signal::cancel, 15, TimeUnit.SECONDS);
         worker.execute(() -> {
+            ScheduledFuture<?> deadline = null;
             try {
-                JSONObject storage = WorkspaceRuntime.sharedStatus(this, HostService.running ? HostService.appliedSharedStorage : null);
-                JSONArray status = registry.status(signal, HostService.running ? HostService.appliedWorkspaces : null);
+                deadline = timer.schedule(signal::cancel, 15, TimeUnit.SECONDS);
+                JSONObject storage = WorkspaceRuntime.sharedStatus(this, appliedShared);
+                JSONArray status = registry.status(signal, applied);
                 runOnUiThread(() -> {
-                    if (destroyed || renaming || current != generation) return;
+                    if (destroyed || !visible || busy || renaming || current != generation) return;
                     rows.removeAllViews();
+                    actions.removeIf(view -> view != pick && view != allFiles && view != apply);
                     java.util.Map<String, String> desired = new java.util.HashMap<>();
                     for (int i = 0; i < status.length(); i++) try {
                         JSONObject root = status.getJSONObject(i);
@@ -131,17 +163,18 @@ public final class WorkspacesActivity extends Activity {
                     shared.setText(getString(R.string.workspace_shared, storage.optBoolean("mapped") ? getString(R.string.workspace_mapped) :
                         storage.optBoolean("available") ? getString(R.string.workspace_ready) : storage.optString("reason")));
                     String desiredShared = storage.optBoolean("available") ? storage.optString("source") : null;
-                    boolean changed = HostService.running && (!desired.equals(HostService.appliedWorkspaces) ||
-                        !java.util.Objects.equals(desiredShared, HostService.appliedSharedStorage));
-                    if (changed) message.setText(R.string.workspace_pending);
-                    else if (pendingMappings) message.setText(R.string.workspace_saved);
-                    pendingMappings = changed;
-                    if (status.length() == 0 && !changed) message.setText(R.string.workspace_empty);
+                    boolean changed = active && (!desired.equals(applied) || !java.util.Objects.equals(desiredShared, appliedShared));
+                    mapping.setText(changed ? getString(R.string.workspace_pending) : transitioning ? snapshot.getString("detail") :
+                        active ? "Mappings are up to date" : "Mappings will apply on the next host start");
+                    if (!transitioning) { apply.setText(active ? changed ? "Restart to apply changes" : "Mappings up to date" : "Start host with mappings"); apply.setEnabled(!active || changed); }
+                    pick.setText(getString(R.string.workspace_pick_count, status.length())); pick.setEnabled(status.length() < 16);
+                    if (status.length() == 16) mapping.append("\nFolder limit reached. Remove a shortcut before adding another.");
+                    if (status.length() == 0 && !changed) mapping.append("\n" + getString(R.string.workspace_empty));
                     for (int i = 0; i < status.length(); i++) try { row(status.getJSONObject(i)); }
                     catch (Exception error) { message.setText(error.getMessage()); }
                 });
-            } catch (Exception error) { runOnUiThread(() -> { if (!destroyed && current == generation) message.setText(String.valueOf(error.getMessage())); }); }
-            finally { deadline.cancel(false); }
+            } catch (Exception error) { runOnUiThread(() -> { if (!destroyed && visible && current == generation) message.setText(String.valueOf(error.getMessage())); }); }
+            finally { if (deadline != null) deadline.cancel(false); }
         });
     }
     private void row(JSONObject root) throws Exception {
@@ -150,15 +183,18 @@ public final class WorkspacesActivity extends Activity {
         TextView health = new TextView(this); health.setText(getString(R.string.workspace_health, root.getBoolean("safAvailable") ? getString(R.string.workspace_saf_available) : root.optString("safReason"),
             root.getBoolean("mapped") ? getString(R.string.workspace_mapped) : root.getBoolean("directAvailable") ? getString(R.string.workspace_ready) : root.optString("directReason"),
             root.getJSONArray("overlaps").length() > 0 ? getString(R.string.workspace_overlap, root.getJSONArray("overlaps")) : "")); rows.addView(health);
-        CheckBox direct = new CheckBox(this); direct.setText(getString(R.string.workspace_direct, alias)); direct.setChecked(root.getBoolean("direct"));
+        CheckBox direct = new CheckBox(this);
+        String directState = !root.getBoolean("direct") ? "Off" : root.getBoolean("mapped") ? "Active" : root.getBoolean("directAvailable") ? "Enabled · awaiting host start/restart" : "Enabled · unavailable";
+        direct.setText(getString(R.string.host_two_lines, getString(R.string.workspace_direct, alias), directState)); direct.setChecked(root.getBoolean("direct")); actions.add(direct); direct.setEnabled(!busy);
         direct.setOnCheckedChangeListener((button, checked) -> mutate(() -> registry.change(alias, alias, checked))); rows.addView(direct);
-        button(rows, "Reselect " + alias, () -> choose(alias));
+        button(rows, (root.getBoolean("safAvailable") ? "Reselect " : "Repair access · Reselect ") + alias, () -> choose(alias));
         button(rows, "Rename " + alias, () -> rename(alias));
         button(rows, "Remove " + alias, () -> new AlertDialog.Builder(this).setTitle("Remove shortcut " + alias + "?")
             .setMessage("Files will stay in the selected folder. This removes its registration and releases unused folder permission. Restart to apply direct mapping changes.")
             .setNegativeButton("Cancel", null).setPositiveButton("Remove shortcut", (dialog, which) -> mutate(() -> registry.remove(alias))).show());
     }
-    @Override public void onResume() { super.onResume(); refresh(); }
+    @Override public void onResume() { super.onResume(); visible = true; watch = new HostState.Watch(this, this::refresh); refresh(); }
+    @Override public void onPause() { visible = false; generation++; if (watch != null) { watch.close(); watch = null; } if (query != null) query.cancel(); super.onPause(); }
     @Override protected void onSaveInstanceState(Bundle out) { super.onSaveInstanceState(out); out.putString("pending", pending); }
     @Override public void onDestroy() { destroyed = true; if (query != null) query.cancel(); worker.shutdownNow(); timer.shutdownNow(); super.onDestroy(); }
 }

@@ -125,6 +125,15 @@ the local access credential live there. Runtime execution is owned by the app's
 foreground service, not `run-as` or test instrumentation. An unsigned Release
 APK is built for checks; store distribution is not configured.
 
+The native controls show current lifecycle, provider sign-in, folder health,
+notification/channel permission and battery exemption. Permission actions remain
+explicit; already allowed settings can be managed. Workspace controls show
+all-files permission separately from availability and applied mappings, and
+update after restart completes. Stop requires interruption confirmation.
+The foreground notification shows lifecycle and count-only session activity;
+Open returns to YA, Host controls opens setup, and Stop host asks for confirmation.
+Older staged payloads without the summary endpoint show activity unavailable.
+
 The native controls are an incubation surface, not final onboarding. Notification
 permission and the battery exemption are offered only through explicit actions.
 Battery settings do not enable remote access or guarantee process survival.
@@ -222,3 +231,24 @@ app-private sessions/configuration, isolates/restores the native tab preferences
 and removes its own marker, temporary UI dump and ADB forwards in cleanup. The selected host is left stopped. It does
 not test real provider inference, reboot, credential refresh or Doze. Evidence
 is private under `.local/lifecycle-*`; do not commit device captures/selectors.
+
+## Native controls and notification regression
+
+Prepare the current runtime, stop the normal host (the fixture uses the same
+loopback port), and build the separately identified fixture. An existing fixture
+is refused rather than overwritten. With an explicit unlocked test phone:
+
+```sh
+packages/android-host/gradlew -PworkspaceFixture :app:assembleDebug :app:lint
+cp packages/android-host/app/build/outputs/apk/debug/app-debug.apk packages/android-host/.local/controls-fixture.apk
+python3 packages/android-host/tools/controls_live.py --serial "$ANDROID_TEST_SERIAL"
+```
+
+The runner provisions only its disposable fixture with mock providers, tests
+actual service/PRoot/IPC readiness, command coalescing and cancellation,
+notification actions/count delivery, Android Settings all-files grant/revocation,
+mapping restart convergence, and real sequential Rename typing with 16 rendered
+folders. It preserves the normal host's data and permissions and uninstalls the
+fixture in cleanup. Raw captures, private receipts and results stay in `.local/`;
+present selected reviewed captures through the repository artifact facility.
+Rebuild without `-PworkspaceFixture` before installing the normal host APK.

@@ -418,12 +418,12 @@ Reusable device-operation implementation still belongs to Machine Control.
   Closing the last tab returns home with a fresh Projects tab available for
   the next Open. Provider setup selects an existing matching sign-in tab or
   opens one in the same web activity, preserving other tabs.
-- Readiness work belongs to the foreground WebView activity, is cancelled when
-  it pauses/dies, and has one bounded background worker. There is no permanent
-  readiness poll or unattended restart loop. A rapid **Stop → Open** joins the
+- WebView navigation verification belongs to its foreground activity, is
+  cancelled when it pauses/dies, and has one bounded background worker. The
+  service separately owns its bounded startup readiness check. There is no
+  permanent readiness poll or unattended restart loop. A rapid **Stop → Open** joins the
   prior process group's shutdown before launching a new server. The controls
-  report stale persisted "started"/"starting" text as stopped when their
-  service is no longer alive.
+  observe authoritative lifecycle snapshots rather than retained status text.
 - The runtime binds only loopback. A private persistent local access token uses
   YA's existing desktop-token API/WebSocket mechanism; anonymous API requests
   cannot access the host. The scaffold does not use `AUTH_DISABLED=true`.
@@ -513,3 +513,76 @@ checks and the remaining overnight/Doze/provider-resume limits.
 
 See [package development commands](../packages/android-host/README.md) and the
 [dated scaffold evidence](../docs/testing/android-host-scaffold-2026-10-17.md).
+
+## Native host state and useful controls
+
+The foreground service is the sole owner of starting, stopping and restarting
+its runtime. Native controls and the separate WebView process observe an
+app-private, non-exported state provider; observing or opening host controls
+never starts the runtime. Snapshots distinguish stopped, starting, ready,
+stopping and failed, identify each launch generation, and report mappings
+applied to that launch. Diagnostic text retained on disk is not live authority.
+Ready requires the current local credential to pass authenticated HTTP
+readiness after that generation's process was spawned.
+
+Repeated start requests join startup; repeated restart requests while stopping
+join one restart. Stop cancels startup. Restart waits for the owned process
+group's bounded cleanup before replacing the runtime. An explicit Open during
+shutdown queues startup after cleanup. Stale completion callbacks cannot change
+a newer launch. Web navigation checks also fence replaced readiness probes within
+the same navigation; duplicate completion callbacks cannot turn a cancelled
+older check into a false connection failure. Explicit Stop retains a stopping
+indication until cleanup finishes, then removes the foreground notification. An
+unverified shutdown blocks further runtime launches in that app process and asks
+for an Android force-stop before retrying; a new runtime cannot overlap the
+uncertain process group. Failed startup retains visible failure detail in host
+controls. Android process death still requires
+an explicit Open/Start/Retry; no unattended restart policy is added.
+
+Controls show OS notification/channel permission, battery exemption and broad
+all-files permission beside their applicable actions. Already granted settings
+remain manageable. Notification denial that cannot produce another permission
+prompt opens Android settings; Android 11–12 also use settings. Returning from
+Settings refreshes current authority. Battery exemption is not a guarantee of
+process survival. All-files authority is independent of mounted storage,
+individual SAF grants, per-folder direct preferences and applied mappings.
+
+Workspace controls distinguish Start with mappings, Restart to apply changes,
+transitions and Mappings up to date. Service changes refresh the screen after
+startup/restart; no screen reopening is needed to see applied mappings. Saving
+shows progress and prevents duplicate mutations; errors retain feedback and
+restore persisted checkbox state. Lost SAF access highlights Reselect as repair.
+The folder picker exposes the 16-folder limit before opening. Background status
+queries never replace the active Rename input; new refresh requests are deferred
+until the dialog closes, then read current authority. The main menu summarizes folder
+health and pending mappings. Provider shortcuts read the existing protected YA
+provider status while the menu is visible and the host is ready; stopped or
+unreachable hosts show unknown status rather than cached authentication claims.
+Signed-in providers offer Manage. The tab toolbar and picker disable new-tab
+actions at 32 tabs while existing tabs remain selectable and closable.
+
+## Foreground notification
+
+The low-importance, ongoing host notification reflects starting, ready and
+stopping from the same service state. Tap and Open return to the selected YA
+web tab; Host controls opens native setup/status. Stop host opens an explicit
+confirmation that active agent work will be interrupted. Cancel leaves the
+runtime running. Notifications alert only once and carry no session titles,
+prompts, project paths or credentials; private lock-screen visibility is used.
+
+While ready, the notification reports working sessions and sessions waiting for
+input. A service-owned authenticated `GET /api/android-host/summary` stream
+sends only working/attention counts: initial state plus supervisor lifecycle
+changes, never transcript parsing or corpus polling. It is mounted only in the
+coupled Android runtime with its native SAF socket, behind ordinary owner API
+authentication. No hosted web client depends on this endpoint. Older staged
+runtimes without it retain host controls and show session activity unavailable.
+
+Each server permits at most four summary streams. A slow consumer retains at
+most a queued snapshot and the newest pending value, not an event backlog.
+Transport heartbeats every 15 seconds do not sample sessions. Disconnect/abort
+releases the subscription and heartbeat. The native service owns one connection
+and reconnect worker, with 1–30 second backoff and bounded HTTP timeouts; teardown
+closes both. Lost connectivity drops stale counts and explicitly reports
+activity unavailable, rather than claiming idle. Closing all UI does not retire
+this service-owned notification feed; stopping the host does.

@@ -179,6 +179,7 @@ import type {
   RemoteSessionService,
 } from "./remote-access/index.js";
 import { createRemoteAccessRoutes } from "./remote-access/index.js";
+import { createAndroidHostSummaryRoutes } from "./routes/android-host-summary.js";
 import { createActivityRoutes } from "./routes/activity.js";
 import { createBrowserProfilesRoutes } from "./routes/browser-profiles.js";
 import { createBrowserSettingsBackupRoutes } from "./routes/browser-settings-backup.js";
@@ -3887,6 +3888,18 @@ export function createApp(options: AppOptions): AppResult {
     app.route(
       "/api/push",
       createPushRoutes({ pushService: options.pushService }),
+    );
+  }
+
+  // This native-only count stream is paired with the app-private Android runtime.
+  // Hosted clients never depend on it; older staged payloads yield HTTP 404.
+  if (process.env.YEP_ANDROID_SAF_SOCKET && options.eventBus) {
+    app.route(
+      "/api/android-host",
+      createAndroidHostSummaryRoutes({
+        supervisor,
+        eventBus: options.eventBus,
+      }),
     );
   }
 

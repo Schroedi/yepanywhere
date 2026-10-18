@@ -11,6 +11,7 @@
       android:theme="@style/HostTheme"
       android:dataExtractionRules="@xml/backup_rules"
       android:extractNativeLibs="true" android:networkSecurityConfig="@xml/network_security">
+    <provider android:name=".HostState" android:authorities="${applicationId}.host-state" android:exported="false" />
     <activity android:name=".HostActivity" android:exported="true">
       <intent-filter>
         <action android:name="android.intent.action.MAIN" />

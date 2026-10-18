@@ -32,3 +32,11 @@ last=1`) from separate download/security refusal fixtures. The touched streamed
 response tests now capture and assert their own injected stall warnings. The
 remaining cross-owner negative-path diagnostic debt above is not hidden with a
 global logger or process-warning filter; production diagnostics are unchanged.
+
+2026-10-18: Android host state/notification validation passes the full workspace
+suite (6,613 server and 7,036 client cases), including the count-stream lifecycle
+checks. The same unrelated negative-path queue, clearloop, highlight, transcript
+fork and Pi registry fixtures still emit their expected production warnings.
+Their cross-owner logger assertions cannot be safely folded into the native
+host lifecycle change. Focused count-stream tests and Android lint are clean;
+no global diagnostic filter was added.

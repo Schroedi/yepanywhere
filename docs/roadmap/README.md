@@ -12,6 +12,13 @@ Explicit Open now starts a stopped Android host, waits for authenticated local
 readiness and offers native recovery after process loss. Unattended wake,
 overnight/Doze survival and interrupted-provider resume remain incubation work;
 see the [lifecycle investigation](../testing/android-host-lifecycle-2026-10-18.md).
+Native controls now share explicit lifecycle and applied-mapping state across
+processes, show permission/provider/folder status, and confirm interruption.
+The foreground notification adds lifecycle, private working/attention counts
+and Open/Host controls/confirmed Stop actions. The
+[control-state acceptance](../testing/android-host-controls-2026-10-18.md)
+records verification and its limits; unattended lifecycle and credential-renewal
+qualification remain separate incubation work.
 
 The [Android guest user/admin environment](../../topics/android-host.md#guest-user-and-administration)
 now uses `user@ya-phone`, `/home/user` and passwordless guest sudo. Existing
