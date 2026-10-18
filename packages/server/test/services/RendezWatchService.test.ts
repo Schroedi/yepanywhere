@@ -92,10 +92,11 @@ async function harness(maxPerWindow = 10) {
     // A first watcher waits for a user message; a restart finds .rendez.
     message();
     if (owned) {
-      await vi.waitFor(
-        async () => expect((await readMarker(root)).pid).toBe(process.pid),
-        wait,
-      );
+      await vi.waitFor(async () => {
+        expect((await readMarker(root)).pid).toBe(process.pid);
+        // Ownership is published before route watches finish attaching.
+        expect(service?.status().watching).toContain(project);
+      }, wait);
     }
   };
   const stop = async () => {
