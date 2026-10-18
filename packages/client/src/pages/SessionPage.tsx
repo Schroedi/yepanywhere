@@ -224,6 +224,10 @@ import {
 } from "../lib/clientSummaryStore";
 import { activityBus } from "../lib/activityBus";
 import {
+  sessionReadShortcut,
+  setSessionUnread,
+} from "../lib/sessionReadActions";
+import {
   getRecallSubmissionAfterQueuedCancel,
   type LastComposerSubmission,
   type SentComposerSubmission,
@@ -5725,23 +5729,42 @@ function SessionPageContent({
   const hasUnread =
     sessionCollectionRecord?.hasUnread ?? session?.hasUnread ?? false;
 
-  const handleToggleRead = async () => {
-    const newHasUnread = !hasUnread;
-    try {
-      if (newHasUnread) {
-        await api.markSessionUnread(sessionId);
-      } else {
-        await api.markSessionSeen(sessionId);
+  const handleSetUnread = useCallback(
+    async (newHasUnread: boolean) => {
+      try {
+        await setSessionUnread(sessionId, newHasUnread);
+        showToast(
+          newHasUnread ? t("sessionMarkedUnread") : t("sessionMarkedRead"),
+          "success",
+        );
+      } catch (err) {
+        console.error("Failed to update read status:", err);
+        showToast(t("sessionReadFailed"), "error");
       }
-      showToast(
-        newHasUnread ? t("sessionMarkedUnread") : t("sessionMarkedRead"),
-        "success",
-      );
-    } catch (err) {
-      console.error("Failed to update read status:", err);
-      showToast(t("sessionReadFailed"), "error");
-    }
-  };
+    },
+    [sessionId, showToast, t],
+  );
+  const handleToggleRead = () => handleSetUnread(!hasUnread);
+
+  useEffect(() => {
+    if (isDomLingerParked || loading) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      const unread = sessionReadShortcut(event);
+      if (unread === null) return;
+      const target = event.target as Element;
+      if (
+        target !== document.body &&
+        target
+          .closest("[data-session-read-scope]")
+          ?.getAttribute("data-session-read-scope") !== sessionId
+      )
+        return;
+      event.preventDefault();
+      void handleSetUnread(unread);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isDomLingerParked, loading, sessionId, handleSetUnread]);
 
   const handleTerminate = async () => {
     if (status.owner === "self" && status.processId) {
@@ -5934,6 +5957,7 @@ function SessionPageContent({
       <div className={styles.sessionColumn}>
         <header
           ref={headerRef}
+          data-session-read-scope={sessionId}
           className={`session-header ${sessionHeaderStyles.header}`}
           data-header-layout={headerLayout}
           data-inline-rename={
@@ -6751,7 +6775,11 @@ function SessionPageContent({
               : ""
           }`}
         >
-          <main className={`${styles.messages} session-messages`} tabIndex={-1}>
+          <main
+            className={`${styles.messages} session-messages`}
+            tabIndex={-1}
+            data-session-read-scope={sessionId}
+          >
             {error && (
               <div role="status">
                 {t("sessionErrorPrefix")} {error.message}
@@ -6955,6 +6983,7 @@ function SessionPageContent({
           <div
             className={styles.viewerLayer}
             data-session-viewer-layer
+            data-session-read-exclude
             ref={setViewerLayerTarget}
           />
           {showBtwSidePane && focusedBtwAside && (

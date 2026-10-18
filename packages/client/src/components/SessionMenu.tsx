@@ -348,7 +348,12 @@ export function SessionMenu({
     : undefined;
 
   const dropdownContent = (
-    <div ref={dropdownRef} className={styles.dropdown} style={dropdownStyle}>
+    <div
+      ref={dropdownRef}
+      className={styles.dropdown}
+      style={dropdownStyle}
+      data-session-menu-open
+    >
       {onShowInfo && (
         <button type="button" onClick={() => handleAction(onShowInfo)}>
           <svg
@@ -794,7 +799,13 @@ export function SessionMenu({
         {isArchived ? t("sessionMenuUnarchive") : t("sessionMenuArchive")}
       </button>
       {onToggleRead && (
-        <button type="button" onClick={() => handleAction(onToggleRead)}>
+        <button
+          type="button"
+          onClick={() => handleAction(onToggleRead)}
+          aria-label={
+            hasUnread ? t("sessionMenuMarkRead") : t("sessionMenuMarkUnread")
+          }
+        >
           <svg
             width="14"
             height="14"
@@ -813,6 +824,7 @@ export function SessionMenu({
             )}
           </svg>
           {hasUnread ? t("sessionMenuMarkRead") : t("sessionMenuMarkUnread")}
+          <kbd className={styles.shortcut}>{hasUnread ? "R" : "U"}</kbd>
         </button>
       )}
       {processId && onRestartProvider && (

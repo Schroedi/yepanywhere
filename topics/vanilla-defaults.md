@@ -78,6 +78,12 @@ Maintainer has authorized the exact exception.
 
 ## Known Exceptions
 
+The **session read/unread shortcuts** ([inbox](inbox.md#readunread-keyboard-actions))
+are always available, authorized on 2026-10-18 after the maintainer requested
+single-key session triage. Unmodified `r` and `u` explicitly set read state for
+the focused session; they leave typing, menus, dialogs and viewers alone. Their
+only visible addition is a key hint beside the existing menu action.
+
 The **managed first-party artifact viewer** is enabled by capability for the
 first-party hosted client, authorized 2026-10-16. Opening agent-generated HTML
 with its local assets is an expected file-viewing action; users need no domain
