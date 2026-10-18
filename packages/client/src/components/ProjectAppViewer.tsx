@@ -98,7 +98,6 @@ export function ProjectAppViewer({
   const [busy, setBusy] = useState(false);
   const [settingsOpen, setSettings] = useState(initialSettings);
   const settings = presentation === "settings" || settingsOpen;
-  const [sharing, setSharing] = useState(false);
   const [share, setShare] = useState<ProjectAppView | null>(null);
   const [addresses, setAddresses] = useState<ProjectAppAddresses | null>(null);
   const [name, setName] = useState("");
@@ -164,7 +163,7 @@ export function ProjectAppViewer({
     if (target) onTarget?.(target);
   }, [target, onTarget]);
   useEffect(() => {
-    if (!(settings || sharing) || !addressesSupported) return;
+    if (!settings || !addressesSupported) return;
     let active = true;
     void projectAppApi
       .addresses(projectId)
@@ -175,7 +174,7 @@ export function ProjectAppViewer({
     return () => {
       active = false;
     };
-  }, [projectId, settings, sharing, addressesSupported]);
+  }, [projectId, settings, addressesSupported]);
   async function perform(operation: () => Promise<unknown>) {
     if (busy) return;
     setBusy(true);
@@ -184,7 +183,7 @@ export function ProjectAppViewer({
       await operation();
       const next = await refresh();
       onInfoChanged?.(next);
-      if (addressesSupported && (settings || sharing)) {
+      if (addressesSupported && settings) {
         const nextAddresses = await projectAppApi.addresses(projectId);
         setAddresses(nextAddresses);
         onAddressesChanged?.(nextAddresses);
@@ -195,7 +194,7 @@ export function ProjectAppViewer({
       setBusy(false);
     }
   }
-  const details = settings || sharing;
+  const details = settings;
   const declaration = info?.activeDeclaration ?? info?.declaration;
   const command =
     declaration && "start" in declaration
@@ -226,7 +225,6 @@ export function ProjectAppViewer({
               onClick={() => {
                 if (details) {
                   setSettings(false);
-                  setSharing(false);
                 } else if (targetKind === "artifact" && declaration) {
                   // An artifact opened from the controls sits over the
                   // project's own app, so Back returns to it.
@@ -319,32 +317,19 @@ export function ProjectAppViewer({
                           },
                     );
                     setSettings(false);
-                    setSharing(false);
                   }}
                 >
                   <LastViewIcon />
                 </button>
               )}
-            <button
-              type="button"
-              title={t("projectAppShare")}
-              aria-label={t("projectAppShare")}
-              hidden={info?.canCopyLink === false}
-              disabled={!view}
-              onClick={() => {
-                setSharing(true);
-                setSettings(false);
-              }}
-            >
-              <Glyph path="M12 16V3M7 8l5-5 5 5M5 13v8h14v-8" />
-            </button>
+            {/* Settings hold sharing too. Everyone may see sharing status and
+                copy its links; each control there is gated on its own right. */}
             <button
               type="button"
               title={t("projectAppSettings")}
               aria-label={t("projectAppSettings")}
               onClick={() => {
                 setSettings(true);
-                setSharing(false);
                 void refresh().catch((reason: Error) =>
                   setError(reason.message),
                 );
@@ -564,13 +549,18 @@ export function ProjectAppViewer({
                 ))}
               </>
             )}
-            {sharing && (
+            {/* Only an administrator can act on why sharing is unavailable. */}
+            {settings &&
+              presentation === "viewer" &&
+              info &&
+              !info.canShare &&
+              info.canPublish && <p>{t("projectAppShareUnavailable")}</p>}
+            {settings && presentation === "viewer" && info?.canShare && (
               <>
                 <p>{t("projectAppLinkWarning")}</p>
-                {!info?.canShare && <p>{t("projectAppShareUnavailable")}</p>}
                 <button
                   type="button"
-                  disabled={busy || !target || !info?.canShare}
+                  disabled={busy || !target}
                   onClick={() =>
                     void perform(async () => {
                       setShare(

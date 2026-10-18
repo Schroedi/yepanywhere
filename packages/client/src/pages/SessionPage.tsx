@@ -7396,9 +7396,7 @@ function SessionPageContent({
               onFullView={
                 projectAppFull ? undefined : () => setProjectAppFull(true)
               }
-              onSession={() =>
-                navigate(`${basePath}/projects/${projectId}/app?compose=1`)
-              }
+              // No new-session action: this session is already beside the app.
             />
           ) : undefined
         }

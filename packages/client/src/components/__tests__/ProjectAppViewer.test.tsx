@@ -434,6 +434,32 @@ it("returns Back from the latest artifact to the project app before closing", as
     screen.queryByRole("button", { name: "Latest artifact: example.html" }),
   ).toBeNull();
 });
+it("shows a view-only user settings status without controls it cannot use", async () => {
+  const original = mock.fetch.getMockImplementation()!;
+  mock.fetch.mockImplementation(async (...args) => {
+    const value = await original(...args);
+    return String(args[0]).endsWith("/app")
+      ? { ...value, canExecute: false, canShare: false, canCopyLink: false }
+      : value;
+  });
+  const { container } = render(
+    <I18nProvider>
+      <ProjectAppViewer projectId="test" onSession={() => {}} />
+    </I18nProvider>,
+  );
+  await waitFor(() => expect(container.querySelector("iframe")).toBeTruthy());
+  expect(
+    screen.queryByRole("button", { name: "New session in this project" }),
+  ).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "App settings" }));
+  await screen.findByText("App: ready");
+  expect(
+    screen.queryByRole("button", { name: "Create share link" }),
+  ).toBeNull();
+  expect(
+    screen.queryByText(/Public app delivery is not configured/),
+  ).toBeNull();
+});
 it("keeps the live iframe across settings and sharing and delegates mic synchronously to its composer", async () => {
   const toggle = vi.fn();
   const onVoice = vi.fn();
@@ -467,8 +493,8 @@ it("keeps the live iframe across settings and sharing and delegates mic synchron
   );
   expect(container.querySelector("iframe")).toBe(frame);
   expect(screen.queryByRole("group", { name: "App address" })).toBeNull();
-  fireEvent.click(screen.getByRole("button", { name: "Back" }));
-  fireEvent.click(screen.getByRole("button", { name: "Share app" }));
+  // Sharing lives in settings; there is no separate Share button.
+  expect(screen.queryByRole("button", { name: "Share app" })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Create share link" }));
   await screen.findByText("Valid while this app launch is running.");
   expect(container.querySelector("iframe")).toBe(frame);
