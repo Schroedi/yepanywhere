@@ -12,7 +12,8 @@ RUN addgroup -g 1000 user \
     && ln -s user /home/host \
     && install -m 440 /opt/host/user.sudoers /etc/sudoers.d/user \
     && visudo -c \
-    && chmod 755 /home /opt/claude/claude
+    && chmod 755 /home /opt/claude/claude /opt/host/ya \
+    && ln -s /opt/host/ya /usr/bin/ya
 COPY runtime/hostname /etc/hostname
 COPY runtime/hosts /etc/hosts
 ENV HOME=/home/user USER=user LOGNAME=user SHELL=/bin/bash HOSTNAME=ya-phone

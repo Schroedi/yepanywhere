@@ -17,6 +17,8 @@ import java.util.concurrent.TimeUnit;
 /** Android owns the process tree; closing an activity does not stop the host. */
 public final class HostService extends Service {
     static volatile boolean running;
+    static volatile Map<String, String> appliedWorkspaces = Collections.emptyMap();
+    private WorkspaceRuntime workspaces;
     private static volatile CountDownLatch shutdown = new CountDownLatch(0);
     private final Object lock = new Object();
     private Process child;
@@ -71,6 +73,8 @@ public final class HostService extends Service {
             synchronized (lock) {
                 if (stopping) return;
                 resolver = new HostResolver(this);
+                workspaces = new WorkspaceRuntime(getApplicationContext());
+                appliedWorkspaces = Collections.unmodifiableMap(new HashMap<>(workspaces.applied));
             }
             List<String> command = new ArrayList<>(Arrays.asList(
                 lib + "/libproot.so", "--kill-on-exit", "--link2symlink", "-i", "1000:1000", "-k", guestKernel,
@@ -78,7 +82,10 @@ public final class HostService extends Service {
                 "-b", new File(root, "opt/host/hosts") + ":/etc/hosts",
                 "-b", new File(root, "opt/host/hostname") + ":/etc/hostname",
                 "-b", resolver.file + ":/etc/resolv.conf",
-                "-b", home + ":/home/user", "-w", "/home/user", "/usr/bin/env", "-i",
+                "-b", home + ":/home/user"));
+            workspaces.bind(command);
+            command.addAll(Arrays.asList("-w", "/home/user", "/usr/bin/env", "-i",
+                "YEP_ANDROID_SAF_SOCKET=" + workspaces.socket,
                 "HOME=/home/user", "USER=user", "LOGNAME=user", "SHELL=/bin/bash", "HOSTNAME=ya-phone", "LANG=C.UTF-8", "PATH=/usr/bin:/bin",
                 "/usr/bin/node", "/opt/host/launch.mjs"));
             // Own a session/process group so Stop reaches tracees too. Killing
@@ -127,6 +134,7 @@ public final class HostService extends Service {
         synchronized (lock) {
             stopping = true; process = child; pidFile = groupFile;
             if (resolver != null) resolver.close();
+            if (workspaces != null) { workspaces.close(); workspaces = null; appliedWorkspaces = Collections.emptyMap(); }
         }
         if (process != null) {
             new Thread(() -> {

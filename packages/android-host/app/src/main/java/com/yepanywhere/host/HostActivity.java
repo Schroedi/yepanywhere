@@ -35,6 +35,7 @@ public final class HostActivity extends Activity {
             .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP)));
         button(layout, "Set up Codex", () -> startActivity(new Intent(this, LocalWebActivity.class).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP).putExtra("provider", "codex")));
         button(layout, "Set up Claude", () -> startActivity(new Intent(this, LocalWebActivity.class).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP).putExtra("provider", "claude")));
+        button(layout, "Workspace folders", () -> startActivity(new Intent(this, WorkspacesActivity.class).putExtra("initialTree", getIntent().getStringExtra("initialTree"))));
         button(layout, "Stop local host", () -> {
             stopService(new Intent(this, HostService.class));
             HostService.status(this, "Stopped. Saved sessions remain on disk."); updateStatus();

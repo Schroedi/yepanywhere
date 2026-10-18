@@ -34,6 +34,13 @@ host's runtime state and sign-ins untouched. Enable its Gradle module only with
 `-PworkspaceSpike`; ordinary host builds do not include it. This is physical
 storage qualification, not production onboarding or a general SAF mount.
 
+The host now supports [multiple named workspace folders](docs/workspaces.md):
+open **Workspace folders**, add each folder through the picker, and optionally
+enable broad all-files permission plus per-folder direct access. Apply mappings
+with the explicit restart control, then select `/workspaces/<name>` as a normal
+project path. Without broad permission, use installed `ya saf` document commands.
+The guide records limits, recovery and isolated physical acceptance.
+
 ## Linux user and home
 
 YA and providers run as `user` (UID/GID 1000), with `/home/user` and the guest

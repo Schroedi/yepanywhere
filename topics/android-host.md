@@ -79,8 +79,56 @@ builds/lint and the required root checks passed.
 
 ## Durable user-owned workspace
 
-**Direction accepted and disposable physical spike passed, 2026-10-18.** The first
-workspace is an ordinary user-chosen local shared-storage folder, such as
+### Multiple folder shortcuts
+
+**Implemented in the experimental host, 2026-10-18.** Save up to 16 named,
+user-selected folders with two independent access methods: optional direct
+filesystem mappings for qualified local folders, and explicit `ya saf` document
+operations using persisted individual folder grants. All-files access is
+optional; the host and SAF operations remain usable without it. UI status
+separates current SAF/direct health from mappings applied to the running host.
+
+Direct roots appear at stable paths such as `/workspaces/docs` and
+`/workspaces/downloads`. These are PRoot path bindings, not Unix symlinks or
+new filesystem mounts. Select an available direct path as a normal YA project's
+working directory; both providers use their ordinary file and shell tools.
+Enable direct access per shortcut, then explicitly apply mappings/restart the
+host. Restart confirmation warns that active turns are interrupted. Names,
+selection and requested direct access survive ordinary host restarts.
+
+The native UI adds, reselects, renames and removes registrations. Removing a
+shortcut leaves external files intact and releases unused SAF permission.
+Registrations and permissions are not restored from erased app data: select the
+same existing folders again, optionally reuse the same aliases, and recover
+external bytes without a YA marker. Internal sessions, credentials and databases
+have their separate private lifetime.
+
+Before each provider launch beneath `/workspaces`, the server asks the native
+host to recheck registration, applied identity, individual grant and actual
+broad permission. Failure rejects admission; healthy roots remain usable.
+Disabled/unavailable mappings expose blocked placeholders, never writable
+private fallback directories. Existing sessions/handles are not revoked by
+this admission check. All-files authority still permits broader raw access by
+the app UID; these registrations are product policy, not directory confinement.
+
+Pixel 7a/API 37 acceptance passed two actual picked roots, both real YA provider
+sessions writing into both mappings, SAF CRUD without broad permission, separate
+revocation/repair, controlled restart, shortcut cancellation/rename/removal and
+fixture data-clear/reinstall recovery. Independent bytes/hashes covered 10 files;
+owned fixture resources were removed and existing user documents preserved.
+
+The [workspace guide](../packages/android-host/docs/workspaces.md) owns CLI
+syntax, bounds, permission/recovery behavior and physical acceptance. Native
+qualification and SAF document I/O live in MC under its MIT license; YA owns
+UI, registration, transport and runtime integration. CLI transfers are explicit,
+without synchronization or a transparent general SAF filesystem. Provider writes
+report completion/errors honestly; partial external writes cannot promise
+rollback, POSIX atomicity or cloud durability.
+
+### Earlier single-folder qualification
+
+**Disposable physical spike passed, 2026-10-18.** The tested workspace is an
+ordinary user-chosen local shared-storage folder, such as
 `Documents/YAshare`. Optional Android all-files access is accepted for this
 feature. Android's folder picker chooses the folder; its SAF grant alone does
 not authorize raw filesystem access. Qualify the built-in local provider,
@@ -96,8 +144,8 @@ a fresh registration; it does not depend on a hidden YA marker or restore erased
 provider credentials, sessions or application databases.
 
 All-files access belongs to the runtime app UID and grants broader shared-storage
-authority than the single directory shown inside PRoot. PRoot does not grant
-additional Android authority or contain that authority to `/workspace`. Keep
+authority than the directories shown inside PRoot. PRoot does not grant
+additional Android authority or contain it to the chosen folders. Keep
 replaceable runtime binaries, provider homes, credentials, temporary files and YA
 SQLite private. Unsupported permissions, provider identities or missing folders
 must fail visibly, never redirect writes into a private fallback directory.
@@ -130,12 +178,12 @@ Releasing SAF access is an admission failure, not raw-path revocation while
 all-files remains enabled. Fresh raw reads failed after all-files was disabled;
 already-open handles and running-session revocation remain unqualified.
 
-**Separate future direction:** explicit SAF CLI/document tools, similar to a
-bucket's `ls`, `get` and `put`, make sense for arbitrary providers. Local edits
-become external only after a successful explicit write/export. This is not a
-transparent filesystem and is outside the authorized local-folder spike. A general
-SAF adapter or unprivileged FUSE mount is not needed for this feature. MC owns
-reusable Android capability implementations; YA owns product/runtime integration.
+**Explicit SAF access:** the installed `ya saf` commands now reuse these same
+named roots without broad permission. The completed original single-folder
+spike did not prove this; the later host acceptance is recorded in the
+[workspace guide](../packages/android-host/docs/workspaces.md#physical-acceptance-and-limits).
+Arbitrary-provider behavior remains provider-specific and unqualified beyond
+source review. No general adapter or unprivileged FUSE mount is assumed.
 
 The existing [MC data spike](../../machine-control/platforms/android/resident-spike/README.md#independent-photo-and-document-reads)
 proves read-only document access across app restart, not this direct-path mode.

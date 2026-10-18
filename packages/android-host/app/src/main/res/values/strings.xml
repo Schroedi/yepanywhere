@@ -27,4 +27,18 @@
   <string name="host_tab_label">%1$s%2$s</string>
   <string name="host_open_new_tab">Open in new tab</string>
   <string name="host_tab_details">%1$s\n%2$s</string>
+  <string name="workspace_title">Workspace folders</string>
+  <string name="workspace_intro">Save folders for agents. SAF document tools work with individual folder grants. Direct paths under /workspaces require optional broad storage access. Runtime, sign-ins and YA data remain private.</string>
+  <string name="workspace_rw_required">Folder needs read and write access</string>
+  <string name="workspace_saved">Saved. Direct mapping changes apply on the next host start.</string>
+  <string name="workspace_pending">Folder mappings have pending changes. Restart the host to apply them; existing processes keep their old paths until then.</string>
+  <string name="workspace_empty">No shared folders selected. Private projects remain available. Add a folder to get started.</string>
+  <string name="workspace_row">\n%1$s  →  %2$s</string>
+  <string name="workspace_health">SAF: %1$s\nDirect: %2$s%3$s</string>
+  <string name="workspace_saf_available">available via ya saf</string>
+  <string name="workspace_mapped">mapped for this runtime</string>
+  <string name="workspace_ready">ready; start/restart host to apply</string>
+  <string name="workspace_overlap">\nShares files with: %1$s</string>
+  <string name="workspace_direct">Direct access: %1$s</string>
+  <item name="workspace_name" type="id" />
 </resources>

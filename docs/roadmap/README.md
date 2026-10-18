@@ -26,10 +26,18 @@ no synchronization or SAF filesystem adapter is needed. A disposable app on the
 explicitly selected Pixel 7a passed both real providers, independent hashes,
 separate permission revocation/repair and reset/reinstall recovery. The
 [spike evidence](../../packages/android-host/workspace-spike/README.md#evidence)
-records filesystem limits and Git compatibility requirements. Production host
-onboarding, workspace/session integration and running-session revocation remain
-pending; internal runtime state stays private. Explicit SAF CLI/document tools
-for arbitrary providers remain a separate future direction.
+records filesystem limits and Git compatibility requirements. The experimental
+host now implements [multiple folder shortcuts](../../packages/android-host/docs/workspaces.md),
+optional direct mappings under `/workspaces`, per-root native onboarding/status,
+normal project/provider integration, and explicit `ya saf` CLI operations without
+broad storage permission. Both methods use the same registrations and expose
+separate health. Mapping changes require an explicit host restart; unavailable
+roots fail admission without a private fallback. Internal runtime state stays
+private. Running-session/handle revocation, arbitrary-provider qualification and
+store-policy acceptance remain open. Pixel 7a acceptance passed both real YA
+providers across two roots, SAF without broad permission, independent hashes,
+revocation/repair and fixture reset/reinstall recovery; owned test resources were
+removed afterward.
 
 Last updated: 2026-10-18.
 
