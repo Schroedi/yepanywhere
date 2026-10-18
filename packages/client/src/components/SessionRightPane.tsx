@@ -39,9 +39,7 @@ const widthStore = createLocalStorageValue(
 export function SessionAppAction({ pane }: { pane: Pane }) {
   const { t } = useI18n();
   const app = pane.apps.at(-1);
-  if (pane.accessError) return <span role="alert">{pane.accessError}</span>;
-  if (!app)
-    return pane.killError ? <span role="alert">{pane.killError}</span> : null;
+  if (!app) return null;
   return pane.enabled ? (
     <button
       className={styles.launcher}

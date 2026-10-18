@@ -445,6 +445,7 @@
   "artifactLocked": "Artifact settings are controlled at launch.",
   "artifactSeparateHost": "Use a different hostname from YA for artifacts.",
   "sessionRightPaneKill": "Kill app and close",
+  "sessionRightPaneStopFailed": "Could not stop app: {message}",
   "artifactVhostPublicRoot": "Public vhost root (optional)",
   "artifactVhostPublicRootHint": "Leave blank for name.localhost only. Setting example.com means you intend to public-tunnel *.example.com to YA’s configured app-service port ({port}). Configure wildcard DNS and HTTPS in your tunnel, preserving the original Host header. This field enables hostname routing; it does not create the tunnel or add access protection.",
   "artifactAlwaysRewriteVhostLinks": "Always rewrite *.localhost app links",

@@ -818,7 +818,12 @@ function SessionPageContent({
     versionInfo?.artifactViewer,
     !isDomLingerParked && !loading,
     sessionId,
-    { projectId, fetchAppLinks: canUseBearerGrants },
+    {
+      projectId,
+      fetchAppLinks: canUseBearerGrants,
+      onStopError: (message) =>
+        showToast(t("sessionRightPaneStopFailed", { message }), "error"),
+    },
   );
   useSessionViewPublication(
     sessionId,
