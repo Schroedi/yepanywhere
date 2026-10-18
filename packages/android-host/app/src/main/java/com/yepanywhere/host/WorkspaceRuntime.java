@@ -43,6 +43,8 @@ final class WorkspaceRuntime implements AutoCloseable {
         filter.addDataScheme("file"); return filter;
     }
     WorkspaceRuntime(Context context) throws Exception { this(context, () -> { }); }
+    // mediaFilter contains only protected system broadcasts; lint cannot follow the helper.
+    @android.annotation.SuppressLint("UnspecifiedRegisterReceiverFlag")
     WorkspaceRuntime(Context context, Runnable storageChanged) throws Exception {
         this.storageChanged = storageChanged;
         deadlines.setRemoveOnCancelPolicy(true);

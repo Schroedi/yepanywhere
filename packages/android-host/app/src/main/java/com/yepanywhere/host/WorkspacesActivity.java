@@ -212,6 +212,8 @@ public final class WorkspacesActivity extends Activity {
             .setMessage("Files will stay in the selected folder. This removes its registration and releases unused folder permission. Restart to apply direct mapping changes.")
             .setNegativeButton("Cancel", null).setPositiveButton("Remove shortcut", (dialog, which) -> mutate(() -> registry.remove(alias))).show());
     }
+    // mediaFilter contains only protected system broadcasts; lint cannot follow the helper.
+    @android.annotation.SuppressLint("UnspecifiedRegisterReceiverFlag")
     @Override public void onResume() { super.onResume(); visible = true; registerReceiver(media, WorkspaceRuntime.mediaFilter()); watch = new HostState.Watch(this, this::refresh); refresh(); }
     @Override public void onPause() { visible = false; unregisterReceiver(media); generation++; if (watch != null) { watch.close(); watch = null; } if (query != null) query.cancel(); super.onPause(); }
     @Override protected void onSaveInstanceState(Bundle out) { super.onSaveInstanceState(out); out.putString("pending", pending); }
