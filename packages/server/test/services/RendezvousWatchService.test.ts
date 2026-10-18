@@ -170,8 +170,11 @@ it.skipIf(process.platform === "win32")(
   "holds a burst beyond the window budget and sends one notice",
   async () => {
     const { root, sent, start } = await harness(2);
-    await start();
+    // Exercise burst admission with an existing route. The ownership marker
+    // precedes watch readiness; live-route discovery is covered above.
+    await mkdir(root);
     const { path: inbox } = await subscribe(root, target);
+    await start();
     for (const name of ["a.txt", "b.txt", "c.txt", "d.txt"]) {
       await upload(inbox, name, Buffer.from(name));
     }
