@@ -188,6 +188,25 @@ describe("MessageList scroll and follow", () => {
   });
 
   it("keeps a clicked activity summary fixed while scrolled up", async () => {
+    const observers: {
+      callback: ResizeObserverCallback;
+      targets: Element[];
+    }[] = [];
+    class CapturingResizeObserver {
+      targets: Element[] = [];
+      constructor(callback: ResizeObserverCallback) {
+        observers.push({ callback, targets: this.targets });
+      }
+      observe(target: Element) {
+        this.targets.push(target);
+      }
+      disconnect() {}
+    }
+    Object.defineProperty(window, "ResizeObserver", {
+      configurable: true,
+      value: CapturingResizeObserver,
+    });
+    let lateGrowth = 0;
     setConversationViewPreference(true);
     const { container } = render(
       <MessageList
@@ -200,6 +219,14 @@ describe("MessageList scroll and follow", () => {
         ]}
       />,
     );
+    const resize = () =>
+      act(() => {
+        for (const observer of observers.filter(({ targets }) =>
+          targets.includes(container),
+        )) {
+          observer.callback([], {} as ResizeObserver);
+        }
+      });
     const summary = screen.getByRole("button", {
       name: /activity hidden/,
     });
@@ -218,7 +245,7 @@ describe("MessageList scroll and follow", () => {
         container
           .querySelector(".conversation-activity-summary")
           ?.getAttribute("aria-expanded") === "true"
-          ? 1500
+          ? 1500 + lateGrowth
           : 1200,
     });
     Object.defineProperty(container, "clientHeight", {
@@ -251,7 +278,10 @@ describe("MessageList scroll and follow", () => {
             this.querySelector(".conversation-activity-summary")?.getAttribute(
               "aria-expanded",
             ) === "true";
-          return rectFor((expanded ? 750 : 450) - container.scrollTop, 40);
+          return rectFor(
+            (expanded ? 750 + lateGrowth : 450) - container.scrollTop,
+            40,
+          );
         }
         return rectFor(900 - container.scrollTop, 40);
       });
@@ -275,6 +305,22 @@ describe("MessageList scroll and follow", () => {
         ).toBe(topBefore);
       });
 
+      // Renderer hydration can grow earlier rows after the disclosure commit.
+      lateGrowth = 28;
+      resize();
+      const expandedRow = screen
+        .getByRole("button", { name: /1 activity$/ })
+        .closest<HTMLElement>("[data-render-id]");
+      expect(expandedRow?.getBoundingClientRect().top).toBe(topBefore);
+      // A reader gesture releases that anchor before later renderer growth.
+      fireEvent.wheel(container, { deltaY: -100 });
+      container.scrollTop -= 40;
+      fireEvent.scroll(container);
+      const readerScrollTop = container.scrollTop;
+      lateGrowth += 20;
+      resize();
+      expect(container.scrollTop).toBe(readerScrollTop);
+      const beforeCollapse = expandedRow?.getBoundingClientRect().top;
       fireEvent.click(
         screen.getByRole("button", {
           name: /1 activity$/,
@@ -289,7 +335,7 @@ describe("MessageList scroll and follow", () => {
           collapsedSummary
             .closest<HTMLElement>("[data-render-id]")
             ?.getBoundingClientRect().top,
-        ).toBe(topBefore);
+        ).toBe(beforeCollapse);
       });
     } finally {
       rectSpy.mockRestore();

@@ -1695,6 +1695,7 @@ export const MessageList = memo(function MessageList({
     useRef<SessionRouteScrollSnapshot | null>(null);
   const isProgrammaticScrollRef = useRef(false);
   const lastHeightRef = useRef(0);
+  const disclosureHeightChangeRestoreRef = useRef<(() => void) | null>(null);
   const lastFollowScrollTopRef = useRef(0);
   // Lowest scrollTop since the reader released follow, or null when follow was
   // last engaged. Bottom geometry re-acquires follow only after the reader moves
@@ -1901,6 +1902,7 @@ export const MessageList = memo(function MessageList({
   // Scroll to bottom, marking it as programmatic so scroll handler ignores it
   const scrollToBottom = useCallback(
     (container: HTMLElement, behavior: ScrollBehavior = "auto") => {
+      disclosureHeightChangeRestoreRef.current = null;
       isProgrammaticScrollRef.current = true;
       clearProgrammaticScrollRelease();
       const top = Math.max(0, container.scrollHeight - container.clientHeight);
@@ -1995,6 +1997,7 @@ export const MessageList = memo(function MessageList({
 
   const stopFollowingForUserScroll = useCallback(
     (container: HTMLElement | null | undefined) => {
+      disclosureHeightChangeRestoreRef.current = null;
       pendingInitialScrollRestoreRef.current = null;
       shouldAutoScrollRef.current = false;
       thinkingDeltaFollowAllowedRef.current = false;
@@ -3174,8 +3177,13 @@ export const MessageList = memo(function MessageList({
 
   const pendingHeightChangeRestoreRef = useRef<(() => void) | null>(null);
   const heightChangeRestoreFramesRef = useRef(new Set<{ id: number }>());
+  useLayoutEffect(() => {
+    void conversationViewStateKey;
+    disclosureHeightChangeRestoreRef.current = null;
+  }, [conversationViewStateKey]);
   useLayoutEffect(
     () => () => {
+      disclosureHeightChangeRestoreRef.current = null;
       pendingHeightChangeRestoreRef.current = null;
       for (const frame of heightChangeRestoreFramesRef.current) {
         cancelAnimationFrame(frame.id);
@@ -3198,6 +3206,7 @@ export const MessageList = memo(function MessageList({
     ) => {
       const messageList = containerRef.current;
       const scrollContainer = messageList?.parentElement;
+      disclosureHeightChangeRestoreRef.current = null;
       if (!messageList || !scrollContainer) {
         mutate();
         return;
@@ -3251,6 +3260,9 @@ export const MessageList = memo(function MessageList({
         }
 
         if (!restoredFromAnchor) {
+          if (forcePreferredAnchor) {
+            disclosureHeightChangeRestoreRef.current = null;
+          }
           const heightDelta =
             nextScrollContainer.scrollHeight - scrollHeightBefore;
           nextScrollContainer.scrollTop = Math.max(
@@ -3266,6 +3278,9 @@ export const MessageList = memo(function MessageList({
       if (forcePreferredAnchor) {
         // Explicit disclosure keeps the clicked row fixed before paint.
         pendingHeightChangeRestoreRef.current = restore;
+        // Lazy renderer content/styles can grow after this React commit.
+        // Keep the same anchor through those resizes until reader intent wins.
+        disclosureHeightChangeRestoreRef.current = restore;
       } else {
         // Mode/window changes also rebuild the retained transcript window;
         // let that projection settle before restoring its visible anchor.
@@ -4407,12 +4422,16 @@ export const MessageList = memo(function MessageList({
     if (!content || !container) return;
 
     const handleWheel = (event: WheelEvent) => {
+      if (!isInteractiveScrollTarget(event.target)) {
+        disclosureHeightChangeRestoreRef.current = null;
+      }
       if (event.deltaY < 0 && !isInteractiveScrollTarget(event.target)) {
         stopFollowingForUpwardScroll(container);
       }
     };
 
     const handleTouchStart = (event: TouchEvent) => {
+      disclosureHeightChangeRestoreRef.current = null;
       touchStartYRef.current = event.touches[0]?.clientY ?? null;
     };
 
@@ -4434,6 +4453,7 @@ export const MessageList = memo(function MessageList({
     };
 
     const handlePointerDown = (event: PointerEvent) => {
+      disclosureHeightChangeRestoreRef.current = null;
       followPressRef.current = null;
       if (event.button !== 0 || isInteractiveScrollTarget(event.target)) {
         return;
@@ -4500,6 +4520,19 @@ export const MessageList = memo(function MessageList({
         eventTargetIsInside(target, container);
       if (!scrollTargetActive) {
         return;
+      }
+      if (
+        [
+          "ArrowUp",
+          "ArrowDown",
+          "PageUp",
+          "PageDown",
+          "Home",
+          "End",
+          " ",
+        ].includes(event.key)
+      ) {
+        disclosureHeightChangeRestoreRef.current = null;
       }
       if (
         event.key === "ArrowUp" ||
@@ -4581,6 +4614,11 @@ export const MessageList = memo(function MessageList({
       const viewportChanged = viewportHeight !== lastViewportHeight;
       lastViewportHeight = viewportHeight;
       const sizeChanged = heightChanged || viewportChanged;
+
+      if (sizeChanged && disclosureHeightChangeRestoreRef.current) {
+        disclosureHeightChangeRestoreRef.current();
+        return;
+      }
 
       const pendingInitialRestore = pendingInitialScrollRestoreRef.current;
       if (sizeChanged && pendingInitialRestore) {
