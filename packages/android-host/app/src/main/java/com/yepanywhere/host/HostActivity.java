@@ -31,7 +31,8 @@ public final class HostActivity extends Activity {
         TextView heading = new TextView(this); heading.setText(R.string.host_heading); heading.setTextSize(22); layout.addView(heading);
         status = new TextView(this); status.setTextIsSelectable(true); layout.addView(status);
         button(layout, "Start local host", () -> startForegroundService(new Intent(this, HostService.class)));
-        button(layout, "Open Yep Anywhere", () -> startActivity(new Intent(this, LocalWebActivity.class)));
+        button(layout, "Open Yep Anywhere", () -> startActivity(new Intent(this, LocalWebActivity.class)
+            .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)));
         button(layout, "Set up Codex", () -> startActivity(new Intent(this, LocalWebActivity.class).putExtra("provider", "codex")));
         button(layout, "Set up Claude", () -> startActivity(new Intent(this, LocalWebActivity.class).putExtra("provider", "claude")));
         button(layout, "Stop local host", () -> {
@@ -64,7 +65,8 @@ public final class HostActivity extends Activity {
             File file = new File(getFilesDir(), "host-status.txt");
             if (file.isFile()) message = new String(Files.readAllBytes(file.toPath()), java.nio.charset.StandardCharsets.UTF_8);
         } catch (Exception ignored) { }
-        if (!HostService.running && message.startsWith("Host process started")) message = "Stopped. Saved sessions remain on disk.";
+        if (!HostService.running && (message.startsWith("Host process started") || message.startsWith("Starting local host")))
+            message = "Stopped. Saved sessions remain on disk. Open Yep Anywhere to start it again.";
         boolean background = getSystemService(PowerManager.class).isIgnoringBatteryOptimizations(getPackageName());
         status.setText(getString(R.string.host_status, message,
             getString(getSystemService(android.app.NotificationManager.class).areNotificationsEnabled() ? R.string.allowed : R.string.off),

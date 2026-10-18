@@ -1,8 +1,14 @@
 <resources>
     <string name="browser_unavailable">No browser is available to open this link.</string>
   <string name="host_heading">Yep Anywhere Host · Experimental</string>
-  <string name="host_planned">Remote wake and guided provider setup are planned.</string>
+  <string name="host_planned">Remote wake is planned. Provider sign-in is available above.</string>
   <string name="host_status">\n%1$s\nNotifications: %2$s\nBackground battery setting: %3$s\n</string>
   <string name="allowed">allowed</string><string name="off">off</string><string name="optimized">optimized</string>
-  <string name="start_first">Start the local host first, then reopen Yep Anywhere.</string>
+  <string name="host_connecting">Starting the local host… Your saved sessions will be available when it is ready.</string>
+  <string name="host_retry">Retry</string>
+  <string name="host_controls">Host controls</string>
+  <string name="host_runtime_missing">The local runtime is not installed. Developer provisioning is required. Saved sessions have not been changed.</string>
+  <string name="host_start_failed">The local host could not be opened. Return to Host controls for its status, or try again.</string>
+  <string name="host_not_ready">The local host did not become ready. Your saved sessions remain on disk. Retry, or check Host controls for its status.</string>
+  <string name="host_open_failed">The local host connection was interrupted. Your saved sessions remain on disk. Retry to reconnect.</string>
 </resources>

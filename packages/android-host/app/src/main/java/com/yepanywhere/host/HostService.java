@@ -10,10 +10,13 @@ import java.lang.Process;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /** Android owns the process tree; closing an activity does not stop the host. */
 public final class HostService extends Service {
     static volatile boolean running;
+    private static volatile CountDownLatch shutdown = new CountDownLatch(0);
     private final Object lock = new Object();
     private Process child;
     private File groupFile;
@@ -32,6 +35,7 @@ public final class HostService extends Service {
         if (started) return START_NOT_STICKY;
         started = true;
         running = true;
+        status(this, "Starting local host. Saved sessions remain on disk.");
         NotificationManager manager = getSystemService(NotificationManager.class);
         manager.createNotificationChannel(new NotificationChannel("host", "On-device sessions", NotificationManager.IMPORTANCE_LOW));
         PendingIntent open = PendingIntent.getActivity(this, 0, new Intent(this, HostActivity.class), PendingIntent.FLAG_IMMUTABLE);
@@ -40,12 +44,16 @@ public final class HostService extends Service {
             .setContentTitle("YA Host is running")
             .setContentText("On-device server active. Open the app to stop it.")
             .setContentIntent(open).setOngoing(true).build());
-        new Thread(this::runHost, "ya-host-runtime").start();
+        CountDownLatch previousShutdown = shutdown;
+        new Thread(() -> runHost(previousShutdown), "ya-host-runtime").start();
         return START_NOT_STICKY;
     }
 
-    private void runHost() {
+    private void runHost(CountDownLatch previousShutdown) {
         try {
+            // A quick Stop -> Open must join the old group's bounded sweep,
+            // not launch another server against its still-bound port.
+            if (!previousShutdown.await(8, TimeUnit.SECONDS)) throw new IOException("Previous host shutdown is still pending. Retry from the app.");
             File root = new File(getFilesDir(), "runtime");
             if (!new File(root, "opt/host/launch.mjs").isFile()) {
                 throw new IOException("Runtime not installed. Use the developer provisioning command.");
@@ -102,6 +110,8 @@ public final class HostService extends Service {
     }
 
     @Override public void onDestroy() {
+        CountDownLatch completion = new CountDownLatch(1);
+        shutdown = completion;
         running = false;
         Process process;
         File pidFile;
@@ -134,11 +144,11 @@ public final class HostService extends Service {
                 } finally {
                     // Android's Process.destroy closes streams; keep it off
                     // the main thread and signal the group before doing so.
-                    process.destroyForcibly();
-                    pidFile.delete();
+                    try { process.destroyForcibly(); pidFile.delete(); }
+                    finally { completion.countDown(); }
                 }
             }, "ya-host-stop").start();
-        }
+        } else completion.countDown();
         stopForeground(STOP_FOREGROUND_REMOVE);
         super.onDestroy();
     }

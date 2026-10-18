@@ -68,10 +68,15 @@ python3 packages/android-host/tools/host.py stage --serial "$ANDROID_TEST_SERIAL
 ```
 
 The package id is `com.yepanywhere.host.experimental`; its launcher label is
-**YA Host (Experimental)**. Open it, choose **Start local host**, then **Open
-Yep Anywhere**. Closing the UI does not stop the service. **Stop local host**
+**YA Host (Experimental)**. Choose **Open Yep Anywhere**; it starts the local
+host if needed and waits for readiness. **Start local host** is also available
+as an explicit service control. Closing the UI does not stop the service. **Stop local host**
 stops the process tree while retaining app-private state. The service does not
-automatically restart itself, arm ADB, or enroll push/remote access.
+restart itself unattended, arm ADB, or enroll push/remote access. Open and the
+provider setup shortcuts can restart it after process loss or an APK update.
+Errors expose **Retry** and **Host controls**. Reopening a healthy existing
+page preserves its document; returning from the provider browser does not
+unconditionally reload a sign-in form.
 
 For a Codex session in the existing YA UI, choose **Full Access**: YA passes its
 selected permission mode to app-server and can override the CLI profile's
@@ -146,4 +151,25 @@ Pixel 9; it does not require AAR or imported workstation credentials.
   Runtime preparation for development is not an approval to redistribute them.
 
 See the [initial evidence record](../../docs/testing/android-host-scaffold-2026-10-17.md)
+and [lifecycle investigation](../../docs/testing/android-host-lifecycle-2026-10-18.md)
 for exactly which checks have run.
+
+## Physical lifecycle regression
+
+With the current debug APK installed, an existing provisioned runtime, a stopped
+host and an unlocked dedicated test phone using the English UI, run:
+
+```sh
+node packages/android-host/tools/lifecycle.mjs --serial "$ANDROID_TEST_SERIAL"
+```
+
+The opt-in runner uses the MC doctor/launcher/capture CLI, actual native taps
+and the debug WebView's CDP endpoint. It checks opening a stopped host, document
+identity across Home/launcher/Open, server termination during navigation,
+Retry, rapid Stop/Open, force-stop/reopen and missing-runtime repair. It briefly
+renames only `launch.mjs` while the app is stopped and restores the exact file;
+a private recovery record names that rename until restored. It preserves
+app-private sessions/configuration and removes its own marker, temporary UI
+dump and ADB forwards in cleanup. The selected host is left stopped. It does
+not test real provider inference, reboot, credential refresh or Doze. Evidence
+is private under `.local/lifecycle-*`; do not commit device captures/selectors.

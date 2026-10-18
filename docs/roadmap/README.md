@@ -8,8 +8,12 @@ lifecycle/authentication work. Remote wake is a later experiment. Native setup
 shortcuts and focused shared YA sign-in pages now form the onboarding baseline:
 the user completed both Claude and Codex subscription sign-ins on the Pixel 9.
 Refresh, sign-out and restart persistence remain separate validation work.
+Explicit Open now starts a stopped Android host, waits for authenticated local
+readiness and offers native recovery after process loss. Unattended wake,
+overnight/Doze survival and interrupted-provider resume remain incubation work;
+see the [lifecycle investigation](../testing/android-host-lifecycle-2026-10-18.md).
 
-Last updated: 2026-10-17.
+Last updated: 2026-10-18.
 
 This is Yep Anywhere's canonical product-priority overview. Keep initiative
 status, the next action, and major blockers here; keep implementation steps in

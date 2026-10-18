@@ -85,6 +85,31 @@ listed above or establish background, remote or reboot acceptance.
   after two seconds. Killing only the PRoot tracer is insufficient. This bounded
   stop does not promise a live provider turn has checkpointed. No boot receiver,
   restart loop or remote push wake is installed.
+- **Open Yep Anywhere**, **Set up Codex** and **Set up Claude** are explicit
+  requests to start a stopped host. The native screen waits for the current
+  credential to be accepted by the protected loopback API before navigating.
+  A saved token, old status text or spawned process alone is not readiness.
+  Startup readiness has a 45-second budget with bounded individual request
+  timeouts. Attempts show native progress, then a
+  recoverable error with **Retry** and **Host controls**. Missing provisioned
+  runtime is reported immediately; saved state is retained.
+- **Open** brings an existing WebView forward. A healthy completed page keeps
+  its document and route on return; it is not reloaded merely because the user
+  visited the browser or native controls. Unavailable hosts are started and
+  recovered with a fresh credential read and the last usable local route.
+  Top-level load failures show native recovery, including service-worker fetch
+  errors reported by WebView as `main=false` when they match the outstanding
+  top-level URL. A navigation-intent readiness check covers failures delivered
+  before that top-level callback, even when no load-completion event follows.
+  Fragment-only jumps preserve the document. Unrelated subresource errors do
+  not replace the page. A completed page load also checks backend readiness. Failed
+  pages are unloaded so hidden JavaScript cannot keep retrying indefinitely.
+- Readiness work belongs to the foreground WebView activity, is cancelled when
+  it pauses/dies, and has one bounded background worker. There is no permanent
+  readiness poll or unattended restart loop. A rapid **Stop → Open** joins the
+  prior process group's shutdown before launching a new server. The controls
+  report stale persisted "started"/"starting" text as stopped when their
+  service is no longer alive.
 - The runtime binds only loopback. A private persistent local access token uses
   YA's existing desktop-token API/WebSocket mechanism; anonymous API requests
   cannot access the host. The scaffold does not use `AUTH_DISABLED=true`.
@@ -141,6 +166,10 @@ survival, screen-off/Doze behavior, process termination and actual provider
 resume. A container restart or retained transcript display is not a resume test.
 Recovery of a host after reboot must distinguish server readiness from ADB
 readiness; a push cannot re-arm TCP adbd after reboot.
+
+The [2026-10-18 lifecycle investigation](../docs/testing/android-host-lifecycle-2026-10-18.md)
+records the morning stopped-host failure, the controlled physical recovery
+checks and the remaining overnight/Doze/provider-resume limits.
 
 ## Next incubation milestones
 
