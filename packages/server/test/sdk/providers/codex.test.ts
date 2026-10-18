@@ -2428,7 +2428,10 @@ describe("CodexProvider app-server lifecycle", () => {
           for await (const _ of session?.iterator ?? []) {
           }
         })();
-        await waitForFakeCodexRequest(logPath, "turn/start");
+        // CI 37698697131 and 39129536950 reached the shell probe in 9-16ms
+        // but exhausted the 2s waiter before the real source CLI returned.
+        // Budget 3x that observed limit for CLI startup and its HTTP read.
+        await waitForFakeCodexRequest(logPath, "turn/start", 6_000);
         const request = readFakeCodexRequests(logPath).find(
           (record) => record.method === "turn/start",
         );
@@ -2448,6 +2451,9 @@ describe("CodexProvider app-server lifecycle", () => {
         rmSync(tempDir, { recursive: true, force: true });
       }
     },
+    // The failed CI case took 2115ms including startup and cleanup; allow
+    // ~3.8x that observed maximum around the narrower probe waiter above.
+    8_000,
   );
 
   it("sets AGENTCTL_SESSION_ID directly in the app-server env on resume", async () => {
@@ -5080,6 +5086,7 @@ function logRequest(message) {
     testTimeline("shell-probe-start");
     record.agentctlSessionId = agentctlSessionIdFromBash();
     if (process.env.AGENT_YA_API_URL) {
+      testTimeline("self-probe-start");
       record.agentSelf = JSON.parse(execFileSync("bash", ["-c", "ya-agent self --json"], { env: process.env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 10000 }));
     }
     testTimeline("shell-probe-complete");
