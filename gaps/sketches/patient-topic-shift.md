@@ -1,8 +1,9 @@
 # Patient topic shifts within an existing session
 
-Status: sketch, not implemented. Requested 2026-10-18 while reviewing the
-patient-queue setting. This is an optional manual action, not a change to
-default sends or a new-session workflow.
+Status: sketch, not implemented. Requested and refined 2026-10-18 while
+reviewing the patient-queue setting. The direction includes a new manual send
+action and a possible generalization of the existing patient-queue default;
+its final label and UI remain TBD. Default steering remains unchanged.
 
 ## Intent
 
@@ -10,6 +11,13 @@ Queue a new topic for after the current work finishes, optionally suggesting
 compaction when context usage exceeds a chosen percentage. Keep default
 steering immediate. Waiting and compaction are separate choices: a user may
 want either without the other.
+
+The manual action gets its own independently hideable toolbar button. Users
+may show it instead of Project Queue, or show both: a soft topic shift can
+depend on the current conversation, whereas project scheduling better suits
+work the typed request describes independently. Neither action implies a new
+session, and the topic-shift action preserves context unless compaction was
+separately enabled.
 
 ## What YA already knows
 
@@ -35,10 +43,19 @@ and the current tracker in
 
 ## Proposed waiting behavior
 
-An explicit **Next topic when done** action creates per-message intent. It
-waits for an idle turn plus relevant reported work, then a short quiet interval
-to avoid racing a follow-up turn. Recheck eligibility immediately before
-delivery. Ordinary steer and queue actions retain their current behavior.
+An explicit **Next topic when done** action creates per-message intent.
+Provider adapters own how patient topic shifts wait and use hints; YA owns
+durable queue state, promotion ordering, cancellation, and delivery once.
+Claude's initial implementation reuses its current patient delivery behavior:
+verified idle after reported background work, followed by the quiet interval.
+Do not build a parallel Claude waiting mechanism.
+
+The provider contract should report eligibility, blockers, and the events
+that can change them. Recheck eligibility immediately before delivery. New
+provider implementations need evidence-backed waiting behavior rather than
+assuming Claude's lifecycle. The existing queue-default option can eventually
+select this same patient intent across providers; its final presentation is
+TBD. Steer remains independent of both entry points.
 
 Do not simply make all Codex background work retain the session globally.
 The open design problem is which jobs count: finite work being awaited versus
@@ -53,12 +70,39 @@ the existing durable queue and event-driven promotion owner; add no standing
 idle polling. Provider support must describe available evidence, not promise
 complete background-task visibility.
 
+## Defaults and migration
+
+Keep the source of intent on each item: an explicit topic-shift click or the
+patient queue default. Both use the provider's patient implementation, but
+their compaction thresholds are independently configurable. The default-queue
+threshold should probably be higher than the explicit-click threshold; exact
+new-user values remain undecided. This reflects the stronger topic-shift signal
+from a deliberate click.
+
+Existing `patientQueueDefault: true` users retain enabled patient queue intent
+with automatic compaction disabled. In a percentage control, **100% means
+Off**, not “compact at full context”: normalize it to an explicitly disabled
+policy so an over-capacity estimate cannot accidentally trigger compaction.
+This migration applies to the default-queue threshold, not a separately chosen
+explicit-click threshold. Existing false/absent values stay off; fresh YA
+installs currently default to off. Already accepted queue entries keep their
+original policy. Native provider auto-compaction is unaffected.
+
 ## Compaction suggestion and execution
 
 Evaluate context pressure at the delivery boundary, not just when the message
 was queued. Reuse YA's context-usage calculation and the session's effective
 context limit. Missing or stale usage must not be treated as above threshold.
-The percentage and whether to act remain explicit user choices.
+The percentage and whether to act remain explicit user choices, separately
+for the two entry points above.
+
+YA-managed threshold compaction is the optional common implementation wherever
+native manual compaction is supported. Disable that YA-managed path for a
+provider only after verifying that its own patient-topic-shift hint produces
+better behavior and implementing that alternative in the adapter. Expose the
+reason and use the verified provider path; do not both hint and manually
+compact for the same item. Merely accepting arbitrary prompt text is not
+evidence of such support. No provider is designated for this exemption yet.
 
 A soft hint has two possible recipients:
 
@@ -88,5 +132,8 @@ subagent completion, a new turn racing delivery, missing inventory, restart,
 and compaction failure. In each case the next topic delivers at most once,
 blockers remain inspectable, and default-steer sends stay immediate. Establish
 the classification rule and supported providers before adding the control.
+Also cover independent button visibility, both threshold policies, existing
+enabled-user migration, 100%-as-Off even with usage above the reported limit,
+and mutual exclusion between provider-managed hints and YA-managed compaction.
 
 Contributing-model: gpt-6-astra
