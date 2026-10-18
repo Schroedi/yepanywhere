@@ -59,9 +59,11 @@ Codex may persist a readable compaction handoff as an assistant message with
 top-level `metadata.compaction_output: true`, including `phase: "final_answer"`.
 This is internal compaction output, not an ordinary assistant answer. YA shows
 it through the existing **Context compacted** disclosure, collapsed by default;
-expanding it retains access to the full summary.
-The expanded body uses the theme's code background and primary text color so
-the summary remains readable in light and dark themes.
+expanding it retains access to the full summary, rendered as Markdown using
+the same safe renderer as assistant prose. Raw provider metadata stays plain
+text. If Markdown augmentation fails, the original summary remains readable.
+The expanded summary uses primary text color; plain-text details and code
+blocks use the theme's code background, remaining readable in both themes.
 
 When the following `compacted` checkpoint supplies the summary, that checkpoint
 owns the single disclosure and its pagination identity. Token accounting between

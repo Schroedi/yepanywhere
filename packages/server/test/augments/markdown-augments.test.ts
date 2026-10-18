@@ -14,6 +14,8 @@ import {
   highlightWorker,
 } from "../../src/highlighting/highlight-worker-host.js";
 import type { ProjectPathIndex } from "../../src/projects/projectPathIndex.js";
+import { compileTranscriptProjection } from "@yep-anywhere/shared/transcript/compiler";
+import type { Message } from "@yep-anywhere/shared/transcript/message";
 
 afterEach(() => {
   __test__.resetMarkdownHtmlCache();
@@ -21,6 +23,39 @@ afterEach(() => {
 });
 
 describe("assistant markdown augments", () => {
+  it("renders compact summary prose safely and keeps provider metadata separate", async () => {
+    const summary =
+      '### Active task\n\n- Keep **Markdown** readable.\n\n<script>alert("summary")</script>';
+    const message: Message = {
+      uuid: "compact",
+      type: "system",
+      subtype: "compact_boundary",
+      content: "Context compacted",
+      compactSummaryText: summary,
+      compactMetadata: { trigger: "auto" },
+    };
+    const original = compileTranscriptProjection([message]);
+    await augmentTextBlocks([message]);
+    const projected = compileTranscriptProjection([message]);
+    expect(projected).toHaveLength(1);
+    expect(projected[0]).toMatchObject({
+      type: "system",
+      subtype: "compact_boundary",
+      details: [
+        [{ type: "text", text: summary, _html: expect.any(String) }],
+        'compactMetadata:\n{\n  "trigger": "auto"\n}',
+      ],
+    });
+    expect(message._html).toContain("<h3");
+    expect(message._html).toContain("<ul>");
+    expect(message._html).toContain("<strong>Markdown</strong>");
+    expect(message._html).not.toContain("<script>");
+    expect(original[0]).toMatchObject({
+      details: [summary, expect.any(String)],
+    });
+    expect(projected[0]).not.toHaveProperty("detailsOpen", true);
+  });
+
   it("resolves filenames from preceding directories across a prose body", async () => {
     const root = await mkdtemp(join(tmpdir(), "ya-mentioned-directories-"));
     const index = await getProjectPathIndex(root);
