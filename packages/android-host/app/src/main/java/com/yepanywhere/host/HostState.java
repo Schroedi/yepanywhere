@@ -24,9 +24,16 @@ public final class HostState extends ContentProvider {
         return value == null ? snapshot("stopped", "Host status unavailable", "", Collections.emptyMap(), null) : value;
     }
     static Map<String, String> mappings(Bundle snapshot) {
-        Map<String, String> roots = new HashMap<>(); Bundle values = snapshot.getBundle("mappings");
-        if (values != null) for (String key : values.keySet()) roots.put(key, values.getString(key));
+        return mappings(snapshot, "mappings");
+    }
+    static Map<String, String> mappings(Bundle snapshot, String key) {
+        Map<String, String> roots = new HashMap<>(); Bundle values = snapshot.getBundle(key);
+        if (values != null) for (String name : values.keySet()) roots.put(name, values.getString(name));
         return roots;
+    }
+    static Set<String> invalidVolumes(Bundle snapshot) {
+        ArrayList<String> values = snapshot.getStringArrayList("invalidVolumes");
+        return values == null ? Collections.emptySet() : new HashSet<>(values);
     }
     static boolean active(Bundle value) { return "starting".equals(value.getString("phase")) || "ready".equals(value.getString("phase")); }
     static final class Watch implements AutoCloseable {

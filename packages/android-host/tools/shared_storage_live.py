@@ -6,12 +6,14 @@ directories are mutable. Device selectors, volume identities, recovery receipts,
 raw inventories and logs stay under ignored .local. Never formats/ejects a card.
 """
 import argparse
+import gzip
 import hashlib
 import json
 import os
 from pathlib import Path
 import re
 import shlex
+import shutil
 import subprocess
 import time
 import uuid
@@ -28,9 +30,11 @@ def main():
     parser.add_argument('--target',required=True)
     parser.add_argument('--model',required=True)
     parser.add_argument('--external',action='store_true')
+    parser.add_argument('--ui',action='store_true',help='Verify real host start, native mapped-volume status and 16-root sequential typing')
     parser.add_argument('--headless-permission',action='store_true',help='Set only the disposable fixture all-files app-op; no UI/keyguard changes')
     parser.add_argument('--resume',type=Path)
     args=parser.parse_args()
+    assert not (args.ui and args.headless_permission), 'Native UI acceptance requires an unlocked display'
     serial=json.loads(args.device_file.read_text())['serial'];adb=['adb','-s',serial]
     run_id=args.resume.name if args.resume else uuid.uuid4().hex
     assert re.fullmatch('[a-f0-9]{32}',run_id)
@@ -49,10 +53,22 @@ def main():
     def shell(*words,**kw):return execute([*adb,'shell',shlex.join(words)],**kw)
     def common(*words):return execute([*mc,*words]).stdout
     def read(path):return shell('run-as',APP,'cat',path).stdout
+    transfer=None
     def stage():
+        nonlocal transfer
+        if transfer is None:
+            info=json.loads((HOST/'.local/runtime-info.json').read_text())
+            raw=HOST/'.local/runtime.tar'
+            with raw.open('rb') as payload:assert hashlib.file_digest(payload,'sha256').hexdigest()==info['payloadSha256']
+            transfer=HOST/'.local'/('storage-transfer-'+info['payloadSha256']+'.tar.gz')
+            if not transfer.exists():
+                temporary=transfer.with_suffix('.next')
+                with raw.open('rb') as payload,gzip.open(temporary,'wb',compresslevel=1) as output:shutil.copyfileobj(payload,output,1024*1024)
+                temporary.replace(transfer)
+            with gzip.open(transfer,'rb') as payload:assert hashlib.file_digest(payload,'sha256').hexdigest()==info['payloadSha256']
         shell('run-as',APP,'mkdir','-p','files/runtime','files/state')
-        with (HOST/'.local/runtime.tar').open('rb') as payload:
-            r=subprocess.run([*adb,'shell','-T',shlex.join(['run-as',APP,'tar','-xf','-','-C','files/runtime'])],stdin=payload,capture_output=True,timeout=240)
+        with transfer.open('rb') as payload:
+            r=subprocess.run([*adb,'shell','-T',shlex.join(['run-as',APP,'tar','-xzf','-','-C','files/runtime'])],stdin=payload,capture_output=True,timeout=240)
             assert r.returncode==0,'Fixture runtime extraction failed'
         shell('run-as',APP,'chmod','4755','files/runtime/usr/bin/sudo')
         shell('run-as',APP,'tee','files/storage-probe.py',data=(HOST/'test/shared_storage_probe.py').read_bytes())
@@ -70,6 +86,9 @@ def main():
             data=shell('cat',remote).stdout;(evidence/'ui.xml').write_bytes(data)
             return list(ET.fromstring(data).iter('node'))
         finally:shell('rm','-f',remote)
+    def tap_label(prefix):
+        control=next(n for n in nodes() if n.get('text','').startswith(prefix))
+        x1,y1,x2,y2=map(int,re.findall(r'\d+',control.get('bounds')));shell('input','tap',str((x1+x2)//2),str((y1+y2)//2))
     def permission(enabled):
         if args.headless_permission:
             shell('appops','set','--uid',APP,'MANAGE_EXTERNAL_STORAGE','allow' if enabled else 'default');return
@@ -119,22 +138,49 @@ def main():
         if args.external:
             chosen=[v for v in initial['volumes'] if v['removable'] and v['state']=='mounted']
             assert len(chosen)==1
-            resource['paths'].append({'mount':'/external-card','path':chosen[0]['directory']+'/YAStorage-'+run_id})
+            resource['paths'].append({'mount':'/storage/'+chosen[0]['uuid'],'path':chosen[0]['directory']+'/YAStorage-'+run_id})
         receipt()
         for item in resource['paths']:assert shell('test','-e',item['path'],check=False).returncode==1
-        stage();assert probe(label='blocked-before')['probe']['blockedWithoutPermission']
+        stage();assert probe(external=args.external,label='blocked-before')['probe']['blockedWithoutPermission']
         permission(True)
         first=probe(external=args.external,label='enabled');assert first['allFiles'] and first['persistedGrants']==0;verify(first)
         second=probe(external=args.external,label='process-restart');verify(second)
         assert all(p['recoveredExistingBytes'] for p in second['probe']['filesystems'].values())
-        permission(False);assert probe(label='revoked')['probe']['blockedWithoutPermission'];verify(second)
+        if args.external:
+            transition=probe(op='transition',external=True,label='media-transition')
+            assert transition['transition']['sameRuntimeMediaTransitionRejected'] and transition['transition']['primaryStillAvailable']
+            verify(transition);second=transition
+        permission(False);assert probe(external=args.external,label='revoked')['probe']['blockedWithoutPermission'];verify(second)
         common('testbed','--','stop',APP);assert shell('pm','clear','--user','0',APP).stdout.strip()==b'Success'
         # Data clear erases the fixture runtime/registry, never external bytes.
         verify(second);stage();permission(True)
         recovered=probe(external=args.external,label='data-clear-recovery');verify(recovered)
         assert recovered['persistedGrants']==0 and all(p['recoveredExistingBytes'] for p in recovered['probe']['filesystems'].values())
+        if args.ui:
+            typed=shell('am','instrument','-w',APP+'/com.yepanywhere.host.WorkspaceTypingProbe')
+            (evidence/'typing.log').write_bytes(typed.stdout+typed.stderr)
+            assert b'WORKSPACE_TYPING_PASS' in typed.stdout
+            (evidence/'typing.json').write_bytes(read('files/typing.json'))
+            common('testbed','--','launch',APP);tap_label('Start local host')
+            deadline=time.monotonic()+60
+            while time.monotonic()<deadline:
+                if any(n.get('text','')=='Local host running' for n in nodes()):break
+                time.sleep(.25)
+            else:
+                (evidence/'host-error.log').write_bytes(shell('run-as',APP,'cat','files/host.log',check=False).stdout)
+                raise AssertionError('Fixture host did not become ready; private host-error.log retained')
+            tap_label('Workspace folders')
+            deadline=time.monotonic()+30
+            while time.monotonic()<deadline:
+                texts=[n.get('text','') for n in nodes()]
+                primary=any('/sdcard' in t and 'mapped for this runtime' in t for t in texts)
+                removable=any('/storage/' in t and 'mapped for this runtime' in t for t in texts)
+                if primary and (not args.external or removable):break
+                time.sleep(.25)
+            else:raise AssertionError('Native status did not confirm production host mappings')
+            common('testbed','--','screenshot',str(evidence/'mapped-volumes.png'))
         summary={'model':args.model,'permissionRoute':'fixture app-op' if args.headless_permission else 'Android Settings','primaryNoPickerNoSafGrant':True,'blockedAndRevocationPassed':True,'processRestartAndDataClearRecovery':True,
-                 'independentBytesAndHashes':True,'removableInvestigated':args.external,
+                 'independentBytesAndHashes':True,'removableMapped':args.external,'nativeHostUiPassed':args.ui,
                  'filesystems':{k:{n:v for n,v in f.items() if n not in ('hashes','gitError','sqliteError')} for k,f in recovered['probe']['filesystems'].items()}}
         (evidence/'summary.json').write_text(json.dumps(summary,indent=2));success=True
     finally:

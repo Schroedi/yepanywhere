@@ -52,6 +52,9 @@ public final class HostService extends Service {
     private void publish(String next, String message) {
         phase = next; detail = message;
         Bundle value = HostState.snapshot(phase, detail, generation, mappings, sharedStorage); value.putBoolean("spawned", spawned);
+        Bundle volumes = new Bundle();
+        if (workspaces != null) workspaces.appliedVolumes.forEach(volumes::putString);
+        value.putBundle("volumes", volumes); value.putStringArrayList("invalidVolumes", workspaces == null ? new ArrayList<>() : new ArrayList<>(workspaces.invalidVolumes));
         HostState.publish(this, value);
         if (!"stopped".equals(phase) && !"failed".equals(phase)) startForeground(1, notification());
     }
@@ -119,7 +122,9 @@ public final class HostService extends Service {
             {
                 if (attempt != operation) return;
                 resolver = new HostResolver(this);
-                workspaces = new WorkspaceRuntime(getApplicationContext());
+                workspaces = new WorkspaceRuntime(getApplicationContext(), () -> main.post(() -> {
+                    if (!destroyed && attempt == operation) publish(phase, detail);
+                }));
                 sharedStorage = workspaces.sharedSource == null ? null : workspaces.sharedSource.toString();
                 mappings = Collections.unmodifiableMap(new HashMap<>(workspaces.applied));
             }

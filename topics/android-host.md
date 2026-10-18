@@ -91,7 +91,15 @@ new provider launches under `/sdcard` recheck authority and applied identity.
 Existing handles/processes do not gain new mappings or guaranteed immediate
 revocation. Named shortcuts remain optional; runtime, credentials and YA state
 remain private. `/sdcard` always means primary shared storage, not a removable
-card. The [workspace guide](../packages/android-host/docs/workspaces.md) owns
+card. Mounted writable removable volumes map independently to
+`/storage/<volume-id>` without a picker, using StorageManager UUIDs rather than
+labels or enumeration order. Native status distinguishes availability from the
+applied mapping. New provider launches recheck authority, writable mount state
+and applied source; media transitions invalidate the affected volume until an
+explicit host restart, including after reinsertion. Other volumes stay usable.
+Unavailable/unknown volumes never become private writable fallbacks. Existing
+I/O and handles retain Android's removal semantics; this is not unplug safety.
+The [workspace guide](../packages/android-host/docs/workspaces.md) owns
 volume qualification, failure/recovery details and physical evidence.
 
 Disposable `-PworkspaceFixture` builds use loopback port 13420; normal host

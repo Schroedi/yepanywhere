@@ -38,7 +38,9 @@ Optional all-files access now maps primary shared storage directly to `/sdcard`
 on host start, without picking a folder. `/sdcard/Download` and
 `/sdcard/Documents` use the actual shared files. Enable the permission and use
 **Apply mappings / restart host**; the folder screen reports availability.
-Removable cards are separate volumes; see the investigation in the guide.
+Mounted writable removable cards also map to `/storage/<volume-id>`. The folder
+screen lists their paths/status; insertion or media changes require a controlled
+restart. See the guide for removal limits and physical evidence.
 
 The host also supports [multiple named workspace folders](docs/workspaces.md):
 open **Workspace folders**, add each folder through the picker, and optionally

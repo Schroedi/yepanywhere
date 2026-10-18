@@ -126,8 +126,13 @@ public final class HostActivity extends Activity {
                 for (int i = 0; i < roots.length(); i++) { JSONObject root = roots.getJSONObject(i); if (root.optBoolean("directAvailable")) desired.put(root.getString("name"), root.getString("tree")); }
                 JSONObject storage = WorkspaceRuntime.sharedStatus(this, state.getString("shared"));
                 String source = storage.optBoolean("available") ? storage.optString("source") : null;
-                boolean changed = "ready".equals(state.getString("phase")) && (!desired.equals(HostState.mappings(state)) || !java.util.Objects.equals(source, state.getString("shared")));
-                String label = "Workspace folders\n" + roots.length() + " saved" + (unhealthy > 0 ? " · " + unhealthy + " need attention" : "") + (changed ? " · Restart needed" : "");
+                java.util.Map<String, String> appliedVolumes = HostState.mappings(state, "volumes"), desiredVolumes = new java.util.HashMap<>();
+                java.util.Set<String> invalidVolumes = HostState.invalidVolumes(state);
+                JSONArray volumes = WorkspaceRuntime.volumeStatus(this, appliedVolumes, invalidVolumes);
+                for (int i = 0; i < volumes.length(); i++) { JSONObject volume = volumes.getJSONObject(i); if (volume.optBoolean("available")) desiredVolumes.put(volume.getString("id"), volume.getString("source")); }
+                boolean changed = "ready".equals(state.getString("phase")) && (!desired.equals(HostState.mappings(state)) ||
+                    !java.util.Objects.equals(source, state.getString("shared")) || !desiredVolumes.equals(appliedVolumes) || !invalidVolumes.isEmpty());
+                String label = "Workspace folders\n" + roots.length() + " saved" + (volumes.length() > 0 ? " · " + volumes.length() + " removable" : "") + (unhealthy > 0 ? " · " + unhealthy + " need attention" : "") + (changed ? " · Restart needed" : "");
                 runOnUiThread(() -> { if (visible && attempt == generation) folders.setText(label); });
             } catch (Exception unavailable) { runOnUiThread(() -> { if (visible && attempt == generation) folders.setText("Workspace folders\nFolder status unavailable"); }); }
             finally { deadline.cancel(false); }

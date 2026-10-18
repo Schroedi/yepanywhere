@@ -47,8 +47,10 @@ revocation/repair and fixture reset/reinstall recovery; owned test resources wer
 removed afterward. Optional all-files access now also exposes primary shared
 storage at `/sdcard` without selecting a folder. Pixel 9 and Motorola physical
 fixtures passed no-picker access, independent hashes, revocation and app-data
-reset recovery. The Motorola removable exFAT card passed a separate temporary
-binding; production removable mappings and hot-unplug behavior remain open.
+reset recovery. The Motorola removable exFAT card now uses production
+`/storage/<volume-id>` mappings, with native availability/applied status,
+per-launch authority/identity checks, and restart required after media changes.
+Existing in-flight I/O is not made safe for unplugging.
 
 The [Android host distribution/assistant research](../../topics/android-host.md#distribution-and-optional-phone-automation)
 now records a basic coding host independent of accessibility automation, optional

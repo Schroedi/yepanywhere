@@ -11,14 +11,34 @@ export async function assertAndroidWorkspaceAvailable(
   if (!endpoint) return;
   const path = resolve(cwd);
   const shared = path === "/sdcard" || path.startsWith("/sdcard/");
-  if (!shared && path !== "/workspaces" && !path.startsWith("/workspaces/"))
+  const removable = path === "/storage" || path.startsWith("/storage/");
+  if (
+    !shared &&
+    !removable &&
+    path !== "/workspaces" &&
+    !path.startsWith("/workspaces/")
+  )
     return;
   const root = path.split("/")[2];
   if (!shared && !root)
-    throw new Error("Choose a saved folder beneath /workspaces");
-  const expectedPath = shared ? "/sdcard" : `/workspaces/${root}`;
+    throw new Error(
+      removable
+        ? "Choose a removable volume beneath /storage"
+        : "Choose a saved folder beneath /workspaces",
+    );
+  const expectedPath = shared
+    ? "/sdcard"
+    : removable
+      ? `/storage/${root}`
+      : `/workspaces/${root}`;
   const request = Buffer.from(
-    JSON.stringify(shared ? { op: "check-shared" } : { op: "check", root }),
+    JSON.stringify(
+      shared
+        ? { op: "check-shared" }
+        : removable
+          ? { op: "check-volume", volume: root }
+          : { op: "check", root },
+    ),
   );
   const prefix = Buffer.alloc(4);
   prefix.writeUInt32BE(request.length);

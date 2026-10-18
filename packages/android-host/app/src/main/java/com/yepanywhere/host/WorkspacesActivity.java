@@ -13,7 +13,10 @@ import org.json.*;
 /** Native folder onboarding; provider queries never compete with shortcut typing. */
 public final class WorkspacesActivity extends Activity {
     private TextView message;
-    private TextView shared;
+    private TextView shared, removable;
+    private final BroadcastReceiver media = new BroadcastReceiver() {
+        @Override public void onReceive(Context context, Intent intent) { refresh(); }
+    };
     private TextView mapping;
     private Button allFiles, apply, pick;
     private final java.util.List<android.view.View> actions = new java.util.ArrayList<>();
@@ -46,7 +49,7 @@ public final class WorkspacesActivity extends Activity {
             Runnable settings = () -> startActivity(new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:" + getPackageName())));
             if (Environment.isExternalStorageManager()) { settings.run(); return; }
             new AlertDialog.Builder(this).setTitle("Allow broad storage access?")
-                .setMessage("This lets the app read, modify and delete files throughout accessible shared storage, including Downloads, Documents and photos. After restarting the host, primary shared storage is available at /sdcard without picking a folder. This access is broader than your selected folders. PRoot does not restrict that authority. SAF tools do not require this permission.")
+                .setMessage("This lets the app read, modify and delete files throughout accessible shared storage, including Downloads, Documents and photos. After restarting the host, primary shared storage is available at /sdcard and removable volumes at /storage/<volume-id>, without picking a folder. This access is broader than your selected folders. PRoot does not restrict that authority. SAF tools do not require this permission.")
                 .setNegativeButton("Cancel", null).setPositiveButton("Open settings", (dialog, which) -> settings.run()).show();
         });
         apply = button(content, "Checking mappings…", () -> {
@@ -58,6 +61,7 @@ public final class WorkspacesActivity extends Activity {
         }); apply.setEnabled(false);
         mapping = new TextView(this); content.addView(mapping);
         shared = new TextView(this); shared.setTextIsSelectable(true); content.addView(shared);
+        removable = new TextView(this); removable.setTextIsSelectable(true); content.addView(removable);
         message = new TextView(this); message.setTextIsSelectable(true); content.addView(message);
         rows = new LinearLayout(this); rows.setOrientation(LinearLayout.VERTICAL); content.addView(rows);
         ScrollView scroll = new ScrollView(this); scroll.addView(content);
@@ -139,6 +143,8 @@ public final class WorkspacesActivity extends Activity {
         String phase = snapshot.getString("phase", "stopped");
         boolean active = "ready".equals(phase);
         java.util.Map<String, String> applied = active ? HostState.mappings(snapshot) : java.util.Collections.emptyMap();
+        java.util.Map<String, String> appliedVolumes = active ? HostState.mappings(snapshot, "volumes") : java.util.Collections.emptyMap();
+        java.util.Set<String> invalidated = HostState.invalidVolumes(snapshot);
         String appliedShared = active ? snapshot.getString("shared") : null;
         boolean transitioning = "starting".equals(phase) || "stopping".equals(phase);
         if (transitioning) { apply.setText("starting".equals(phase) ? "Starting host…" : "Stopping host…"); apply.setEnabled(false); }
@@ -150,6 +156,7 @@ public final class WorkspacesActivity extends Activity {
             try {
                 deadline = timer.schedule(signal::cancel, 15, TimeUnit.SECONDS);
                 JSONObject storage = WorkspaceRuntime.sharedStatus(this, appliedShared);
+                JSONArray volumes = WorkspaceRuntime.volumeStatus(this, appliedVolumes, invalidated);
                 JSONArray status = registry.status(signal, applied);
                 runOnUiThread(() -> {
                     if (destroyed || !visible || busy || renaming || current != generation) return;
@@ -163,7 +170,19 @@ public final class WorkspacesActivity extends Activity {
                     shared.setText(getString(R.string.workspace_shared, storage.optBoolean("mapped") ? getString(R.string.workspace_mapped) :
                         storage.optBoolean("available") ? getString(R.string.workspace_ready) : storage.optString("reason")));
                     String desiredShared = storage.optBoolean("available") ? storage.optString("source") : null;
-                    boolean changed = active && (!desired.equals(applied) || !java.util.Objects.equals(desiredShared, appliedShared));
+                    java.util.Map<String, String> desiredVolumes = new java.util.HashMap<>();
+                    StringBuilder volumeText = new StringBuilder();
+                    for (int i = 0; i < volumes.length(); i++) try {
+                        JSONObject volume = volumes.getJSONObject(i);
+                        if (volume.optBoolean("available")) desiredVolumes.put(volume.getString("id"), volume.getString("source"));
+                        if (volumeText.length() > 0) volumeText.append("\n");
+                        volumeText.append(volume.getString("label")).append(" · ").append(volume.isNull("path") ? "No stable path" : volume.getString("path"))
+                            .append("\n").append(volume.optBoolean("mapped") ? getString(R.string.workspace_mapped) :
+                                volume.has("reason") ? volume.optString("reason") : getString(R.string.workspace_ready));
+                    } catch (Exception error) { message.setText(error.getMessage()); }
+                    removable.setText(volumeText.length() == 0 ? "No removable storage detected" : volumeText);
+                    boolean changed = active && (!desired.equals(applied) || !java.util.Objects.equals(desiredShared, appliedShared) ||
+                        !desiredVolumes.equals(appliedVolumes) || !invalidated.isEmpty());
                     mapping.setText(changed ? getString(R.string.workspace_pending) : transitioning ? snapshot.getString("detail") :
                         active ? "Mappings are up to date" : "Mappings will apply on the next host start");
                     if (!transitioning) { apply.setText(active ? changed ? "Restart to apply changes" : "Mappings up to date" : "Start host with mappings"); apply.setEnabled(!active || changed); }
@@ -193,8 +212,8 @@ public final class WorkspacesActivity extends Activity {
             .setMessage("Files will stay in the selected folder. This removes its registration and releases unused folder permission. Restart to apply direct mapping changes.")
             .setNegativeButton("Cancel", null).setPositiveButton("Remove shortcut", (dialog, which) -> mutate(() -> registry.remove(alias))).show());
     }
-    @Override public void onResume() { super.onResume(); visible = true; watch = new HostState.Watch(this, this::refresh); refresh(); }
-    @Override public void onPause() { visible = false; generation++; if (watch != null) { watch.close(); watch = null; } if (query != null) query.cancel(); super.onPause(); }
+    @Override public void onResume() { super.onResume(); visible = true; registerReceiver(media, WorkspaceRuntime.mediaFilter()); watch = new HostState.Watch(this, this::refresh); refresh(); }
+    @Override public void onPause() { visible = false; unregisterReceiver(media); generation++; if (watch != null) { watch.close(); watch = null; } if (query != null) query.cancel(); super.onPause(); }
     @Override protected void onSaveInstanceState(Bundle out) { super.onSaveInstanceState(out); out.putString("pending", pending); }
     @Override public void onDestroy() { destroyed = true; if (query != null) query.cancel(); worker.shutdownNow(); timer.shutdownNow(); super.onDestroy(); }
 }

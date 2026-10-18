@@ -1,6 +1,6 @@
 package com.yepanywhere.host;
 
-import android.content.Context;
+import android.content.*;
 import android.net.LocalServerSocket;
 import android.net.LocalSocket;
 import android.os.CancellationSignal;
@@ -19,6 +19,11 @@ final class WorkspaceRuntime implements AutoCloseable {
     // This is a guest path. Android supplies the actual source through StorageManager.
     @android.annotation.SuppressLint("SdCardPath")
     static final String SHARED_PATH = "/sdcard";
+    static final String VOLUME_PATH = "/storage";
+    final Map<String, String> appliedVolumes = new LinkedHashMap<>();
+    final Set<String> invalidVolumes = ConcurrentHashMap.newKeySet();
+    private final BroadcastReceiver media;
+    private final Runnable storageChanged;
     final String socket;
     final File sharedSource;
     private final File sharedPlaceholder;
@@ -31,7 +36,15 @@ final class WorkspaceRuntime implements AutoCloseable {
     private final ThreadPoolExecutor workers = new ThreadPoolExecutor(4, 4, 0, TimeUnit.SECONDS, new ArrayBlockingQueue<>(4));
     private final ScheduledThreadPoolExecutor deadlines = new ScheduledThreadPoolExecutor(1);
     private volatile boolean closed;
-    WorkspaceRuntime(Context context) throws Exception {
+    static IntentFilter mediaFilter() {
+        IntentFilter filter = new IntentFilter();
+        for (String action : Arrays.asList(Intent.ACTION_MEDIA_MOUNTED, Intent.ACTION_MEDIA_UNMOUNTED, Intent.ACTION_MEDIA_EJECT,
+                Intent.ACTION_MEDIA_REMOVED, Intent.ACTION_MEDIA_BAD_REMOVAL, Intent.ACTION_MEDIA_CHECKING, Intent.ACTION_MEDIA_UNMOUNTABLE)) filter.addAction(action);
+        filter.addDataScheme("file"); return filter;
+    }
+    WorkspaceRuntime(Context context) throws Exception { this(context, () -> { }); }
+    WorkspaceRuntime(Context context, Runnable storageChanged) throws Exception {
+        this.storageChanged = storageChanged;
         deadlines.setRemoveOnCancelPolicy(true);
         this.context = context.getApplicationContext(); registry = new WorkspaceRegistry(context); socket = context.getPackageName() + ".saf." + UUID.randomUUID();
         File primary = null;
@@ -55,8 +68,26 @@ final class WorkspaceRuntime implements AutoCloseable {
             } catch (Exception ignored) { /* Per-root status explains refusal; other roots and private host remain usable. */ }
         }
         Os.chmod(view.toString(), 0555);
+        File volumes = new File(context.getFilesDir(), "volume-view"); volumes.mkdirs(); Os.chmod(volumes.toString(), 0700);
+        File[] previous = volumes.listFiles();
+        if (previous != null) for (File entry : previous) { Os.chmod(entry.toString(), 0700); if (!entry.delete()) throw new IOException("Cannot refresh volume placeholders"); }
+        for (SharedStorage.Volume volume : SharedStorage.removableVolumes(context)) {
+            if (!SharedStorage.validVolumeId(volume.id)) continue;
+            File placeholder = new File(volumes, volume.id);
+            if (!placeholder.exists() && !placeholder.mkdir()) throw new IOException("Cannot create blocked volume placeholder");
+            Os.chmod(placeholder.toString(), 0000);
+            if (volume.reason == null) appliedVolumes.put(volume.id, volume.directory.toString());
+        }
+        Os.chmod(volumes.toString(), 0555);
         server = new LocalServerSocket(socket);
         java.nio.file.Files.write(new File(HostService.state(context), "android-saf-socket").toPath(), socket.getBytes(StandardCharsets.UTF_8));
+        media = new BroadcastReceiver() {
+            @Override public void onReceive(Context ignored, Intent event) {
+                mediaChanged(event);
+            }
+        };
+        // These are protected system broadcasts, including on API 33+.
+        this.context.registerReceiver(media, mediaFilter());
         Thread accept = new Thread(() -> {
             while (!closed) {
                 LocalSocket client = null;
@@ -79,8 +110,34 @@ final class WorkspaceRuntime implements AutoCloseable {
         } catch (IOException error) { status.put("reason", error.getMessage()); }
         return status;
     }
+    void mediaChanged(Intent event) {
+        // Bindings are fixed for this runtime; reinsertion must not silently retarget.
+        String path = event.getData() == null ? null : event.getData().getPath();
+        if (path != null) appliedVolumes.forEach((id, source) -> {
+            if (source.equals(path) || id.equalsIgnoreCase(new File(path).getName())) invalidVolumes.add(id);
+        });
+        storageChanged.run();
+    }
+
+    static JSONArray volumeStatus(Context context, Map<String, String> applied, Set<String> invalidated) throws Exception {
+        JSONArray result = new JSONArray(); Set<String> seen = new HashSet<>();
+        for (SharedStorage.Volume volume : SharedStorage.removableVolumes(context)) {
+            String id = volume.id; if (id != null) seen.add(id);
+            boolean available = volume.reason == null, invalid = id != null && invalidated.contains(id);
+            result.put(new JSONObject().put("id", id == null ? JSONObject.NULL : id).put("label", volume.label)
+                .put("path", SharedStorage.validVolumeId(id) ? VOLUME_PATH + "/" + id : JSONObject.NULL)
+                .put("available", available).put("mapped", available && !invalid && volume.directory.toString().equals(applied.get(id)))
+                .put("source", available ? volume.directory.toString() : JSONObject.NULL)
+                .put("reason", invalid && applied.containsKey(id) ? "Storage changed; restart host to apply mappings" : volume.reason));
+        }
+        for (String id : applied.keySet()) if (!seen.contains(id)) result.put(new JSONObject().put("id", id).put("label", "Removable storage")
+            .put("path", VOLUME_PATH + "/" + id).put("available", false).put("mapped", false).put("reason", "Volume removed; insert it and restart host"));
+        return result;
+    }
     void bind(List<String> command) {
         command.addAll(Arrays.asList("-b", (sharedSource == null ? sharedPlaceholder : sharedSource) + ":" + SHARED_PATH + "!"));
+        command.addAll(Arrays.asList("-b", new File(context.getFilesDir(), "volume-view") + ":" + VOLUME_PATH + "!"));
+        appliedVolumes.forEach((id, source) -> command.addAll(Arrays.asList("-b", source + ":" + VOLUME_PATH + "/" + id + "!")));
         command.addAll(Arrays.asList("-b", new File(context.getFilesDir(), "workspace-view") + ":/workspaces"));
         // PRoot consumes a final ! as its no-dereference marker. Append that
         // marker explicitly so a folder whose actual name ends in ! stays intact.
@@ -89,11 +146,17 @@ final class WorkspaceRuntime implements AutoCloseable {
     private JSONObject dispatch(JSONObject request, CancellationSignal cancel, File transfer) throws Exception {
         String operation = request.getString("op");
         if (operation.equals("roots")) return new JSONObject().put("roots", registry.status(cancel, applied))
-            .put("sharedStorage", sharedStatus(context, sharedSource == null ? null : sharedSource.toString())).put("maxBytes", SafDocuments.MAX_BYTES);
+            .put("volumes", volumeStatus(context, appliedVolumes, invalidVolumes)).put("sharedStorage", sharedStatus(context, sharedSource == null ? null : sharedSource.toString())).put("maxBytes", SafDocuments.MAX_BYTES);
         if (operation.equals("check-shared")) {
             File actual = SharedStorage.primary(context);
             if (!actual.equals(sharedSource)) throw new IOException("Shared storage mapping changed; restart host to apply it");
             return new JSONObject().put("path", SHARED_PATH);
+        }
+        if (operation.equals("check-volume")) {
+            String id = request.getString("volume");
+            File actual = SharedStorage.removable(context, id);
+            if (invalidVolumes.contains(id) || !actual.toString().equals(appliedVolumes.get(id))) throw new IOException("Removable mappings changed; restart host to apply them");
+            return new JSONObject().put("path", VOLUME_PATH + "/" + id);
         }
         String name = request.getString("root"); JSONObject root = registry.root(name);
         android.net.Uri tree = android.net.Uri.parse(root.getString("tree"));
@@ -159,7 +222,7 @@ final class WorkspaceRuntime implements AutoCloseable {
         return new JSONObject().put("ok", false).put("error", error.getClass().getSimpleName()).put("message", String.valueOf(error.getMessage()));
     }
     @Override public void close() {
-        closed = true;
+        closed = true; context.unregisterReceiver(media);
         try { server.close(); } catch (IOException ignored) { }
         clients.forEach((client, cancel) -> { cancel.cancel(); try { client.close(); } catch (IOException ignored) { } });
         workers.shutdownNow(); deadlines.shutdownNow();

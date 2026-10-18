@@ -26,14 +26,44 @@ def native(message):
 
 check=native({'op':'check-shared'}); roots=native({'op':'roots'})
 assert roots['ok'] and roots['result']['roots']==[], 'No folder registrations are permitted in this fixture'
+for invalid in ['../escape','not-a-known-volume','primary']:
+    assert not native({'op':'check-volume','volume':invalid})['ok']
+try: Path('/storage/not-a-known-volume').mkdir()
+except PermissionError: pass
+else: raise AssertionError('Protected /storage accepted a private fallback')
+external=os.environ.get('YA_STORAGE_EXTERNAL_PATH','')
+volume_check=native({'op':'check-volume','volume':external.split('/')[-1]}) if external else None
 if os.environ['YA_STORAGE_ALLOWED']!='true':
     assert not check['ok'] and not roots['result']['sharedStorage']['mapped']
     try: Path('/sdcard/YAStorage-'+run).mkdir()
     except PermissionError: pass
     else: raise AssertionError('Unavailable /sdcard accepted a write')
+    if external:
+        assert not volume_check['ok']
+        try: (Path(external)/('YAStorage-'+run)).mkdir()
+        except PermissionError: pass
+        else: raise AssertionError('Unavailable removable volume accepted a write')
     print(json.dumps({'blockedWithoutPermission':True,'nativeAdmissionRejected':True})); raise SystemExit
+if os.environ.get('YA_STORAGE_INVALIDATED')=='true':
+    assert check=={'ok':True,'result':{'path':'/sdcard'}}, 'Media transitions must not disable primary storage'
+    assert external and not volume_check['ok'] and 'restart' in volume_check['message']
+    assert any(v['path']==external and not v['mapped'] and 'restart' in v['reason'] for v in roots['result']['volumes'])
+    if os.environ.get('YA_STORAGE_DISAPPEAR')=='true':
+        assert Path('/storage/fixture-missing').is_dir()
+        Path('/control/source').rename('/control/detached')
+        try: Path('/storage/fixture-missing/fallback').write_bytes(b'forbidden')
+        except OSError: pass
+        else: raise AssertionError('Detached mapping accepted private writes')
+        try: Path('/storage/fixture-missing').mkdir()
+        except OSError: pass
+        else: raise AssertionError('Detached mapping became a writable directory')
+        assert not (Path('/control/detached')/'fallback').exists()
+    print(json.dumps({'missingSourceHasNoPrivateFallback':True,'sameRuntimeMediaTransitionRejected':True,'primaryStillAvailable':True}));raise SystemExit
 assert check=={'ok':True,'result':{'path':'/sdcard'}} and roots['result']['sharedStorage']['mapped']
-paths=['/sdcard']+(['/external-card'] if os.environ['YA_STORAGE_EXTERNAL']=='true' else [])
+if external:
+    assert volume_check=={'ok':True,'result':{'path':external}}
+    assert any(v['path']==external and v['mapped'] for v in roots['result']['volumes'])
+paths=['/sdcard']+([external] if external else [])
 results={}
 for mount in paths:
     directory=Path(mount)/('YAStorage-'+run)

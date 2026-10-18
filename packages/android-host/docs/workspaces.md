@@ -66,8 +66,7 @@ private. Android's restrictions on other apps' private storage and protected
 shared-storage directories still apply.
 
 Removable cards are distinct volumes; they must never replace what `/sdcard`
-means. Their direct mapping, filesystem semantics and card-removal behavior
-require independent qualification, below.
+means. Their production mapping and removal/reinsertion contract are described below.
 
 ## Optional direct filesystem access
 
@@ -185,15 +184,49 @@ fixture, not proof of lock contention, power-loss safety, safe card removal,
 SQLite workloads or complete POSIX compatibility. Runtime binaries and YA's
 live databases should continue to stay private.
 
-**Next direction, not implemented:** expose removable volumes separately, for
-example `/storage/<volume-uuid>`, using Android volume identity rather than list
-position or a mutable label. Never substitute one card for another or change
-what `/sdcard` means. Recheck mount state/identity before admitting work; card
-removal or a missing/read-only card must fail visibly without private fallback.
-Insertion/removal during running sessions and unmount handling need a separate
-physical test. The current selected-folder direct resolver still qualifies only
-primary storage; an external folder's SAF grant remains a distinct document
-access route. `/external-card` is a fixture path, not a shipping product mapping.
+## Built-in removable-volume mappings
+
+Optional all-files access also exposes every mounted, writable, accessible
+removable volume at `/storage/<volume-id>` on host start. No SAF selection is
+needed. Android StorageManager supplies each volume's UUID and canonical source;
+labels and enumeration order never determine paths. Multiple volumes coexist
+without replacing `/sdcard`. Missing/unsafe IDs and duplicate IDs are reported
+as unavailable; inaccessible or read-only volumes are not bound. `/storage`
+is a protected namespace with blocked entries for observed unavailable cards,
+so a missing mapping cannot silently become writable private storage.
+
+`ya saf roots` also reports these volume paths/status alongside saved roots.
+The folder screen lists each detected volume's label, stable path and current
+availability, separately from the applied runtime mapping. New cards and changed
+mappings require the existing explicit start/restart control and interruption
+confirmation. No runtime, credentials or internal database moves to a card. Durability here
+applies to ordinary shared folders; Android app-specific directories retain
+their Android-managed deletion lifetime.
+
+Each new provider launch beneath `/storage/<volume-id>` asks the native bridge
+to recheck actual all-files authority, current writable mount state, unique
+volume identity and the applied canonical source. Unknown volumes are refused.
+The host watches protected Android media broadcasts while running, and marks
+the affected applied volume stale on a mount/unmount/eject/removal transition.
+Even reinserting the same card requires an explicit restart before admitting
+new work on it. Primary storage and other volumes remain independently usable.
+The visible folder screen also refreshes on media events; both watches close
+with their owners, without polling or per-folder watchers.
+
+This is admission and mapping lifecycle handling. It cannot make an in-flight
+write safe during unplugging, revoke already-open descriptors, or prevent an
+already-running program from opening a same-ID card after reinsertion. Existing
+I/O must handle Android's errors; finish work before removing a card. Filesystem
+UUIDs are Android's portable-volume identity, not cryptographic proof against
+a deliberately cloned card. Reformatting changes that identity and therefore
+its path. Reset/reinstall recovery needs re-enabling broad permission and
+restarting with the existing card; no erased YA registry is needed.
+
+Selected-folder direct shortcuts still qualify primary-storage SAF roots only;
+removable documents can use `ya saf`, while ordinary filesystem work uses the
+new `/storage/<volume-id>/...` paths. Arbitrary SAF providers do not become
+filesystem mounts. The earlier `/external-card` path was fixture-only; the
+acceptance runner now exercises production removable mappings.
 
 ## Identity, permissions and recovery
 
@@ -276,7 +309,7 @@ reuse of a freed suffix, cancellation, duplicate identity rejection, optional
 rename, reselect, process restart and sequential typing with 16 visible roots.
 External byte/hash checks and exact-resource cleanup apply in both modes.
 
-For primary storage and an optional removable-card investigation, build/copy
+For primary storage and optional production removable-volume acceptance, build/copy
 the isolated APK to `.local/shared-storage/fixture.apk`, prepare the shared
 Alpine payload, then run:
 
@@ -284,19 +317,49 @@ Alpine payload, then run:
 python3 packages/android-host/tools/shared_storage_live.py \
   --device-file <private-device-json> --registry <private-MC-registry> \
   --target <selected-target> --model '<observed-model>'
-# Add --external only for one mounted removable volume.
+# Add --external for one mounted removable volume; --ui also checks native
+# host startup/mapped status and 16-root sequential typing on an unlocked phone.
 ```
 
 This runner uses only the disposable workspace fixture, native StorageManager,
-production workspace binding/bridge code and real Alpine Python/Git/SQLite. It
+production workspace binding/bridge code and real Alpine Python/Git/SQLite.
+Runtime transfers are compressed and verified against the prepared payload hash. It
 uses actual Android Settings by default. `--headless-permission` changes only
 the disposable fixture's all-files app-op and permits a locked display when
 ADB, boot, administration and credential-encrypted storage are ready. It tests
 blocked writes without permission, no-picker/no-SAF primary access, process
 restart, revocation, fixture data-clear recovery and independent bytes/hashes.
-`--external` adds a temporary removable binding for investigation. Exact owned
+`--external` exercises the production `/storage/<volume-id>` binding, same-runtime
+media invalidation, and a fixture-only disappearing-source check that refuses
+private fallback writes. Exact owned
 resources remain in a private recovery receipt on failure; `--resume` verifies
 ownership before replacing them. No card format/eject operation is performed.
+
+**Production removable mapping acceptance passed, 2026-10-18:** Moto G Power
+(2022)/Android 12 with its public exFAT card passed the production
+`/storage/<volume-id>` binding, independent bytes/hashes, actual Settings broad
+permission, zero SAF grants, process restart, revocation and fixture-data-clear
+recovery. A synthetic media event used the same native event handler, including
+an Android mount-path/case alias; an unrelated event left the healthy card
+alone. The affected card rejected new work until restart while `/sdcard` stayed
+available. A fixture-owned source directory was also detached while PRoot was
+running; ordinary writes and directory creation failed without private fallback.
+
+The real foreground host then started alongside the normal Motorola host on
+the fixture's separate port. Its native folder screen showed both volumes
+mapped, and 16-root sequential typing acknowledged all 16 characters within
+22 ms. The normal Motorola host was not stopped or changed. Fixture app and
+owned shared trees were removed. This extension used production binding/native
+admission with Python, Git, SQLite and native host UI; it did not repeat real
+provider inference, physically unplug the card, or test power loss. Root checks,
+Linux admission, Alpine smoke and Android Debug/Release build/lint passed.
+Machine Control commit `9b0c532` owns the reusable removable-volume resolver.
+
+The normal Pixel 9 was also updated over mDNS-selected Wi-Fi ADB with the
+latest normal APK and shared payload. Before restarting, every one of its
+1889 private-state file hashes and its existing folder registry matched the
+pre-update snapshot. Its native screen confirmed the running primary mapping;
+no user documents were changed.
 
 **Built-in `/sdcard` acceptance passed, 2026-10-18:** Pixel 9 over Wi-Fi ADB
 via mDNS and Moto G Power (2022) over USB passed the fixture checks above,
@@ -368,7 +431,7 @@ all 135 pre-existing private-state file hashes matched before and after staging.
 No user folder was registered or modified in that host. Its native launcher was
 opened with the service stopped for the user's next launch.
 
-The implementation does not establish arbitrary cloud/removable-provider behavior,
+The implementation does not establish arbitrary SAF/cloud-provider behavior,
 provider power-loss durability, cancellation rollback, descriptor-leak soak
 coverage, duplicate-name-provider conformance, or revocation of already running
 sessions/handles. Duplicate-name rejection and provider-specific failure paths

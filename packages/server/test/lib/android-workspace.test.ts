@@ -12,6 +12,7 @@ describe("Android native workspace admission", () => {
     vi.stubEnv("YEP_ANDROID_SAF_SOCKET", "absent");
     await assertAndroidWorkspaceAvailable("/home/user/project");
     await assertAndroidWorkspaceAvailable("/sdcard-other/project");
+    await assertAndroidWorkspaceAvailable("/storage-other/project");
   });
 
   it.skipIf(process.platform !== "linux").each([
@@ -24,6 +25,11 @@ describe("Android native workspace admission", () => {
       cwd: "/sdcard/Documents/project",
       request: { op: "check-shared" },
       expectedPath: "/sdcard",
+    },
+    {
+      cwd: "/storage/1234-ABCD/Documents/project",
+      request: { op: "check-volume", volume: "1234-ABCD" },
+      expectedPath: "/storage/1234-ABCD",
     },
   ])(
     "rechecks $cwd for each launch and refuses subsequently revoked access",

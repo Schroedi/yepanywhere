@@ -34,7 +34,7 @@
   <string name="host_tab_details">%1$s\n%2$s</string>
   <string name="workspace_pick">Pick folder</string>
   <string name="workspace_title">Workspace folders</string>
-  <string name="workspace_intro">Save folders for agents. SAF document tools work with individual folder grants. Optional broad storage access exposes primary shared storage at /sdcard and enables selected direct paths under /workspaces. Runtime, sign-ins and YA data remain private.</string>
+  <string name="workspace_intro">Save folders for agents. SAF document tools work with individual folder grants. Optional broad storage access exposes primary shared storage at /sdcard, removable volumes at /storage/&lt;volume-id&gt;, and selected direct paths under /workspaces. Runtime, sign-ins and YA data remain private.</string>
   <string name="workspace_shared">Primary shared storage · /sdcard\n%1$s</string>
   <string name="workspace_rw_required">Folder needs read and write access</string>
   <string name="workspace_saved">Saved.</string>
