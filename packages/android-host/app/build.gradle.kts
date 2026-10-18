@@ -25,8 +25,10 @@ tasks.named("preBuild") { dependsOn(verifyHostRuntime, copyMachineControlNotice)
 android {
     namespace = "com.yepanywhere.host"
     compileSdk = 36
+    buildFeatures { buildConfig = true }
     defaultConfig {
         applicationId = if (providers.gradleProperty("workspaceFixture").isPresent) "com.yepanywhere.host.workspace.acceptance" else "com.yepanywhere.host.experimental"
+        buildConfigField("int", "HOST_PORT", if (providers.gradleProperty("workspaceFixture").isPresent) "13420" else "13400")
         minSdk = 30
         targetSdk = 36
         versionCode = 1

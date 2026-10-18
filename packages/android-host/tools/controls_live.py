@@ -81,7 +81,6 @@ def main():
     try:
         doctor = json.loads(run([*native, 'doctor', '--json']))
         assert doctor['ready'] and doctor['states']['interaction'] == 'unlocked'
-        assert not shell('dumpsys', 'activity', 'services', 'com.yepanywhere.host.experimental').decode().count('/com.yepanywhere.host.HostService'), 'Stop the normal host first: both hosts use loopback port 13400'
         assert not shell('pm', 'list', 'packages', APP).strip(), 'Existing fixture must be recovered before running'
         run([*native, 'install', str(HOST / '.local/controls-fixture.apk')])
         installed = True

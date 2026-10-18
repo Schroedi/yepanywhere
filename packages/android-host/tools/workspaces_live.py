@@ -231,7 +231,7 @@ def main():
                 independentlyVerifiedFiles=len(expected))
             success=True; return
         stage()
-        resources['forward']=int(run('forward','tcp:0','tcp:13400').stdout); receipt()
+        resources['forward']=int(run('forward','tcp:0','tcp:13420').stdout); receipt()
         first=choose('docs',keep_name=True); second=choose('downloads',keep_name=True)
         assert second==first+'-1'
         rename(first,'docs'); rename(second,'downloads')

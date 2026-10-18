@@ -75,7 +75,7 @@ public final class LocalWebActivity extends Activity {
         message.setText(label); progress.setVisibility(View.GONE); retry.setVisibility(View.VISIBLE);
     }
     private boolean local(Uri uri) {
-        return "http".equals(uri.getScheme()) && "127.0.0.1".equals(uri.getHost()) && uri.getPort() == 13400;
+        return "http".equals(uri.getScheme()) && "127.0.0.1".equals(uri.getHost()) && uri.getPort() == HostConnection.PORT;
     }
     private void unload() {
         if (pageLoaded && web.getUrl() != null && local(Uri.parse(web.getUrl()))) lastRoute = Uri.parse(web.getUrl());

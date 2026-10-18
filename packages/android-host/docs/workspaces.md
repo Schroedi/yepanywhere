@@ -239,7 +239,8 @@ YA's live internal databases private. No automatic Git trust/configuration or
 project marker is written by workspace onboarding.
 
 Multi-root host acceptance uses the production HostService/server/provider code
-in an isolated `-PworkspaceFixture` Debug application. Only that build includes
+in an isolated `-PworkspaceFixture` Debug application on loopback port 13420.
+The normal host retains port 13400 and can keep running during these tests. Only that build includes
 its test receiver and typing instrumentation; normal host builds include neither.
 It creates two exclusively owned UUID trees under Documents and Download,
 records a private recovery receipt, uses actual picker/Settings controls, and

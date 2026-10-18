@@ -11,6 +11,9 @@ test("direct and AAR use separate private homes with external observation disabl
     providerMode: "aar",
     aarToken: `aar_${"a".repeat(43)}`,
   });
+  assert.equal(direct.env.PORT, "13400");
+  assert.equal(hostProfile("/home/user", {}, 13420).env.PORT, "13420");
+  assert.throws(() => hostProfile("/home/user", {}, 0), /Host port/);
   assert.notEqual(direct.env.CODEX_HOME, aar.env.CODEX_HOME);
   assert.equal(direct.env.YEP_EXTERNAL_SESSIONS, "false");
   assert.equal(direct.env.AUTH_DISABLED, "false");

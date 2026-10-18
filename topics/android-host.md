@@ -94,6 +94,11 @@ remain private. `/sdcard` always means primary shared storage, not a removable
 card. The [workspace guide](../packages/android-host/docs/workspaces.md) owns
 volume qualification, failure/recovery details and physical evidence.
 
+Disposable `-PworkspaceFixture` builds use loopback port 13420; normal host
+builds keep 13400. Native readiness, WebView origin checks and the shared
+runtime agree on the compiled port, so fixture tests can leave a running normal
+host untouched. Linux defaults remain 13400.
+
 ### Multiple folder shortcuts
 
 **Implemented in the experimental host, 2026-10-18.** Save up to 16 named,

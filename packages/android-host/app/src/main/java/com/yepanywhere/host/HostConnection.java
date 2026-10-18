@@ -8,7 +8,8 @@ import java.nio.file.Files;
 
 /** A saved credential or status file is not evidence of a live local server. */
 final class HostConnection {
-    static final String ORIGIN = "http://127.0.0.1:13400";
+    static final int PORT = BuildConfig.HOST_PORT;
+    static final String ORIGIN = "http://127.0.0.1:" + PORT;
     private HostConnection() { }
 
     static HttpURLConnection open(String path, String token, int timeout) throws Exception {

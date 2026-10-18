@@ -132,7 +132,7 @@ public final class HostService extends Service {
                 "-b", home + ":/home/user"));
             workspaces.bind(command);
             command.addAll(Arrays.asList("-w", "/home/user", "/usr/bin/env", "-i",
-                "YEP_ANDROID_SAF_SOCKET=" + workspaces.socket,
+                "YEP_ANDROID_SAF_SOCKET=" + workspaces.socket, "YEP_ANDROID_HOST_PORT=" + HostConnection.PORT,
                 "HOME=/home/user", "USER=user", "LOGNAME=user", "SHELL=/bin/bash", "HOSTNAME=ya-phone", "LANG=C.UTF-8", "PATH=/usr/bin:/bin",
                 "/usr/bin/node", "/opt/host/launch.mjs"));
             // Own a session/process group so Stop reaches tracees too. Killing

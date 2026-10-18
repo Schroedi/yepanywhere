@@ -15,7 +15,11 @@ try {
 } catch (error) {
   if (error.code !== "ENOENT") throw error;
 }
-const profile = hostProfile(home, development);
+const profile = hostProfile(
+  home,
+  development,
+  Number(process.env.YEP_ANDROID_HOST_PORT ?? 13400),
+);
 initializeProfile(profile);
 const tokenFile = join(home, ".local-access-token");
 try {

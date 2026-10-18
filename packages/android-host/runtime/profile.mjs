@@ -2,7 +2,9 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 /** One profile contract for Android and Linux. No workstation stores are used. */
-export function hostProfile(home, development = {}) {
+export function hostProfile(home, development = {}, port = 13400) {
+  if (!Number.isInteger(port) || port < 1024 || port > 65535)
+    throw new Error("Host port must be an integer from 1024 to 65535");
   const mode = development.providerMode ?? "direct";
   if (!["direct", "aar", "mock"].includes(mode)) {
     throw new Error("providerMode must be direct, aar, or mock");
@@ -14,7 +16,7 @@ export function hostProfile(home, development = {}) {
     HOSTNAME: "ya-phone",
     NODE_ENV: "production",
     HOST: "127.0.0.1",
-    PORT: "13400",
+    PORT: String(port),
     YEP_DATA_DIR: join(home, "data"),
     CLAUDE_CONFIG_DIR: join(home, "profiles", mode, "claude"),
     CODEX_HOME: join(home, "profiles", mode, "codex"),
