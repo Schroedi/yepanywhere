@@ -1423,6 +1423,12 @@ export const api = {
       method: "POST",
     }),
 
+  deliverDeferredWithoutCompaction: (sessionId: string, tempId: string) =>
+    fetchJSON<{ released: boolean; deferredMessages: DeferredQueueMessage[] }>(
+      `/sessions/${sessionId}/deferred/${encodeURIComponent(tempId)}/deliver-without-compaction`,
+      { method: "POST" },
+    ),
+
   deleteRecoveredQueuedMessage: (sessionId: string, queueId: string) =>
     fetchJSON<{ deleted: boolean; deferredMessages: DeferredQueueMessage[] }>(
       `/sessions/${sessionId}/recovered-queue/${encodeURIComponent(queueId)}`,

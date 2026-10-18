@@ -2208,6 +2208,43 @@ export const SERVER_CAPABILITIES = {
       reason: "Older servers cannot monitor rendezvous uploads.",
     },
   },
+  patientTopicShift: {
+    id: CAPABILITY_ID_ALLOCATIONS.patientTopicShift.id,
+    name: "patient-topic-shift",
+    kind: "permanent",
+    area: "sessions",
+    introducedIn: "0.9.4",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Patient queue items carry their source and an optional compact-first threshold; the server compacts before delivery when usage is above it, reports the item's compaction state, and can deliver a failed item without compacting.",
+    clientFallback:
+      "Hide the Next-topic toolbar setting and action and the compaction thresholds, and send ordinary patient queue items.",
+    serverContract: {
+      routes: [
+        "GET /api/settings",
+        "PUT /api/settings",
+        "POST /api/sessions/:sessionId/deferred/:tempId/deliver-without-compaction",
+      ],
+      requestFields: [
+        "messageMetadata.patientSource",
+        "messageMetadata.compactAboveContextPercent",
+        "settings.clientDefaults.patientQueueCompactAtPercent",
+        "settings.clientDefaults.topicShiftCompactAtPercent",
+        "settings.clientDefaults.sessionToolbarPresence.topicShift",
+      ],
+      responseFields: [
+        "deferredMessages[].compactionGate",
+        "settings.clientDefaults.patientQueueCompactAtPercent",
+        "settings.clientDefaults.topicShiftCompactAtPercent",
+        "settings.clientDefaults.sessionToolbarPresence.topicShift",
+      ],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "Servers through 0.9.2 drop the item's source and threshold, so a hosted client must not offer compact-first delivery there.",
+    },
+  },
   projectDirectoryStoragePolicy: {
     id: CAPABILITY_ID_ALLOCATIONS.projectDirectoryStoragePolicy.id,
     name: "project-directory-storage-policy",
@@ -4295,6 +4332,8 @@ export const PROJECT_CAPTIONS_CAPABILITY =
 export const PROJECT_NAMES_CAPABILITY = SERVER_CAPABILITIES.projectNames.name;
 export const SIDEBAR_SESSION_RESUME_CAPABILITY =
   SERVER_CAPABILITIES.sidebarSessionResume.name;
+export const PATIENT_TOPIC_SHIFT_CAPABILITY =
+  SERVER_CAPABILITIES.patientTopicShift.name;
 export const SYNTHETIC_DONE_COMMAND_CAPABILITY =
   SERVER_CAPABILITIES.syntheticDoneCommand.name;
 export const SYNTHETIC_ARCHIVE_COMMAND_CAPABILITY =

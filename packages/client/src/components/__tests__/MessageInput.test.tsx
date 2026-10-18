@@ -11,6 +11,7 @@ import {
 } from "@testing-library/react";
 import {
   DEFAULT_STEER_NOW_ENABLED,
+  PATIENT_TOPIC_SHIFT_CAPABILITY,
   PROJECT_QUEUE_CAPABILITY,
   VOICE_INPUT_CAPABILITY,
   type ClientDefaults,
@@ -236,6 +237,7 @@ const toolbarVisibilityOverrides = vi.hoisted(() => ({
     sessionStatus: true,
     projectQueue: true,
     projectQueueNewSessionShortcut: true,
+    topicShift: true,
     composerRecall: true,
   },
 }));
@@ -677,6 +679,7 @@ const toolbarVisibility: MessageInputToolbarViewProps["visibility"] = {
   btw: false,
   nudge: false,
   syntheticDone: false,
+  topicShift: false,
   sessionStatus: false,
   projectQueue: false,
   projectQueueNewSessionShortcut: false,
@@ -5317,6 +5320,45 @@ describe("MessageInput", () => {
     expectSubmission(onQueue, "claude patient queue", "patient");
   });
 
+  it("stamps each patient entry point with its own compaction threshold", () => {
+    versionState.version = {
+      ...versionState.version,
+      capabilities: [
+        ...(versionState.version?.capabilities ?? []),
+        PATIENT_TOPIC_SHIFT_CAPABILITY,
+      ],
+      clientDefaults: {
+        patientQueueDefault: true,
+        patientQueueCompactAtPercent: 100,
+        topicShiftCompactAtPercent: 60,
+      },
+    };
+    const onQueue = vi.fn();
+    const textarea = renderMessageInput(
+      vi.fn(() => true),
+      { onQueue },
+    );
+
+    fireEvent.change(textarea, { target: { value: "new topic" } });
+    fireEvent.click(screen.getByLabelText("toolbarTopicShiftLabel"));
+    expectSubmission(onQueue, "new topic", "patient");
+    expect(onQueue.mock.calls.at(-1)?.[1]).toMatchObject({
+      patientSource: "topic-shift",
+      compactAboveContextPercent: 60,
+    });
+
+    // 100% is Off for the patient default: no threshold is sent at all.
+    fireEvent.change(textarea, { target: { value: "follow-up" } });
+    fireEvent.click(screen.getByLabelText("toolbarQueueLabel"));
+    expectSubmission(onQueue, "follow-up", "patient");
+    expect(onQueue.mock.calls.at(-1)?.[1]).toMatchObject({
+      patientSource: "patient-default",
+    });
+    expect(onQueue.mock.calls.at(-1)?.[1]).not.toHaveProperty(
+      "compactAboveContextPercent",
+    );
+  });
+
   it("uses Ctrl+Enter for Project Queue when that action is visible", () => {
     versionState.version = {
       ...versionState.version,
@@ -6483,6 +6525,7 @@ describe("MessageInput", () => {
       contextUsage: "pin",
       btw: "pin",
       steerNow: "pin",
+      topicShift: "off",
       projectQueue: "pin",
       projectQueueNewSessionShortcut: "off",
       microphone: "live",

@@ -25,6 +25,9 @@ import {
   getCanonicalInvocationToken,
   getInvocationCompletionQuery,
   getInvocationNames,
+  normalizePatientCompactPercent,
+  PATIENT_TOPIC_SHIFT_CAPABILITY,
+  serverHasCapability,
   type SessionLivenessSnapshot,
   type SlashCommand,
   type ThinkingMode,
@@ -886,6 +889,18 @@ export function MessageInput({
   // of promoting at the next end of turn.
   const patientQueueEnabled =
     version?.clientDefaults?.patientQueueDefault ?? false;
+  // Patient items record their entry point and a compact-first threshold
+  // only on servers that honor them; 100% (or unset) is Off.
+  const topicShiftSupported = serverHasCapability(
+    version,
+    PATIENT_TOPIC_SHIFT_CAPABILITY,
+  );
+  const patientQueueCompactPercent = normalizePatientCompactPercent(
+    version?.clientDefaults?.patientQueueCompactAtPercent,
+  );
+  const topicShiftCompactPercent = normalizePatientCompactPercent(
+    version?.clientDefaults?.topicShiftCompactAtPercent,
+  );
   const projectQueueCtrlEnterEnabled =
     version?.clientDefaults?.projectQueueCtrlEnterEnabled ??
     DEFAULT_PROJECT_QUEUE_CTRL_ENTER_ENABLED;
@@ -1773,6 +1788,7 @@ export function MessageInput({
       submissionSnapshot?: SubmissionCompositionSnapshot,
       preserveComposer = false,
       focusAfterSubmit = true,
+      topicShift = false,
     ) => {
       const override =
         typeof messageOverride === "string" ? messageOverride : undefined;
@@ -1802,10 +1818,25 @@ export function MessageInput({
 
       const hasContent = hasComposerDraftContent(finalText, attachments.length);
       if (hasContent && !disabled && queueHandler) {
+        const patientSource = topicShift
+          ? "topic-shift"
+          : patientQueueEnabled
+            ? "patient-default"
+            : null;
         const metadata = buildSubmissionMetadata(
-          patientQueueEnabled ? "patient" : "deferred",
+          patientSource ? "patient" : "deferred",
           submissionSnapshot,
         );
+        if (patientSource && topicShiftSupported) {
+          const compactPercent =
+            patientSource === "topic-shift"
+              ? topicShiftCompactPercent
+              : patientQueueCompactPercent;
+          metadata.patientSource = patientSource;
+          if (compactPercent !== undefined) {
+            metadata.compactAboveContextPercent = compactPercent;
+          }
+        }
         if (!preserveComposer) {
           controls.clearInput();
           resetCompositionMetadata();
@@ -1839,6 +1870,9 @@ export function MessageInput({
       effectivePrimaryActionKind,
       handleSyntheticDoneSubmission,
       patientQueueEnabled,
+      topicShiftSupported,
+      topicShiftCompactPercent,
+      patientQueueCompactPercent,
       attachments.length,
       buildSubmissionMetadata,
       consumeSpeechAttribution,
@@ -2161,6 +2195,11 @@ export function MessageInput({
       void handleSubmit(undefined, "steer", focusAfterSubmit);
     });
   }, [handleSubmit, runComposerPointerDelivery]);
+  const handleTopicShiftPointerDelivery = useCallback(() => {
+    runComposerPointerDelivery((focusAfterSubmit) => {
+      handleQueue(undefined, undefined, false, focusAfterSubmit, true);
+    });
+  }, [handleQueue, runComposerPointerDelivery]);
   const handleProjectQueuePointerDelivery = useCallback(() => {
     runComposerPointerDelivery(handleProjectQueue);
   }, [handleProjectQueue, runComposerPointerDelivery]);
@@ -3695,6 +3734,13 @@ export function MessageInput({
         : undefined,
     hidePrimaryDeliveryActions: newSessionOptionsMode !== null,
     onQueue: onQueue ? handleQueuePointerDelivery : undefined,
+    onTopicShift:
+      onQueue &&
+      topicShiftSupported &&
+      !forkSummaryMode &&
+      !newSessionOptionsMode
+        ? handleTopicShiftPointerDelivery
+        : undefined,
     onProjectQueue:
       onProjectQueue && !forkSummaryMode && !newSessionOptionsMode
         ? handleProjectQueuePointerDelivery

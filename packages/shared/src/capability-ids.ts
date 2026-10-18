@@ -810,6 +810,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "rendezvous-uploads",
     introducedIn: "0.9.4",
   },
+  patientTopicShift: {
+    id: 132,
+    direction: "server",
+    name: "patient-topic-shift",
+    introducedIn: "0.9.4",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [

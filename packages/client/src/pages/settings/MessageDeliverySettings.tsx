@@ -7,6 +7,7 @@ import {
   MAX_CLEARLOOP_INACTIVITY_SECONDS,
   MAX_PROJECT_QUEUE_QUIET_SECONDS,
   MIN_CLEARLOOP_INACTIVITY_SECONDS,
+  PATIENT_TOPIC_SHIFT_CAPABILITY,
   PROJECT_QUEUE_READINESS_CHECK_CAPABILITY,
   type ProjectQueueReadinessCommand,
   SESSION_REWIND_CAPABILITY,
@@ -72,6 +73,75 @@ function parseClearloopInactivityText(value: string): number | null {
   return clampClearloopInactivitySeconds(seconds) ?? null;
 }
 
+/** 100 is Off, never "compact at full context" (topics/patient-topic-shift.md). */
+const PATIENT_COMPACT_OFF_PERCENT = 100;
+
+function PatientCompactThresholdItem({
+  label,
+  description,
+  storedPercent,
+  onCommit,
+}: {
+  label: string;
+  description: string;
+  storedPercent: number | undefined;
+  onCommit: (percent: number) => void;
+}) {
+  const { t } = useI18n();
+  const stored = storedPercent ?? PATIENT_COMPACT_OFF_PERCENT;
+  const [draft, setDraft] = useState(stored);
+  useEffect(() => {
+    setDraft(stored);
+  }, [stored]);
+  const commit = (percent: number) => {
+    const next = Math.min(
+      PATIENT_COMPACT_OFF_PERCENT,
+      Math.max(1, Math.round(percent) || PATIENT_COMPACT_OFF_PERCENT),
+    );
+    setDraft(next);
+    if (next !== stored) onCommit(next);
+  };
+  const valueHint =
+    draft >= PATIENT_COMPACT_OFF_PERCENT
+      ? t("messageDeliveryPatientCompactOff")
+      : t("messageDeliveryPatientCompactOn", { percent: String(draft) });
+  return (
+    <SettingsItem
+      label={label}
+      description={description}
+      valueText={valueHint}
+      className="model-settings-item"
+    >
+      <span className="output-appearance-slider-row">
+        <CommittedRangeInput
+          min={1}
+          max={PATIENT_COMPACT_OFF_PERCENT}
+          step={1}
+          value={draft}
+          aria-label={label}
+          onDraftChange={setDraft}
+          onCommit={commit}
+        />
+        <span className="output-appearance-number-wrap">
+          <input
+            type="number"
+            className="settings-input-small output-appearance-number"
+            min={1}
+            max={PATIENT_COMPACT_OFF_PERCENT}
+            step={1}
+            value={draft}
+            aria-label={label}
+            onChange={(e) => setDraft(Number(e.target.value))}
+            onBlur={() => commit(draft)}
+          />
+          <span className="output-appearance-unit">%</span>
+        </span>
+      </span>
+      <span className="settings-hint">{valueHint}</span>
+    </SettingsItem>
+  );
+}
+
 interface MessageDeliveryBaseline {
   joinWindowSeconds: number;
   projectQueueQuietSeconds: number;
@@ -83,6 +153,8 @@ interface MessageDeliveryBaseline {
   busyComposerDefaultAction: BusyComposerDefaultAction;
   steerNowDefault: boolean;
   patientQueueDefault: boolean;
+  patientQueueCompactAtPercent: number | undefined;
+  topicShiftCompactAtPercent: number | undefined;
   projectQueueCtrlEnterEnabled: boolean;
   keepMobileKeyboardOpenAfterDelivery: boolean;
   questionAsidesEnabled: boolean;
@@ -106,6 +178,10 @@ export function MessageDeliverySettings() {
   );
   const supportsBangCommands = serverSupportsBangCommands(version);
   const supportsRendezvous = serverHasCapability(version, "rendezvous-uploads");
+  const supportsTopicShift = serverHasCapability(
+    version,
+    PATIENT_TOPIC_SHIFT_CAPABILITY,
+  );
   const supportsClearloop = serverHasCapability(
     version,
     SESSION_REWIND_CAPABILITY,
@@ -192,6 +268,10 @@ export function MessageDeliverySettings() {
           settings.clientDefaults?.steerNowDefault ?? DEFAULT_STEER_NOW_ENABLED,
         patientQueueDefault:
           settings.clientDefaults?.patientQueueDefault ?? false,
+        patientQueueCompactAtPercent:
+          settings.clientDefaults?.patientQueueCompactAtPercent,
+        topicShiftCompactAtPercent:
+          settings.clientDefaults?.topicShiftCompactAtPercent,
         projectQueueCtrlEnterEnabled:
           settings.clientDefaults?.projectQueueCtrlEnterEnabled ??
           DEFAULT_PROJECT_QUEUE_CTRL_ENTER_ENABLED,
@@ -379,6 +459,11 @@ export function MessageDeliverySettings() {
       shownBusyDefaultAction !== baseline.busyComposerDefaultAction ||
       shownSteerNowDefault !== baseline.steerNowDefault ||
       shownPatientQueueDefault !== baseline.patientQueueDefault ||
+      (supportsTopicShift &&
+        (settings?.clientDefaults?.patientQueueCompactAtPercent !==
+          baseline.patientQueueCompactAtPercent ||
+          settings?.clientDefaults?.topicShiftCompactAtPercent !==
+            baseline.topicShiftCompactAtPercent)) ||
       (supportsProjectQueue &&
         shownProjectQueueCtrlEnter !== baseline.projectQueueCtrlEnterEnabled) ||
       keepMobileKeyboardOpenAfterDelivery !==
@@ -434,6 +519,13 @@ export function MessageDeliverySettings() {
         busyComposerDefaultAction: snapshot.busyComposerDefaultAction,
         steerNowDefault: snapshot.steerNowDefault,
         patientQueueDefault: snapshot.patientQueueDefault,
+        ...(supportsTopicShift
+          ? {
+              patientQueueCompactAtPercent:
+                snapshot.patientQueueCompactAtPercent,
+              topicShiftCompactAtPercent: snapshot.topicShiftCompactAtPercent,
+            }
+          : {}),
         ...(supportsProjectQueue
           ? {
               projectQueueCtrlEnterEnabled:
@@ -453,6 +545,7 @@ export function MessageDeliverySettings() {
     supportsProjectQueue,
     supportsReadinessCheck,
     supportsRendezvous,
+    supportsTopicShift,
     settings?.rendezvous,
     updateSettings,
   ]);
@@ -851,6 +944,39 @@ export function MessageDeliverySettings() {
             aria-label={t("messageDeliveryPatientQueueDefaultTitle")}
           />
         </SettingsItem>
+
+        {supportsTopicShift && (
+          <>
+            <PatientCompactThresholdItem
+              label={t("messageDeliveryPatientQueueCompactTitle")}
+              description={t("messageDeliveryPatientQueueCompactDescription")}
+              storedPercent={
+                settings?.clientDefaults?.patientQueueCompactAtPercent
+              }
+              onCommit={(percent) => {
+                void updateSettings({
+                  clientDefaults: { patientQueueCompactAtPercent: percent },
+                }).catch(() => {
+                  // surfaced via the hook's error state
+                });
+              }}
+            />
+            <PatientCompactThresholdItem
+              label={t("messageDeliveryTopicShiftCompactTitle")}
+              description={t("messageDeliveryTopicShiftCompactDescription")}
+              storedPercent={
+                settings?.clientDefaults?.topicShiftCompactAtPercent
+              }
+              onCommit={(percent) => {
+                void updateSettings({
+                  clientDefaults: { topicShiftCompactAtPercent: percent },
+                }).catch(() => {
+                  // surfaced via the hook's error state
+                });
+              }}
+            />
+          </>
+        )}
 
         {supportsProjectQueue && (
           <SettingsItem

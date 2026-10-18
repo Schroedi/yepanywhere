@@ -815,6 +815,7 @@ export interface SessionToolbarPresenceClientDefaults {
   projectQueue?: ToolbarControlPresence;
   projectQueueNewSessionShortcut?: ToolbarControlPresence;
   syntheticDone?: ToolbarControlPresence;
+  topicShift?: ToolbarControlPresence;
   composerRecall?: ToolbarControlPresence;
 }
 
@@ -859,6 +860,17 @@ export interface ClientDefaults {
    * (`deferred`).
    */
   patientQueueDefault?: boolean;
+  /**
+   * Compact-before-delivery threshold for patient items created by the
+   * patient queue default, as a percent of the context window. 100 or absent
+   * is Off, which is also what existing patient-default users keep.
+   */
+  patientQueueCompactAtPercent?: number;
+  /**
+   * Compact-before-delivery threshold for items created by the explicit
+   * "Next topic when done" action. 100 or absent is Off.
+   */
+  topicShiftCompactAtPercent?: number;
   /**
    * When true, Ctrl+Enter uses Project Queue whenever the Project Queue
    * affordance is available. Off leaves Ctrl+Enter bound to the regular

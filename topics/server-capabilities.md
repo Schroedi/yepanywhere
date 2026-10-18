@@ -81,6 +81,16 @@ routes. Without the bit clients hide app/project cleanup controls and show
 update guidance. Existing project deletion retains its meaning. See
 [app inventory](project-service.md#app-address-in-project-settings).
 
+`patient-topic-shift` (permanent ID 132, version-implied from 0.9.4) owns the
+`patientSource` and `compactAboveContextPercent` message metadata, both
+patient compaction thresholds, the `topicShift` toolbar presence key, the
+queue summary's `compactionGate`, and POST
+`/api/sessions/:sessionId/deferred/:tempId/deliver-without-compaction`.
+v0.9.0–v0.9.2 drop unknown metadata; without the capability clients hide the
+action and settings and send ordinary patient items. No existing capability
+changes meaning; the maintainer's standing compatibility approval covers the
+gate. See [patient topic shifts](patient-topic-shift.md#compatibility).
+
 `project-app-auto-start` (permanent ID 130, version-implied from 0.9.4) owns
 the optional `autoStart` field on GET `/api/projects/:projectId/app/address`
 and POST `/api/projects/:projectId/app/address/auto-start`. v0.9.0–v0.9.2

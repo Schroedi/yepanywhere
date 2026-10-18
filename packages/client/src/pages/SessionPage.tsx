@@ -4157,6 +4157,25 @@ function SessionPageContent({
     [sessionId, showToast, t],
   );
 
+  const handleDeliverDeferredWithoutCompaction = useCallback(
+    async (tempId: string) => {
+      try {
+        const result = await api.deliverDeferredWithoutCompaction(
+          sessionId,
+          tempId,
+        );
+        setDeferredMessages(result.deferredMessages ?? []);
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        showToast(
+          t("sessionQueuedSendWithoutCompactingFailed", { message: errorMsg }),
+          "error",
+        );
+      }
+    },
+    [sessionId, setDeferredMessages, showToast, t],
+  );
+
   const handleDeleteRecoveredDeferred = useCallback(
     async (queueId: string) => {
       try {
@@ -6777,6 +6796,9 @@ function SessionPageContent({
                           handleCancelUnconfirmedUserMessage
                         }
                         onSteerDeferred={handleSteerDeferred}
+                        onDeliverDeferredWithoutCompaction={
+                          handleDeliverDeferredWithoutCompaction
+                        }
                         onResumeRecoveredDeferred={
                           handleResumeRecoveredDeferred
                         }

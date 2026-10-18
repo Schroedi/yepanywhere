@@ -8,6 +8,7 @@ import {
   type UserMessageDeliveryIntent,
   type UserMessageMetadata,
   clampPatientPatienceSeconds,
+  normalizePatientCompactPercent,
   clampRecapAfterSeconds,
   isTurnEffort,
 } from "@yep-anywhere/shared";
@@ -311,6 +312,16 @@ export function buildUserMessageMetadata(
     deliveryIntent === "patient"
       ? clampPatientPatienceSeconds(rawMetadata.patienceSeconds)
       : undefined;
+  const patientSource =
+    deliveryIntent === "patient" &&
+    (rawMetadata.patientSource === "topic-shift" ||
+      rawMetadata.patientSource === "patient-default")
+      ? rawMetadata.patientSource
+      : undefined;
+  const compactAboveContextPercent =
+    deliveryIntent === "patient"
+      ? normalizePatientCompactPercent(rawMetadata.compactAboveContextPercent)
+      : undefined;
   const steerNow =
     deliveryIntent === "steer" && rawMetadata.steerNow === true
       ? true
@@ -333,6 +344,10 @@ export function buildUserMessageMetadata(
       ? { turnEffort: rawMetadata.turnEffort }
       : {}),
     ...(patienceSeconds !== undefined ? { patienceSeconds } : {}),
+    ...(patientSource ? { patientSource } : {}),
+    ...(compactAboveContextPercent !== undefined
+      ? { compactAboveContextPercent }
+      : {}),
     ...(steerNow ? { steerNow } : {}),
     ...(Object.keys(cleanComposition).length > 0
       ? { composition: cleanComposition }

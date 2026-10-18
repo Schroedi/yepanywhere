@@ -119,6 +119,15 @@ type DeferredQueueEntry = {
    */
   lastSeenHead?: string;
   persistedQueueId?: string;
+  /**
+   * Compact-first gate of a patient entry carrying a threshold. `pending`
+   * holds the entry until the Supervisor evaluates usage at its delivery
+   * boundary; only `cleared` (or no gate) lets it deliver.
+   */
+  compactionGate?: {
+    state: "pending" | "compacting" | "failed" | "cleared";
+    reason?: string;
+  };
 };
 export type PendingYaCommand = {
   command: SessionQueuedYaCommand;
@@ -238,6 +247,40 @@ function usesPatientDeliveryPath(
   provider: ProviderName,
 ): boolean {
   return hasPatientQueueIntent(entry) && isClaudeSdkProvider(provider);
+}
+
+function compactionGateFor(
+  message: UserMessage,
+): DeferredQueueEntry["compactionGate"] {
+  return message.metadata?.deliveryIntent === "patient" &&
+    message.metadata.compactAboveContextPercent !== undefined
+    ? { state: "pending" }
+    : undefined;
+}
+
+function isCompactionGateOpen(entry: DeferredQueueEntry): boolean {
+  return !entry.compactionGate || entry.compactionGate.state === "cleared";
+}
+
+/**
+ * Drop every patient entry from the first one whose compaction gate is still
+ * closed, so later patient thoughts never overtake a held topic shift.
+ * Regular deferred entries keep passing patient ones, as they always have.
+ */
+function withoutCompactionHeldPatientTail(entries: DeferredQueueEntry[]): {
+  deliverable: DeferredQueueEntry[];
+  held: DeferredQueueEntry | null;
+} {
+  const heldIndex = entries.findIndex(
+    (entry) => hasPatientQueueIntent(entry) && !isCompactionGateOpen(entry),
+  );
+  if (heldIndex === -1) return { deliverable: entries, held: null };
+  return {
+    deliverable: entries.filter(
+      (entry, index) => index < heldIndex || !hasPatientQueueIntent(entry),
+    ),
+    held: entries[heldIndex]!,
+  };
 }
 
 /** Quiet milliseconds this patient entry waits for after verified idle. */
@@ -1247,6 +1290,8 @@ export class Process {
 
   /** Deferred message queue — messages queued while agent is in-turn, auto-sent when turn ends */
   private deferredQueue: DeferredQueueEntry[] = [];
+  /** Patient entry whose pending compaction gate last held a delivery. */
+  private dueCompactionGateEntry: DeferredQueueEntry | null = null;
   /** YA-local commands awaiting a provider turn boundary, never provider input. */
   private pendingYaCommands: PendingYaCommand[] = [];
 
@@ -1636,8 +1681,12 @@ export class Process {
   }
 
   hasPatientDeferredMessages(): boolean {
-    return this.deferredQueue.some((entry) =>
-      usesPatientDeliveryPath(entry, this.provider),
+    // A held compaction gate keeps the session too: its item is waiting on
+    // YA, not on the provider's turn end.
+    return this.deferredQueue.some(
+      (entry) =>
+        usesPatientDeliveryPath(entry, this.provider) ||
+        !isCompactionGateOpen(entry),
     );
   }
 
@@ -4173,6 +4222,9 @@ export class Process {
         { message: acceptedMessage, timestamp: new Date().toISOString() },
         this.provider,
       ) &&
+      // A compact-first item must reach its delivery boundary through the
+      // queue so the Supervisor can evaluate usage before it is sent.
+      !compactionGateFor(acceptedMessage) &&
       this._state.type === "idle"
     );
     if (canPromoteIfReady) {
@@ -4211,6 +4263,7 @@ export class Process {
     }
 
     const lastSeenHead = this.lastSeenAssistantHead();
+    const compactionGate = compactionGateFor(acceptedMessage);
     const entry: DeferredQueueEntry = {
       message: acceptedMessage,
       timestamp: options?.timestamp ?? new Date().toISOString(),
@@ -4218,6 +4271,7 @@ export class Process {
       ...(options?.persistedQueueId
         ? { persistedQueueId: options.persistedQueueId }
         : {}),
+      ...(compactionGate ? { compactionGate } : {}),
     };
     this.deferredQueue.push(entry);
     this.persistPatientDeferredEntry(entry);
@@ -4435,6 +4489,17 @@ export class Process {
           ? { attachments: entry.message.attachments }
           : {}),
         ...(attachmentCount > 0 ? { attachmentCount } : {}),
+        ...(entry.compactionGate?.state === "compacting" ||
+        entry.compactionGate?.state === "failed"
+          ? {
+              compactionGate: {
+                state: entry.compactionGate.state,
+                ...(entry.compactionGate.reason
+                  ? { reason: entry.compactionGate.reason }
+                  : {}),
+              },
+            }
+          : {}),
       };
     });
     const yaCommands = this.pendingYaCommands.map((entry) => ({
@@ -5665,9 +5730,12 @@ export class Process {
       return false;
     }
 
-    const eligible = this.deferredQueue.filter(
-      (entry) => !usesPatientDeliveryPath(entry, this.provider),
+    const { deliverable: eligible, held } = withoutCompactionHeldPatientTail(
+      this.deferredQueue.filter(
+        (entry) => !usesPatientDeliveryPath(entry, this.provider),
+      ),
     );
+    this.noteDueCompactionGate(held);
     if (eligible.length === 0) {
       return false;
     }
@@ -5700,6 +5768,64 @@ export class Process {
       "promoted",
       group.length === 1 ? group[0]!.message.tempId : undefined,
     );
+    return true;
+  }
+
+  private noteDueCompactionGate(held: DeferredQueueEntry | null): void {
+    if (held?.compactionGate?.state === "pending") {
+      this.dueCompactionGateEntry = held;
+    }
+  }
+
+  /**
+   * The patient entry a delivery boundary reached but held for its pending
+   * compaction gate, with its threshold. Null once the entry left the queue
+   * or its gate moved on.
+   */
+  get dueCompactionGate(): { tempId: string; percent: number } | null {
+    const entry = this.dueCompactionGateEntry;
+    const percent = entry?.message.metadata?.compactAboveContextPercent;
+    if (
+      !entry?.message.tempId ||
+      percent === undefined ||
+      entry.compactionGate?.state !== "pending" ||
+      !this.deferredQueue.includes(entry)
+    ) {
+      return null;
+    }
+    return { tempId: entry.message.tempId, percent };
+  }
+
+  /**
+   * Move a queued entry's compaction gate. Leaving `pending` also retires it
+   * as the due gate; a return to `pending` waits for the next boundary.
+   */
+  setCompactionGate(
+    tempId: string,
+    state: "pending" | "compacting" | "failed" | "cleared",
+    reason?: string,
+  ): boolean {
+    const entry = this.deferredQueue.find(
+      (candidate) => candidate.message.tempId === tempId,
+    );
+    if (!entry?.compactionGate) return false;
+    entry.compactionGate = { state, ...(reason ? { reason } : {}) };
+    if (this.dueCompactionGateEntry === entry) {
+      this.dueCompactionGateEntry = null;
+    }
+    this.emitDeferredQueueChange("queued", tempId);
+    return true;
+  }
+
+  /**
+   * Turn-end delivery for entries whose compaction gate cleared after the
+   * boundary already passed them by. Patient-path entries are left to the
+   * Supervisor's quiet-interval check.
+   */
+  promoteDeferredAfterCompactionGate(): boolean {
+    if (this._state.type !== "idle" || this.queueDepth > 0) return false;
+    if (!this.promoteEligibleDeferredAfterTurn()) return false;
+    this.setState({ type: "in-turn" });
     return true;
   }
 
@@ -5737,9 +5863,12 @@ export class Process {
 
     const now = options.now ?? Date.now();
     const quietMs = Math.max(0, now - options.quietSinceMs);
-    const eligible = patientEntries.filter(
-      (entry) => patientPatienceMsForEntry(entry) <= quietMs,
+    const { deliverable: eligible, held } = withoutCompactionHeldPatientTail(
+      patientEntries.filter(
+        (entry) => patientPatienceMsForEntry(entry) <= quietMs,
+      ),
     );
+    this.noteDueCompactionGate(held);
     const nextPatienceMsRemaining = patientEntries.reduce<number | null>(
       (min, entry) => {
         const remaining = patientPatienceMsForEntry(entry) - quietMs;

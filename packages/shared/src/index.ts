@@ -649,6 +649,7 @@ export {
 export type {
   UserMessageCompositionMetadata,
   NonHumanUserTurn,
+  PatientQueueSource,
   UserMessageDeliveryIntent,
   UserMessageMetadata,
   UserMessageSpeechMetadata,
@@ -661,6 +662,7 @@ export {
   applyPatientQueuePrefix,
   clampPatientPatienceSeconds,
   hasPatientQueuePrefix,
+  normalizePatientCompactPercent,
   stripPatientQueuePrefix,
 } from "./user-message-metadata.js";
 
@@ -895,6 +897,7 @@ export {
   SIDEBAR_SESSION_RESUME_CAPABILITY,
   SYNTHETIC_ARCHIVE_COMMAND_CAPABILITY,
   SYNTHETIC_DONE_COMMAND_CAPABILITY,
+  PATIENT_TOPIC_SHIFT_CAPABILITY,
   SYNTHETIC_TERMINATE_COMMAND_CAPABILITY,
   SUBAGENT_MAX_DEPTH_SETTING_CAPABILITY,
   PROJECT_DIRECTORY_STORAGE_POLICY_CAPABILITY,
@@ -1091,6 +1094,7 @@ export type {
   SessionMetadataResponse,
   SessionQueuedMessageKind,
   SessionQueuedMessageStatus,
+  SessionQueuedCompactionGate,
   SessionQueuedClearloopProgress,
   SessionQueuedMessageSummary,
   SessionQueuedYaCommand,

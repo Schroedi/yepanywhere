@@ -850,6 +850,8 @@ interface Props {
   onCancelUnconfirmedUserMessage?: (tempId: string) => void;
   /** Steer a patient queued message, and earlier patient entries, into the session now */
   onSteerDeferred?: (tempId: string) => void;
+  /** Release a patient item whose compact-first attempt failed. */
+  onDeliverDeferredWithoutCompaction?: (tempId: string) => void;
   /** Callback to resume a restart-paused recovered queue entry */
   onResumeRecoveredDeferred?: (queueId: string) => void;
   /** Steer a restart-paused recovered entry, and earlier patient entries, into the session now */
@@ -1534,6 +1536,7 @@ export const MessageList = memo(function MessageList({
   onEditDeferred,
   onCancelUnconfirmedUserMessage,
   onSteerDeferred,
+  onDeliverDeferredWithoutCompaction,
   onResumeRecoveredDeferred,
   onSteerRecoveredDeferred,
   onDeleteRecoveredDeferred,
@@ -5361,12 +5364,16 @@ export const MessageList = memo(function MessageList({
                   )
                 : tailRow.isYaCommand
                   ? t("sessionQueuedYaCommandAfterTurn")
-                  : getDeferredMessageStatus({
-                      isPatient: tailRow.isPatient,
-                      lanePosition: tailRow.lanePosition,
-                      timestampMs,
-                      nowMs,
-                    });
+                  : deferred.compactionGate?.state === "compacting"
+                    ? t("sessionQueuedCompactingFirst")
+                    : deferred.compactionGate?.state === "failed"
+                      ? t("sessionQueuedCompactionFailed")
+                      : getDeferredMessageStatus({
+                          isPatient: tailRow.isPatient,
+                          lanePosition: tailRow.lanePosition,
+                          timestampMs,
+                          nowMs,
+                        });
             const earlierPatientCount = tailRow.lanePosition?.patientIndex ?? 0;
             const steerQueuedLabel =
               earlierPatientCount > 0
@@ -5428,9 +5435,11 @@ export const MessageList = memo(function MessageList({
                       title={
                         tailRow.isRecovered
                           ? t("sessionRecoveredQueuedPausedTitle")
-                          : tailRow.isPatient
-                            ? "Patient queue waits for verified quiet. Regular queued messages may pass it."
-                            : undefined
+                          : deferred.compactionGate?.reason
+                            ? deferred.compactionGate.reason
+                            : tailRow.isPatient
+                              ? "Patient queue waits for verified quiet. Regular queued messages may pass it."
+                              : undefined
                       }
                     >
                       {deferredStatus}
@@ -5529,39 +5538,61 @@ export const MessageList = memo(function MessageList({
                         ) : null}
                       </div>
                     ) : (
-                      <QueuedMessageActions
-                        variant="session"
-                        text={deferred.content}
-                        composerEditAvailabilityStore={
-                          composerEditAvailabilityStore
-                        }
-                        onEdit={
-                          !tailRow.isYaCommand &&
-                          deferred.tempId &&
-                          onEditDeferred
-                            ? () => onEditDeferred(deferred.tempId as string)
-                            : undefined
-                        }
-                        onSteer={
-                          tailRow.isPatient &&
-                          deferred.tempId &&
-                          onSteerDeferred &&
-                          !deferred.metadata?.turnEffort
-                            ? () => onSteerDeferred(deferred.tempId as string)
-                            : undefined
-                        }
-                        steerLabel={steerQueuedLabel}
-                        onCancel={
-                          tailRow.allowsDeferredCancel && onCancelDeferred
-                            ? () => onCancelDeferred(deferred.tempId as string)
-                            : isClearloop && onCancelClearloop
-                              ? onCancelClearloop
+                      <>
+                        {deferred.compactionGate?.state === "failed" &&
+                        deferred.tempId &&
+                        onDeliverDeferredWithoutCompaction ? (
+                          <button
+                            type="button"
+                            className="deferred-message-action deferred-message-action-steer"
+                            onClick={() =>
+                              onDeliverDeferredWithoutCompaction(
+                                deferred.tempId as string,
+                              )
+                            }
+                            title={t("sessionQueuedSendWithoutCompactingTitle")}
+                          >
+                            <PlayIcon />
+                            <span>
+                              {t("sessionQueuedSendWithoutCompacting")}
+                            </span>
+                          </button>
+                        ) : null}
+                        <QueuedMessageActions
+                          variant="session"
+                          text={deferred.content}
+                          composerEditAvailabilityStore={
+                            composerEditAvailabilityStore
+                          }
+                          onEdit={
+                            !tailRow.isYaCommand &&
+                            deferred.tempId &&
+                            onEditDeferred
+                              ? () => onEditDeferred(deferred.tempId as string)
                               : undefined
-                        }
-                        cancelLabel={
-                          isClearloop ? t("clearloopCancel") : undefined
-                        }
-                      />
+                          }
+                          onSteer={
+                            tailRow.isPatient &&
+                            deferred.tempId &&
+                            onSteerDeferred &&
+                            !deferred.metadata?.turnEffort
+                              ? () => onSteerDeferred(deferred.tempId as string)
+                              : undefined
+                          }
+                          steerLabel={steerQueuedLabel}
+                          onCancel={
+                            tailRow.allowsDeferredCancel && onCancelDeferred
+                              ? () =>
+                                  onCancelDeferred(deferred.tempId as string)
+                              : isClearloop && onCancelClearloop
+                                ? onCancelClearloop
+                                : undefined
+                          }
+                          cancelLabel={
+                            isClearloop ? t("clearloopCancel") : undefined
+                          }
+                        />
+                      </>
                     )}
                   </div>
                 </div>
