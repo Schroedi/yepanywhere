@@ -4751,6 +4751,30 @@ export class CodexProvider implements AgentProvider {
       this.getConfiguredCyberAccessProgram(),
     );
     if (!program) return { program: null, scope: null };
+    if (model) {
+      let cursor: string | null | undefined;
+      do {
+        const page = await withCodexTimeout(
+          appServer.request<{
+            data: AppServerModel[];
+            nextCursor?: string | null;
+          }>("model/list", { limit: 100, includeHidden: true, cursor }),
+          MODEL_LIST_TIMEOUT_MS,
+          "Codex model access programs",
+        );
+        const entry = page.data.find(
+          (entry) => (entry.model || entry.id) === model,
+        );
+        if (entry) {
+          const programs = entry.availableAccessPrograms?.cyber;
+          if (programs?.length && !programs.includes(program)) {
+            return { program: null, scope: null };
+          }
+          break;
+        }
+        cursor = page.nextCursor;
+      } while (cursor);
+    }
     runtimeState.cyberAccessAccountKey ??= await this.readCyberAccessAccountKey(
       appServer,
       sessionId,
