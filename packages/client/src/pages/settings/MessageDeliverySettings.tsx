@@ -10,6 +10,7 @@ import {
   PATIENT_TOPIC_SHIFT_CAPABILITY,
   PROJECT_QUEUE_READINESS_CHECK_CAPABILITY,
   type ProjectQueueReadinessCommand,
+  RENDEZVOUS_UPLOADS_CAPABILITY,
   SESSION_REWIND_CAPABILITY,
   clampClearloopInactivitySeconds,
   clampProjectQueueQuietSeconds,
@@ -177,7 +178,10 @@ export function MessageDeliverySettings() {
     PROJECT_QUEUE_READINESS_CHECK_CAPABILITY,
   );
   const supportsBangCommands = serverSupportsBangCommands(version);
-  const supportsRendezvous = serverHasCapability(version, "rendezvous-uploads");
+  const supportsRendezvous = serverHasCapability(
+    version,
+    RENDEZVOUS_UPLOADS_CAPABILITY,
+  );
   const supportsTopicShift = serverHasCapability(
     version,
     PATIENT_TOPIC_SHIFT_CAPABILITY,
