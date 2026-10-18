@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { open, readFile } from "node:fs/promises";
 import * as path from "node:path";
 import {
-  createLocalResourcePathPolicy,
+  type createLocalResourcePathPolicy,
   LOCAL_MEDIA_CONTENT_TYPES,
 } from "./local-resource-policy.js";
 
