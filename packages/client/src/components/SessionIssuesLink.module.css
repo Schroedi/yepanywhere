@@ -35,6 +35,22 @@
   font-variant-numeric: tabular-nums;
 }
 
+.menuEntry {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  text-decoration: none;
+}
+
+.menuEntry:hover,
+.menuEntry:focus-visible {
+  background: var(--bg-hover);
+}
+
 /* Sits above the sidebar and the session header, like the neighboring menus. */
 .menu {
   z-index: 10000;

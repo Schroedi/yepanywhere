@@ -55,6 +55,85 @@
   color: var(--text-primary);
 }
 
+.header .left {
+  overflow: visible;
+}
+
+.header .titleRow {
+  min-width: 3rem;
+}
+
+.header .actions {
+  flex-wrap: nowrap;
+}
+
+.header .modelButton {
+  align-items: center;
+  min-height: 36px;
+  max-width: 14rem;
+}
+
+.header .menuTrigger {
+  min-width: 36px;
+  min-height: 36px;
+  opacity: 1;
+}
+
+.header .project {
+  max-width: 8.5rem;
+  flex-shrink: 8;
+  min-width: 0;
+}
+
+.header .project > :global(.project-breadcrumb) {
+  min-width: 0;
+  flex-shrink: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.header[data-header-layout="compact"] .project {
+  max-width: 5rem;
+  overflow: hidden;
+}
+
+.header[data-header-layout="narrow"] .project {
+  max-width: 3.5rem;
+  overflow: hidden;
+}
+
+.header .projectHidden {
+  display: none;
+}
+
+.header[data-header-layout="narrow"] .modelButton {
+  max-width: 8rem;
+}
+
+/* Preserve the mounted inline field if a roomy header shrinks mid-edit. */
+.header[data-inline-rename="true"][data-header-layout="narrow"]
+:global(.session-header-inner),
+.header[data-inline-rename="true"][data-header-layout="narrow"] .left {
+  flex-wrap: wrap;
+}
+
+.header[data-inline-rename="true"][data-header-layout="narrow"] .left,
+.header[data-inline-rename="true"][data-header-layout="narrow"] .titleRow {
+  flex-basis: 100%;
+}
+
+@media (pointer: coarse) {
+  .header .modelButton,
+  .header .menuTrigger {
+    min-height: 44px;
+  }
+
+  .header .menuTrigger {
+    min-width: 44px;
+  }
+}
+
 @media (width <= 700px) {
   .routerAccount {
     display: none;

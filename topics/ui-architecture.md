@@ -60,6 +60,32 @@ measured demand exceeds available width, and on any >1px widening resets to
 is history-free and identical from either direction, so restore is
 reverse-of-removal by construction — form 1 above.
 
+## Session Header Space
+
+The session header reserves space for the session title and the `…` menu.
+Its responsive tiers use the header column's width, including space taken by
+the sidebar or a docked pane, and restore controls in the reverse order:
+
+- At 720 CSS pixels and above, Share and Issues retain their header controls.
+- Below 720 pixels, Share and Issues move into the session menu. Their menu
+  entries retain viewer/link and association counts; Issues opens the session's
+  filtered issue list. Hidden controls do not keep polling behind the menu.
+- Below 600 pixels, the model pill keeps model identity with abbreviated effort
+  (`L`, `M`, `H`, `XH`), retains full accessible labels and its configuration
+  action, and carries the activity dot instead of a second thinking control.
+  The project breadcrumb yields to the title; an enabled short project code
+  may remain, while the full project name stays available in navigation.
+
+Narrow or crowded headers open manual Rename in a compact dialog with a labeled
+input and explicit Save/Cancel actions. Leaving the field or dismissing the
+keyboard never saves the dialog; closing or Android Back cancels. Roomy headers
+retain inline rename. The presentation is chosen on opening and stays stable
+through keyboard resizes and rotation; an inline field wraps rather than
+collapsing when its header narrows. Navigating away dismisses Rename without
+saving. Both editors focus/select in their mounting commit, keep their drafts
+independent of transcript updates, do not
+submit an active IME composition, and retain the field and draft on save failure.
+
 ## Transient Feedback Lifetime
 
 In-page toasts remain click-to-dismiss alerts. Success and informational

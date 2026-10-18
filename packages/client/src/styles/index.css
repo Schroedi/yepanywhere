@@ -10945,19 +10945,6 @@ a.sidebar-nav-item {
   color: var(--text-muted);
 }
 
-/* Provider Badge Component */
-.provider-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px 1px;
-  font-size: var(--font-size-xs);
-  font-weight: 500;
-  border: 1px solid;
-  border-radius: var(--radius-sm);
-  background: transparent;
-}
-
 /* Clickable provider badge button (in session header) */
 .provider-badge-button {
   display: inline-flex;
@@ -10984,75 +10971,6 @@ a.sidebar-nav-item {
 .composer-model-chip-static {
   display: inline-flex;
   align-items: center;
-}
-
-.provider-badge-dot-inline {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-}
-
-.provider-badge-dot-inline.thinking {
-  animation: thinking-pulse 1.5s ease-in-out infinite;
-}
-
-.provider-badge-effort {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: 4px;
-  padding-left: 6px;
-  border-left: 1px solid color-mix(in srgb, currentColor 18%, transparent);
-}
-
-.provider-badge-effort-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-  flex-shrink: 0;
-}
-
-.provider-badge-effort-dot.tone-off {
-  background: var(--text-muted);
-}
-
-.provider-badge-effort-dot.tone-auto {
-  background: var(--link-color);
-}
-
-.provider-badge-effort-dot.tone-low {
-  background: #2f9e44;
-}
-
-.provider-badge-effort-dot.tone-medium {
-  background: #d97706;
-}
-
-.provider-badge-effort-dot.tone-high {
-  background: #ea580c;
-}
-
-.provider-badge-effort-dot.tone-xhigh {
-  background: #dc2626;
-}
-
-.provider-badge-effort-dot.tone-max {
-  background: #991b1b;
-}
-
-.provider-badge-effort-label {
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 1.2;
-  opacity: 0.82;
-}
-
-/* On mobile, hide the dot - the label already shows a compact model glyph */
-@media (width <= 600px) {
-  .provider-badge-dot-inline {
-    display: none;
-  }
 }
 
 .provider-badge-dot {

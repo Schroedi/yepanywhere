@@ -77,6 +77,12 @@
   background: transparent;
 }
 
+@media (pointer: coarse) {
+  .dropdown button {
+    min-height: 44px;
+  }
+}
+
 .dropdown button svg {
   flex-shrink: 0;
   color: var(--text-muted);

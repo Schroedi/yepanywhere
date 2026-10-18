@@ -120,7 +120,13 @@ import { RestartSessionModal } from "../components/RestartSessionModal";
 import { routerBindingChip } from "../components/RouterPoolSelector";
 import { SessionHeartbeatModal } from "../components/SessionHeartbeatModal";
 import { SessionMenu } from "../components/SessionMenu";
-import { SessionPublicShareControls } from "../components/SessionPublicShareControls";
+import {
+  SessionPublicShareControls,
+  SessionShareMenuLabel,
+} from "../components/SessionPublicShareControls";
+import { SessionRenameEditor } from "../components/SessionRenameEditor";
+import { useSessionHeaderLayout } from "../hooks/useSessionHeaderLayout";
+import { useProjectCodeNamePreferences } from "../hooks/useProjectCodeNamePreferences";
 import { SessionRecapModal } from "../components/SessionRecapModal";
 import { ThinkingIndicator } from "../components/ThinkingIndicator";
 import { ToolApprovalPanel } from "../components/ToolApprovalPanel";
@@ -536,6 +542,10 @@ function SessionPageContent({
   const startNewSessionWithPrefill = useStartNewSessionWithPrefillAction();
   const { project } = useProject(projectId);
   const { projects } = useProjects();
+  const { headerRef, layout: headerLayout } = useSessionHeaderLayout();
+  const { projectCodeNamesEnabled } = useProjectCodeNamePreferences();
+  const hideHeaderSecondary = headerLayout !== "full";
+  const condensedHeader = headerLayout === "narrow";
   const activeProjectSessionIds = useActiveProjectSessionIds(projectId);
   const clientSummarySourceKey = useClientSummarySourceKey();
   const historyScope = useComposerHistoryScope();
@@ -2113,6 +2123,9 @@ function SessionPageContent({
 
   // Inline title editing state
   const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [renamePresentation, setRenamePresentation] = useState<
+    "inline" | "dialog"
+  >("dialog");
   const [titleEditMode, setTitleEditMode] = useState<TitleEditMode>("manual");
   const [renameValue, setRenameValue] = useState("");
   const [isRenaming, setIsRenaming] = useState(false);
@@ -5369,9 +5382,14 @@ function SessionPageContent({
     setShowRecentSessions(false);
     invalidateGeneratedRetitle();
     setTitleEditMode("manual");
-    setRenameValue(displayTitle);
+    // Decide once: a keyboard resize or rotation must not remount the editor.
+    setRenamePresentation(
+      !condensedHeader &&
+        (titleRowRef.current?.getBoundingClientRect().width ?? 0) >= 420
+        ? "inline"
+        : "dialog",
+    );
     setIsEditingTitle(true);
-    focusAndSelectTitleInput();
   };
 
   const handleStartRetitleTitle = (options?: { applyWhenReady?: boolean }) => {
@@ -5637,6 +5655,10 @@ function SessionPageContent({
       handleCancelEditingTitle();
     }
   };
+
+  useEffect(() => {
+    if (isDomLingerParked) handleCancelEditingTitleRef.current();
+  }, [isDomLingerParked]);
 
   useEffect(() => {
     if (isDomLingerParked || !isEditingTitle) return;
@@ -5911,11 +5933,22 @@ function SessionPageContent({
       innerClassName={`${styles.workspace} ${rightPane.expanded || (projectAppEnabled && projectAppOpen) ? styles.rightPane : ""}`}
     >
       <div className={styles.sessionColumn}>
-        <header className="session-header">
+        <header
+          ref={headerRef}
+          className={`session-header ${sessionHeaderStyles.header}`}
+          data-header-layout={headerLayout}
+          data-inline-rename={
+            isEditingTitle &&
+            titleEditMode === "manual" &&
+            renamePresentation === "inline"
+              ? "true"
+              : undefined
+          }
+        >
           <div
             className={`session-header-inner${isWideScreen ? ` ${sessionHeaderStyles.noLeadingControl}` : ""}`}
           >
-            <div className="session-header-left">
+            <div className={`session-header-left ${sessionHeaderStyles.left}`}>
               {/* Sidebar opener for the overlay sidebar only. On desktop the
                 sidebar owns its own toggle, expanded or collapsed. */}
               {!isWideScreen && (
@@ -5956,7 +5989,9 @@ function SessionPageContent({
               )}
               {/* Project breadcrumb */}
               {project?.name && (
-                <div className="project-breadcrumb-wrapper">
+                <div
+                  className={`project-breadcrumb-wrapper ${sessionHeaderStyles.project} ${condensedHeader && !(projectCodeNamesEnabled && supportsProjectCodeNames && project.codeName) ? sessionHeaderStyles.projectHidden : ""}`}
+                >
                   <Link
                     ref={projectBreadcrumbRef}
                     to={`${basePath}/sessions?project=${projectId}`}
@@ -5969,9 +6004,13 @@ function SessionPageContent({
                     aria-label={project.name}
                     onContextMenu={handleProjectBreadcrumbContextMenu}
                   >
-                    {project.name.length > 12
-                      ? `${project.name.slice(0, 12)}...`
-                      : project.name}
+                    {projectCodeNamesEnabled &&
+                    supportsProjectCodeNames &&
+                    project.codeName
+                      ? project.codeName
+                      : project.name.length > 12
+                        ? `${project.name.slice(0, 12)}...`
+                        : project.name}
                   </Link>
                   {showProjectReclassifyMenu && (
                     <div
@@ -6009,7 +6048,10 @@ function SessionPageContent({
                   )}
                 </div>
               )}
-              <div ref={titleRowRef} className="session-title-row">
+              <div
+                ref={titleRowRef}
+                className={`session-title-row ${sessionHeaderStyles.titleRow}`}
+              >
                 {isStarred && (
                   <svg
                     className="star-indicator-inline"
@@ -6028,6 +6070,15 @@ function SessionPageContent({
                 )}
                 {loading ? (
                   <span className="session-title-skeleton" />
+                ) : isEditingTitle &&
+                  !isDomLingerParked &&
+                  titleEditMode === "manual" ? (
+                  <SessionRenameEditor
+                    initialTitle={displayTitle}
+                    presentation={renamePresentation}
+                    onSave={saveTitleValue}
+                    onCancel={handleCancelEditingTitle}
+                  />
                 ) : isEditingTitle ? (
                   <div
                     ref={titleEditControlsRef}
@@ -6329,93 +6380,11 @@ function SessionPageContent({
                     {t("sessionArchivedBadge")}
                   </span>
                 )}
-                {!loading && (
-                  <SessionMenu
-                    sessionId={sessionId}
-                    projectId={projectId}
-                    isStarred={isStarred}
-                    isArchived={isArchived}
-                    hasUnread={hasUnread}
-                    provider={session?.provider}
-                    processId={
-                      status.owner === "self" ? status.processId : undefined
-                    }
-                    onToggleStar={handleToggleStar}
-                    onToggleArchive={handleToggleArchive}
-                    onToggleRead={handleToggleRead}
-                    onRename={handleStartEditingTitle}
-                    onShowInfo={openSessionInfo}
-                    onGenerateTitle={
-                      supportsTitleGeneration
-                        ? handleGenerateAndApplyTitle
-                        : undefined
-                    }
-                    onClone={supportsForkFromTurn ? cloneSession : undefined}
-                    cloneUnavailableMessage={forkUnavailableMessage}
-                    cloneDisabled={forkAfterDisabled}
-                    onConfigureProjectSettings={
-                      supportsProjectSessionDefaults
-                        ? () => setShowProjectSettingsModal(true)
-                        : undefined
-                    }
-                    onConfigureHeartbeat={() => setShowHeartbeatModal(true)}
-                    onConfigureRecaps={
-                      status.owner === "self"
-                        ? () => setShowRecapModal(true)
-                        : undefined
-                    }
-                    promptSuggestionMode={promptSuggestionMode}
-                    onTogglePromptSuggestions={
-                      currentProviderInfo?.supportsNativePromptSuggestions
-                        ? handleTogglePromptSuggestions
-                        : undefined
-                    }
-                    warningRestoreAvailable={
-                      hasPendingToolCalls && pendingElsewhereDismissed
-                    }
-                    onRestoreWarnings={handleRestorePendingElsewhereWarning}
-                    onHandoff={
-                      effectiveProvider && !routedSession
-                        ? () => setShowHandoffModal(true)
-                        : undefined
-                    }
-                    onClear={() => {
-                      const params = new URLSearchParams({ projectId });
-                      if (effectiveProvider) {
-                        params.set("provider", effectiveProvider);
-                      }
-                      if (liveBadgeModel) {
-                        params.set("model", liveBadgeModel);
-                      }
-                      navigate(`${basePath}/new-session?${params.toString()}`);
-                    }}
-                    onCompact={
-                      supportsManualCompact ? handleCompactSession : undefined
-                    }
-                    compactDisabled={manualCompactBlocked}
-                    onTerminate={handleTerminate}
-                    onRestartProvider={
-                      serverHasCapability(
-                        versionInfo,
-                        SIDEBAR_SESSION_RESUME_CAPABILITY,
-                      )
-                        ? handleRestartProvider
-                        : undefined
-                    }
-                    onReload={() => window.location.reload()}
-                    onShare={
-                      publicShareActionAvailable ? handleShare : undefined
-                    }
-                    useFixedPositioning
-                    useEllipsisIcon
-                    onOpenChange={(open) => {
-                      if (open) setShowRecentSessions(false);
-                    }}
-                  />
-                )}
               </div>
             </div>
-            <div className="session-header-right">
+            <div
+              className={`session-header-right ${sessionHeaderStyles.actions}`}
+            >
               <ProviderChildSessionControl
                 projectId={projectId}
                 sessionId={actualSessionId}
@@ -6425,6 +6394,7 @@ function SessionPageContent({
               />
               <ClientLogRecordingBadge inline />
               <SessionPublicShareControls
+                indicatorVisible={!hideHeaderSecondary}
                 enabled={publicSharesEnabled}
                 projectId={projectId}
                 sessionId={actualSessionId}
@@ -6448,7 +6418,7 @@ function SessionPageContent({
                 }}
                 t={t}
               />
-              {canStopOwnedProcess && (
+              {canStopOwnedProcess && !condensedHeader && (
                 <ThinkingIndicator
                   variant="icon"
                   className="session-header-thinking"
@@ -6467,7 +6437,7 @@ function SessionPageContent({
                   }
                 />
               )}
-              {!loading && actualSessionId && (
+              {!hideHeaderSecondary && !loading && actualSessionId && (
                 <SessionIssuesLink
                   sessionId={actualSessionId}
                   projectId={projectId}
@@ -6477,7 +6447,7 @@ function SessionPageContent({
               {!loading && effectiveProvider && (
                 <button
                   type="button"
-                  className="provider-badge-button"
+                  className={`provider-badge-button ${sessionHeaderStyles.modelButton}`}
                   onClick={() => {
                     setModelPanelInitialTab("model");
                     setShowModelSwitchModal(true);
@@ -6494,6 +6464,7 @@ function SessionPageContent({
                   }
                 >
                   <ProviderBadge
+                    condensed={condensedHeader}
                     provider={effectiveProvider}
                     model={liveBadgeModel}
                     thinking={effectiveModelConfig?.thinking}
@@ -6501,6 +6472,113 @@ function SessionPageContent({
                     isThinking={canStopOwnedProcess}
                   />
                 </button>
+              )}
+              {!loading && (
+                <SessionMenu
+                  sessionId={sessionId}
+                  projectId={projectId}
+                  isStarred={isStarred}
+                  isArchived={isArchived}
+                  hasUnread={hasUnread}
+                  provider={session?.provider}
+                  processId={
+                    status.owner === "self" ? status.processId : undefined
+                  }
+                  onToggleStar={handleToggleStar}
+                  onToggleArchive={handleToggleArchive}
+                  onToggleRead={handleToggleRead}
+                  onRename={handleStartEditingTitle}
+                  onShowInfo={openSessionInfo}
+                  onGenerateTitle={
+                    supportsTitleGeneration
+                      ? handleGenerateAndApplyTitle
+                      : undefined
+                  }
+                  onClone={supportsForkFromTurn ? cloneSession : undefined}
+                  cloneUnavailableMessage={forkUnavailableMessage}
+                  cloneDisabled={forkAfterDisabled}
+                  onConfigureProjectSettings={
+                    supportsProjectSessionDefaults
+                      ? () => setShowProjectSettingsModal(true)
+                      : undefined
+                  }
+                  onConfigureHeartbeat={() => setShowHeartbeatModal(true)}
+                  onConfigureRecaps={
+                    status.owner === "self"
+                      ? () => setShowRecapModal(true)
+                      : undefined
+                  }
+                  promptSuggestionMode={promptSuggestionMode}
+                  onTogglePromptSuggestions={
+                    currentProviderInfo?.supportsNativePromptSuggestions
+                      ? handleTogglePromptSuggestions
+                      : undefined
+                  }
+                  warningRestoreAvailable={
+                    hasPendingToolCalls && pendingElsewhereDismissed
+                  }
+                  onRestoreWarnings={handleRestorePendingElsewhereWarning}
+                  onHandoff={
+                    effectiveProvider && !routedSession
+                      ? () => setShowHandoffModal(true)
+                      : undefined
+                  }
+                  onClear={() => {
+                    const params = new URLSearchParams({ projectId });
+                    if (effectiveProvider) {
+                      params.set("provider", effectiveProvider);
+                    }
+                    if (liveBadgeModel) {
+                      params.set("model", liveBadgeModel);
+                    }
+                    navigate(`${basePath}/new-session?${params.toString()}`);
+                  }}
+                  onCompact={
+                    supportsManualCompact ? handleCompactSession : undefined
+                  }
+                  compactDisabled={manualCompactBlocked}
+                  onTerminate={handleTerminate}
+                  onRestartProvider={
+                    serverHasCapability(
+                      versionInfo,
+                      SIDEBAR_SESSION_RESUME_CAPABILITY,
+                    )
+                      ? handleRestartProvider
+                      : undefined
+                  }
+                  onReload={() => window.location.reload()}
+                  onShare={publicShareActionAvailable ? handleShare : undefined}
+                  triggerClassName={sessionHeaderStyles.menuTrigger}
+                  shareLabel={
+                    hideHeaderSecondary ? (
+                      <SessionShareMenuLabel
+                        enabled={publicSharesEnabled}
+                        projectId={projectId}
+                        sessionId={actualSessionId}
+                        storageState={publicShareGlobalStatus?.storageState}
+                        t={t}
+                      />
+                    ) : undefined
+                  }
+                  additionalItems={
+                    hideHeaderSecondary
+                      ? (close) => (
+                          <SessionIssuesLink
+                            sessionId={actualSessionId}
+                            projectId={projectId}
+                            messageCount={messages.length}
+                            presentation="menu"
+                            onSelect={close}
+                          />
+                        )
+                      : undefined
+                  }
+                  useFixedPositioning
+                  useEllipsisIcon
+                  onOpenChange={(open) => {
+                    if (open) setShowRecentSessions(false);
+                  }}
+                />
               )}
             </div>
           </div>

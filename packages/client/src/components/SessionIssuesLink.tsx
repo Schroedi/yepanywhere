@@ -288,11 +288,15 @@ export function SessionIssuesLink({
   sessionId,
   projectId,
   messageCount = 0,
+  presentation = "header",
+  onSelect,
 }: {
   sessionId: string;
   projectId: string;
   /** Transcript length; a change asks the server for a fresh count. */
   messageCount?: number;
+  presentation?: "header" | "menu";
+  onSelect?: () => void;
 }) {
   const enabled = useIssuesEnabled();
   const base = useRemoteBasePath();
@@ -396,6 +400,21 @@ export function SessionIssuesLink({
   if (!enabled) return null;
 
   const browseHref = `${base}/issues?${new URLSearchParams({ sessionId, projectId })}`;
+
+  if (presentation === "menu") {
+    return (
+      <Link
+        className={styles.menuEntry}
+        to={browseHref}
+        aria-label={label}
+        onClick={onSelect}
+      >
+        <IssueIcon size={14} />
+        {t("issuesForSession")}
+        {badge && <span className={styles.count}>{badge}</span>}
+      </Link>
+    );
+  }
 
   const moveFocus = (step: number, event: React.KeyboardEvent) => {
     const items = Array.from(

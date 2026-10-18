@@ -3,7 +3,13 @@ import {
   type PromptSuggestionMode,
   normalizeSidebarCategory,
 } from "@yep-anywhere/shared";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 import { useI18n } from "../i18n";
 import { writeClipboardText } from "../lib/clipboard";
@@ -79,6 +85,9 @@ export interface SessionMenuProps {
   sharingConfigured?: boolean;
   /** Called to open the public share flow */
   onShare?: () => void | Promise<void>;
+  shareLabel?: ReactNode;
+  additionalItems?: (close: () => void) => ReactNode;
+  triggerClassName?: string;
   /** Additional class for the wrapper */
   className?: string;
   /** Remove the trigger from layout so its caller can overlay it on a row. */
@@ -124,6 +133,9 @@ export function SessionMenu({
   warningRestoreAvailable = false,
   onRestoreWarnings,
   onShare,
+  shareLabel,
+  additionalItems,
+  triggerClassName,
   useEllipsisIcon = false,
   className = "",
   overlayTrigger = false,
@@ -759,9 +771,12 @@ export function SessionMenu({
             <path d="m8.6 13.5 6.8 4" />
             <path d="m15.4 6.5-6.8 4" />
           </svg>
-          {isSharing ? t("sessionMenuSharing") : t("sessionMenuShare")}
+          {isSharing
+            ? t("sessionMenuSharing")
+            : (shareLabel ?? t("sessionMenuShare"))}
         </button>
       )}
+      {additionalItems?.(() => setIsOpen(false))}
       <button type="button" onClick={() => handleAction(onToggleArchive)}>
         <svg
           width="14"
@@ -898,7 +913,9 @@ export function SessionMenu({
       <button
         ref={triggerRef}
         type="button"
-        className={[styles.trigger, "session-menu-trigger"].join(" ")}
+        className={[styles.trigger, "session-menu-trigger", triggerClassName]
+          .filter(Boolean)
+          .join(" ")}
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();

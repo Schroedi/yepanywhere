@@ -39,6 +39,8 @@ export interface ModalAnchorRect {
 
 interface ModalProps {
   title: ReactNode;
+  /** An editor can take focus in its mounting commit without a later close-button focus. */
+  initialFocusRef?: RefObject<HTMLElement | null>;
   actions?: ReactNode;
   headerActionsClassName?: string;
   headerClassName?: string;
@@ -386,6 +388,7 @@ export function ModalChrome({
  */
 export function Modal({
   title,
+  initialFocusRef,
   actions,
   headerActionsClassName,
   headerClassName,
@@ -417,8 +420,8 @@ export function Modal({
   // by itself while the user is in an embedded app leaves its focus alone.
   useEffect(() => {
     if (minimized) return;
-    programmaticFocus(closeButtonRef.current);
-  }, [minimized]);
+    programmaticFocus(initialFocusRef?.current ?? closeButtonRef.current);
+  }, [minimized, initialFocusRef]);
 
   useLayoutEffect(() => {
     if (!isAnchored || !anchorRect) {
@@ -513,6 +516,7 @@ export function Modal({
         {...QUOTE_SELECTION_ROOT_ATTRIBUTES}
         role="dialog"
         aria-modal="true"
+        aria-label={typeof title === "string" ? title : undefined}
         onClick={handleModalClick}
         style={
           isAnchored ? (anchorStyle ?? { visibility: "hidden" }) : undefined
