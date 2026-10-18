@@ -32,9 +32,9 @@ public final class HostActivity extends Activity {
         status = new TextView(this); status.setTextIsSelectable(true); layout.addView(status);
         button(layout, "Start local host", () -> startForegroundService(new Intent(this, HostService.class)));
         button(layout, "Open Yep Anywhere", () -> startActivity(new Intent(this, LocalWebActivity.class)
-            .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)));
-        button(layout, "Set up Codex", () -> startActivity(new Intent(this, LocalWebActivity.class).putExtra("provider", "codex")));
-        button(layout, "Set up Claude", () -> startActivity(new Intent(this, LocalWebActivity.class).putExtra("provider", "claude")));
+            .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP)));
+        button(layout, "Set up Codex", () -> startActivity(new Intent(this, LocalWebActivity.class).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP).putExtra("provider", "codex")));
+        button(layout, "Set up Claude", () -> startActivity(new Intent(this, LocalWebActivity.class).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP).putExtra("provider", "claude")));
         button(layout, "Stop local host", () -> {
             stopService(new Intent(this, HostService.class));
             HostService.status(this, "Stopped. Saved sessions remain on disk."); updateStatus();

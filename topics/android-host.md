@@ -104,6 +104,30 @@ listed above or establish background, remote or reboot acceptance.
   Fragment-only jumps preserve the document. Unrelated subresource errors do
   not replace the page. A completed page load also checks backend readiness. Failed
   pages are unloaded so hidden JavaScript cannot keep retrying indefinitely.
+- A persistent native toolbar exposes **Home**, **Tabs** with a count, and
+  **+** above both the web UI and recovery screens (requested 2026-10-18).
+  Home returns to the native
+  main menu without finishing the web activity; **Open Yep Anywhere** returns
+  to its selected tab. Android Back retains the ordinary activity-close
+  behavior; use Home to keep the mounted document alive.
+- Tabs follow the companion's single-mounted-document pattern: up to 32 local
+  tabs, a switcher with page titles/paths, selection and separate close targets,
+  and new tabs opening Projects. Page titles stay in memory only. Long-pressing a local link offers **Open in new tab**;
+  user-initiated local new-window links open a tab. External links still open
+  the system browser. Switching/closing destroys the old WebView and cancels
+  its readiness request, so inactive tabs own no running JavaScript, connection
+  subscriptions or readiness polls. Up to 64 history entries per tab are kept
+  in memory. Switching reconstructs the document rather than preserving its
+  JavaScript globals; YA's existing saved-draft behavior remains the owner of
+  unsent text. Home/Open preserves a healthy mounted document.
+- Tab IDs, selected ID and local paths survive activity/process recreation.
+  Disk records exclude query strings, fragments, credentials and page content;
+  a cold tab starts at its saved path with a freshly read credential. In-memory
+  history restoration also bootstraps authentication because Android WebView
+  history does not restore the page’s in-memory credential. Recovery discards stale history.
+  Closing the last tab returns home with a fresh Projects tab available for
+  the next Open. Provider setup selects an existing matching sign-in tab or
+  opens one in the same web activity, preserving other tabs.
 - Readiness work belongs to the foreground WebView activity, is cancelled when
   it pauses/dies, and has one bounded background worker. There is no permanent
   readiness poll or unattended restart loop. A rapid **Stop → Open** joins the
@@ -137,7 +161,7 @@ listed above or establish background, remote or reboot acceptance.
 - Native Set up Claude/Codex controls open the shared focused YA provider sign-in
   page. HTTP and HTTPS links outside YA's exact loopback origin open the system
   browser, including localhost development-server links. Both ordinary links
-  and user-initiated new-window links support this handoff. Ordinary navigation
+  and user-initiated external new-window links support this handoff. Ordinary navigation
   within YA's own origin stays in the WebView; subframe loads do not launch a
   browser. An unavailable browser produces visible feedback. There is no
   privileged JS bridge or external access to local host credentials. Actual

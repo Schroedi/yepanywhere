@@ -37,6 +37,9 @@ const marker = `files/state/lifecycle-${id}`;
 const launchFile = "files/runtime/opt/host/launch.mjs";
 const backup = `${launchFile}.lifecycle-${id}`;
 let renamed = false;
+const tabPreferences = "shared_prefs/native-tabs.xml";
+let previousTabs;
+let isolatedTabs = false;
 const adb = (...words) =>
   execFileSync("adb", ["-s", serial, ...words], { timeout: 20000 });
 const quote = (word) => `'${word.replaceAll("'", "'\\''")}'`;
@@ -149,7 +152,9 @@ async function page() {
   );
   await selected.waitForURL((url) => url.pathname === "/projects");
   await selected
-    .getByRole("heading", { name: /^(Projects|Choose Your Theme)$/ })
+    .getByText(/^(Projects|Choose Your Theme)$/)
+    .filter({ visible: true })
+    .first()
     .waitFor();
   assert(
     shell("dumpsys", "activity", "activities")
@@ -182,6 +187,17 @@ function passed(name) {
 }
 try {
   stop();
+  try {
+    shell("run-as", app, "test", "-f", tabPreferences);
+    previousTabs = read(tabPreferences);
+    writeFileSync(join(evidence, "native-tabs-backup.xml"), previousTabs, {
+      mode: 0o600,
+    });
+  } catch (error) {
+    if (error.status !== 1) throw error;
+  }
+  isolatedTabs = true;
+  shell("run-as", app, "rm", "-f", tabPreferences);
   execFileSync(
     "adb",
     ["-s", serial, "shell", "-T", "run-as", app, "tee", marker],
@@ -205,6 +221,46 @@ try {
   assert.equal(await current.evaluate(() => window.__yaHostLifecycle), id);
   assert.equal(new URL(current.url()).hash, `#${id}`);
   passed("healthyResumePreservesDocument");
+
+  tap("Home");
+  assert(controls().has("open yep anywhere"));
+  tap("Open Yep Anywhere");
+  await poll(
+    async () =>
+      (await current.evaluate(() => document.visibilityState)) === "visible",
+  );
+  assert.equal(await current.evaluate(() => window.__yaHostLifecycle), id);
+  passed("nativeHomePreservesDocument");
+  capture("native-toolbar");
+
+  tap("+");
+  await disconnect();
+  current = await page();
+  assert.equal(new URL(current.url()).hash, "");
+  assert.equal(
+    browser.contexts()[0].pages().length,
+    1,
+    "Only one mounted WebView",
+  );
+  tap("Tabs 2");
+  capture("native-tabs");
+  tap("/projects"); // The original, unselected tab; the active row has a check.
+  await disconnect();
+  current = await page();
+  assert.equal(
+    new URL(current.url()).hash,
+    `#${id}`,
+    "Warm tab history retains fragments",
+  );
+  assert.equal(
+    await current.evaluate(() => window.__yaHostLifecycle),
+    undefined,
+    "Tab switching reconstructs the document",
+  );
+  tap("Tabs 2");
+  tap("×"); // Last row is the newly opened background tab.
+  assert(controls().has("tabs 1"));
+  passed("tabSwitchHistoryAndClose");
 
   // Terminate only this app's actual launch Node, keeping its UI alive. A
   // renderer-initiated uncached navigation must reveal native recovery.
@@ -242,7 +298,7 @@ try {
   assert(!new URL(current.url()).searchParams.has("lifecycle_probe"));
   passed("mainFrameFailureRetry");
 
-  shell("input", "keyevent", "KEYCODE_BACK");
+  tap("Home");
   const buttons = controls();
   tap("Stop local host", buttons);
   tap("Open Yep Anywhere", buttons); // No intervening dump/wait: overlap Stop.
@@ -287,12 +343,25 @@ try {
     `${JSON.stringify(results, null, 2)}\n`,
   );
   console.log(JSON.stringify(results, null, 2));
+} catch (error) {
+  capture("failure");
+  throw error;
 } finally {
   await disconnect();
   stop();
   if (renamed) {
     shell("run-as", app, "mv", backup, launchFile);
     rmSync(join(evidence, "recovery.json"));
+  }
+  if (isolatedTabs) {
+    if (previousTabs) {
+      execFileSync(
+        "adb",
+        ["-s", serial, "shell", "-T", "run-as", app, "tee", tabPreferences],
+        { input: previousTabs, timeout: 10000 },
+      );
+      shell("run-as", app, "chmod", "600", tabPreferences);
+    } else shell("run-as", app, "rm", "-f", tabPreferences);
   }
   shell("run-as", app, "rm", "-f", marker);
   shell("rm", "-f", xml);

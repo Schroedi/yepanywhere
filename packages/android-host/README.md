@@ -135,6 +135,19 @@ future launches to direct mode. Phone-local direct subscription sign-in has
 been completed and confirmed by the user for both Claude and Codex on the
 Pixel 9; it does not require AAR or imported workstation credentials.
 
+## Native navigation
+
+The web screen has a persistent **Home · Tabs · +** toolbar. Home returns to
+setup/status controls and Open returns to the selected tab. The tab picker
+selects or closes tabs; + opens Projects. Long-press a local link to open it in
+another tab. Provider setup shortcuts reuse matching sign-in tabs.
+
+Like the companion app, only one WebView is mounted. Switching tabs restores
+navigation and reloads the page; YA owns draft persistence. Paths and selection
+survive process death, while query/fragment state and in-memory history do not.
+No credentials are stored in tab preferences. See the
+[navigation contract](../../topics/android-host.md#implemented-scaffold-contracts).
+
 ## Current boundaries
 
 - ARM64 only, manually provisioned runtime. No first-launch downloader or updates.
@@ -165,11 +178,12 @@ node packages/android-host/tools/lifecycle.mjs --serial "$ANDROID_TEST_SERIAL"
 
 The opt-in runner uses the MC doctor/launcher/capture CLI, actual native taps
 and the debug WebView's CDP endpoint. It checks opening a stopped host, document
-identity across Home/launcher/Open, server termination during navigation,
+identity across system Home/launcher/Open and native Home/Open, tab switching,
+history retention, closing a background tab, server termination during navigation,
 Retry, rapid Stop/Open, force-stop/reopen and missing-runtime repair. It briefly
 renames only `launch.mjs` while the app is stopped and restores the exact file;
 a private recovery record names that rename until restored. It preserves
-app-private sessions/configuration and removes its own marker, temporary UI
-dump and ADB forwards in cleanup. The selected host is left stopped. It does
+app-private sessions/configuration, isolates/restores the native tab preferences,
+and removes its own marker, temporary UI dump and ADB forwards in cleanup. The selected host is left stopped. It does
 not test real provider inference, reboot, credential refresh or Doze. Evidence
 is private under `.local/lifecycle-*`; do not commit device captures/selectors.

@@ -99,3 +99,49 @@ provider credential refresh or successful resumption of an interrupted provider
 turn. A retained marker proves storage persistence only. The experimental host
 still uses its existing local-token mechanism; this is not a migration to the
 desktop shell's one-use bootstrap/cookie design.
+
+## Native navigation follow-up
+
+The requested persistent Home and tab controls now sit above both the local web
+UI and its native recovery screen. Home keeps a healthy mounted document alive;
+Open returns to it. Tabs use the companion's single-mounted-WebView pattern,
+with separate selection/close targets, a new-tab control, bounded history and
+path-only cold restoration. Android Back keeps ordinary activity-close behavior.
+
+The retained physical runner now also verifies native Home/Open document
+identity, a new tab, switching back with its prior fragment/history, destruction
+of the inactive document, and closing a background tab. It isolates native tab
+preferences and restores their original bytes on completion; the private run
+folder retains a backup for interruption recovery. Its Projects readiness check
+accepts the visible application label as well as the first-run theme heading.
+
+Additional focused checks on the Pixel 7a exercised the actual New Session
+composer with 27 sequential keyboard events: every prefix appeared, and maximum
+keydown-to-input acknowledgement was 2 ms. The unsent text survived switching
+away and back. A force-stop/reopen restored the selected New Session path and
+two-tab inventory. A real user-gesture `target=_blank` local anchor and a native
+long-press on a local anchor each opened another tab, with one mounted WebView.
+The test restored its temporary onboarding file, original tab preferences and
+browser storage, and requested no provider inference.
+
+A preliminary history-only restoration exposed an authentication failure:
+WebView history restores a cleaned URL but not YA's in-memory page credential.
+Every reconstructed document now receives the current loopback bootstrap token;
+recovery discards stale history. Credentials, query strings and fragments are
+excluded from the persisted tab records.
+
+The Pixel 7a still carries an older provisioned web payload without focused
+sign-in routes. Its blank sign-in page was not treated as onboarding acceptance.
+On the Pixel 9's newer payload, both actual Codex and Claude sign-in pages opened,
+returning to Codex reused its existing tab, and closing those temporary tabs
+returned to Projects. Neither provider's login/start button was activated.
+The final native APK is installed on both phones; the Pixel 9's installed APK
+hash matches the build. Provisioned runtimes and provider credentials were kept.
+
+Physical captures at 1080×2400 and 1080×2424 were inspected individually and
+presented through the capture-preview helper. The toolbar stays above the web
+content, tab rows have distinct close targets, and long page labels wrap or
+ellipsize inside their row. No desktop web rendering changed. Native Debug,
+unsigned Release and lint passed; lint reported no issues. Root lint, format,
+typechecking and workspace tests passed. This follow-up does not add Doze,
+reboot, remote-wake or real provider-turn evidence.

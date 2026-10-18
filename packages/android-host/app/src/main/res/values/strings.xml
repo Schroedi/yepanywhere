@@ -11,4 +11,20 @@
   <string name="host_start_failed">The local host could not be opened. Return to Host controls for its status, or try again.</string>
   <string name="host_not_ready">The local host did not become ready. Your saved sessions remain on disk. Retry, or check Host controls for its status.</string>
   <string name="host_open_failed">The local host connection was interrupted. Your saved sessions remain on disk. Retry to reconnect.</string>
+  <string name="host_home">Home</string>
+  <string name="host_go_home">Go to host main menu</string>
+  <string name="host_web_title">Yep Anywhere</string>
+  <string name="host_tabs">Tabs</string>
+  <string name="host_tabs_count">Tabs %1$d</string>
+  <string name="host_new_tab">New tab</string>
+  <string name="host_done">Done</string>
+  <string name="host_select_tab">Select tab: %1$s</string>
+  <string name="host_close_tab">Close tab: %1$s</string>
+  <plurals name="host_tab_limit">
+    <item quantity="one">Up to %1$d tab can be open.</item>
+    <item quantity="other">Up to %1$d tabs can be open.</item>
+  </plurals>
+  <string name="host_tab_label">%1$s%2$s</string>
+  <string name="host_open_new_tab">Open in new tab</string>
+  <string name="host_tab_details">%1$s\n%2$s</string>
 </resources>
