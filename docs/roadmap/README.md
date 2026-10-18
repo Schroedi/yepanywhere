@@ -43,6 +43,13 @@ fixtures passed no-picker access, independent hashes, revocation and app-data
 reset recovery. The Motorola removable exFAT card passed a separate temporary
 binding; production removable mappings and hot-unplug behavior remain open.
 
+The [Android host distribution/assistant research](../../topics/android-host.md#distribution-and-optional-phone-automation)
+now records a basic coding host independent of accessibility automation, optional
+developer-enabled MC/ADB control, and dedicated pinned Buddy/Shizuku/Termux
+reviews. Assistant invocation/context is a compelling optional direction, but
+remains research/docs only: no device investigation or implementation spike is
+authorized. This does not change the incubation order or companion release scope.
+
 Last updated: 2026-10-18.
 
 This is Yep Anywhere's canonical product-priority overview. Keep initiative

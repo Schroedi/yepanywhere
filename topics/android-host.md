@@ -260,6 +260,109 @@ uses this host's Alpine runtime but does not automatically register phone
 control in ordinary YA sessions. It does not implement the broader capabilities
 listed above or establish background, remote or reboot acceptance.
 
+## Distribution and optional phone automation
+
+**Direction discussed 2026-10-18; research only, not store acceptance.** The
+basic product is the existing YA coding host on a phone. It should be useful
+without AccessibilityService, an accessibility MCP, ADB or the assistant role.
+The preferred advanced phone-automation route is explicit developer-options
+setup and the existing MC/ADB facilities, with a computer able to bootstrap or
+re-arm the phone's listener. Shizuku's on-phone wireless-debugging setup is an
+alternative to study, not an adopted dependency or implemented fallback.
+
+This narrows the earlier capability exploration: built-in autonomous
+AccessibilityService control is not the selected baseline or a release
+prerequisite. Ordinary Android APIs, selected documents and explicit sharing
+can still make the host useful without device control. This direction does not
+reprioritize lifecycle, sign-in persistence or durable-workspace work.
+
+Google's [device/network policy](https://support.google.com/googleplay/android-developer/answer/16559646?hl=en)
+restricts external executable downloads and app self-updates, with a bounded
+VM/interpreter exception. PRoot runs native guest instructions on Android's
+kernel; the word container does not establish that exception. Termux and
+compiler IDEs provide relevant development-environment precedents, but their
+presence does not establish YA approval or an individual package-review rule.
+Runtime packaging, provider updates and locally compiled user programs remain
+separate review questions. A basic host is a credible candidate, not a
+confirmed submission outcome.
+
+The [AccessibilityService policy](https://support.google.com/googleplay/android-developer/answer/10964491?hl=en)
+specifically prohibits autonomous planning/actions through that API outside
+qualifying disability tools; deterministic scripts are distinguished. This is
+not a blanket ban on coding agents. Disability assistance must be the product's
+primary purpose, not incidental positioning. ADB setup does not exempt later
+behavior from other policies. Recheck both live policies before submission.
+
+Buddy documents a Play closed test and has a restricted Play flavor; this is
+evidence of a distribution attempt, not full production acceptance. Its GitHub
+flavor's self-update opens Android's installer for the user to confirm; it is
+neither a silent APK replacement nor the Play flavor's update mechanism. The
+[Buddy review](../docs/competitive/buddy.md) preserves source evidence and
+the limits of the reported closed-test status.
+
+## Assistant entry-point research
+
+**Compelling optional direction recorded 2026-10-18; documentation/source
+research only. No device investigation, assistant-role changes, implementation
+spikes, hotword tests or locked-screen experiments are authorized by this
+discussion.** Earlier generic exploration is not authorization to start one.
+
+The candidate experience is a quick way into the same YA sessions: invoke the
+assistant while looking at another app, ask about the visible error/document,
+and continue substantial work in the existing full YA interface. Screen context
+could be useful even with no ADB or autonomous phone control. This does not
+select a separate assistant agent loop or a replacement conversation UI.
+
+### How Android users invoke an assistant
+
+These are published platform instructions, not observations of the maintainer's
+phone or proof of how a future YA assistant would be invoked:
+
+- On supported Pixels, holding the bottom navigation handle/Home button opens
+  **Circle to Search**. It is not a generic gesture for whichever app holds the
+  assistant role. See [Circle to Search help](https://support.google.com/pixelphone/answer/14508957?hl=en).
+- Common assistant routes include holding Power on Pixel 6+ when configured
+  for the assistant, or swiping diagonally inward from a bottom corner with
+  **Swipe to invoke assistant** enabled. The relevant settings are under
+  System / Gestures and System / Navigation mode. OEMs, navigation modes and
+  settings can differ. See [Pixel gesture help](https://support.google.com/pixelphone/answer/7443425?hl=en).
+- The selected assistant is configured through the device's default-app /
+  digital-assistant settings. Google-specific wake phrases or Circle to Search
+  must not be assumed to transfer to a third-party assistant.
+
+### Capabilities and unresolved boundaries
+
+Android's [Assist documentation](https://developer.android.com/training/articles/assistant)
+describes a user-selected assistant overlay receiving available screen text,
+structure and a screenshot. User settings, protected windows and app behavior
+can limit context; it is not unrestricted continuous screen access.
+The [assistant role](https://developer.android.com/reference/android/app/role/RoleManager#ROLE_ASSISTANT)
+and [voice-interaction sessions](https://developer.android.com/reference/android/service/voice/VoiceInteractionSession)
+are the API starting points. Participating apps can expose direct actions;
+the role does not itself grant arbitrary taps, root, shell privileges or
+another app's private data.
+
+The selected [VoiceInteractionService](https://developer.android.com/reference/android/service/voice/VoiceInteractionService)
+is kept resident, but Android explicitly expects it to be lightweight and
+separates heavy session work. This is not proof that Alpine/provider processes
+survive indefinitely. Invocation, available context, consent before provider
+submission, a cold/stopped host, default-assistant replacement costs, optional
+voice input, protected content and return to a durable YA session all need
+future design/validation. No gesture compatibility, custom hotword, wake,
+locked-screen access or provider-lifetime acceptance is claimed here.
+
+## External research references
+
+The dedicated [Buddy](../docs/competitive/buddy.md),
+[Shizuku](../docs/competitive/shizuku.md) and
+[Termux](../docs/competitive/termux.md) reviews distinguish source findings,
+upstream claims and policy interpretations. The
+[reference map](../docs/competitive/android-host-references.md) and
+[pinned YAML manifest](../docs/competitive/android-host-references.yaml) record
+exact revisions, local reading paths and reproducible checkout instructions.
+These are research sources, not YA runtime dependency or release-artifact pins.
+Reusable device-operation implementation still belongs to Machine Control.
+
 ## Implemented scaffold contracts
 
 - A separate application id coexists with the existing companion and original

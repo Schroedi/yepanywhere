@@ -41,6 +41,24 @@ Official apps from AI providers:
 
 See also [Community Projects](community-projects.md) for smaller tools shared on Reddit/forums.
 
+## Android hosts and platform references
+
+The [Android host topic](../../topics/android-host.md) owns YA's runtime,
+optional ADB direction, distribution assessment and research-only assistant
+entry-point exploration. The 2026-10-18 reviews below use pinned source, with
+no app installation, device investigation or assistant spike.
+
+| Project | Role | Research focus |
+| --- | --- | --- |
+| [Buddy](buddy.md) | Phone-local provider runtime and assistant | Alpine/PRoot, native phone tools, provider sign-in, APK updates and restricted Play flavor |
+| [Shizuku](shizuku.md) | Adjacent Android privilege broker | User-enabled ADB/root service, Binder authorization, wireless setup, lifecycle and rish |
+| [Termux](termux.md) | Adjacent terminal/development environment | Upstream versus Play builds, native execution, system-linker wrapper, package provenance and PRoot |
+
+The [reference map](android-host-references.md) and
+[YAML pins](android-host-references.yaml) bind the nine local research
+checkouts to exact commits. These are source-reading references, not adopted
+runtime dependencies or evidence of YA store approval.
+
 ## Adjacent: Version Control And Multiplayer Threads
 
 **[Multiplayer AI and collaborative live sessions](multiplayer-ai.md)** —
@@ -137,5 +155,5 @@ See **[Ecosystem](../ecosystem/)** for adjacent projects — agent-to-agent coor
 
 ## Last Updated
 
-2026-10-17 (Happy pivot/multiplayer/mobile review and T3 Android health
-follow-up; other competitor snapshots retain their own dates)
+2026-10-18 (Android host references and Buddy/Shizuku/Termux source reviews;
+Happy/T3 follow-ups retain their October 17 dates and other snapshots their own dates)
