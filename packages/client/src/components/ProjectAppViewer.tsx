@@ -8,6 +8,7 @@ import {
 } from "@yep-anywhere/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { projectAppApi, type ProjectAppTarget } from "../api/projectApp";
+import { useLongPress } from "../hooks/useLongPress";
 import { useVersion } from "../hooks/useVersion";
 import { artifactAudience } from "../lib/artifactPreview";
 import type { VoiceInputButtonRef } from "./VoiceInputButton";
@@ -104,6 +105,8 @@ export function ProjectAppViewer({
   const [publicAccess, setPublicAccess] = useState<boolean>();
   const [autoStartChoice, setAutoStartChoice] = useState<boolean>();
   const [reload, setReload] = useState(0);
+  // The launch (view id) whose link was copied; a restart starts a new launch.
+  const [copiedLaunch, setCopiedLaunch] = useState<string | null>(null);
   const audience = artifactAudience(window.location.hostname);
   const refresh = useCallback(async () => {
     const next = await projectAppApi.info(projectId);
@@ -162,15 +165,18 @@ export function ProjectAppViewer({
   useEffect(() => {
     if (target) onTarget?.(target);
   }, [target, onTarget]);
+  // The bar shows whether the app is shared and copies its served address,
+  // so addresses load with the app and refresh when settings open.
   useEffect(() => {
-    if (!settings || !addressesSupported) return;
+    if (!addressesSupported) return;
     let active = true;
     void projectAppApi
       .addresses(projectId)
       .then((next) => {
         if (active) setAddresses(next);
       })
-      .catch((reason: Error) => active && setError(reason.message));
+      // Only open settings report a failure; the bar just lacks the status.
+      .catch((reason: Error) => active && settings && setError(reason.message));
     return () => {
       active = false;
     };
@@ -183,7 +189,7 @@ export function ProjectAppViewer({
       await operation();
       const next = await refresh();
       onInfoChanged?.(next);
-      if (addressesSupported && settings) {
+      if (addressesSupported) {
         const nextAddresses = await projectAppApi.addresses(projectId);
         setAddresses(nextAddresses);
         onAddressesChanged?.(nextAddresses);
@@ -194,8 +200,34 @@ export function ProjectAppViewer({
       setBusy(false);
     }
   }
+  // A running app reads its start-time configuration again only from a fresh
+  // process, in the same mode. The fresh launch also signs a new launch link,
+  // which is how that link is revoked.
+  async function restart() {
+    await projectAppApi.action(projectId, "stop");
+    await projectAppApi.action(
+      projectId,
+      "start",
+      info?.mode === "live-preview" ? { mode: "live-preview" } : {},
+    );
+    setReload((value) => value + 1);
+  }
+  const restartPress = useLongPress(() => void perform(restart));
   const details = settings;
   const declaration = info?.activeDeclaration ?? info?.declaration;
+  const served = addresses?.reservations.find(
+    (row) => row.namespace === addresses.namespace && row.serving,
+  );
+  // The served address is the app's stable link; the view URL is a launch grant.
+  const servedUrl =
+    targetKind === "app" &&
+    served?.url &&
+    serverHasCapability(
+      version,
+      SERVER_CAPABILITIES.projectAppAddressLinks.name,
+    )
+      ? served.url
+      : undefined;
   const command =
     declaration && "start" in declaration
       ? declaration.start.argv.join(" ")
@@ -335,7 +367,20 @@ export function ProjectAppViewer({
                 );
               }}
             >
-              <Glyph path="M4 6h16M4 12h16M4 18h16M8 3v6M16 9v6M10 15v6" />
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.7"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
+              </svg>
             </button>
           </div>
           {livePreviewSupported &&
@@ -371,8 +416,40 @@ export function ProjectAppViewer({
           {view && (
             <ViewerWindowActions
               url={view.url}
+              copyUrl={servedUrl ?? view.url}
               copyLink={info?.canCopyLink !== false}
-              copyNotice={`${t("projectAppLinkWarning")} ${view.expiresAt ? t("projectAppExpires", { date: new Date(view.expiresAt).toLocaleString() }) : t("projectAppLaunchLifetime")}`}
+              // Tinted while a handed-out link works: a served address, or the
+              // launch link once copied, until a restart revokes it.
+              copyLinkActive={!!servedUrl || copiedLaunch === view.id}
+              onCopied={() => setCopiedLaunch(view.id)}
+              afterCopyLink={
+                // A restart revokes the launch link (a configured address is
+                // left alone), so it sits beside the link it invalidates.
+                view.kind === "service" &&
+                info?.activeDeclaration &&
+                info.canExecute && (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    title={t("projectAppRestartRevokes")}
+                    aria-label={t("projectAppRestart")}
+                    // A held press or right-click is deliberate enough to skip
+                    // the confirmation a stray tap gets.
+                    {...restartPress.handlers}
+                    onClick={restartPress.click(() => {
+                      if (window.confirm(t("projectAppRestartConfirm")))
+                        void perform(restart);
+                    })}
+                  >
+                    <Glyph path="M12 3v8M7.5 6.5a7 7 0 1 0 9 0" />
+                  </button>
+                )
+              }
+              copyNotice={
+                served && servedUrl
+                  ? `${t("projectAppServing")}: ${served.name}.${served.namespace}`
+                  : `${t("projectAppLinkWarning")} ${view.expiresAt ? t("projectAppExpires", { date: new Date(view.expiresAt).toLocaleString() }) : t("projectAppLaunchLifetime")}`
+              }
               onReload={() => {
                 void refresh().catch((reason: Error) =>
                   setError(reason.message),
@@ -450,21 +527,7 @@ export function ProjectAppViewer({
                     type="button"
                     disabled={busy}
                     title={t("projectAppRestartTitle")}
-                    onClick={() =>
-                      void perform(async () => {
-                        // A running app reads its start-time configuration
-                        // again only from a fresh process, in the same mode.
-                        await projectAppApi.action(projectId, "stop");
-                        await projectAppApi.action(
-                          projectId,
-                          "start",
-                          info.mode === "live-preview"
-                            ? { mode: "live-preview" }
-                            : {},
-                        );
-                        setReload((value) => value + 1);
-                      })
-                    }
+                    onClick={() => void perform(restart)}
                   >
                     {t("projectAppRestart")}
                   </button>

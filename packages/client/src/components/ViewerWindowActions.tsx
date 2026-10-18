@@ -1,5 +1,6 @@
 import {
   type MouseEventHandler,
+  type ReactNode,
   type Ref,
   useEffect,
   useRef,
@@ -27,6 +28,9 @@ export function ViewerWindowActions({
   onReload,
   copyNotice,
   copyLink = true,
+  copyLinkActive,
+  onCopied,
+  afterCopyLink,
   copyLabel,
   onCopyLinkContextMenu,
 }: {
@@ -38,6 +42,12 @@ export function ViewerWindowActions({
   onReload?: () => void;
   copyNotice?: string;
   copyLink?: boolean;
+  /** Link status: true tints it as live, false greys it; absent is neutral. */
+  copyLinkActive?: boolean;
+  /** After the link reaches the clipboard. */
+  onCopied?: () => void;
+  /** An action that belongs beside the link, such as one that revokes it. */
+  afterCopyLink?: ReactNode;
   copyLabel?: string;
   onCopyLinkContextMenu?: MouseEventHandler<HTMLAnchorElement>;
   closeRef?: Ref<HTMLButtonElement>;
@@ -104,7 +114,7 @@ export function ViewerWindowActions({
       )}
       {copyLink && (
         <a
-          className={`${styles.copyLink} ${copyLabel ? styles.textAction : ""}`}
+          className={`${styles.copyLink} ${copyLabel ? styles.textAction : ""} ${copyLinkActive === undefined ? "" : copyLinkActive ? styles.linkActive : styles.linkInactive}`}
           href={absoluteUrl}
           target="_blank"
           rel="noopener noreferrer"
@@ -130,6 +140,7 @@ export function ViewerWindowActions({
               new URL(copyUrl, window.location.href).href,
             ).then((success) => {
               setCopied(success ? "copied" : "failed");
+              if (success) onCopied?.();
               clearTimeout(timer.current);
               timer.current = setTimeout(() => setCopied("idle"), 3000);
             });
@@ -146,6 +157,7 @@ export function ViewerWindowActions({
               )}
         </a>
       )}
+      {afterCopyLink}
       {moveOut && (
         <a
           href={absoluteUrl}

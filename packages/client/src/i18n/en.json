@@ -171,6 +171,8 @@
   "projectAppStop": "Stop app",
   "projectAppRestart": "Restart app",
   "projectAppRestartTitle": "Stop and start the app so it rereads its start-time configuration",
+  "projectAppRestartRevokes": "Restart app. Its current link stops working, so copy the link again to share it.",
+  "projectAppRestartConfirm": "Restart the app? Its current link stops working, and anyone using the app is disconnected.",
   "projectAppEmpty": "No app or artifact yet.",
   "projectAppLatest": "Latest artifact: {label}",
   "projectAppRemoved": "Removed from {username}'s view on {date}.",

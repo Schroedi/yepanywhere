@@ -31,6 +31,12 @@
 .actions > .copyLink:hover {
   background: var(--bg-hover);
 }
+.actions > .linkActive {
+  color: var(--success-color);
+}
+.actions > .linkInactive {
+  color: var(--text-secondary);
+}
 .actions > .destructive {
   color: var(--error-color, #e05252);
 }
