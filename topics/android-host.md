@@ -96,6 +96,13 @@ Enable direct access per shortcut, then explicitly apply mappings/restart the
 host. Restart confirmation warns that active turns are interrupted. Names,
 selection and requested direct access survive ordinary host restarts.
 
+The native **Pick folder** action opens Android's picker without requesting a
+name first. The selected display name becomes the shortcut, preserving case,
+spaces and Unicode within the guide's path-safety/length bounds. Name collisions
+use the first free `-1`, `-2`, `-3` suffix. Optional Rename changes a shortcut
+afterward; Reselect and app updates preserve its existing name. Canceling adds
+nothing, and picking an already registered folder reports its existing shortcut.
+
 The native UI adds, reselects, renames and removes registrations. Removing a
 shortcut leaves external files intact and releases unused SAF permission.
 Registrations and permissions are not restored from erased app data: select the

@@ -2,8 +2,9 @@
 """End-to-end native host workspace acceptance on an explicitly selected Pixel.
 
 Uses only the separately built -PworkspaceFixture app and two exclusively owned
-UUID folders. Never clears or stages the signed-in host. Private recovery leases
-retain exact owned resources on failure; --resume replaces only those fixtures.
+UUID folders (three in --picker-only mode). Never clears or stages the signed-in
+host. Private recovery leases retain exact owned resources on failure; --resume
+replaces only those fixtures.
 """
 import argparse
 import hashlib
@@ -29,15 +30,20 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--device-file', type=Path, required=True)
     parser.add_argument('--machine-control', type=Path, required=True)
-    parser.add_argument('--aar-checkout', type=Path, required=True)
+    parser.add_argument('--aar-checkout', type=Path)
+    parser.add_argument('--picker-only', action='store_true', help='Native picker/naming acceptance without runtime or providers')
+    parser.add_argument('--model', choices=('Pixel 7a','Pixel 9'), default='Pixel 7a')
     parser.add_argument('--resume', type=Path)
     args = parser.parse_args()
+    if not args.picker_only and args.aar_checkout is None: parser.error('--aar-checkout is required for full acceptance')
     serial = json.loads(args.device_file.read_text())['serial']
     adb = ['adb', '-s', serial]
     run_id = args.resume.name if args.resume else uuid.uuid4().hex
     assert re.fullmatch('[a-f0-9]{32}', run_id)
     evidence = HOST/'.local/workspaces-live'/run_id; evidence.mkdir(mode=0o700, parents=True, exist_ok=bool(args.resume))
     trees = {'docs':'/sdcard/Documents/YAWorkspaces-'+run_id, 'downloads':'/sdcard/Download/YAWorkspaces-'+run_id}
+    if args.picker_only:
+        trees={alias:'/sdcard/'+parent+'/YA Shared '+run_id for alias,parent in (('docs','Documents'),('downloads','Download'),('third','Pictures'))}
     lease = evidence/'recovery.json'
     resources = {'application':APP, 'serial':serial, 'trees':trees, 'owned':[], 'installed':False, 'client':None, 'reverse':None, 'forward':None}
     if args.resume:
@@ -54,6 +60,13 @@ def main():
     mc = [str(args.machine_control.resolve()/'bin/machine-control'),'--registry',str(registry),'--target','workspace-phone']
     apk = HOST/'.local/workspaces-fixture.apk'
     def run(*words, data=None, check=True, timeout=120):
+        # ADB sends shell/exec-out arguments through the remote shell. Preserve
+        # spaces in picked folder names instead of letting that shell split them.
+        if words and words[0] in ('shell','exec-out'):
+            prefix=list(words[:1]); command=list(words[1:])
+            if command and command[0]=='-T': prefix.append(command.pop(0))
+            if len(command)>1: command=[shlex.join(command)]
+            words=(*prefix,*command)
         result = subprocess.run([*adb,*words],input=data,capture_output=True,timeout=timeout)
         if check and result.returncode:
             (evidence/'device-error.log').write_bytes(result.stdout+result.stderr)
@@ -86,14 +99,32 @@ def main():
         relative=trees[alias].removeprefix('/sdcard/'); uri='content://com.android.externalstorage.documents/document/'+urllib.parse.quote('primary:'+relative,safe='')
         shell('am','start','-W','-f','0x10008000','-n',APP+'/'+JAVA+'.HostActivity','--es','initialTree',uri)
         tap('Workspace folders')
-    def choose(alias, reselect=False):
-        activity(alias)
+    def records():
+        if run('shell','run-as',APP,'test','-f','files/workspaces.json',check=False).returncode: return []
+        return json.loads(read('files/workspaces.json'))
+    def rename(old, new):
+        activity(); tap('Rename '+old,True); tap('workspace_name')
+        shell('input','keyevent','KEYCODE_MOVE_END',*(['KEYCODE_DEL']*len(old)))
+        shell('input','text',new.replace(' ','%s')); tap('Save'); time.sleep(.3)
+        assert any(r['name']==new for r in records())
+    def choose(alias, reselect=False, keep_name=False):
+        previous=records(); activity(alias)
         if reselect: tap('Reselect '+alias,True)
         else:
-            tap('workspace_name'); shell('input','text',alias); shell('input','keyevent','KEYCODE_BACK'); tap('Add folder shortcut')
-        assert any(n.get('text')=='YAWorkspaces-'+run_id for n in nodes()), 'Picker did not open exact owned folder'
+            assert not any(n.get('resource-id','').endswith('/workspace_name') for n in nodes())
+            tap('Pick folder')
+        assert any(n.get('text')==Path(trees[alias]).name for n in nodes()), 'Picker did not open exact owned folder'
         tap('Use this folder'); tap('Allow'); time.sleep(.3)
-        records=json.loads(read('files/workspaces.json')); assert any(r['name']==alias for r in records)
+        if reselect: assert any(r['name']==alias for r in records()); return alias
+        added=[r for r in records() if r['id'] not in {r['id'] for r in previous}]
+        assert len(added)==1
+        actual=added[0]['name']; base=Path(trees[alias]).name; used={r['name'] for r in previous}
+        expected=base; suffix=0
+        while expected in used:
+            suffix+=1; expected=base[:48-len(str(suffix))-1]+'-'+str(suffix)
+        assert actual==expected
+        if not keep_name: rename(actual,alias)
+        return actual
     def permission(enabled):
         activity(); tap('All-files access (optional)'); tap('Open settings')
         screen=nodes(); checks=[n for n in screen if n.get('checkable')=='true']
@@ -156,7 +187,7 @@ def main():
     try:
         (evidence/'target-status.json').write_bytes(common('target','status'))
         assert json.loads(common('target','doctor'))['ready']
-        assert shell('getprop','ro.product.model')=='Pixel 7a'
+        assert shell('getprop','ro.product.model')==args.model
         assert apk.is_file()
         if args.resume:
             common('testbed','--','stop',APP)
@@ -170,9 +201,40 @@ def main():
             shell('mkdir',tree); resources['owned'].append(alias); receipt()
             run('shell','-T','tee',tree+'/selection-witness.txt',data=run_id.encode())
         before={k:shell('settings','--user','0','get','secure',k) for k in ('enabled_accessibility_services','accessibility_enabled')}
-        common('testbed','--','install',str(apk)); resources['installed']=True; receipt(); stage()
+        common('testbed','--','install',str(apk)); resources['installed']=True; receipt()
+        if args.picker_only:
+            expected=hashes()
+            first=choose('docs',keep_name=True); second=choose('downloads',keep_name=True); third=choose('third',keep_name=True)
+            assert first==Path(trees['docs']).name and second==first+'-1' and third==first+'-2'
+            activity(); tap('Remove '+second,True); tap('Remove shortcut'); time.sleep(.3)
+            assert choose('downloads',keep_name=True)==second
+            before_cancel=records(); activity(); tap('Pick folder'); shell('input','keyevent','KEYCODE_BACK')
+            assert records()==before_cancel
+            # Picking the same identity again must neither duplicate it nor release its grant.
+            activity(); tap('Pick folder'); tap('Use this folder'); tap('Allow'); time.sleep(.3)
+            assert records()==before_cancel
+            assert any('Folder already registered as '+first in n.get('text','') for n in nodes())
+            rename(first,'docs'); choose('docs',reselect=True)
+            assert any(r['name']=='docs' and r['id']==before_cancel[0]['id'] for r in records())
+            common('testbed','--','stop',APP); activity()
+            assert [r['name'] for r in records()]==['docs',third,second]
+            assert hashes()==expected
+            assert any('SAF: available via ya saf' in n.get('text','') for n in nodes())
+            after={k:shell('settings','--user','0','get','secure',k) for k in before}; assert before==after
+            common('testbed','--','screenshot',str(evidence/'workspaces.png'))
+            instrument=run('shell','am','instrument','-w',APP+'/'+JAVA+'.WorkspaceTypingProbe')
+            (evidence/'typing.log').write_bytes(instrument.stdout+instrument.stderr)
+            assert b'WORKSPACE_TYPING_PASS' in instrument.stdout
+            assert hashes()==expected
+            summary.update(pickerFirst=True,displayNamePreserved=True,collisionSuffixes=['-1','-2'],firstFreeSuffix=True,
+                cancelPreservedRegistry=True,duplicateRejected=True,renameReselectRestart=True,accessibilityUnchanged=True,typing=json.loads(read('files/typing.json')),
+                independentlyVerifiedFiles=len(expected))
+            success=True; return
+        stage()
         resources['forward']=int(run('forward','tcp:0','tcp:13400').stdout); receipt()
-        choose('docs'); choose('downloads')
+        first=choose('docs',keep_name=True); second=choose('downloads',keep_name=True)
+        assert second==first+'-1'
+        rename(first,'docs'); rename(second,'downloads')
         instrument=run('shell','am','instrument','-w',APP+'/'+JAVA+'.WorkspaceTypingProbe')
         (evidence/'typing.log').write_bytes(instrument.stdout+instrument.stderr)
         assert b'WORKSPACE_TYPING_PASS' in instrument.stdout
@@ -268,11 +330,9 @@ Verify your work. Do not modify any other files, initialize Git, use network com
             common('testbed','--','stop',APP); start(); assert all(r['mapped'] for r in saf('roots')['roots']) and hashes()==expected
             summary[mode+'Recovery']=True; print(mode+' recovered both shortcuts with unchanged external hashes.',flush=True)
         # Real UI cancellation and registration-only rename/remove preserve files.
-        activity(); tap('workspace_name'); shell('input','text','cancelled'); shell('input','keyevent','KEYCODE_BACK'); tap('Add folder shortcut'); shell('input','keyevent','KEYCODE_BACK')
+        activity(); tap('Pick folder'); shell('input','keyevent','KEYCODE_BACK')
         assert len(json.loads(read('files/workspaces.json')))==2
-        activity(); tap('Rename docs',True); tap('docs'); shell('input','keyevent','KEYCODE_MOVE_END')
-        for _ in range(4): shell('input','keyevent','KEYCODE_DEL')
-        shell('input','text','docs2'); tap('Save'); time.sleep(.3)
+        rename('docs','docs2')
         assert saf('stat','docs',check=False).returncode!=0; saf('stat','docs2'); assert hashes()==expected
         activity(); tap('Remove docs2',True); tap('Remove shortcut'); time.sleep(.3)
         assert saf('stat','docs2',check=False).returncode!=0; saf('stat','downloads'); assert hashes()==expected

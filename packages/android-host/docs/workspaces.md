@@ -11,6 +11,21 @@ for `Documents/FolderB` and `downloads` for a child of Downloads. Select each
 through Android's folder picker. A shortcut records a selected root; it does
 not copy files, grant broad authority or create a Unix symlink.
 
+**Pick folder** opens Android's picker immediately, without a name field. The
+selected folder's display name becomes its shortcut name, preserving case,
+spaces and Unicode. If that name is already used, append the first available
+`-1`, `-2`, `-3`, and so on. Names are bounded to 48 UTF-16 code units; trim the
+base as needed to fit a suffix without splitting a surrogate pair. Replace
+slashes, backslashes, colons and control characters with `-`, trim outer
+whitespace, and use `folder` if the result is empty, `.` or `..`.
+
+**Rename** remains an optional action after selection and changes only the
+shortcut. **Reselect** repairs an existing registration while keeping its
+shortcut name and requested direct access. Existing registrations keep their
+names after an app update. Selecting an already registered folder reports its
+existing shortcut instead of adding a second registration. Canceling the picker
+leaves registrations unchanged.
+
 | Access method | Authority | Agent interface |
 | --- | --- | --- |
 | Direct filesystem | Explicit optional all-files permission plus a qualified local-folder selection | Ordinary paths such as `/workspaces/docs`; existing shell, Python and provider file tools |
@@ -75,6 +90,7 @@ host; start the local host before using the CLI.
 ```sh
 ya saf roots
 ya saf ls docs
+ya saf ls "Shared Files"
 ya saf stat docs notes.txt
 ya saf mkdir docs drafts
 ya saf put docs drafts/notes.txt /home/user/notes.txt
@@ -89,8 +105,11 @@ ya saf rm docs drafts --recursive
 there is no cross-root move. Selected roots cannot be renamed/deleted by these
 document commands. The native UI's Rename changes only the shortcut.
 
-The registry supports 16 roots, aliases of 1–48 lowercase letters, digits,
-`-` or `_` starting with a letter, 32 relative path components/4096 characters,
+The registry supports 16 roots and shortcut names of 1–48 UTF-16 code units
+excluding `.`, `..`, slashes, backslashes, colons and control characters. Quote
+shortcut names containing spaces or shell metacharacters in shell commands;
+use `--` before positional arguments beginning with `-`.
+Document paths allow 32 relative path components/4096 characters,
 2048 children per listing and 64 MiB transfers. The native bridge has four
 workers, four queued clients and a 30-second request deadline. Provider queries
 receive cancellation; an uncooperative provider may still occupy a bounded
@@ -179,12 +198,33 @@ python3 packages/android-host/tools/workspaces_live.py \
 ```
 
 The private device JSON holds an explicitly selected serial. The runner uses
-MC discovery/doctor and verifies Pixel 7a before mutation. On failure, inspect
+MC doctor and verifies the explicitly selected model (Pixel 7a by default)
+before mutation. On failure, inspect
 its ignored evidence and use `--resume <private-evidence-directory>` to verify
 ownership witnesses, replace only the failed fixture resources, and repeat.
 The [instrumentation revocation gap](../../../gaps/android-notification-test-revocation-kills-runner.md)
 informs permission changes from a separate controller. Signed-in host data and
 existing documents must remain untouched by reset/reinstall tests.
+
+For a focused native picker/naming check, add `--picker-only --model 'Pixel 9'`
+and omit `--aar-checkout`. This mode needs the fixture APK/native libraries but
+no staged Alpine runtime or provider credentials. It uses three exclusively
+owned folders with matching display names under Documents, Download and Pictures,
+including spaces and uppercase letters. It checks automatic suffix allocation,
+reuse of a freed suffix, cancellation, duplicate identity rejection, optional
+rename, reselect, process restart and sequential typing with 16 visible roots.
+External byte/hash checks and exact-resource cleanup apply in both modes.
+
+**Picker-first follow-up passed on Pixel 9 over Wi-Fi ADB, 2026-10-18:**
+three actual picked roots preserved their display names, spaces and case;
+collisions used `-1` and `-2`, and removal made `-1` available again. Cancel,
+duplicate rejection, Rename, Reselect and process restart preserved registrations
+as expected. Sixteen sequential keys during a 16-root refresh acknowledged in
+at most 36 ms. Independent hashes of all three external witnesses stayed
+unchanged, and the disposable app and exact owned trees were removed. A separate
+actual PRoot binding check preserved spaces, Unicode and trailing `!` names in
+owned private-cache fixtures. The normal APK update preserved all 571 existing
+private-state file hashes; no runtime restaging or user-document mutation occurred.
 
 **Passed on explicitly selected Pixel 7a/API 37, 2026-10-18:**
 

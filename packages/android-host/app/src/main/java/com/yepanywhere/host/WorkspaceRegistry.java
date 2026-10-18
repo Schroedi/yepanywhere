@@ -22,7 +22,34 @@ final class WorkspaceRegistry {
         file = new AtomicFile(new File(context.getFilesDir(), "workspaces.json"));
     }
     static void name(String value) throws IOException {
-        if (!value.matches("[a-z][a-z0-9_-]{0,47}")) throw new IOException("Use 1–48 lowercase letters, digits, - or _; start with a letter");
+        if (value == null || value.isEmpty() || value.length() > 48 || value.equals(".") || value.equals(".."))
+            throw new IOException("Use a folder name of 1–48 characters, excluding . and ..");
+        for (int i = 0; i < value.length(); i++) if ("/\\:".indexOf(value.charAt(i)) >= 0 || Character.isISOControl(value.charAt(i)))
+            throw new IOException("Folder names cannot contain slashes, colons or control characters");
+    }
+    private static String shorten(String value, int limit) {
+        if (value.length() <= limit) return value;
+        if (Character.isHighSurrogate(value.charAt(limit - 1))) limit--;
+        return value.substring(0, limit);
+    }
+    String add(Uri tree, CancellationSignal cancel) throws Exception {
+        String display = new SafDocuments(context, tree, cancel).stat("").getString("name");
+        StringBuilder clean = new StringBuilder();
+        for (int i = 0; i < display.length(); i++) {
+            char c = display.charAt(i); clean.append("/\\:".indexOf(c) >= 0 || Character.isISOControl(c) ? '-' : c);
+        }
+        String base = clean.toString().trim();
+        if (base.isEmpty() || base.equals(".") || base.equals("..")) base = "folder";
+        base = shorten(base, 48);
+        synchronized (LOCK) {
+            JSONArray roots = roots(); Set<String> used = new HashSet<>();
+            for (int i = 0; i < roots.length(); i++) used.add(roots.getJSONObject(i).getString("name"));
+            String available = base;
+            for (int suffix = 1; used.contains(available); suffix++) {
+                String ending = "-" + suffix; available = shorten(base, 48 - ending.length()) + ending;
+            }
+            select(available, tree); return available;
+        }
     }
     JSONArray roots() throws Exception {
         synchronized (LOCK) {

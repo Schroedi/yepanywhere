@@ -31,19 +31,25 @@ public final class WorkspaceTypingProbe extends Instrumentation {
             WorkspacesActivity activity = (WorkspacesActivity)startActivitySync(new Intent(getTargetContext(), WorkspacesActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
             EditText[] input = new EditText[1]; long[] sent = {0}, maximum = {0}; CountDownLatch[] ack = {new CountDownLatch(1)};
             runOnMainSync(() -> {
-                input[0] = activity.findViewById(R.id.workspace_name); input[0].requestFocus(); input[0].setText("");
+                input[0] = activity.rename("typing15"); input[0].requestFocus(); input[0].setText("");
                 input[0].addTextChangedListener(new TextWatcher() {
                     public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
                     public void onTextChanged(CharSequence s, int start, int before, int count) { maximum[0] = Math.max(maximum[0], SystemClock.uptimeMillis() - sent[0]); ack[0].countDown(); }
                     public void afterTextChanged(Editable text) { }
                 });
             });
+            // AlertDialog has its own window: establish focus and input routing
+            // before starting the per-keystroke acknowledgement measurement.
+            waitForIdleSync();
+            runOnMainSync(() -> {
+                if (!input[0].hasFocus() || !input[0].hasWindowFocus()) throw new IllegalStateException("Rename input is not ready");
+            });
             String typed = "abcdefghijklmnop";
             for (int i = 0; i < typed.length(); i++) {
                 runOnMainSync(activity::refresh);
                 ack[0] = new CountDownLatch(1); sent[0] = SystemClock.uptimeMillis();
                 sendKeyDownUpSync(KeyEvent.KEYCODE_A + i);
-                if (!ack[0].await(100, TimeUnit.MILLISECONDS)) throw new IllegalStateException("Key acknowledgement exceeded 100 ms");
+                if (!ack[0].await(100, TimeUnit.MILLISECONDS)) throw new IllegalStateException("Key acknowledgement exceeded 100 ms at character " + (i + 1));
                 String expected = typed.substring(0, i + 1);
                 runOnMainSync(() -> { if (!input[0].getText().toString().equals(expected)) throw new IllegalStateException("Sequential typing lost a key"); });
             }

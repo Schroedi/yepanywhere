@@ -60,7 +60,9 @@ final class WorkspaceRuntime implements AutoCloseable {
     }
     void bind(List<String> command) {
         command.addAll(Arrays.asList("-b", new File(context.getFilesDir(), "workspace-view") + ":/workspaces"));
-        sources.forEach((name, file) -> command.addAll(Arrays.asList("-b", file + ":/workspaces/" + name)));
+        // PRoot consumes a final ! as its no-dereference marker. Append that
+        // marker explicitly so a folder whose actual name ends in ! stays intact.
+        sources.forEach((name, file) -> command.addAll(Arrays.asList("-b", file + ":/workspaces/" + name + "!")));
     }
     private JSONObject dispatch(JSONObject request, CancellationSignal cancel, File transfer) throws Exception {
         String operation = request.getString("op");

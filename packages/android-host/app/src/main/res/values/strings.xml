@@ -27,6 +27,7 @@
   <string name="host_tab_label">%1$s%2$s</string>
   <string name="host_open_new_tab">Open in new tab</string>
   <string name="host_tab_details">%1$s\n%2$s</string>
+  <string name="workspace_pick">Pick folder</string>
   <string name="workspace_title">Workspace folders</string>
   <string name="workspace_intro">Save folders for agents. SAF document tools work with individual folder grants. Direct paths under /workspaces require optional broad storage access. Runtime, sign-ins and YA data remain private.</string>
   <string name="workspace_rw_required">Folder needs read and write access</string>
