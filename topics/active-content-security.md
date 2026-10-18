@@ -1088,6 +1088,12 @@ protection is the directory's: anyone who can read it holds every unexpired
 artifact URL. It never holds artifact content, and artifact files keep the
 permissions their producer gave them.
 
+Expiry sweeps leave unchanged grant state untouched, including empty state and
+unexpired grants restored after restart. They persist grant expiry or settled
+deletions, and retry failed saves on a later sweep without requiring another
+expiry. An idle sweep must not replace the state file merely to record the
+same contents again.
+
 Several artifact servers may share one state directory — every server built
 from the same data directory does, and one process can hold more than one. A
 write must therefore stage under a name unique to that write, not merely to
