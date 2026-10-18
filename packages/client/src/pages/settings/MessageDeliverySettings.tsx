@@ -10,7 +10,8 @@ import {
   PATIENT_TOPIC_SHIFT_CAPABILITY,
   PROJECT_QUEUE_READINESS_CHECK_CAPABILITY,
   type ProjectQueueReadinessCommand,
-  RENDEZVOUS_UPLOADS_CAPABILITY,
+  RENDEZ_PROJECT_STATUS_CAPABILITY,
+  RENDEZ_UPLOADS_CAPABILITY,
   SESSION_REWIND_CAPABILITY,
   clampClearloopInactivitySeconds,
   clampProjectQueueQuietSeconds,
@@ -26,6 +27,8 @@ import {
 } from "../../hooks/useAttachmentUploadQuality";
 import { useKeepMobileKeyboardOpenAfterDelivery } from "../../hooks/useKeepMobileKeyboardOpenAfterDelivery";
 import { useQuestionAsideSetting } from "../../hooks/useQuestionAsideSetting";
+import { api } from "../../api/client";
+import { useProjects } from "../../hooks/useProjects";
 import { useServerSettings } from "../../hooks/useServerSettings";
 import { useVersion } from "../../hooks/useVersion";
 import { useI18n } from "../../i18n";
@@ -33,6 +36,7 @@ import { serverSupportsBangCommands } from "../../lib/bangCommandAvailability";
 import { serverSupportsProjectQueue } from "../../lib/projectQueueVisibility";
 import { SettingsItem } from "./SettingsItem";
 import { ProjectQueueReadinessSettings } from "./ProjectQueueReadinessSettings";
+import { RendezSettings, type RendezSettingsValue } from "./RendezSettings";
 import { useSettingsPaneTitle } from "./SettingsPaneTitleContext";
 import { SettingsSection } from "./SettingsSection";
 import { useSettingsUndo } from "./SettingsUndoContext";
@@ -160,7 +164,60 @@ interface MessageDeliveryBaseline {
   keepMobileKeyboardOpenAfterDelivery: boolean;
   questionAsidesEnabled: boolean;
   attachmentQuality: AttachmentUploadQuality;
-  rendezvousEnabled: boolean;
+  rendez: RendezSettingsValue;
+}
+
+const RENDEZ_STATUS_REFRESH_MS = 10_000;
+const RENDEZ_OFF: RendezSettingsValue = { enabled: false, projects: {} };
+
+/** Same default and per-project choices, ignoring burst limits. */
+function sameRendezChoices(
+  a: RendezSettingsValue,
+  b: RendezSettingsValue,
+): boolean {
+  const aKeys = Object.keys(a.projects);
+  return (
+    a.enabled === b.enabled &&
+    aKeys.length === Object.keys(b.projects).length &&
+    aKeys.every((path) => a.projects[path] === b.projects[path])
+  );
+}
+
+/**
+ * Which projects' .rendez observers run, refreshed while the pane is open
+ * and visible; null when the server does not report it.
+ */
+function useRendezWatching(supported: boolean): {
+  watching: ReadonlySet<string> | null;
+  refresh: () => void;
+} {
+  const [watching, setWatching] = useState<ReadonlySet<string> | null>(null);
+  const mountedRef = useRef(true);
+  const refresh = useCallback(() => {
+    if (!supported || document.visibilityState === "hidden") return;
+    void api.getRendezStatus().then(
+      (status) => {
+        if (mountedRef.current) setWatching(new Set(status.watching));
+      },
+      () => {
+        // Status is advisory; rows stay configurable without it.
+      },
+    );
+  }, [supported]);
+  useEffect(() => {
+    mountedRef.current = true;
+    if (!supported) {
+      setWatching(null);
+      return;
+    }
+    refresh();
+    const timer = setInterval(refresh, RENDEZ_STATUS_REFRESH_MS);
+    return () => {
+      mountedRef.current = false;
+      clearInterval(timer);
+    };
+  }, [supported, refresh]);
+  return { watching, refresh };
 }
 
 /**
@@ -178,9 +235,13 @@ export function MessageDeliverySettings() {
     PROJECT_QUEUE_READINESS_CHECK_CAPABILITY,
   );
   const supportsBangCommands = serverSupportsBangCommands(version);
-  const supportsRendezvous = serverHasCapability(
+  const supportsRendez = serverHasCapability(
     version,
-    RENDEZVOUS_UPLOADS_CAPABILITY,
+    RENDEZ_UPLOADS_CAPABILITY,
+  );
+  const supportsRendezStatus = serverHasCapability(
+    version,
+    RENDEZ_PROJECT_STATUS_CAPABILITY,
   );
   const supportsTopicShift = serverHasCapability(
     version,
@@ -224,9 +285,28 @@ export function MessageDeliverySettings() {
     boolean | null
   >(null);
   const baselineRef = useRef<MessageDeliveryBaseline | null>(null);
-  const [draftRendezvous, setDraftRendezvous] = useState<boolean | null>(null);
-  const rendezvousEnabled =
-    draftRendezvous ?? settings?.rendezvous?.enabled ?? false;
+  const [draftRendez, setDraftRendez] = useState<RendezSettingsValue | null>(
+    null,
+  );
+  const shownRendez = draftRendez ?? settings?.rendez ?? RENDEZ_OFF;
+  const { watching: rendezWatching, refresh: refreshRendezWatching } =
+    useRendezWatching(supportsRendez && supportsRendezStatus);
+  const { projects: knownProjects } = useProjects();
+  const saveRendez = useCallback(
+    (next: RendezSettingsValue) => {
+      setDraftRendez(next);
+      void updateSettings({ rendez: next })
+        .catch(() => {
+          // surfaced via the hook's error state
+        })
+        .finally(() => {
+          setDraftRendez(null);
+          // Turning a project off stops its observer.
+          refreshRendezWatching();
+        });
+    },
+    [refreshRendezWatching, updateSettings],
+  );
 
   const serverJoinWindowSeconds = settings?.deferredJoinWindowSeconds ?? 0;
   const serverProjectQueueQuietSeconds =
@@ -282,7 +362,7 @@ export function MessageDeliverySettings() {
         keepMobileKeyboardOpenAfterDelivery,
         questionAsidesEnabled,
         attachmentQuality,
-        rendezvousEnabled: settings.rendezvous?.enabled ?? false,
+        rendez: settings.rendez ?? RENDEZ_OFF,
       };
     }
   }, [
@@ -474,7 +554,7 @@ export function MessageDeliverySettings() {
         baseline.keepMobileKeyboardOpenAfterDelivery ||
       questionAsidesEnabled !== baseline.questionAsidesEnabled ||
       attachmentQuality !== baseline.attachmentQuality ||
-      (supportsRendezvous && rendezvousEnabled !== baseline.rendezvousEnabled));
+      (supportsRendez && !sameRendezChoices(shownRendez, baseline.rendez)));
 
   const undo = useCallback(async () => {
     const snapshot = baselineRef.current;
@@ -495,12 +575,12 @@ export function MessageDeliverySettings() {
       snapshot.keepMobileKeyboardOpenAfterDelivery,
     );
     await updateSettings({
-      ...(supportsRendezvous
+      ...(supportsRendez
         ? {
-            rendezvous: {
-              projects: {},
-              ...settings?.rendezvous,
-              enabled: snapshot.rendezvousEnabled,
+            rendez: {
+              ...settings?.rendez,
+              enabled: snapshot.rendez.enabled,
+              projects: snapshot.rendez.projects,
             },
           }
         : {}),
@@ -548,9 +628,9 @@ export function MessageDeliverySettings() {
     supportsClearloop,
     supportsProjectQueue,
     supportsReadinessCheck,
-    supportsRendezvous,
+    supportsRendez,
     supportsTopicShift,
-    settings?.rendezvous,
+    settings?.rendez,
     updateSettings,
   ]);
 
@@ -563,48 +643,24 @@ export function MessageDeliverySettings() {
   return (
     <SettingsSection description={t("messageDeliveryDescription")}>
       <div className="settings-group">
-        <SettingsItem
-          as="label"
-          label={t("messageDeliveryRendezvousTitle")}
-          description={t("messageDeliveryRendezvousDescription")}
-          descriptionLayout="full-width-on-narrow"
-          keywords={[
-            "rendez",
-            ".rendez",
-            "rendezvous",
-            "scp",
-            "rsync",
-            "upload",
-            "watch",
-          ]}
-        >
-          {supportsRendezvous ? (
-            <input
-              type="checkbox"
-              checked={rendezvousEnabled}
-              disabled={draftRendezvous !== null}
-              aria-label={t("messageDeliveryRendezvousTitle")}
-              onChange={(event) => {
-                setDraftRendezvous(event.target.checked);
-                void updateSettings({
-                  rendezvous: {
-                    projects: {},
-                    ...settings?.rendezvous,
-                    enabled: event.target.checked,
-                  },
-                })
-                  .catch(() => {
-                    // surfaced via the hook's error state
-                  })
-                  .finally(() => setDraftRendezvous(null));
-              }}
-            />
-          ) : (
-            <span className="settings-hint">
-              {t("messageDeliveryRendezvousUnavailable")}
-            </span>
-          )}
-        </SettingsItem>
+        {supportsRendez ? (
+          <RendezSettings
+            value={shownRendez}
+            projects={knownProjects}
+            watching={rendezWatching}
+            saving={draftRendez !== null}
+            onChange={saveRendez}
+          />
+        ) : (
+          <SettingsItem
+            label={t("rendezDefaultTitle")}
+            description={t("rendezDefaultDescription")}
+            descriptionLayout="full-width-on-narrow"
+            keywords={["rendez", ".rendez", "rendezvous", "upload", "watch"]}
+          >
+            <span className="settings-hint">{t("rendezUnavailable")}</span>
+          </SettingsItem>
+        )}
         <SettingsItem
           label={t("attachmentQualityTitle")}
           description={t("attachmentQualityDescription")}

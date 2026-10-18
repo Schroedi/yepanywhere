@@ -804,16 +804,22 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "project-app-auto-start",
     introducedIn: "0.9.4",
   },
-  rendezvousUploads: {
+  rendezUploads: {
     id: 131,
     direction: "server",
-    name: "rendezvous-uploads",
+    name: "rendez-uploads",
     introducedIn: "0.9.4",
   },
   patientTopicShift: {
     id: 132,
     direction: "server",
     name: "patient-topic-shift",
+    introducedIn: "0.9.4",
+  },
+  rendezProjectStatus: {
+    id: 133,
+    direction: "server",
+    name: "rendez-project-status",
     introducedIn: "0.9.4",
   },
 } as const satisfies Record<string, CapabilityIdAllocation>;

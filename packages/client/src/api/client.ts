@@ -1716,6 +1716,10 @@ export const api = {
       { method: "POST", body: JSON.stringify(settings) },
     ),
 
+  /** Gated by `RENDEZ_PROJECT_STATUS_CAPABILITY`. */
+  getRendezStatus: () =>
+    fetchJSON<{ watching: string[] }>("/settings/rendez/status"),
+
   getHostAwakeStatus: (forceRefresh = false) =>
     fetchJSON<{ status: HostAwakeStatus }>(
       `/settings/host-awake/status${forceRefresh ? "?refresh=1" : ""}`,
@@ -2032,7 +2036,7 @@ export const DEFAULT_FILE_ACCESS: FileAccessSettings = {
 export interface ServerSettings {
   issueAssociations?: import("@yep-anywhere/shared").IssueSettings;
   /** Opt-in project upload monitoring; absent means disabled. */
-  rendezvous?: {
+  rendez?: {
     enabled: boolean;
     projects: Record<string, boolean>;
     windowMs?: number;

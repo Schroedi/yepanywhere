@@ -66,6 +66,7 @@ import {
   SessionViewerTranscriptGate,
 } from "../components/SessionManagedViewer";
 import sessionHeaderStyles from "../components/SessionHeader.module.css";
+import { ProjectAppIcon } from "../components/ProjectAppIcon";
 import { LastSessionFile } from "../components/LastSessionFile";
 import styles from "./SessionPage.module.css";
 import { GoalFlag } from "../components/GoalNotice";
@@ -5998,7 +5999,9 @@ function SessionPageContent({
               {projectAppEnabled && (
                 <button
                   type="button"
+                  className={sessionHeaderStyles.projectAppButton}
                   aria-pressed={projectAppOpen}
+                  aria-label={t("projectAppLabel")}
                   title={t("projectAppFullViewHint")}
                   {...projectAppPress.handlers}
                   onClick={projectAppPress.click(() => {
@@ -6007,7 +6010,7 @@ function SessionPageContent({
                     setProjectAppOpen((value) => !value);
                   })}
                 >
-                  {t("projectAppLabel")}
+                  <ProjectAppIcon />
                 </button>
               )}
               {/* Project breadcrumb */}
@@ -7380,6 +7383,9 @@ function SessionPageContent({
               projectId={projectId}
               initialTarget={projectAppTarget}
               voice={projectAppVoice}
+              // The session's own App button already offers its artifact.
+              offerLatestArtifact={rightPane.apps.length === 0}
+              projectName={project?.name}
               // From full view, Back returns to the session with the app
               // still beside it; from the pane, it closes the app.
               onBack={() =>
@@ -7390,9 +7396,7 @@ function SessionPageContent({
               onFullView={
                 projectAppFull ? undefined : () => setProjectAppFull(true)
               }
-              onSession={() =>
-                navigate(`${basePath}/projects/${projectId}/app?compose=1`)
-              }
+              // No new-session action: this session is already beside the app.
             />
           ) : undefined
         }

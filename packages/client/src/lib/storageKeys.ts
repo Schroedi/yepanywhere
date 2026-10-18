@@ -43,6 +43,8 @@ export const UI_KEYS = {
   projectAppComposing: "yep-anywhere-project-app-composing-enabled",
   sessionRightPane: "yep-anywhere-session-right-pane-enabled",
   sessionRightPaneWidth: "yep-anywhere-session-right-pane-width",
+  /** Followed by `:<projectId>`; "1" reloads a static App on every change. */
+  projectAppAutoReload: "yep-anywhere-project-app-auto-reload",
   searchConcurrency: "yep-anywhere-search-concurrency",
   pdfjsRenderer: "yep-anywhere-pdfjs-renderer-enabled",
   unicodeProseMath: "yep-anywhere-unicode-prose-math",

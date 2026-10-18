@@ -19,6 +19,15 @@ response for older clients. Existing capabilities keep their meanings.
 Standing maintainer compatibility authorization applies; gate removal remains
 an explicit review after the core support corpus moves forward.
 
+`rendez-project-status` (permanent ID 133, version-implied from 0.9.4) adds
+`GET /api/settings/rendez/status`, listing the projects whose `.rendez`
+observer runs, for the per-project rendez table. The optional review on
+2026-10-18 checked stable v0.9.0, v0.9.1 and v0.9.2; none has any rendez code.
+Without the capability the table shows no watching or waiting status and makes
+no status request. ID 131 was renamed from `rendezvous-uploads` to
+`rendez-uploads` before release; its meaning is unchanged. Standing maintainer
+compatibility authorization applies. See [rendez](rendez.md#enable-monitoring).
+
 `vhost-file-site-replacement` (permanent ID 109, explicit optional bit) gates
 the file-address replacement checkbox and limited-user file-address access.
 It extends the existing file-address routes with explicit `replace: true` and

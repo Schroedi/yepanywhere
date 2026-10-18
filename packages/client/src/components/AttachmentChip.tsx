@@ -277,7 +277,7 @@ function useCachedAttachmentImage(
     !publicShare &&
       remotePath?.startsWith("/api/local-image?") &&
       path?.replaceAll("\\", "/").includes("/.rendez/delivered/")
-      ? `${remotePath}&rendezvousOriginal=1`
+      ? `${remotePath}&rendezOriginal=1`
       : null,
     originalEnabled,
   );

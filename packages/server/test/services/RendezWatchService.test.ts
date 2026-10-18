@@ -16,10 +16,10 @@ import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
 import sharp from "sharp";
 import { afterEach, expect, it, vi } from "vitest";
-import type { RendezvousSessions } from "../../src/services/RendezvousObserver.js";
-import { RendezvousWatchService } from "../../src/services/RendezvousWatchService.js";
+import type { RendezSessions } from "../../src/services/RendezObserver.js";
+import { RendezWatchService } from "../../src/services/RendezWatchService.js";
 import { ServerSettingsService } from "../../src/services/ServerSettingsService.js";
-import { subscribe } from "../../src/services/rendezvous-protocol.mjs";
+import { subscribe } from "../../src/services/rendez-protocol.mjs";
 
 const profile = { maxLongEdge: 2000, maxBytes: 4 * 1024 * 1024, quality: 85 };
 const target = {
@@ -44,7 +44,7 @@ async function harness(maxPerWindow = 10) {
   const project = await realpath(await mkdtemp(join(tmpdir(), "rendez-")));
   const root = join(project, ".rendez");
   const sent: Array<{ id: string; text: string }> = [];
-  const sessions: RendezvousSessions = {
+  const sessions: RendezSessions = {
     async route() {
       return {
         transport: "ya",
@@ -61,11 +61,20 @@ async function harness(maxPerWindow = 10) {
   };
   const settings = new ServerSettingsService({ dataDir: project });
   await settings.initialize();
-  let service: RendezvousWatchService | undefined;
+  const userTurnListeners = new Set<(projectPath: string) => void>();
+  /** An actual user message to a session in the project. */
+  const message = () => {
+    for (const listener of userTurnListeners) listener(project);
+  };
+  const userTurns = (listener: (projectPath: string) => void) => {
+    userTurnListeners.add(listener);
+    return () => userTurnListeners.delete(listener);
+  };
+  let service: RendezWatchService | undefined;
   /** Apply settings afresh, which makes the service reconcile now. */
   const refresh = () =>
     settings.updateSettings({
-      rendezvous: {
+      rendez: {
         enabled: true,
         projects: {},
         windowMs: 60_000,
@@ -73,12 +82,15 @@ async function harness(maxPerWindow = 10) {
       },
     });
   const start = async ({ owned = true } = {}) => {
-    service = new RendezvousWatchService(
+    service = new RendezWatchService(
       settings,
       async () => [{ path: project }],
       sessions,
+      userTurns,
     );
     await refresh();
+    // A first watcher waits for a user message; a restart finds .rendez.
+    message();
     if (owned) {
       await vi.waitFor(
         async () => expect((await readMarker(root)).pid).toBe(process.pid),
@@ -94,8 +106,65 @@ async function harness(maxPerWindow = 10) {
     await stop();
     await rm(project, { recursive: true, force: true });
   });
-  return { root, sent, start, stop, refresh };
+  return {
+    project,
+    root,
+    sent,
+    settings,
+    sessions,
+    userTurns,
+    message,
+    start,
+    stop,
+    refresh,
+    service: () => service,
+  };
 }
+
+it.skipIf(process.platform === "win32")(
+  "attaches a project only after a user message following its turn-on",
+  async () => {
+    const { project, root, settings, sessions, userTurns, message } =
+      await harness();
+    const exists = () =>
+      lstat(root).then(
+        () => true,
+        () => false,
+      );
+    const apply = (enabled: boolean, projects: Record<string, boolean> = {}) =>
+      settings.updateSettings({ rendez: { enabled, projects } });
+    const quiet = () => new Promise((resolve) => setTimeout(resolve, 300));
+    // A message before the project is turned on does not count.
+    const service = new RendezWatchService(
+      settings,
+      async () => [{ path: project }],
+      sessions,
+      userTurns,
+    );
+    cleanups.push(() => service.close());
+    message();
+    // Trying settings out leaves nothing in the project.
+    await apply(true);
+    await apply(false, { [project]: true });
+    await apply(false);
+    await apply(false, { [project]: true });
+    await quiet();
+    expect(await exists()).toBe(false);
+    expect(service.status().watching).toEqual([]);
+
+    message();
+    await vi.waitFor(async () => {
+      expect((await readMarker(root)).pid).toBe(process.pid);
+      expect(service.status().watching).toEqual([project]);
+    }, wait);
+
+    // Turning it off stops the observer and keeps its files.
+    await apply(false);
+    await vi.waitFor(() => expect(service.status().watching).toEqual([]), wait);
+    expect(await exists()).toBe(true);
+  },
+  20_000,
+);
 
 async function upload(inbox: string, name: string, bytes: Buffer) {
   // Senders publish completed files by renaming a hidden temporary.

@@ -62,6 +62,7 @@ import type {
 import {
   DEFAULT_CLEARLOOP_INACTIVITY_SECONDS,
   clampClearloopInactivitySeconds,
+  toUrlProjectId,
 } from "@yep-anywhere/shared";
 import {
   DEFAULT_HEARTBEAT_TURN_TEXT,
@@ -239,7 +240,10 @@ import { createInboxRoutes } from "./routes/inbox.js";
 import { createNetworkBindingRoutes } from "./routes/network-binding.js";
 import { createOnboardingRoutes } from "./routes/onboarding.js";
 import { createHostAgentProcessesRoutes } from "./routes/host-agent-processes.js";
-import { createProcessesRoutes } from "./routes/processes.js";
+import {
+  createProcessesRoutes,
+  describeCatalogSession,
+} from "./routes/processes.js";
 import {
   createGlobalProjectQueueRoutes,
   createProjectQueueRoutes,
@@ -342,8 +346,9 @@ import { initializeSessionHeartbeatDefaults } from "./services/sessionHeartbeatD
 import type { ProjectQueueService } from "./services/ProjectQueueService.js";
 import type { RelayClientService } from "./services/RelayClientService.js";
 import type { ServerSettingsService } from "./services/ServerSettingsService.js";
-import { RendezvousWatchService } from "./services/RendezvousWatchService.js";
-import { createRendezvousSessions } from "./services/rendezvousSessions.js";
+import { RendezWatchService } from "./services/RendezWatchService.js";
+import { createRendezSessions } from "./services/rendezSessions.js";
+import { onRendezUserTurn } from "./services/rendezActivity.js";
 import { getLogger } from "./logging/logger.js";
 import { listHostedProviderRuntimes } from "./sdk/providers/provider-runtime-host.js";
 import {
@@ -1488,8 +1493,8 @@ export function createApp(options: AppOptions): AppResult {
   let vocabularyKeyterms: VocabularyKeyterms | undefined;
   let unsubscribeVocabulary: (() => void) | undefined;
   let sessionReadersDisposal: Promise<void> | undefined;
-  const rendezvousWatch = options.serverSettingsService
-    ? new RendezvousWatchService(
+  const rendezWatch = options.serverSettingsService
+    ? new RendezWatchService(
         options.serverSettingsService,
         async () => {
           const paths = new Set(
@@ -1509,12 +1514,13 @@ export function createApp(options: AppOptions): AppResult {
           } catch (error) {
             getLogger().warn(
               { error: String(error) },
-              "Rendezvous provider inventory unavailable; using local live sessions",
+              "Rendez provider inventory unavailable; using local live sessions",
             );
           }
           return [...paths].map((path) => ({ path }));
         },
-        createRendezvousSessions(() => supervisor.getAllProcesses()),
+        createRendezSessions(() => supervisor.getAllProcesses()),
+        onRendezUserTurn,
       )
     : undefined;
   const disposeSessionReaders = (): Promise<void> => {
@@ -1522,7 +1528,7 @@ export function createApp(options: AppOptions): AppResult {
     // Cache the promise before asynchronous cleanup can close shared services.
     sessionReadersDisposal ??= (async () => {
       await supervisor.stopBackgroundTasks();
-      await rendezvousWatch?.close();
+      await rendezWatch?.close();
       await projectServices.close();
       await projectAppStore.close();
       await projectAppAutoStart.close();
@@ -2853,6 +2859,17 @@ export function createApp(options: AppOptions): AppResult {
         supervisor,
         serverSettingsService: options.serverSettingsService,
         enabled: options.externalSessionsEnabled !== false,
+        describeSession: (sessionId, projectPath) =>
+          describeCatalogSession(
+            {
+              scanner,
+              readerFactory,
+              sessionIndexService: options.sessionIndexService,
+              sessionMetadataService: options.sessionMetadataService,
+            },
+            toUrlProjectId(projectPath),
+            sessionId,
+          ),
       }),
     );
   }
@@ -3427,6 +3444,7 @@ export function createApp(options: AppOptions): AppResult {
         projectStoragePolicy,
         hostAwakeService: options.hostAwakeService,
         sessionMetadataService: options.sessionMetadataService,
+        getRendezStatus: rendezWatch ? () => rendezWatch.status() : undefined,
         onAllowedHostsChanged: updateAllowedHosts,
         onFileAccessChanged: updateFileAccess,
         onRemoteSessionPersistenceChanged: options.remoteSessionService

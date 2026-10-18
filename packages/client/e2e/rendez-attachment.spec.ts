@@ -6,7 +6,7 @@ import { recordUiCapture } from "./support/ui-capture.js";
 
 test.use({ serviceWorkers: "block" });
 
-test("rendezvous history renders a thumbnail and opens its original", async ({
+test("rendez history renders a thumbnail and opens its original", async ({
   page,
   baseURL,
 }) => {
@@ -45,7 +45,7 @@ test("rendezvous history renders a thumbnail and opens its original", async ({
             id: sessionId,
             projectId,
             provider: "claude",
-            title: "Rendezvous upload",
+            title: "Rendez upload",
             createdAt: timestamp,
             updatedAt: timestamp,
             messageCount: 1,

@@ -289,6 +289,47 @@ describe("annotateProjectPathLinksHtml", () => {
     );
   });
 
+  it("splits a visible cited line off server-rendered file links", () => {
+    const html = [
+      '<p><a class="fixed-font-file-link" data-ya-resource="project-file" data-ya-path="src/a.ts" data-ya-line="42" href="/projects/p/file?path=src%2Fa.ts&amp;line=42"><code>src/a.ts:42</code></a>',
+      ' <a data-ya-resource="project-file" data-ya-path="b.md" href="/projects/p/file?path=b.md">b.md</a>:7-9,',
+      ' <a data-ya-resource="project-file" data-ya-path="c.md" data-ya-line="3" href="/projects/p/file?path=c.md&amp;line=3">see c</a>',
+      ' <a data-ya-resource="local-file" data-ya-path="/x/notes.md:12" href="/api/local-file?path=%2Fx%2Fnotes.md%3A12">/x/notes.md:12</a></p>',
+    ].join("");
+    const template = document.createElement("template");
+    template.innerHTML = annotateProjectPathLinksHtml(
+      html,
+      undefined,
+      "p",
+    ).html;
+    const links = [...template.content.querySelectorAll("a")].map((link) => [
+      link.innerHTML,
+      link.dataset.yaLine,
+      link.dataset.yaLineEnd,
+      new URL(
+        link.getAttribute("href") ?? "",
+        "http://localhost",
+      ).searchParams.get("line"),
+    ]);
+
+    expect(links).toEqual([
+      ["src/a.ts", undefined, undefined, null],
+      [":42", "42", undefined, "42"],
+      ["b.md", undefined, undefined, null],
+      [":7-9", "7", "9", "7"],
+      ["see c", "3", undefined, "3"],
+      ["/x/notes.md:12", undefined, undefined, null],
+    ]);
+    // Inline code stays one pill holding both links.
+    expect(template.content.querySelectorAll("code")).toHaveLength(1);
+    expect(template.content.querySelector("code a + a")?.textContent).toBe(
+      ":42",
+    );
+    expect(template.content.textContent).toBe(
+      "src/a.ts:42 b.md:7-9, see c /x/notes.md:12",
+    );
+  });
+
   it("links basename text through the current session project", () => {
     const result = annotateProjectPathLinksHtml(
       "<p>Open <code>settings.json</code>.</p>",

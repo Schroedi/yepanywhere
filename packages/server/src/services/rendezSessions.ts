@@ -7,11 +7,11 @@ import {
 } from "../sdk/providers/provider-runtime-host.js";
 import type { Process } from "../supervisor/Process.js";
 import {
-  RENDEZVOUS_DEFAULT_PROFILE,
-  type RendezvousDeliveryRoute,
-  type RendezvousSessions,
-} from "./RendezvousObserver.js";
-import type { RendezvousTarget } from "./rendezvous-protocol.mjs";
+  RENDEZ_DEFAULT_PROFILE,
+  type RendezDeliveryRoute,
+  type RendezSessions,
+} from "./RendezObserver.js";
+import type { RendezTarget } from "./rendez-protocol.mjs";
 
 const PROVIDER_HOST_SEND_MS = 30_000;
 
@@ -19,11 +19,11 @@ const PROVIDER_HOST_SEND_MS = 30_000;
  * Deliver to sessions YA owns directly; send others through the provider
  * runtime host, as the `rendez` helper does through session-turn.
  */
-export function createRendezvousSessions(
+export function createRendezSessions(
   getAllProcesses: () => Process[],
-): RendezvousSessions {
+): RendezSessions {
   return {
-    async route(project, target): Promise<RendezvousDeliveryRoute> {
+    async route(project, target): Promise<RendezDeliveryRoute> {
       const owned = getAllProcesses().find(
         (candidate) => candidate.sessionId === target.yaSessionId,
       );
@@ -61,7 +61,7 @@ export function createRendezvousSessions(
       if (!isProviderRuntimeHostAvailable()) {
         return {
           transport: "provider-host",
-          profile: RENDEZVOUS_DEFAULT_PROFILE,
+          profile: RENDEZ_DEFAULT_PROFILE,
           async send() {
             return {
               accepted: false,
@@ -78,7 +78,7 @@ export function createRendezvousSessions(
       );
       return {
         transport: "provider-host",
-        profile: runtime?.imagePreparationProfile ?? RENDEZVOUS_DEFAULT_PROFILE,
+        profile: runtime?.imagePreparationProfile ?? RENDEZ_DEFAULT_PROFILE,
         send: (id, text) => sendThroughProviderHost(target, id, text),
       };
     },
@@ -88,7 +88,7 @@ export function createRendezvousSessions(
 }
 
 async function sendThroughProviderHost(
-  target: RendezvousTarget,
+  target: RendezTarget,
   submissionId: string,
   text: string,
 ): Promise<{ accepted: boolean; receipt?: unknown; diagnostics?: string }> {

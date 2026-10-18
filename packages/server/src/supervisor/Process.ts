@@ -43,7 +43,7 @@ import {
 } from "@yep-anywhere/shared";
 import { DEFAULT_IDLE_TIMEOUT_MS } from "../defaults.js";
 import { getLogger } from "../logging/logger.js";
-import { publishRendezvousUserTurn } from "../services/rendezvousActivity.js";
+import { publishRendezUserTurn } from "../services/rendezActivity.js";
 import type { ToolResultMediaMessageMaterializer } from "../media/ToolResultMediaMessageMaterializer.js";
 import type { ToolResultMediaStore } from "../media/ToolResultMediaStore.js";
 import {
@@ -3834,7 +3834,7 @@ export class Process {
           : "codex";
         void this.providerSessionIdSettlement.then(
           (providerSessionId) => {
-            publishRendezvousUserTurn({
+            publishRendezUserTurn({
               projectPath: this.projectPath,
               harness,
               sessionId: this._sessionId,

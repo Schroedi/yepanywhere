@@ -25,11 +25,11 @@ const RESERVED_ROUTES = new Set([
 export function routeName(value) {
   if (!ROUTE_PATTERN.test(value)) {
     throw new Error(
-      "Rendezvous route must contain only letters, digits, underscores, or hyphens",
+      "Rendez route must contain only letters, digits, underscores, or hyphens",
     );
   }
   if (RESERVED_ROUTES.has(value)) {
-    throw new Error("Rendezvous route name is reserved");
+    throw new Error("Rendez route name is reserved");
   }
   return value;
 }
@@ -59,7 +59,7 @@ async function ensureDirectory(path, description) {
     if (error.code !== "EEXIST") throw error;
   }
   if ((await fs.lstat(path)).isSymbolicLink()) {
-    throw new Error(`Rendezvous ${description} must not be a symlink`);
+    throw new Error(`Rendez ${description} must not be a symlink`);
   }
 }
 
@@ -76,7 +76,7 @@ export async function subscribe(
     route ?? target.yaSessionId ?? target.providerSessionId,
   );
   if (!target.harness || !target.providerSessionId) {
-    throw new Error("Rendezvous subscriptions require a harness and session");
+    throw new Error("Rendez subscriptions require a harness and session");
   }
   await ensureDirectory(join(root, "routes"), "routes");
   await ensureDirectory(join(root, "delivered"), "delivered");
@@ -97,7 +97,7 @@ export async function subscribe(
         (key) => previous[key] !== target[key],
       )
     ) {
-      throw new Error("Rendezvous route already belongs to another target");
+      throw new Error("Rendez route already belongs to another target");
     }
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
@@ -110,12 +110,10 @@ export async function subscribe(
     if (error.code !== "EEXIST") throw error;
     const alias = join(root, name);
     if (!(await fs.lstat(alias)).isSymbolicLink()) {
-      throw new Error("Rendezvous named destination already exists");
+      throw new Error("Rendez named destination already exists");
     }
     if ((await fs.readlink(alias)) !== inbox) {
-      throw new Error(
-        "Rendezvous named destination points to another directory",
-      );
+      throw new Error("Rendez named destination points to another directory");
     }
   }
   if (latest) await publishLatest(root, name, receivedAt);
@@ -161,7 +159,7 @@ export async function settleLatest(root) {
       await fs.rename(link, join(unrouted, `${Date.now()}-${randomUUID()}`));
     } else if (!stats.isSymbolicLink()) {
       throw new Error(
-        `Rendezvous ${link} is a file, not the pointer symlink; remove it`,
+        `Rendez ${link} is a file, not the pointer symlink; remove it`,
       );
     }
   } catch (error) {
@@ -194,7 +192,7 @@ export async function settleLatest(root) {
       await fs.rename(temporary, link);
     }
   }
-  throw new Error("Rendezvous latest-session kept changing; retry the turn");
+  throw new Error("Rendez latest-session kept changing; retry the turn");
 }
 
 async function latestEntries(entries) {

@@ -1,5 +1,5 @@
 import { basename, join } from "node:path";
-import { realpath, stat, unlink } from "node:fs/promises";
+import { realpath, unlink } from "node:fs/promises";
 import {
   isUrlProjectId,
   type LimitedUserGrants,
@@ -22,7 +22,7 @@ import type { ProjectAppStore } from "../projects/ProjectAppStore.js";
 import { projectAppPublicAllowed } from "../projects/projectAppPolicy.js";
 import {
   readProjectService,
-  projectServiceStaticEntry,
+  projectServiceStaticStamp,
   projectServiceStaticApp,
   type ProjectServices,
 } from "../projects/ProjectServiceManager.js";
@@ -129,11 +129,9 @@ export function createProjectAppRoutes(deps: {
       info.livePreview =
         (await readProjectService(project.path, "live-preview")) ?? undefined;
       if (info.declaration?.where.kind === "static") {
-        const entry = await projectServiceStaticEntry(
-          project.path,
-          info.declaration,
-        );
-        info.updatedAt = (await stat(entry)).mtime.toISOString();
+        info.updatedAt = (
+          await projectServiceStaticStamp(project.path, info.declaration)
+        ).toISOString();
         info.state = "ready";
       } else if (info.declaration) {
         const runtime = await deps.services.status(project.id);

@@ -382,8 +382,10 @@ export type {
   LocalResourceMediaType,
   LocalResourceRef,
   ParseLocalResourceOptions,
+  ProjectFileViewerTarget,
 } from "./local-resource.js";
 export {
+  buildProjectFileViewerHref,
   normalizeWindowsDrivePathname,
   parseLocalResourceAttributes,
   parseLocalResourceHref,
@@ -888,7 +890,8 @@ export {
   PROJECT_QUEUE_CAPABILITY,
   PROJECT_QUEUE_ATTACHMENT_EDITING_CAPABILITY,
   PROJECT_QUEUE_READINESS_CHECK_CAPABILITY,
-  RENDEZVOUS_UPLOADS_CAPABILITY,
+  RENDEZ_UPLOADS_CAPABILITY,
+  RENDEZ_PROJECT_STATUS_CAPABILITY,
   ATTACHMENT_ONLY_SESSION_MESSAGES_CAPABILITY,
   PROJECT_QUEUE_NEW_SESSION_SHORTCUT_SETTING_CAPABILITY,
   PROJECT_CAPTIONS_CAPABILITY,
@@ -1125,9 +1128,13 @@ export type {
   ToolDisplaySearchAction,
 } from "./tool-display-actions.js";
 export {
+  type CitedFilePosition,
+  citedProjectPathTokenExtent,
   findProjectPathTokens,
   type ProjectPathLinkTarget,
   type ProjectPathToken,
+  readLeadingCitedPosition,
+  splitTrailingCitedPosition,
 } from "./project-path-links.js";
 export type {
   CodexWebRunLine,

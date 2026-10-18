@@ -5,6 +5,7 @@ import {
   realpath,
   rm,
   symlink,
+  utimes,
   writeFile,
 } from "node:fs/promises";
 import { join, resolve } from "node:path";
@@ -15,6 +16,7 @@ import {
   readProjectService,
   readStaticAddressMode,
   projectServiceStaticEntry,
+  projectServiceStaticStamp,
 } from "../../src/projects/ProjectServiceManager.js";
 import * as sandbox from "../../src/session-sandbox.js";
 
@@ -66,6 +68,35 @@ describe("project service ownership", { timeout: 25_000 }, () => {
     return project;
   }
 
+  it("stamps a static app by its newest served file, not hidden or repository files", async () => {
+    const project = await fixture();
+    await mkdir(join(project, "dist/assets"), { recursive: true });
+    await mkdir(join(project, "dist/.cache"));
+    await writeFile(join(project, "dist/index.html"), "app");
+    await writeFile(join(project, "dist/assets/app.js"), "js");
+    await writeFile(join(project, "dist/.cache/x"), "x");
+    const at = (seconds: number) => new Date(seconds * 1000);
+    await utimes(join(project, "dist/index.html"), at(1000), at(1000));
+    await utimes(join(project, "dist/assets/app.js"), at(2000), at(2000));
+    await utimes(join(project, "dist/.cache/x"), at(9000), at(9000));
+    const declaration = projectServiceSchema.parse(staticService);
+    // A rebuilt asset changes the stamp; a hidden cache file does not.
+    expect(await projectServiceStaticStamp(project, declaration)).toEqual(
+      at(2000),
+    );
+    // Served from the project root, only the entry counts.
+    await writeFile(join(project, "index.html"), "root");
+    await utimes(join(project, "index.html"), at(1500), at(1500));
+    expect(
+      await projectServiceStaticStamp(
+        project,
+        projectServiceSchema.parse({
+          ...staticService,
+          where: { ...staticService.where, root: "." },
+        }),
+      ),
+    ).toEqual(at(1500));
+  });
   it("reads explicit static declarations and rejects invalid or escaping source files", async () => {
     const project = await fixture();
     expect(await readProjectService(project)).toEqual(staticService);

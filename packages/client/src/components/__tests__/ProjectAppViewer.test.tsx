@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -23,6 +24,25 @@ vi.mock("../../hooks/useVersion", () => ({
   }),
 }));
 vi.mock("../../api/sourceApiFetch", () => ({ fetchJSON: mock.fetch }));
+// Process-state events, the agent activity a static app's watch follows.
+const activity = vi.hoisted(() => {
+  const listeners = new Set<(event: unknown) => void>();
+  return {
+    listeners,
+    emit: (event: object) => {
+      for (const listener of listeners)
+        listener({ type: "process-state-changed", ...event });
+    },
+  };
+});
+vi.mock("../../lib/activityBus", () => ({
+  activityBus: {
+    on: (_type: string, listener: (event: unknown) => void) => {
+      activity.listeners.add(listener);
+      return () => activity.listeners.delete(listener);
+    },
+  },
+}));
 beforeEach(() => {
   mock.version = "0.9.4";
   mock.denyLivePreview = false;
@@ -128,6 +148,47 @@ it("renders address controls inline and saves visibility without stopping servin
       .getByRole("button", { name: "Copy viewer link" })
       .getAttribute("href"),
   ).toBe(row.url);
+});
+it("copies the served address from the bar instead of the launch link", async () => {
+  const served = "https://canvas.apps.example/?ya_access=private";
+  const original = mock.fetch.getMockImplementation()!;
+  mock.fetch.mockImplementation(async (...args) =>
+    String(args[0]).endsWith("/address")
+      ? {
+          enabled: true,
+          namespace: "apps.example",
+          canPublish: false,
+          reservations: [
+            {
+              name: "canvas",
+              namespace: "apps.example",
+              owner: "superuser",
+              serving: true,
+              public: false,
+              privateOnly: false,
+              url: served,
+            },
+          ],
+        }
+      : original(...args),
+  );
+  const writeText = vi.fn(async () => {});
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: { writeText },
+  });
+  const { container } = render(
+    <I18nProvider>
+      <ProjectAppViewer projectId="test" />
+    </I18nProvider>,
+  );
+  await waitFor(() => expect(container.querySelector("iframe")).toBeTruthy());
+  const link = screen.getByRole("button", { name: "Copy viewer link" });
+  await waitFor(() =>
+    expect(link.getAttribute("title")).toBe("Serving: canvas.apps.example"),
+  );
+  fireEvent.click(link);
+  await waitFor(() => expect(writeText).toHaveBeenCalledWith(served));
 });
 it("tells a user without publishing permission who can make the app public", async () => {
   mock.fetch.mockImplementation(async (path: string) => {
@@ -333,6 +394,291 @@ it("restarts a running app as stop, then start in its running mode", async () =>
     ]),
   );
 });
+it("returns Back from the latest artifact to the project app before closing", async () => {
+  mock.fetch.mockImplementation(async (path: string, init?: RequestInit) =>
+    path.endsWith("/open")
+      ? JSON.parse(String(init?.body)).target === "artifact"
+        ? {
+            id: "artifact:a1",
+            kind: "artifact",
+            label: "example.html",
+            url: "https://artifacts.example/a/token/example.html",
+            transferable: true,
+          }
+        : {
+            id: "static:test",
+            kind: "static",
+            label: "Canvas",
+            url: "https://artifacts.example/a/token/index.html",
+            transferable: true,
+          }
+      : path.endsWith("/address")
+        ? { enabled: false, reservations: [] }
+        : {
+            projectId: "test",
+            declaration: { where: { kind: "static" } },
+            state: "ready",
+            latestArtifact: { id: "a1", label: "example.html" },
+            canExecute: true,
+            canShare: true,
+            removedFrom: [],
+          },
+  );
+  const onBack = vi.fn();
+  const { container } = render(
+    <I18nProvider>
+      <ProjectAppViewer
+        projectId="test"
+        initialTarget={{ target: "artifact", artifactId: "a1" }}
+        onBack={onBack}
+      />
+    </I18nProvider>,
+  );
+  await waitFor(() =>
+    expect(container.querySelector("iframe")?.title).toBe("example.html"),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Back" }));
+  await waitFor(() =>
+    expect(container.querySelector("iframe")?.title).toBe("Canvas"),
+  );
+  expect(onBack).not.toHaveBeenCalled();
+  // The toolbar toggle stays usable after the app's view has loaded.
+  const latest = screen.getByRole("button", {
+    name: "Latest artifact: example.html",
+  });
+  fireEvent.click(latest);
+  await waitFor(() =>
+    expect(container.querySelector("iframe")?.title).toBe("example.html"),
+  );
+  expect(latest.getAttribute("aria-pressed")).toBe("true");
+  fireEvent.click(latest);
+  await waitFor(() =>
+    expect(container.querySelector("iframe")?.title).toBe("Canvas"),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Back" }));
+  expect(onBack).toHaveBeenCalledTimes(1);
+  // The project name is Home: from an artifact it shows the app, and from
+  // the app it reopens the entry route.
+  cleanup();
+  const titled = render(
+    <I18nProvider>
+      <ProjectAppViewer
+        projectId="test"
+        projectName="garden"
+        initialTarget={{ target: "artifact", artifactId: "a1" }}
+      />
+    </I18nProvider>,
+  );
+  await waitFor(() =>
+    expect(titled.container.querySelector("iframe")?.title).toBe(
+      "example.html",
+    ),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "garden" }));
+  await waitFor(() =>
+    expect(titled.container.querySelector("iframe")?.title).toBe("Canvas"),
+  );
+  const opens = () =>
+    mock.fetch.mock.calls.filter(([path]) => path.endsWith("/open")).length;
+  const before = opens();
+  fireEvent.click(screen.getByRole("button", { name: "garden" }));
+  await waitFor(() => expect(opens()).toBe(before + 1));
+  // A host offering its own artifact button suppresses the toolbar's.
+  cleanup();
+  const hosted = render(
+    <I18nProvider>
+      <ProjectAppViewer projectId="test" offerLatestArtifact={false} />
+    </I18nProvider>,
+  );
+  await waitFor(() =>
+    expect(hosted.container.querySelector("iframe")?.title).toBe("Canvas"),
+  );
+  expect(
+    screen.queryByRole("button", { name: "Latest artifact: example.html" }),
+  ).toBeNull();
+});
+it("shows a view-only user settings status without controls it cannot use", async () => {
+  const original = mock.fetch.getMockImplementation()!;
+  mock.fetch.mockImplementation(async (...args) => {
+    const value = await original(...args);
+    return String(args[0]).endsWith("/app")
+      ? { ...value, canExecute: false, canShare: false, canCopyLink: false }
+      : value;
+  });
+  const { container } = render(
+    <I18nProvider>
+      <ProjectAppViewer projectId="test" onSession={() => {}} />
+    </I18nProvider>,
+  );
+  await waitFor(() => expect(container.querySelector("iframe")).toBeTruthy());
+  expect(
+    screen.queryByRole("button", { name: "New session in this project" }),
+  ).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "App settings" }));
+  await screen.findByText("App: ready");
+  expect(
+    screen.queryByRole("button", { name: "Create share link" }),
+  ).toBeNull();
+  expect(
+    screen.queryByText(/Public app delivery is not configured/),
+  ).toBeNull();
+});
+it("marks a copied launch link live until a confirmed restart revokes it", async () => {
+  const process = {
+    version: 1,
+    where: { kind: "process", cwd: ".", entry: "/" },
+    start: { argv: ["npm", "start"], portEnv: "PORT" },
+  };
+  let launch = 1;
+  mock.fetch.mockImplementation(async (path: string) => {
+    if (path.endsWith("/stop") || path.endsWith("/start")) {
+      if (path.endsWith("/start")) launch += 1;
+      return {};
+    }
+    if (path.endsWith("/open"))
+      return {
+        id: `service:test:${launch}`,
+        kind: "service",
+        label: "Project app",
+        url: `http://app-${launch}.localhost/?ya_access=t${launch}`,
+        transferable: true,
+      };
+    if (path.endsWith("/address")) return { enabled: false, reservations: [] };
+    return {
+      projectId: "test",
+      declaration: process,
+      activeDeclaration: process,
+      state: "running",
+      latestArtifact: null,
+      canExecute: true,
+      canShare: false,
+      removedFrom: [],
+    };
+  });
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: { writeText: vi.fn(async () => {}) },
+  });
+  const confirm = vi.spyOn(window, "confirm");
+  const { container } = render(
+    <I18nProvider>
+      <ProjectAppViewer projectId="test" />
+    </I18nProvider>,
+  );
+  await waitFor(() => expect(container.querySelector("iframe")).toBeTruthy());
+  const link = () => screen.getByRole("button", { name: "Copy viewer link" });
+  expect(link().className).toMatch(/linkInactive/);
+  fireEvent.click(link());
+  await waitFor(() => expect(link().className).toMatch(/linkActive/));
+  // Declining leaves the app and its link alone.
+  confirm.mockReturnValueOnce(false);
+  fireEvent.click(screen.getByRole("button", { name: "Restart app" }));
+  expect(
+    mock.fetch.mock.calls.some(([path]) => String(path).endsWith("/stop")),
+  ).toBe(false);
+  confirm.mockReturnValueOnce(true);
+  fireEvent.click(screen.getByRole("button", { name: "Restart app" }));
+  await waitFor(() =>
+    expect(container.querySelector("iframe")?.getAttribute("src")).toContain(
+      "app-2",
+    ),
+  );
+  expect(link().className).toMatch(/linkInactive/);
+  // A right-click (or held press) restarts without asking.
+  confirm.mockClear();
+  fireEvent.contextMenu(screen.getByRole("button", { name: "Restart app" }));
+  await waitFor(() =>
+    expect(container.querySelector("iframe")?.getAttribute("src")).toContain(
+      "app-3",
+    ),
+  );
+  expect(confirm).not.toHaveBeenCalled();
+  confirm.mockRestore();
+});
+it("lights reload for newer static files, arms a one-shot reload, and holds to auto-reload", async () => {
+  localStorage.clear();
+  let stamp = "2026-10-18T00:00:01.000Z";
+  mock.fetch.mockImplementation(async (path: string) =>
+    path.endsWith("/open")
+      ? {
+          id: "static:test",
+          kind: "static",
+          label: "Canvas",
+          url: "https://artifacts.example/a/token/index.html",
+          transferable: true,
+        }
+      : path.endsWith("/address")
+        ? { enabled: false, reservations: [] }
+        : {
+            projectId: "test",
+            declaration: { where: { kind: "static" } },
+            state: "ready",
+            updatedAt: stamp,
+            latestArtifact: null,
+            canExecute: true,
+            canShare: false,
+            removedFrom: [],
+          },
+  );
+  const opens = () =>
+    mock.fetch.mock.calls.filter(([path]) => String(path).endsWith("/open"))
+      .length;
+  const { container } = render(
+    <I18nProvider>
+      <ProjectAppViewer projectId="test" />
+    </I18nProvider>,
+  );
+  await waitFor(() => expect(container.querySelector("iframe")).toBeTruthy());
+  const reload = () => screen.getByRole("button", { name: "Reload from disk" });
+  const infoReads = () =>
+    mock.fetch.mock.calls.filter(([path]) => String(path).endsWith("/app"))
+      .length;
+  // Returning to the page is one trigger for a reading.
+  const poll = async () => {
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+    });
+  };
+  expect(reload().className).toBe("");
+  // With no activity the viewer reads nothing, even as the files change.
+  stamp = "2026-10-18T00:00:02.000Z";
+  const quiet = infoReads();
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  expect(infoReads()).toBe(quiet);
+  // A project agent going idle reads at once and lights the button; another
+  // project's agent does not.
+  act(() => {
+    activity.emit({ projectId: "other", sessionId: "x", activity: "idle" });
+  });
+  expect(infoReads()).toBe(quiet);
+  act(() => {
+    activity.emit({ projectId: "test", sessionId: "s1", activity: "idle" });
+  });
+  await waitFor(() => expect(reload().className).toMatch(/reloadStale/));
+  // Newer files light the button; clicking loads them and clears it.
+  fireEvent.click(reload());
+  await waitFor(() => expect(container.querySelector("iframe")).toBeTruthy());
+  await waitFor(() => expect(reload().className).toBe(""));
+  // A click with nothing new arms one reload for the next change.
+  fireEvent.click(reload());
+  await waitFor(() => expect(reload().className).toMatch(/reloadArmed/));
+  const armedOpens = opens();
+  stamp = "2026-10-18T00:00:03.000Z";
+  await poll();
+  await waitFor(() => expect(opens()).toBe(armedOpens + 1));
+  await waitFor(() => expect(reload().className).toBe(""));
+  // Holding (right-click here) reloads on every change, and is remembered.
+  fireEvent.contextMenu(reload());
+  expect(reload().className).toMatch(/reloadAuto/);
+  expect(
+    localStorage.getItem("yep-anywhere-project-app-auto-reload:test"),
+  ).toBe("1");
+  const autoOpens = opens();
+  stamp = "2026-10-18T00:00:04.000Z";
+  await poll();
+  await waitFor(() => expect(opens()).toBe(autoOpens + 1));
+  await waitFor(() => expect(reload().className).toMatch(/reloadAuto/));
+});
 it("keeps the live iframe across settings and sharing and delegates mic synchronously to its composer", async () => {
   const toggle = vi.fn();
   const onVoice = vi.fn();
@@ -366,8 +712,8 @@ it("keeps the live iframe across settings and sharing and delegates mic synchron
   );
   expect(container.querySelector("iframe")).toBe(frame);
   expect(screen.queryByRole("group", { name: "App address" })).toBeNull();
-  fireEvent.click(screen.getByRole("button", { name: "Back" }));
-  fireEvent.click(screen.getByRole("button", { name: "Share app" }));
+  // Sharing lives in settings; there is no separate Share button.
+  expect(screen.queryByRole("button", { name: "Share app" })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Create share link" }));
   await screen.findByText("Valid while this app launch is running.");
   expect(container.querySelector("iframe")).toBe(frame);

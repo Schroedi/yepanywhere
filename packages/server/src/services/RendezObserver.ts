@@ -7,10 +7,10 @@ import { getLogger } from "../logging/logger.js";
 import { defaultGitExclude } from "../projects/managedProjectDir.js";
 import {
   MAX_ROUTES,
-  type RendezvousTarget,
+  type RendezTarget,
   atomicJson,
   settleLatest,
-} from "./rendezvous-protocol.mjs";
+} from "./rendez-protocol.mjs";
 
 /**
  * YA's native observer for one project's `.rendez` directory, implementing
@@ -55,13 +55,13 @@ const MIME_TYPES: Record<string, string> = {
   ".html": "text/html",
 };
 
-export { DEFAULT_PROFILE as RENDEZVOUS_DEFAULT_PROFILE };
+export { DEFAULT_PROFILE as RENDEZ_DEFAULT_PROFILE };
 
-export interface RendezvousRecord {
+export interface RendezRecord {
   version: 1;
   id: string;
   route: string;
-  target: RendezvousTarget;
+  target: RendezTarget;
   state:
     | "pending"
     | "attempting"
@@ -91,41 +91,38 @@ export interface RendezvousRecord {
   burstId?: string;
 }
 
-export interface RendezvousSendResult {
+export interface RendezSendResult {
   accepted: boolean;
   receipt?: unknown;
   diagnostics?: string;
 }
 
 /** Where one target's uploads go, chosen when its record is sent. */
-export interface RendezvousDeliveryRoute {
+export interface RendezDeliveryRoute {
   transport: "ya" | "provider-host";
   profile: ImagePreparationProfile;
-  send(id: string, text: string): Promise<RendezvousSendResult>;
+  send(id: string, text: string): Promise<RendezSendResult>;
 }
 
-export interface RendezvousSessions {
-  route(
-    project: string,
-    target: RendezvousTarget,
-  ): Promise<RendezvousDeliveryRoute>;
+export interface RendezSessions {
+  route(project: string, target: RendezTarget): Promise<RendezDeliveryRoute>;
   turnStatus(submissionId: string): Promise<{ accepted?: unknown } | null>;
 }
 
 /** Process-wide ceiling on directory watches across every observer. */
-export interface RendezvousWatchBudget {
+export interface RendezWatchBudget {
   used: number;
   readonly limit: number;
 }
 
 /** Another YA or `rendez watch --turns` already observes the project. */
-export class RendezvousConflictError extends Error {}
+export class RendezConflictError extends Error {}
 
-export interface RendezvousObserverOptions {
+export interface RendezObserverOptions {
   windowMs: number;
   maxPerWindow: number;
-  sessions: RendezvousSessions;
-  budget: RendezvousWatchBudget;
+  sessions: RendezSessions;
+  budget: RendezWatchBudget;
   onFailure: (error: unknown) => void;
 }
 
@@ -164,7 +161,7 @@ async function ensureDirectory(path: string): Promise<void> {
     if (errorCode(error) !== "EEXIST") throw error;
   }
   if ((await fs.lstat(path)).isSymbolicLink()) {
-    throw new Error(`Rendezvous directory must not be a symlink: ${path}`);
+    throw new Error(`Rendez directory must not be a symlink: ${path}`);
   }
 }
 
@@ -178,7 +175,7 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
-/** Create `.rendez` on first use; enabling rendezvous authorizes it. */
+/** Create `.rendez` on first use; enabling rendez authorizes it. */
 async function initializeRoot(project: string): Promise<string> {
   const real = await fs.realpath(project);
   const root = join(real, ".rendez");
@@ -190,7 +187,7 @@ async function initializeRoot(project: string): Promise<string> {
     if (errorCode(error) !== "EEXIST") throw error;
   }
   if ((await fs.lstat(root)).isSymbolicLink()) {
-    throw new Error("Rendezvous root must not be a symlink");
+    throw new Error("Rendez root must not be a symlink");
   }
   if (created) await defaultGitExclude(real, ".rendez");
   await ensureDirectory(join(root, "routes"));
@@ -260,11 +257,11 @@ async function acquireObserverMarker(root: string): Promise<void> {
         await fs.rm(marker, { force: true });
         continue;
       }
-      throw new RendezvousConflictError(
+      throw new RendezConflictError(
         `Project ${dirname(root)} is already observed by ${other.owner ?? "another observer"} (pid ${other.pid} on ${other.host}); stop it, or delete ${marker} if it is gone`,
       );
     }
-    throw new Error(`Cannot create the rendezvous observer marker ${marker}`);
+    throw new Error(`Cannot create the rendez observer marker ${marker}`);
   } finally {
     await fs.rm(temporary, { force: true });
   }
@@ -319,9 +316,7 @@ async function listRoutes(root: string): Promise<string[]> {
     }
     result.push(entry.name);
     if (result.length > MAX_ROUTES) {
-      throw new Error(
-        `Rendezvous exceeds the ${MAX_ROUTES}-route observer limit`,
-      );
+      throw new Error(`Rendez exceeds the ${MAX_ROUTES}-route observer limit`);
     }
   }
   return result;
@@ -352,10 +347,10 @@ class BurstAdmission {
 
   /** Hold the record when over budget; return a new burst's one notice. */
   async admit(
-    record: RendezvousRecord,
+    record: RendezRecord,
     observedMs: number,
     capacity: boolean,
-  ): Promise<RendezvousRecord | undefined> {
+  ): Promise<RendezRecord | undefined> {
     let previous = this.state[record.route];
     if (!previous || observedMs - previous.last >= 4 * this.windowMs) {
       previous = {
@@ -369,7 +364,7 @@ class BurstAdmission {
     previous.arrivals = previous.arrivals.filter(
       (time) => observedMs - time < this.windowMs,
     );
-    let notice: RendezvousRecord | undefined;
+    let notice: RendezRecord | undefined;
     if (
       !capacity ||
       previous.overloaded ||
@@ -430,7 +425,7 @@ async function snapshot(
   route: string,
   name: string,
   seen: Seen,
-): Promise<RendezvousRecord | undefined> {
+): Promise<RendezRecord | undefined> {
   if (name.split("/").some((part) => part.startsWith("."))) return undefined;
   const source = join(root, "routes", route, "inbox", name);
   let stats: Awaited<ReturnType<typeof fs.lstat>>;
@@ -449,11 +444,11 @@ async function snapshot(
   if (stats.size > MAX_UPLOAD_BYTES) {
     getLogger().warn(
       { source, size: stats.size },
-      "Rendezvous upload exceeds the 64 MiB limit and was not delivered",
+      "Rendez upload exceeds the 64 MiB limit and was not delivered",
     );
     return undefined;
   }
-  const { target } = await readJson<{ target: RendezvousTarget }>(
+  const { target } = await readJson<{ target: RendezTarget }>(
     join(root, "routes", route, "subscription.json"),
   );
   const directory = join(root, "delivered", route);
@@ -483,7 +478,7 @@ async function snapshot(
           if (total > MAX_UPLOAD_BYTES) {
             getLogger().warn(
               { source },
-              "Rendezvous upload grew beyond the 64 MiB limit and was not delivered",
+              "Rendez upload grew beyond the 64 MiB limit and was not delivered",
             );
             return undefined;
           }
@@ -513,7 +508,7 @@ async function snapshot(
       seen.set(seenKey(route, name), captured);
       return undefined;
     }
-    const record: RendezvousRecord = {
+    const record: RendezRecord = {
       version: 1,
       id,
       route,
@@ -531,7 +526,7 @@ async function snapshot(
     await atomicJson(join(scratch, "record.json"), record);
     // Renaming onto an existing, never-empty event directory fails, so
     // exactly one observer captures each upload without a lock.
-    let created: RendezvousRecord | undefined = record;
+    let created: RendezRecord | undefined = record;
     try {
       await fs.rename(scratch, destination);
     } catch (error) {
@@ -552,7 +547,7 @@ async function prepareAttachment(
   path: string,
   mimeType: string,
   profile: ImagePreparationProfile,
-): Promise<Partial<RendezvousRecord>> {
+): Promise<Partial<RendezRecord>> {
   const size = (await fs.stat(path)).size;
   const format = PREPARED_FORMATS[mimeType as keyof typeof PREPARED_FORMATS];
   if (!format) return { size, mimeType };
@@ -611,7 +606,7 @@ async function prepareAttachment(
 }
 
 /** The user-turn text; YA renders its uploaded-files section as attachments. */
-function body(record: RendezvousRecord): string {
+function body(record: RendezRecord): string {
   if (record.kind === "overload") return record.text ?? "";
   const dimensions =
     record.width !== undefined ? `, ${record.width}x${record.height}` : "";
@@ -623,7 +618,7 @@ function body(record: RendezvousRecord): string {
 }
 
 /** Watch one project's routes and deliver each completed upload once. */
-export class RendezvousObserver {
+export class RendezObserver {
   private root = "";
   private admission?: BurstAdmission;
   private readonly watchers = new Map<string, FSWatcher>();
@@ -635,7 +630,7 @@ export class RendezvousObserver {
   private routeTimer?: ReturnType<typeof setTimeout>;
   private intake: Promise<void> = Promise.resolve();
   private readonly queue: Array<{
-    record: RendezvousRecord;
+    record: RendezRecord;
     reserved: boolean;
   }> = [];
   private outstanding = 0;
@@ -646,7 +641,7 @@ export class RendezvousObserver {
 
   constructor(
     readonly project: string,
-    private readonly options: RendezvousObserverOptions,
+    private readonly options: RendezObserverOptions,
   ) {}
 
   async start(): Promise<void> {
@@ -683,7 +678,7 @@ export class RendezvousObserver {
   ): void {
     const { budget } = this.options;
     if (budget.used >= budget.limit) {
-      throw new Error(`Rendezvous watch ceiling of ${budget.limit} reached`);
+      throw new Error(`Rendez watch ceiling of ${budget.limit} reached`);
     }
     const watcher = watch(path, { persistent: false }, (_event, name) =>
       onName(name?.toString()),
@@ -760,7 +755,7 @@ export class RendezvousObserver {
         if (++entries > MAX_FILES) {
           getLogger().warn(
             { projectPath: this.project, route, directory: relative },
-            `Rendezvous directory exceeds ${MAX_FILES} entries; the rest are skipped`,
+            `Rendez directory exceeds ${MAX_FILES} entries; the rest are skipped`,
           );
           return;
         }
@@ -805,7 +800,7 @@ export class RendezvousObserver {
     const previous = this.settling.get(key);
     if (previous) clearTimeout(previous.timer);
     else if (this.settling.size >= MAX_FILES) {
-      this.fail(new Error("Rendezvous has too many uploads in progress"));
+      this.fail(new Error("Rendez has too many uploads in progress"));
       return;
     }
     const observed = previous?.observed ?? Date.now();
@@ -855,7 +850,7 @@ export class RendezvousObserver {
       if (!(await exists(directory))) continue;
       for (const event of await fs.readdir(directory)) {
         if (event.startsWith(".")) continue;
-        let record: RendezvousRecord;
+        let record: RendezRecord;
         try {
           record = await readJson(join(directory, event, "record.json"));
         } catch (error) {
@@ -877,7 +872,7 @@ export class RendezvousObserver {
         }
         if (record.state === "pending") {
           if (++pending > MAX_FILES) {
-            throw new Error("Rendezvous pending records exceed the scan limit");
+            throw new Error("Rendez pending records exceed the scan limit");
           }
           await this.admit(record, Date.now());
         } else if (
@@ -890,10 +885,7 @@ export class RendezvousObserver {
     }
   }
 
-  private async admit(
-    record: RendezvousRecord,
-    observed: number,
-  ): Promise<void> {
+  private async admit(record: RendezRecord, observed: number): Promise<void> {
     if (this.closed || !this.admission) return;
     const capacity = this.outstanding < this.options.maxPerWindow;
     if (record.kind !== "overload") {
@@ -929,13 +921,13 @@ export class RendezvousObserver {
       });
   }
 
-  private recordPath(record: RendezvousRecord): string {
+  private recordPath(record: RendezRecord): string {
     return join(this.root, "delivered", record.route, record.id, "record.json");
   }
 
   private async finish(
-    record: RendezvousRecord,
-    update: Partial<RendezvousRecord>,
+    record: RendezRecord,
+    update: Partial<RendezRecord>,
   ): Promise<void> {
     Object.assign(record, update);
     await atomicJson(this.recordPath(record), record);
@@ -947,12 +939,12 @@ export class RendezvousObserver {
           state: record.state,
           diagnostics: record.diagnostics,
         },
-        "Rendezvous upload was not confirmed",
+        "Rendez upload was not confirmed",
       );
     }
   }
 
-  private async reconcile(record: RendezvousRecord): Promise<void> {
+  private async reconcile(record: RendezRecord): Promise<void> {
     if (record.transport !== "provider-host") {
       await this.finish(record, {
         state: "uncertain",
@@ -975,8 +967,8 @@ export class RendezvousObserver {
     }
   }
 
-  private async deliver(queued: RendezvousRecord): Promise<void> {
-    const record = await readJson<RendezvousRecord>(this.recordPath(queued));
+  private async deliver(queued: RendezRecord): Promise<void> {
+    const record = await readJson<RendezRecord>(this.recordPath(queued));
     if (record.state !== "pending") return;
     if (!(await claim(dirname(this.recordPath(record))))) {
       // A claimant that stopped before recording an outcome may or may not
@@ -988,7 +980,7 @@ export class RendezvousObserver {
       });
       return;
     }
-    let route: RendezvousDeliveryRoute;
+    let route: RendezDeliveryRoute;
     try {
       route = await this.options.sessions.route(this.project, record.target);
     } catch (error) {

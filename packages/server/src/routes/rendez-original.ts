@@ -7,7 +7,7 @@ import {
 } from "./local-resource-policy.js";
 
 /** An overwritten incoming original must never replace the historical attachment. */
-export async function readRendezvousOriginal(
+export async function readRendezOriginal(
   snapshotPath: string,
   policy: ReturnType<typeof createLocalResourcePathPolicy>,
 ): Promise<{ bytes: Buffer; contentType: string; path: string } | undefined> {

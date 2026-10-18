@@ -1,6 +1,6 @@
-# Rendezvous uploads
+# rendez uploads
 
-> Rendezvous sends files copied into a project's `.rendez` directory to a
+> rendez sends files copied into a project's `.rendez` directory to a
 > selected agent session, including the session most recently messaged by the user.
 
 Topic: rendez
@@ -12,30 +12,55 @@ Windows. `latest-session` follows Claude and Codex sessions. YA delivers
 directly to sessions it owns and reaches others through the provider host.
 Filesystem watching does not require provider hosting.
 
-YA implements the same on-disk protocol as the `rendez` helper in
-[graehl/agents](https://github.com/graehl/agents/blob/master/topics/rendezvous.md),
-so the two read each other's records and never resend each other's deliveries.
+YA's watcher is an independent JavaScript/TypeScript implementation of part
+of the Python `rendez` helper in
+[graehl/agents](https://github.com/graehl/agents/blob/master/topics/rendezvous.md).
+It speaks the same on-disk protocol, so the two read each other's records and
+never resend each other's deliveries. What YA deliberately leaves to the
+helper is listed under [Optional helpers outside YA](#optional-helpers-outside-ya).
 
 ## Enable monitoring
 
 Monitoring defaults off. In **Settings → Message Delivery**, search for
-`rendez` and enable **Watch .rendez uploads (Rendezvous)**. This changes the
-global default immediately, preserving project overrides and burst limits.
-Header Undo restores the global default from when the pane opened. A server
-without the `rendezvous-uploads` capability shows update guidance instead of
-a toggle; the client sends no unsupported settings write.
+`rendez`. **Watch .rendez uploads by default** sets the default for every
+project. Below it, a table gives each project **On**, **Inherit** or **Off**.
+It opens showing only the overrides that change behavior, which with the
+default off means the projects set On. **Show all** lists every project, plus
+any configured path that is no longer a project so it can be cleared, and
+**All inherit** removes every override. Each change applies at once; header
+Undo restores the default and every project choice from when the pane opened.
+A server without the `rendez-uploads` capability shows update guidance instead
+of the controls; the client sends no unsupported settings write.
+
+Turning a project on attaches nothing by itself. Its observer, and with it the
+`.rendez` directory and its Git exclusion, waits until a session in that
+project accepts an actual user message after the project was turned on; a
+message sent before turning it on does not count. A project whose `.rendez`
+already exists attaches without waiting, so a server restart resumes watching.
+Trying settings out therefore leaves no trace in any project. Turning a project
+off stops its observer and keeps its files.
+
+With the `rendez-project-status` capability, each watched row also shows
+**watching** while its observer runs, or **starts at your next message**
+(**waiting** on narrow screens) while it waits for a message or a live session.
+The pane reads `GET /api/settings/rendez/status` on open, after each change,
+and every 10 seconds while it is visible. Without the capability the table
+shows no status and the client makes no status request.
 
 The optional-feature compatibility review covered stable v0.9.0, v0.9.1 and
-v0.9.2, which lack the rendezvous settings field. The new capability has
-permanent ID 131 and is version-implied from 0.9.4; it does not change any
-existing capability's meaning.
+v0.9.2, none of which has rendez code. `rendez-uploads` has permanent ID 131 and
+`rendez-project-status` ID 133; both are version-implied from 0.9.4 and change
+no existing capability's meaning. Before release, ID 131 was renamed from
+`rendezvous-uploads` and the settings field from `rendezvous` to `rendez`; an
+old `rendezvous` settings entry is ignored. Delivered turns still carry the
+message origin `rendezvous`, a persisted value shared with the provider host.
 
-Project overrides and burst limits remain available through the authenticated
+The settings and burst limits are also available through the authenticated
 `PUT /api/settings` API:
 
 ```json
 {
-  "rendezvous": {
+  "rendez": {
     "enabled": false,
     "projects": { "/work/project": true },
     "windowMs": 1000,
@@ -46,9 +71,10 @@ Project overrides and burst limits remain available through the authenticated
 
 Set `enabled` to `true` for the global default. Each absolute project-path entry
 overrides that default; omit an entry to inherit it. YA checks live projects
-every 30 seconds, with at most 32 observers and 1,024 directory watches across
-them. Turning the setting off stops its observers. An observer failure is
-logged and requires a settings change to retry.
+every 30 seconds and at each user message to a project that is on, with at
+most 32 observers and 1,024 directory watches across them. Turning the setting
+off stops its observers. An observer failure is logged and requires a settings
+change to retry.
 
 At most one observer serves a project. YA records itself in
 `.rendez/.observer.json` while watching and removes the file when it stops. If
@@ -73,9 +99,15 @@ Replace `user@host` and `/work/project` with your SSH destination and project
 path. This also works from Windows OpenSSH or a WSL shell. The receiving
 machine watches the directory; your desktop does not need to invoke
 `agentctl` or know the session id. Each completed upload becomes a user turn
-with an attachment. It queues behind work already running; latest-session
-delivery is non-reviving by default. An inactive target is not resumed just
-because another session in the project is live.
+with an attachment. It queues behind work already running.
+
+Delivery reaches only a live session. `latest-session` points at the session
+you last messaged in the project, and nothing arrives while that session is not
+live: delivery is non-reviving by default, and an inactive target is not
+resumed just because another session in the project is live. Each session you
+have messaged also gets its own `.rendez/<session-id>/` destination, which
+delivers to that session under the same live-only rule even after you message
+another one.
 
 For repeated screenshot transfers, ordinary rsync preserves unchanged files:
 
@@ -137,13 +169,14 @@ inbox. [rsync manual](https://download.samba.org/pub/rsync/rsync.1)
 
 `latest-session` follows the last session accepting an actual user message in
 that project. Coordination requests, takeover notices, automated turns, and
-rendezvous uploads do not change it. Once an upload is received, its recipient
+rendez uploads do not change it. Once an upload is received, its recipient
 is fixed. For an ongoing transfer stream that must stay with one session, use
 the stable directory returned by an explicit subscription instead.
 
 Monitoring is opt-in, with a global default and a per-project override.
 YA watches only projects with a verified live session, including sessions
-known to the provider service but not owned by YA. Watcher ownership is
+known to the provider service but not owned by YA, and attaches a project only
+as [Enable monitoring](#enable-monitoring) describes. Watcher ownership is
 independent: YA can use its own live-session state when provider hosting is
 disabled. An explicit helper subscription can opt into revival separately.
 The first creation adds `/.rendez/` to the checkout's local Git exclusions.
@@ -168,31 +201,41 @@ the retained prepared copy is sufficient. There is no permanent second archive
 of full-size originals. Recorded snapshot paths are matched after resolving
 filesystem aliases through the same file-access policy. Browser uploads keep
 their existing [attachment storage policy](attachment-storage.md); enabling
-rendezvous does not migrate them or require all attachments to share one
+rendez does not migrate them or require all attachments to share one
 storage directory.
 
 ## Optional helpers outside YA
 
-The [graehl/agents repository](https://github.com/graehl/agents) supplies the
-`rendez` helper. Inside a session, `rendez watch` receives uploads to that
-session's own `.rendez/<session-id>/` destination as tool output, alongside YA
-watching or without it. With YA monitoring off for a project,
-`rendez watch --turns --project <path>` serves `latest-session` and every other
-route by sending turns through the provider service. Do not run it while YA
-watches the same project; the observer marker above refuses that. See its
+YA implements watching, delivery as user turns, burst holds and the settings
+above. The Python `rendez` helper in the
+[graehl/agents repository](https://github.com/graehl/agents) has more, which YA
+intentionally does not reimplement. Sessions and senders that want these can
+use the helper directly; its
 [rendezvous topic](https://github.com/graehl/agents/blob/master/topics/rendezvous.md)
-for helper commands, delivery state, native-provider fallback, and the shared
-protocol. Watching consumes no model turns while idle.
+documents commands, delivery state, native-provider fallback, and the shared
+protocol:
 
-Showing an in-session observer's output as user turns with visible attachments
-is [sketched](../gaps/sketches/rendez-in-session-observer.md).
+- **Acknowledged receipt for the uploader.** `ssh host rendez --project oss
+  receive --wait 123/shot.png < shot.png` publishes one upload from stdin into
+  the route `latest-session` points at, or `--route`. It refuses when no
+  observer is listening, so YA watching must be on, and creates subfolders. A
+  taken name gets `-2`, `-3` and so on, and the rename is atomic, so YA sees
+  one completed file. It reports the `.rendez`-relative destination, such as
+  `session-a/123/shot.png`, and with `--wait` whether YA accepted, failed or
+  held the upload. A YA-served receipt route is
+  [sketched](../gaps/sketches/rendez-upload-receipt-route.md).
+- **In-session watching.** Inside a session, `rendez watch` receives uploads to
+  that session's own `.rendez/<session-id>/` destination as tool output,
+  alongside YA watching or without it. Showing that output as user turns with
+  visible attachments is
+  [sketched](../gaps/sketches/rendez-in-session-observer.md).
+- **Watching without YA.** With YA monitoring off for a project,
+  `rendez watch --turns --project <path>` serves `latest-session` and every
+  other route by sending turns through the provider service. Do not run it
+  while YA watches the same project; the observer marker above refuses that.
+  Watching consumes no model turns while idle.
+- **Releasing held uploads and reviving targets.** The helper's manual
+  `unhold` releases a held upload, and an explicit helper subscription can opt
+  into reviving an inactive session; YA does neither.
 
-For senders that want feedback, `ssh host rendez --project oss receive --wait
-123/shot.png < shot.png` publishes one upload from stdin into the route
-`latest-session` points at, or `--route`. It refuses when no observer is
-listening, so YA watching must be on, and creates subfolders. A taken name
-gets `-2`, `-3` and so on, and the rename is atomic, so YA sees one completed
-file. It reports the `.rendez`-relative destination, such as
-`session-a/123/shot.png`, and with `--wait` whether YA accepted, failed or held
-the upload. The helper's topic has the details. Broadcast subscriptions remain
-a future extension.
+Broadcast subscriptions remain a future extension.

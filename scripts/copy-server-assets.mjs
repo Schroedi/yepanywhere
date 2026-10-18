@@ -58,7 +58,7 @@ copyFileSync(
   join(serverTargetDir, "highlighting/highlight-worker.mjs"),
 );
 
-for (const name of ["rendezvous-activity.mjs", "rendezvous-protocol.mjs"]) {
+for (const name of ["rendez-activity.mjs", "rendez-protocol.mjs"]) {
   copyFileSync(
     join(serverSourceDir, "services", name),
     join(serverTargetDir, "services", name),

@@ -1,4 +1,5 @@
 import {
+  citedProjectPathTokenExtent,
   findProjectPathTokens,
   type ProjectPathLinkTarget,
 } from "@yep-anywhere/shared";
@@ -29,6 +30,13 @@ export function ProjectPathLinkedText({
     const rendered: ReactNode[] = [];
     let cursor = 0;
     for (const [index, match] of matches.entries()) {
+      if (match.start < cursor) continue;
+      const filePath = targets.get(match.text)!;
+      const { pathEnd, end, position } = citedProjectPathTokenExtent(
+        text,
+        match,
+        filePath,
+      );
       if (match.start > cursor) {
         const plainText = text.slice(cursor, match.start);
         rendered.push(
@@ -40,14 +48,29 @@ export function ProjectPathLinkedText({
       rendered.push(
         <SessionFilePathLink
           key={`${match.start}-${index}`}
-          displayPath={match.text}
-          filePath={targets.get(match.text)!}
+          displayPath={text.slice(match.start, pathEnd)}
+          filePath={filePath}
           showCopyButton={false}
           showLineSuffix={false}
           showVersionControlLinks={false}
         />,
       );
-      cursor = match.end;
+      if (position) {
+        rendered.push(
+          <SessionFilePathLink
+            key={`${match.start}-${index}-position`}
+            displayPath={position.text}
+            filePath={filePath}
+            lineNumber={position.lineNumber}
+            lineEnd={position.lineEnd}
+            columnNumber={position.columnNumber}
+            showCopyButton={false}
+            showLineSuffix={false}
+            showVersionControlLinks={false}
+          />,
+        );
+      }
+      cursor = end;
     }
     if (cursor < text.length) {
       const plainText = text.slice(cursor);
