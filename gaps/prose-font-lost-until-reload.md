@@ -25,11 +25,12 @@ Not reproduced yet. What the code rules out and suggests:
   reload retries the fetch.
 
 A passive capture is installed for this
-(`packages/client/src/lib/diagnostics/fontDiagnostics.ts`). It warns
-`[FontLoad] …` in the window's console when a bundled font face fails to load
-or the prose-font property changes, and keeps the last 50 such events in
-`window.__yaFontDiagnostics`. The warnings reach the server's client logs only
-while Developer log collection is on. Remove the capture, or make it opt-in,
+(`packages/client/src/lib/diagnostics/fontDiagnostics.ts`). When a bundled
+font face fails to load or the prose-font property changes, it keeps the event
+in `window.__yaFontDiagnostics` (last 50) and records it as `[FontLoad]` in the
+client log, which reaches the server only while Developer log collection is
+on. It stays off the console, whose warnings are reserved for actionable
+conditions (`topics/console-chatter.md`). Remove the capture, or make it opt-in,
 in the commit that closes this gap; nobody should have to remember to turn it
 off.
 

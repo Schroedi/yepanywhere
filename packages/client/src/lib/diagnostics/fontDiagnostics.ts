@@ -4,6 +4,8 @@
  * fails to load and a lost prose-font custom property, the two candidate
  * causes. Silent unless one happens. Remove when that gap closes.
  */
+import { clientLogCollector } from "./index";
+
 const MAX_EVENTS = 50;
 const PROSE_FONT_PROPERTY = "--output-prose-font-family";
 
@@ -15,7 +17,8 @@ export function installFontDiagnostics(): void {
   const note = (message: string) => {
     events.push(`${new Date().toISOString()} ${message}`);
     if (events.length > MAX_EVENTS) events.shift();
-    console.warn(`[FontLoad] ${message}`);
+    // Not the console: this is evidence for a gap, not an actionable warning.
+    clientLogCollector.record("warn", "[FontLoad]", message);
   };
   document.fonts.addEventListener("loadingerror", (event) => {
     for (const face of event.fontfaces)
