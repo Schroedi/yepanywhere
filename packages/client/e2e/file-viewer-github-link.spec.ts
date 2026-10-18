@@ -1,6 +1,4 @@
 import { join } from "node:path";
-import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
-import { hostname } from "node:os";
 import { e2ePaths, expect, test } from "./fixtures.js";
 import { recordUiCapture } from "./support/ui-capture.js";
 
@@ -12,89 +10,30 @@ test("Read diff shortcuts reveal once and open without leaving the session", asy
 }) => {
   const projectPath = join(e2ePaths.tempDir, "source-control-qmd-project");
   const projectId = Buffer.from(projectPath).toString("base64url");
-  const sessionId = "source-control-qmd-001";
-  const transcript = join(
-    e2ePaths.claudeSessionsDir,
-    hostname(),
-    projectPath.replace(/[/\\:]/g, "-"),
-    `${sessionId}.jsonl`,
+  const sessionUrl = `${baseURL}/projects/${projectId}/sessions/source-control-qmd-001`;
+  await page.setViewportSize({ width: 1200, height: 600 });
+  await page.goto(sessionUrl);
+  // The completed turn folds its Read behind the activity summary.
+  await page.getByRole("button", { name: /activity hidden/ }).click();
+  // The expanded row can land under the pointer; reveal must be on demand.
+  await page.mouse.move(0, 0);
+  const diff = page.locator('[data-file-diff-links="inline"] a');
+  await expect(diff).toHaveCount(1);
+  await expect(diff).toBeHidden();
+  await page.locator(".file-path-link").first().hover();
+  await expect(diff).toHaveText("Δ");
+  await diff.click();
+  const viewer = page.locator(".file-viewer");
+  await expect(viewer).toBeVisible();
+  await expect(viewer.locator('[aria-current="page"]')).toHaveText("Δ");
+  await expect(viewer.locator("[data-diff-line]").first()).toBeVisible();
+  expect(page.url()).toBe(sessionUrl);
+  await page.reload();
+  await expect(page.locator('.file-viewer [aria-current="page"]')).toHaveText(
+    "Δ",
   );
-  const original = readFileSync(transcript, "utf8");
-  const filePath = join(projectPath, "report.qmd");
-  const result = {
-    type: "text",
-    file: {
-      filePath,
-      content: "title: Updated report\n---",
-      startLine: 2,
-      numLines: 2,
-      totalLines: 8,
-    },
-  };
-  const rows = [
-    {
-      type: "assistant",
-      uuid: "diff-read-use",
-      parentUuid: "source-control-qmd-user-1",
-      timestamp: "2026-01-04T00:00:02Z",
-      message: {
-        role: "assistant",
-        content: [
-          {
-            type: "tool_use",
-            id: "diff-read",
-            name: "Read",
-            input: { file_path: filePath, offset: 2, limit: 2 },
-          },
-        ],
-      },
-    },
-    {
-      type: "user",
-      uuid: "diff-read-result",
-      parentUuid: "diff-read-use",
-      timestamp: "2026-01-04T00:00:03Z",
-      toolUseResult: result,
-      message: {
-        role: "user",
-        content: [
-          {
-            type: "tool_result",
-            tool_use_id: "diff-read",
-            content: "2→title: Updated report\n3→---",
-          },
-        ],
-      },
-    },
-  ];
-  try {
-    appendFileSync(
-      transcript,
-      `\n${rows.map((row) => JSON.stringify(row)).join("\n")}\n`,
-    );
-    const sessionUrl = `${baseURL}/projects/${projectId}/sessions/${sessionId}`;
-    await page.setViewportSize({ width: 1200, height: 600 });
-    await page.goto(sessionUrl);
-    const diff = page.locator('[data-file-diff-links="inline"] a');
-    await expect(diff).toHaveCount(1);
-    await expect(diff).toBeHidden();
-    await page.locator(".file-path-link").first().hover();
-    await expect(diff).toHaveText("Δ");
-    await diff.click();
-    const viewer = page.locator(".file-viewer");
-    await expect(viewer).toBeVisible();
-    await expect(viewer.locator('[aria-current="page"]')).toHaveText("Δ");
-    await expect(viewer.locator("[data-diff-line]").first()).toBeVisible();
-    expect(page.url()).toBe(sessionUrl);
-    await page.reload();
-    await expect(page.locator('.file-viewer [aria-current="page"]')).toHaveText(
-      "Δ",
-    );
-    expect(page.url()).toBe(sessionUrl);
-    await recordUiCapture(page, "inline-diff-in-session");
-  } finally {
-    writeFileSync(transcript, original);
-  }
+  expect(page.url()).toBe(sessionUrl);
+  await recordUiCapture(page, "inline-diff-in-session");
 });
 
 test("viewer copy and revision menus copy only pushed GitHub links", async ({

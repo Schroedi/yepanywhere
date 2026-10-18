@@ -732,7 +732,10 @@ export const FileViewer = memo(function FileViewer({
   const fileHeaderContextRef = useRef<HTMLDivElement>(null);
   const fileHeaderProvenanceRef = useRef<HTMLDivElement>(null);
   const fileHeaderPathMeasureRef = useRef<HTMLSpanElement>(null);
-  const fileHeaderWindowRef = useRef<HTMLDivElement>(null);
+  // Also state-backed: the window controls remount when they move between
+  // the filename row and the top row, and the observer must follow them.
+  const [fileHeaderWindowElement, setFileHeaderWindowElement] =
+    useState<HTMLDivElement | null>(null);
   const [windowActionsOnTop, setWindowActionsOnTop] = useState(false);
   const [fileShareAnchor, setFileShareAnchor] = useState<DOMRect | null>(null);
   const loadedSourceRef = useRef<{
@@ -803,7 +806,7 @@ export const FileViewer = memo(function FileViewer({
     const context = fileHeaderContextRef.current;
     const provenance = fileHeaderProvenanceRef.current;
     const filename = fileHeaderPathMeasureRef.current;
-    const windows = fileHeaderWindowRef.current;
+    const windows = fileHeaderWindowElement;
     if (!header || !context || !provenance || !filename || !windows) return;
 
     const measure = () => {
@@ -837,7 +840,7 @@ export const FileViewer = memo(function FileViewer({
     return () => {
       resizeObserver?.disconnect();
     };
-  }, [fileHeaderElement, windowActionsOnTop]);
+  }, [fileHeaderElement, fileHeaderWindowElement]);
   useRegisterQuoteableTextSource(
     fileViewerBodyRef,
     diffActive ? undefined : fileData?.content,
@@ -2015,7 +2018,10 @@ export const FileViewer = memo(function FileViewer({
   );
 
   const windowActions = (
-    <div ref={fileHeaderWindowRef} className={viewerStyles.windowActions}>
+    <div
+      ref={setFileHeaderWindowElement}
+      className={viewerStyles.windowActions}
+    >
       <ViewerWindowActions
         url={absoluteViewerLink}
         copyLink={false}
