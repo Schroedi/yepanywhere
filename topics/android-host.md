@@ -382,6 +382,11 @@ Reusable device-operation implementation still belongs to Machine Control.
   feasibility APK. No existing app data or radio/debugging setup is replaced.
 - One verified Alpine payload serves Android and Linux tests. YA is built from
   this checkout, with source and dependency identity recorded in the payload.
+- The host profile sets `YEP_RESOURCE_SAMPLE_SECONDS=0`, disabling periodic
+  resource samples, 10 ms event-loop monitoring and continuous stall profiling.
+  These general-server diagnostics must not keep an idle Android PRoot runtime
+  busy. External session tracking and Codex periodic corpus rescans remain
+  disabled; this host's own saved-session history/resume remains available.
 - Android explicitly starts a visible foreground service. That service owns the
   runtime process tree independently of either activity. Stop keeps durable
   state and signals the runtime's dedicated process group, with a forced sweep

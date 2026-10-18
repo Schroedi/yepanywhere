@@ -24,6 +24,8 @@ export function hostProfile(home, development = {}, port = 13400) {
     ENABLED_PROVIDERS: "claude,codex",
     YEP_EXTERNAL_SESSIONS: "false",
     CODEX_WATCH_PERIODIC_RESCAN_MS: "0",
+    // Continuous 10 ms diagnostics keep PRoot busy even when the host is idle.
+    YEP_RESOURCE_SAMPLE_SECONDS: "0",
     YEP_PROVIDER_HOST_ENABLED: "false",
     VOICE_INPUT: "false",
     AUTH_DISABLED: "false",
