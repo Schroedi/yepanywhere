@@ -1,4 +1,4 @@
-# Android WebView system theme validation
+# Android system theme validation
 
 The host wizard's Auto appearance followed its fixed light Android theme.
 The companion's web UI followed its fixed dark Android theme, even though its
@@ -20,7 +20,8 @@ Physical Android 17 / WebView 154 checks passed:
   selected `data-theme` and computed body background.
 - Full-device captures of the shared onboarding wizard showed Auto selected
   with the appropriate light/dark palette, readable controls and no horizontal
-  overflow. Native toolbar and system-bar styling remained independent.
+  overflow. This initial WebView-only check left native toolbar colors
+  unchanged.
 - Companion `webColorSchemeMatchesSystemAfterRecreation` and
   `darkNativeSystemBarsKeepLightIconsAfterRecreation` passed in both system
   modes. Each two-test instrumentation run took about 2.3 seconds. The new
@@ -46,3 +47,23 @@ passed. An initial full run hit the existing file-completion inventory test's
 
 The native behavior was validated on Android only. Linux, macOS and Windows
 native clients were not changed or qualified by these phone checks.
+
+## Host native appearance follow-up
+
+The host's native menu and web header still used a fixed light theme after the
+WebView fix. The host now selects Android's light or dark Material theme through
+day/night resources, with matching status/navigation-bar icon appearance.
+Native controls follow the system independently of the web appearance choice.
+
+The updated Debug APK was installed on the Pixel 7a. Physical display captures
+of the menu, web header and tabs dialog confirmed readable text, buttons and
+system-bar icons in both modes, without clipping. The Auto wizard continued to
+match the system palette. The device checks used actual Android theme changes;
+desktop browser captures cannot establish this native behavior.
+The menu, header and tabs passed a dark/light/dark sequence while the app
+remained running. Android's UI inspection process was killed during the first
+sequence; the complete repeat passed. The original system mode was restored.
+
+Host Debug/Release builds, Android lint, focused host profile tests, Alpine smoke
+and root lint, format verification, typechecking and workspace tests passed.
+No desktop-native behavior changed.

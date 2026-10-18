@@ -223,7 +223,13 @@ explicitly opt-in. Push may request a wake, never carry arbitrary shell commands
 or replace relay authentication. See [principals and grants](principals-and-grants.md)
 and [native push](android-fcm-push.md).
 
-## Web appearance
+## Native and web appearance
+
+The native main menu, web header, tab dialog and recovery controls follow the
+Android system light/dark mode, including changes while the app is running.
+Native text, buttons, surfaces and system-bar icons use the corresponding
+Android theme. Native appearance follows the system independently of an
+explicit web appearance choice.
 
 The shared YA wizard and main web UI follow the Android system light/dark
 preference when appearance is Auto, including after a system theme change.
