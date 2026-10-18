@@ -2187,6 +2187,27 @@ export const SERVER_CAPABILITIES = {
         "No maintained client branches on provider-descriptors.",
     },
   },
+  rendezvousUploads: {
+    id: CAPABILITY_ID_ALLOCATIONS.rendezvousUploads.id,
+    name: "rendezvous-uploads",
+    kind: "permanent",
+    area: "settings",
+    introducedIn: "0.9.4",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Configures opt-in project .rendez upload monitoring, project overrides and burst limits.",
+    clientFallback:
+      "Show server-update guidance and make no rendezvous settings write.",
+    serverContract: {
+      routes: ["GET /api/settings", "PUT /api/settings"],
+      requestFields: ["settings.rendezvous"],
+      responseFields: ["settings.rendezvous"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason: "Older servers cannot monitor rendezvous uploads.",
+    },
+  },
   projectDirectoryStoragePolicy: {
     id: CAPABILITY_ID_ALLOCATIONS.projectDirectoryStoragePolicy.id,
     name: "project-directory-storage-policy",

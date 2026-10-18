@@ -13,8 +13,20 @@ of completed transfers; filesystem watching does not require provider hosting.
 
 ## Enable monitoring
 
-Monitoring defaults off. The current setting is available through the
-authenticated `PUT /api/settings` API; there is no settings-pane control yet:
+Monitoring defaults off. In **Settings → Message Delivery**, search for
+`rendez` and enable **Watch .rendez uploads (Rendezvous)**. This changes the
+global default immediately, preserving project overrides and burst limits.
+Header Undo restores the global default from when the pane opened. A server
+without the `rendezvous-uploads` capability shows update guidance instead of
+a toggle; the client sends no unsupported settings write.
+
+The optional-feature compatibility review covered stable v0.9.0, v0.9.1 and
+v0.9.2, which lack the rendezvous settings field. The new capability has
+permanent ID 131 and is version-implied from 0.9.4; it does not change any
+existing capability's meaning.
+
+Project overrides and burst limits remain available through the authenticated
+`PUT /api/settings` API:
 
 ```json
 {

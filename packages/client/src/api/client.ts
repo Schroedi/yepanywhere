@@ -2025,6 +2025,13 @@ export const DEFAULT_FILE_ACCESS: FileAccessSettings = {
 /** Server-wide settings that persist across restarts */
 export interface ServerSettings {
   issueAssociations?: import("@yep-anywhere/shared").IssueSettings;
+  /** Opt-in project upload monitoring; absent means disabled. */
+  rendezvous?: {
+    enabled: boolean;
+    projects: Record<string, boolean>;
+    windowMs?: number;
+    maxPerWindow?: number;
+  };
   /** Where new YA-owned project state is written. */
   projectDirectoryStorage?: "app-data" | "project";
   /** Whether new live tool-result images receive durable copies. */

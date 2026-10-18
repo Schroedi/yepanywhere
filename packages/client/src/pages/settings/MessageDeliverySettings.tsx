@@ -87,6 +87,7 @@ interface MessageDeliveryBaseline {
   keepMobileKeyboardOpenAfterDelivery: boolean;
   questionAsidesEnabled: boolean;
   attachmentQuality: AttachmentUploadQuality;
+  rendezvousEnabled: boolean;
 }
 
 /**
@@ -104,6 +105,7 @@ export function MessageDeliverySettings() {
     PROJECT_QUEUE_READINESS_CHECK_CAPABILITY,
   );
   const supportsBangCommands = serverSupportsBangCommands(version);
+  const supportsRendezvous = serverHasCapability(version, "rendezvous-uploads");
   const supportsClearloop = serverHasCapability(
     version,
     SESSION_REWIND_CAPABILITY,
@@ -142,6 +144,9 @@ export function MessageDeliverySettings() {
     boolean | null
   >(null);
   const baselineRef = useRef<MessageDeliveryBaseline | null>(null);
+  const [draftRendezvous, setDraftRendezvous] = useState<boolean | null>(null);
+  const rendezvousEnabled =
+    draftRendezvous ?? settings?.rendezvous?.enabled ?? false;
 
   const serverJoinWindowSeconds = settings?.deferredJoinWindowSeconds ?? 0;
   const serverProjectQueueQuietSeconds =
@@ -193,6 +198,7 @@ export function MessageDeliverySettings() {
         keepMobileKeyboardOpenAfterDelivery,
         questionAsidesEnabled,
         attachmentQuality,
+        rendezvousEnabled: settings.rendezvous?.enabled ?? false,
       };
     }
   }, [
@@ -378,7 +384,8 @@ export function MessageDeliverySettings() {
       keepMobileKeyboardOpenAfterDelivery !==
         baseline.keepMobileKeyboardOpenAfterDelivery ||
       questionAsidesEnabled !== baseline.questionAsidesEnabled ||
-      attachmentQuality !== baseline.attachmentQuality);
+      attachmentQuality !== baseline.attachmentQuality ||
+      (supportsRendezvous && rendezvousEnabled !== baseline.rendezvousEnabled));
 
   const undo = useCallback(async () => {
     const snapshot = baselineRef.current;
@@ -399,6 +406,15 @@ export function MessageDeliverySettings() {
       snapshot.keepMobileKeyboardOpenAfterDelivery,
     );
     await updateSettings({
+      ...(supportsRendezvous
+        ? {
+            rendezvous: {
+              projects: {},
+              ...settings?.rendezvous,
+              enabled: snapshot.rendezvousEnabled,
+            },
+          }
+        : {}),
       deferredJoinWindowSeconds: snapshot.joinWindowSeconds,
       ...(supportsProjectQueue
         ? { projectQueueQuietSeconds: snapshot.projectQueueQuietSeconds }
@@ -436,6 +452,8 @@ export function MessageDeliverySettings() {
     supportsClearloop,
     supportsProjectQueue,
     supportsReadinessCheck,
+    supportsRendezvous,
+    settings?.rendezvous,
     updateSettings,
   ]);
 
@@ -448,6 +466,48 @@ export function MessageDeliverySettings() {
   return (
     <SettingsSection description={t("messageDeliveryDescription")}>
       <div className="settings-group">
+        <SettingsItem
+          as="label"
+          label={t("messageDeliveryRendezvousTitle")}
+          description={t("messageDeliveryRendezvousDescription")}
+          descriptionLayout="full-width-on-narrow"
+          keywords={[
+            "rendez",
+            ".rendez",
+            "rendezvous",
+            "scp",
+            "rsync",
+            "upload",
+            "watch",
+          ]}
+        >
+          {supportsRendezvous ? (
+            <input
+              type="checkbox"
+              checked={rendezvousEnabled}
+              disabled={draftRendezvous !== null}
+              aria-label={t("messageDeliveryRendezvousTitle")}
+              onChange={(event) => {
+                setDraftRendezvous(event.target.checked);
+                void updateSettings({
+                  rendezvous: {
+                    projects: {},
+                    ...settings?.rendezvous,
+                    enabled: event.target.checked,
+                  },
+                })
+                  .catch(() => {
+                    // surfaced via the hook's error state
+                  })
+                  .finally(() => setDraftRendezvous(null));
+              }}
+            />
+          ) : (
+            <span className="settings-hint">
+              {t("messageDeliveryRendezvousUnavailable")}
+            </span>
+          )}
+        </SettingsItem>
         <SettingsItem
           label={t("attachmentQualityTitle")}
           description={t("attachmentQualityDescription")}
@@ -774,6 +834,7 @@ export function MessageDeliverySettings() {
           as="label"
           label={t("messageDeliveryPatientQueueDefaultTitle")}
           description={t("messageDeliveryPatientQueueDefaultDescription")}
+          descriptionLayout="full-width-on-narrow"
         >
           <input
             type="checkbox"

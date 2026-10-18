@@ -804,6 +804,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "project-app-auto-start",
     introducedIn: "0.9.4",
   },
+  rendezvousUploads: {
+    id: 131,
+    direction: "server",
+    name: "rendezvous-uploads",
+    introducedIn: "0.9.4",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [
