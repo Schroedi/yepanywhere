@@ -44,6 +44,7 @@ import {
   type RemoteRouteModuleKey,
 } from "./lib/remoteRoutePreload";
 import { installModifierChordTracking } from "./lib/modifierChords";
+import { installFontDiagnostics } from "./lib/diagnostics/fontDiagnostics";
 import { loadSessionCoreModules } from "./lib/sessionRouteModules";
 import { preloadableComponent } from "./lib/preloadableComponent";
 import "./styles/index.css";
@@ -353,6 +354,7 @@ initializeTheme();
 initializeFontSize();
 initializeSidebarSpacing();
 initializeOutputAppearance();
+installFontDiagnostics();
 initializeTabSize();
 initializeContentMaxWidth();
 initializeTooltipAppearance();
