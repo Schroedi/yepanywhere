@@ -10,6 +10,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { projectAppApi, type ProjectAppTarget } from "../api/projectApp";
 import { useLongPress } from "../hooks/useLongPress";
 import { useVersion } from "../hooks/useVersion";
+import { UI_KEYS } from "../lib/storageKeys";
 import { artifactAudience } from "../lib/artifactPreview";
 import type { VoiceInputButtonRef } from "./VoiceInputButton";
 import { ViewerWindowActions } from "./ViewerWindowActions";
@@ -20,6 +21,9 @@ import { ProjectAppIcon } from "./ProjectAppIcon";
 import actions from "./ViewerWindowActions.module.css";
 import styles from "./ProjectAppViewer.module.css";
 import { useI18n } from "../i18n";
+
+/** How often an open static app's files are checked for newer content. */
+const STATIC_WATCH_INTERVAL_MS = 3000;
 
 function Glyph({ path }: { path: string }) {
   return (
@@ -107,6 +111,15 @@ export function ProjectAppViewer({
   const [reload, setReload] = useState(0);
   // The launch (view id) whose link was copied; a restart starts a new launch.
   const [copiedLaunch, setCopiedLaunch] = useState<string | null>(null);
+  // The static app's change stamp when the frame loaded; a newer one means
+  // the frame shows stale content.
+  const [shownStamp, setShownStamp] = useState<string>();
+  const autoReloadKey = `${UI_KEYS.projectAppAutoReload}:${projectId}`;
+  const [autoReload, setAutoReload] = useState(
+    () => localStorage.getItem(autoReloadKey) === "1",
+  );
+  // A plain reload with nothing new waits to reload once on the next change.
+  const [reloadArmed, setReloadArmed] = useState(false);
   const audience = artifactAudience(window.location.hostname);
   const refresh = useCallback(async () => {
     const next = await projectAppApi.info(projectId);
@@ -144,12 +157,20 @@ export function ProjectAppViewer({
     let active = true;
     setView(null);
     setError("");
-    void projectAppApi
-      .open(projectId, { target: targetKind, artifactId }, audience)
-      .then((next) => {
-        if (active) setView(next);
-      })
-      .catch((reason: Error) => active && setError(reason.message));
+    void (async () => {
+      // The stamp is read before opening, so a change racing the open shows
+      // as newer content rather than going unnoticed.
+      const before =
+        targetKind === "app" ? await projectAppApi.info(projectId) : null;
+      const next = await projectAppApi.open(
+        projectId,
+        { target: targetKind, artifactId },
+        audience,
+      );
+      if (!active) return;
+      setShownStamp(before?.updatedAt);
+      setView(next);
+    })().catch((reason: Error) => active && setError(reason.message));
     return () => {
       active = false;
     };
@@ -239,6 +260,29 @@ export function ProjectAppViewer({
     !info.activeDeclaration &&
     info.declaration?.where.kind === "process";
   const canStartApp = processAppStopped && (info.canStart ?? info.canExecute);
+  // A static app is its files, so YA can tell when the shown frame is stale.
+  const watching =
+    presentation === "viewer" &&
+    targetKind === "app" &&
+    view?.kind === "static" &&
+    shownStamp !== undefined;
+  const stale =
+    watching && info?.updatedAt !== undefined && info.updatedAt !== shownStamp;
+  useEffect(() => {
+    if (!watching) return;
+    const poll = () => {
+      if (document.visibilityState !== "visible") return;
+      // A missed reading only delays the hint; the next one retries.
+      void projectAppApi.info(projectId).then(setInfo, () => {});
+    };
+    const timer = setInterval(poll, STATIC_WATCH_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [watching, projectId]);
+  useEffect(() => {
+    if (!stale || !(autoReload || reloadArmed)) return;
+    setReloadArmed(false);
+    setReload((value) => value + 1);
+  }, [stale, autoReload, reloadArmed]);
   return (
     <section
       ref={viewerRef}
@@ -454,8 +498,45 @@ export function ProjectAppViewer({
                 void refresh().catch((reason: Error) =>
                   setError(reason.message),
                 );
+                // Nothing new yet: also reload once when something is.
+                if (watching && !stale && !autoReload) setReloadArmed(true);
                 setReload((value) => value + 1);
               }}
+              reloadState={
+                !watching
+                  ? undefined
+                  : stale
+                    ? "stale"
+                    : autoReload
+                      ? "auto"
+                      : reloadArmed
+                        ? "armed"
+                        : undefined
+              }
+              reloadTitle={
+                !watching
+                  ? undefined
+                  : t(
+                      stale
+                        ? "projectAppReloadNewer"
+                        : autoReload
+                          ? "projectAppReloadAuto"
+                          : reloadArmed
+                            ? "projectAppReloadArmed"
+                            : "projectAppReloadWatch",
+                    )
+              }
+              onReloadHold={
+                watching
+                  ? () => {
+                      const next = !autoReload;
+                      if (next) localStorage.setItem(autoReloadKey, "1");
+                      else localStorage.removeItem(autoReloadKey);
+                      setAutoReload(next);
+                      setReloadArmed(false);
+                    }
+                  : undefined
+              }
               onMoveOut={() => {}}
             />
           )}

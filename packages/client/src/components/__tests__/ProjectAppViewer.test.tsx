@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -574,6 +575,76 @@ it("marks a copied launch link live until a confirmed restart revokes it", async
   );
   expect(confirm).not.toHaveBeenCalled();
   confirm.mockRestore();
+});
+it("lights reload for newer static files, arms a one-shot reload, and holds to auto-reload", async () => {
+  localStorage.clear();
+  vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+  let stamp = "2026-10-18T00:00:01.000Z";
+  mock.fetch.mockImplementation(async (path: string) =>
+    path.endsWith("/open")
+      ? {
+          id: "static:test",
+          kind: "static",
+          label: "Canvas",
+          url: "https://artifacts.example/a/token/index.html",
+          transferable: true,
+        }
+      : path.endsWith("/address")
+        ? { enabled: false, reservations: [] }
+        : {
+            projectId: "test",
+            declaration: { where: { kind: "static" } },
+            state: "ready",
+            updatedAt: stamp,
+            latestArtifact: null,
+            canExecute: true,
+            canShare: false,
+            removedFrom: [],
+          },
+  );
+  const opens = () =>
+    mock.fetch.mock.calls.filter(([path]) => String(path).endsWith("/open"))
+      .length;
+  const { container } = render(
+    <I18nProvider>
+      <ProjectAppViewer projectId="test" />
+    </I18nProvider>,
+  );
+  await waitFor(() => expect(container.querySelector("iframe")).toBeTruthy());
+  const reload = () => screen.getByRole("button", { name: "Reload from disk" });
+  const poll = async () => {
+    await act(async () => {
+      vi.advanceTimersByTime(3000);
+    });
+  };
+  expect(reload().className).toBe("");
+  // Newer files light the button; clicking loads them and clears it.
+  stamp = "2026-10-18T00:00:02.000Z";
+  await poll();
+  await waitFor(() => expect(reload().className).toMatch(/reloadStale/));
+  fireEvent.click(reload());
+  await waitFor(() => expect(container.querySelector("iframe")).toBeTruthy());
+  await waitFor(() => expect(reload().className).toBe(""));
+  // A click with nothing new arms one reload for the next change.
+  fireEvent.click(reload());
+  await waitFor(() => expect(reload().className).toMatch(/reloadArmed/));
+  const armedOpens = opens();
+  stamp = "2026-10-18T00:00:03.000Z";
+  await poll();
+  await waitFor(() => expect(opens()).toBe(armedOpens + 1));
+  await waitFor(() => expect(reload().className).toBe(""));
+  // Holding (right-click here) reloads on every change, and is remembered.
+  fireEvent.contextMenu(reload());
+  expect(reload().className).toMatch(/reloadAuto/);
+  expect(
+    localStorage.getItem("yep-anywhere-project-app-auto-reload:test"),
+  ).toBe("1");
+  const autoOpens = opens();
+  stamp = "2026-10-18T00:00:04.000Z";
+  await poll();
+  await waitFor(() => expect(opens()).toBe(autoOpens + 1));
+  await waitFor(() => expect(reload().className).toMatch(/reloadAuto/));
+  vi.useRealTimers();
 });
 it("keeps the live iframe across settings and sharing and delegates mic synchronously to its composer", async () => {
   const toggle = vi.fn();

@@ -113,10 +113,20 @@ the browser/OS's control; this does not promise their removal.
 
 At turn boundaries the session compares App information and opens the pane
 when a usable app first appears or its update stamp changes. The optional
-`ProjectAppInfo.updatedAt` is the resolved static entry's mtime in ISO format,
-or the process runtime record's update time, including an active runtime whose
-source declaration changed. Unknown stamps are omitted. Older servers without
-the field support first-declaration detection only, not rebuild detection.
+`ProjectAppInfo.updatedAt` is, for a static app, the newest mtime in ISO format
+among the files under its serving root (dot entries and `node_modules`
+skipped, symlinks not followed, at most 5000 entries walked), so a rebuild that
+changes only an asset counts; a serving root that is the project itself
+contributes only the entry. For a process app it is the runtime record's update
+time, including an active runtime whose source declaration changed. Unknown
+stamps are omitted. Older servers without the field support first-declaration
+detection only, not rebuild detection; older servers stamp only the entry.
+
+An open static app polls App information every 3 seconds while the page is
+visible. When the stamp differs from the one read as its frame loaded, the
+reload button lights. A click with nothing new reloads and also arms one
+reload for the next change; holding or right-clicking reload toggles reloading
+on every change, remembered per project in the browser.
 The optional stamp is recorded under `project-app-address-links`; clients
 feature-detect the field without requiring a new capability.
 

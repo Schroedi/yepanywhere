@@ -1,5 +1,12 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { mkdir, open, readFile, realpath } from "node:fs/promises";
+import {
+  mkdir,
+  open,
+  readdir,
+  readFile,
+  realpath,
+  stat,
+} from "node:fs/promises";
 import { join, resolve } from "node:path";
 import {
   projectServiceSchema,
@@ -398,6 +405,45 @@ export async function projectServiceStaticEntry(
   declaration: ProjectServiceDeclaration,
 ): Promise<string> {
   return (await projectServiceStaticApp(projectPath, declaration)).entry;
+}
+
+/** Bounds the change-stamp walk; a static root is a built site, not a repo. */
+const STATIC_STAMP_MAX_ENTRIES = 5000;
+
+/**
+ * When a static app's shown content last changed: the newest mtime under its
+ * serving root, so a rebuild that changes only a script or stylesheet counts.
+ * A root that is the project itself is a whole repository, not content shown
+ * by the entry, so only the entry is read there. The walk skips dot entries
+ * and `node_modules`, follows no symlinks, and stops after a bounded number of
+ * entries with the newest time seen so far.
+ */
+export async function projectServiceStaticStamp(
+  projectPath: string,
+  declaration: ProjectServiceDeclaration,
+): Promise<Date> {
+  const { entry, root } = await projectServiceStaticApp(
+    projectPath,
+    declaration,
+  );
+  let newest = (await stat(entry)).mtime;
+  if (root === (await realpath(projectPath))) return newest;
+  let budget = STATIC_STAMP_MAX_ENTRIES;
+  const directories = [root];
+  while (directories.length > 0 && budget > 0) {
+    const directory = directories.pop()!;
+    for (const child of await readdir(directory, { withFileTypes: true })) {
+      if (--budget < 0) break;
+      if (child.name.startsWith(".") || child.name === "node_modules") continue;
+      const path = join(directory, child.name);
+      if (child.isDirectory()) directories.push(path);
+      else if (child.isFile()) {
+        const { mtime } = await stat(path);
+        if (mtime > newest) newest = mtime;
+      }
+    }
+  }
+  return newest;
 }
 
 export async function projectServiceStaticApp(
