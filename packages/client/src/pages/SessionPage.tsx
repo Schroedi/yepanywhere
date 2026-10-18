@@ -7380,6 +7380,8 @@ function SessionPageContent({
               projectId={projectId}
               initialTarget={projectAppTarget}
               voice={projectAppVoice}
+              // The session's own App button already offers its artifact.
+              offerLatestArtifact={rightPane.apps.length === 0}
               // From full view, Back returns to the session with the app
               // still beside it; from the pane, it closes the app.
               onBack={() =>

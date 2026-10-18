@@ -14,6 +14,7 @@ import type { VoiceInputButtonRef } from "./VoiceInputButton";
 import { ViewerWindowActions } from "./ViewerWindowActions";
 import { ComposerMicAction } from "./ComposerMicAction";
 import { AppViewerToolbar } from "./AppViewerToolbar";
+import { LastViewIcon } from "./LastViewIcon";
 import actions from "./ViewerWindowActions.module.css";
 import styles from "./ProjectAppViewer.module.css";
 import { useI18n } from "../i18n";
@@ -48,6 +49,7 @@ export function ProjectAppViewer({
   initialSettings = false,
   onFullView,
   presentation = "viewer",
+  offerLatestArtifact = true,
   onInfoChanged,
   onAddressesChanged,
 }: {
@@ -63,6 +65,8 @@ export function ProjectAppViewer({
   onFullView?: () => void;
   /** Inline project settings use the same controls without opening an app. */
   presentation?: "viewer" | "settings";
+  /** False where the host already offers an artifact, such as a session's App. */
+  offerLatestArtifact?: boolean;
   onInfoChanged?: (info: ProjectAppInfo) => void;
   onAddressesChanged?: (addresses: ProjectAppAddresses) => void;
 }) {
@@ -219,6 +223,10 @@ export function ProjectAppViewer({
                 if (details) {
                   setSettings(false);
                   setSharing(false);
+                } else if (targetKind === "artifact" && declaration) {
+                  // An artifact opened from the controls sits over the
+                  // project's own app, so Back returns to it.
+                  setTarget({ target: "app" });
                 } else {
                   onBack?.();
                 }
@@ -254,6 +262,35 @@ export function ProjectAppViewer({
             {info?.canExecute && (
               <ComposerMicAction voice={voice} onActivate={onVoice} />
             )}
+            {info?.latestArtifact &&
+              (offerLatestArtifact || targetKind === "artifact") && (
+                // Always reachable: the controls offering it hide once a view loads.
+                <button
+                  type="button"
+                  title={t("projectAppLatest", {
+                    label: info.latestArtifact.label,
+                  })}
+                  aria-label={t("projectAppLatest", {
+                    label: info.latestArtifact.label,
+                  })}
+                  aria-pressed={targetKind === "artifact"}
+                  disabled={targetKind === "artifact" && !declaration}
+                  onClick={() => {
+                    setTarget(
+                      targetKind === "artifact"
+                        ? { target: "app" }
+                        : {
+                            target: "artifact",
+                            artifactId: info.latestArtifact!.id,
+                          },
+                    );
+                    setSettings(false);
+                    setSharing(false);
+                  }}
+                >
+                  <LastViewIcon />
+                </button>
+              )}
             <button
               type="button"
               title={t("projectAppShare")}
@@ -443,6 +480,7 @@ export function ProjectAppViewer({
                 {presentation === "viewer" && info?.latestArtifact && (
                   <button
                     type="button"
+                    className={styles.iconLabel}
                     onClick={() => {
                       setTarget({
                         target: "artifact",
@@ -451,6 +489,7 @@ export function ProjectAppViewer({
                       setSettings(false);
                     }}
                   >
+                    <LastViewIcon />
                     {t("projectAppLatest", {
                       label: info.latestArtifact.label,
                     })}

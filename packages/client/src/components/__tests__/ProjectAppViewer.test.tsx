@@ -333,6 +333,81 @@ it("restarts a running app as stop, then start in its running mode", async () =>
     ]),
   );
 });
+it("returns Back from the latest artifact to the project app before closing", async () => {
+  mock.fetch.mockImplementation(async (path: string, init?: RequestInit) =>
+    path.endsWith("/open")
+      ? JSON.parse(String(init?.body)).target === "artifact"
+        ? {
+            id: "artifact:a1",
+            kind: "artifact",
+            label: "example.html",
+            url: "https://artifacts.example/a/token/example.html",
+            transferable: true,
+          }
+        : {
+            id: "static:test",
+            kind: "static",
+            label: "Canvas",
+            url: "https://artifacts.example/a/token/index.html",
+            transferable: true,
+          }
+      : {
+          projectId: "test",
+          declaration: { where: { kind: "static" } },
+          state: "ready",
+          latestArtifact: { id: "a1", label: "example.html" },
+          canExecute: true,
+          canShare: true,
+          removedFrom: [],
+        },
+  );
+  const onBack = vi.fn();
+  const { container } = render(
+    <I18nProvider>
+      <ProjectAppViewer
+        projectId="test"
+        initialTarget={{ target: "artifact", artifactId: "a1" }}
+        onBack={onBack}
+      />
+    </I18nProvider>,
+  );
+  await waitFor(() =>
+    expect(container.querySelector("iframe")?.title).toBe("example.html"),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Back" }));
+  await waitFor(() =>
+    expect(container.querySelector("iframe")?.title).toBe("Canvas"),
+  );
+  expect(onBack).not.toHaveBeenCalled();
+  // The toolbar toggle stays usable after the app's view has loaded.
+  const latest = screen.getByRole("button", {
+    name: "Latest artifact: example.html",
+  });
+  fireEvent.click(latest);
+  await waitFor(() =>
+    expect(container.querySelector("iframe")?.title).toBe("example.html"),
+  );
+  expect(latest.getAttribute("aria-pressed")).toBe("true");
+  fireEvent.click(latest);
+  await waitFor(() =>
+    expect(container.querySelector("iframe")?.title).toBe("Canvas"),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Back" }));
+  expect(onBack).toHaveBeenCalledTimes(1);
+  // A host offering its own artifact button suppresses the toolbar's.
+  cleanup();
+  const hosted = render(
+    <I18nProvider>
+      <ProjectAppViewer projectId="test" offerLatestArtifact={false} />
+    </I18nProvider>,
+  );
+  await waitFor(() =>
+    expect(hosted.container.querySelector("iframe")?.title).toBe("Canvas"),
+  );
+  expect(
+    screen.queryByRole("button", { name: "Latest artifact: example.html" }),
+  ).toBeNull();
+});
 it("keeps the live iframe across settings and sharing and delegates mic synchronously to its composer", async () => {
   const toggle = vi.fn();
   const onVoice = vi.fn();

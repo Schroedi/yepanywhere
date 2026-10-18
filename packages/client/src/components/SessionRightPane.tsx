@@ -16,6 +16,7 @@ import { createLocalStorageValue } from "../lib/localStorageValue";
 import { UI_KEYS } from "../lib/storageKeys";
 import styles from "./SessionRightPane.module.css";
 import { AppViewerToolbar } from "./AppViewerToolbar";
+import { LastViewIcon } from "./LastViewIcon";
 import { ViewerFindField } from "./ViewerFindField";
 import { ViewerWindowActions } from "./ViewerWindowActions";
 import { ComposerMicAction } from "./ComposerMicAction";
@@ -48,9 +49,11 @@ export function SessionAppAction({ pane }: { pane: Pane }) {
         pane.selected && pane.expanded ? pane.close() : pane.select(app.url)
       }
       aria-pressed={!!pane.selected && pane.expanded}
+      aria-label={t("sessionRightPaneApps")}
       title={app.label}
     >
-      {t("sessionRightPaneApps")}
+      {/* An icon, not a label, keeps the session title's room in the header. */}
+      <LastViewIcon />
     </button>
   ) : (
     <a
@@ -58,9 +61,10 @@ export function SessionAppAction({ pane }: { pane: Pane }) {
       href={app.url}
       target="_blank"
       rel="noopener noreferrer"
+      aria-label={`${t("sessionRightPaneApps")} ↗`}
       title={app.label}
     >
-      {t("sessionRightPaneApps")} ↗
+      <LastViewIcon /> ↗
     </a>
   );
 }

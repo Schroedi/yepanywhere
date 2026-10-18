@@ -60,6 +60,11 @@
   color: var(--text-primary);
   cursor: pointer;
 }
+.details button.iconLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 .details input:not([type="checkbox"]) {
   display: block;
   width: 100%;
