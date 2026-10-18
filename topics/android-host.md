@@ -30,49 +30,69 @@ sign-out and recovery still need independent validation; see the
 
 ## Durable user-owned workspace
 
-**Requested direction, 2026-10-18; not implemented.** Agent-created working
-files must be able to live in a user-chosen folder outside the host's app data.
-Clearing host app data or reinstalling must not delete that folder. Setup must
-be able to reconnect to its existing contents after the user grants access
-again. Treat file lifetime, permission lifetime and app-local root registration
-as separate concerns; do not assume a persisted grant survives an app reset.
-This is stronger than the current app-private persistence across process death.
+**Direction accepted and disposable physical spike passed, 2026-10-18.** The first
+workspace is an ordinary user-chosen local shared-storage folder, such as
+`Documents/YAshare`. Optional Android all-files access is accepted for this
+feature. Android's folder picker chooses the folder; its SAF grant alone does
+not authorize raw filesystem access. Qualify the built-in local provider,
+resolve and verify its real path, and bind that same directory into Alpine/PRoot
+as `/workspace`. Shell, Python and both real provider CLIs write the external
+files directly; there is no private copy, asynchronous synchronization, publish
+step or new filesystem mount.
 
-The desired agent interface is an ordinary stable filesystem path, provisionally
-`/workspace`, backed by the selected directory. A SAF URI is not itself a Linux
-directory and cannot simply be supplied as a PRoot bind source. The existing
-[MC data spike](../../machine-control/platforms/android/resident-spike/README.md#independent-photo-and-document-reads)
-proved selected-tree reads and grant persistence across app restart on the Pixel
-7a. It deliberately supports no writes, mounting or production host registration.
-Copies exported into app-private Linux storage do not meet this requirement.
+Files must survive clearing host app data or reinstalling. Re-enable permissions
+and select the existing folder again to recover access. File lifetime, permission
+lifetime and the erased app-local registration are separate. Recovery can create
+a fresh registration; it does not depend on a hidden YA marker or restore erased
+provider credentials, sessions or application databases.
 
-Separate the next proof into two questions:
+All-files access belongs to the runtime app UID and grants broader shared-storage
+authority than the single directory shown inside PRoot. PRoot does not grant
+additional Android authority or contain that authority to `/workspace`. Keep
+replaceable runtime binaries, provider homes, credentials, temporary files and YA
+SQLite private. Unsupported permissions, provider identities or missing folders
+must fail visibly, never redirect writes into a private fallback directory.
 
-- **Durable read/write access:** select a dedicated local SAF tree with the
-  returned read/write grants; create, read, replace and enumerate real documents
-  through MC's native document boundary. Confirm the external bytes independently.
-  Reconnect to the same folder after clearing only a disposable fixture app's
-  data, and verify file hashes. Revocation or provider failure must be visible;
-  an acknowledged write must not mean only an app-private cached copy exists.
-- **Ordinary filesystem access:** prove whether a local shared-storage directory
-  can be exposed inside the existing Alpine/PRoot guest at a stable path. Android
-  all-files access is a candidate requiring an explicit broader grant and real
-  device validation, not authority obtained from a SAF picker. For arbitrary SAF
-  providers, investigate an adapter or explicit workspace import/export; do not
-  describe a sync cache or document-tool API as a transparent mounted filesystem.
-  Ordinary unprivileged FUSE is not the baseline; see MC's
-  [platform research](../../machine-control/research/platforms/android.md#app-resident-capabilities-without-adb).
+The [local workspace spike](../packages/android-host/workspace-spike/README.md)
+owns the bounded implementation, commands, physical acceptance and filesystem
+limitations. Use a disposable application and newly created fixture folder on an
+explicitly selected Pixel 7a. Preserve the signed-in host and existing documents.
+Verify external bytes/hashes independently, both real providers, process restart,
+revocation, app-data clear/reselection and uninstall/reinstall/reselection.
+The Pixel 7a/API 37 passed both real providers, independent SHA-256 checks of
+28 files, restart, separate SAF/all-files revocation/repair, app-data clear and
+uninstall/reinstall recovery. The fixture and owned tree were removed afterward;
+the signed-in host was not changed. This qualifies the storage route, not
+production host onboarding or session lifecycle integration.
 
-Keep replaceable runtime files, provider credentials and app databases private;
-selecting a durable work folder does not move the whole Linux home into it.
-Validate basic shell/Python writes from both real providers and document the
-filesystem features actually available. Test reset survival only with disposable
-app state, preserving the user's signed-in host and existing documents. Physical
-write/reset/mount acceptance remains outstanding.
+The measured directory is case-insensitive and does not support symlinks,
+executable bits or `flock`. Ordinary CRUD, positional writes, replace and fsync
+passed. Git required `core.createObject=rename`, `core.fileMode=false` and
+explicit trust for the selected repository under PRoot's simulated root; do not
+use wildcard `safe.directory` trust. SQLite WAL and writer contention passed a
+bounded fixture, while YA's live internal databases remain private.
 
-Android documents [SAF ownership and URI operations](https://developer.android.com/training/data-storage/shared/documents-files)
+A selected root's provider/volume/document identity and current grant health
+are distinct. On reset the registration is erased; the user selects the existing
+folder and grants authority again. Renamed/moved/missing folders require explicit
+repair rather than inference from a display name. The fixture sentinel only
+witnessed test identity; production recovery requires no project marker.
+Releasing SAF access is an admission failure, not raw-path revocation while
+all-files remains enabled. Fresh raw reads failed after all-files was disabled;
+already-open handles and running-session revocation remain unqualified.
+
+**Separate future direction:** explicit SAF CLI/document tools, similar to a
+bucket's `ls`, `get` and `put`, make sense for arbitrary providers. Local edits
+become external only after a successful explicit write/export. This is not a
+transparent filesystem and is outside the authorized local-folder spike. A general
+SAF adapter or unprivileged FUSE mount is not needed for this feature. MC owns
+reusable Android capability implementations; YA owns product/runtime integration.
+
+The existing [MC data spike](../../machine-control/platforms/android/resident-spike/README.md#independent-photo-and-document-reads)
+proves read-only document access across app restart, not this direct-path mode.
+Android documents [SAF URI operations](https://developer.android.com/training/data-storage/shared/documents-files)
 and [direct paths under all-files access](https://developer.android.com/training/data-storage/manage-all-files)
-as distinct access mechanisms. The current implementation must not conflate them.
+as distinct access mechanisms.
 
 ## Phone capabilities and assistant entry points
 

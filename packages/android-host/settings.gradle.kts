@@ -7,3 +7,6 @@ dependencyResolutionManagement {
 }
 rootProject.name = "yep-anywhere-android-host"
 include(":app")
+
+// Explicitly enabled disposable physical storage fixture; absent from normal builds.
+if (providers.gradleProperty("workspaceSpike").isPresent) include(":workspace-spike")

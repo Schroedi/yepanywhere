@@ -13,13 +13,18 @@ readiness and offers native recovery after process loss. Unattended wake,
 overnight/Doze survival and interrupted-provider resume remain incubation work;
 see the [lifecycle investigation](../testing/android-host-lifecycle-2026-10-18.md).
 
-The requested next Android storage milestone is a
-[durable user-owned workspace](../../topics/android-host.md#durable-user-owned-workspace):
-a chosen folder whose files survive app-data reset, with a stable agent-facing
-filesystem path as the goal. The MC SAF spike currently proves read access only;
-writes, reset recovery and a filesystem mapping remain unproved. The next
-storage proof must distinguish native SAF document access from ordinary Linux
-paths, and use disposable app state for destructive recovery tests.
+The Android storage spike validated a
+[durable local workspace](../../topics/android-host.md#durable-user-owned-workspace):
+select an ordinary shared folder, explicitly enable optional all-files access,
+and map its verified real path to `/workspace` in Alpine/PRoot. Writes are direct;
+no synchronization or SAF filesystem adapter is needed. A disposable app on the
+explicitly selected Pixel 7a passed both real providers, independent hashes,
+separate permission revocation/repair and reset/reinstall recovery. The
+[spike evidence](../../packages/android-host/workspace-spike/README.md#evidence)
+records filesystem limits and Git compatibility requirements. Production host
+onboarding, workspace/session integration and running-session revocation remain
+pending; internal runtime state stays private. Explicit SAF CLI/document tools
+for arbitrary providers remain a separate future direction.
 
 Last updated: 2026-10-18.
 

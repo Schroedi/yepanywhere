@@ -25,6 +25,15 @@ runs that same filesystem natively as a non-root ARM64 Linux process; it does
 not emulate Android. Ordinary UI/server development still uses `pnpm dev` and
 the existing tests without Alpine or an emulator.
 
+## Durable local workspace experiment
+
+The standalone [workspace spike](workspace-spike/README.md) tests a user-picked
+local shared folder mapped directly to `/workspace`, with optional explicit
+all-files access. It uses a different disposable application ID and leaves this
+host's runtime state and sign-ins untouched. Enable its Gradle module only with
+`-PworkspaceSpike`; ordinary host builds do not include it. This is physical
+storage qualification, not production onboarding or a general SAF mount.
+
 ## Prepare and test without Android
 
 Prerequisites: this checkout's installed pnpm dependencies, Python 3.11+, curl,
