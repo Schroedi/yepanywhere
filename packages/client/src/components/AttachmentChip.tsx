@@ -126,6 +126,7 @@ function useCachedAttachmentImage(
   attachmentId: string,
   path: string | undefined,
   remotePreviewEnabled: boolean,
+  originalEnabled: boolean,
   previewUrl?: string,
   projectId?: string,
 ): {
@@ -272,10 +273,18 @@ function useCachedAttachmentImage(
     remotePreviewEnabled && remoteEnabled && !previewUrl,
     fetchSharedBlob,
   );
+  const original = useRemoteImage(
+    !publicShare &&
+      remotePath?.startsWith("/api/local-image?") &&
+      path?.replaceAll("\\", "/").includes("/.rendez/delivered/")
+      ? `${remotePath}&rendezvousOriginal=1`
+      : null,
+    originalEnabled,
+  );
 
   return {
     previewUrl: previewUrl ?? cachePreviewUrl ?? remote.url,
-    fullUrl: previewUrl ?? cacheFullUrl ?? remote.url,
+    fullUrl: previewUrl ?? cacheFullUrl ?? original.url ?? remote.url,
     previewWidth: cachePreviewWidth,
     previewHeight: cachePreviewHeight,
     loading: loading || remote.loading,
@@ -337,11 +346,16 @@ function ImageAttachmentChip({
   const hoverImageRef = useRef<HTMLImageElement>(null);
   const derivedAttachmentId = getAttachmentIdFromPersistedPath(path);
   const cacheKey = attachmentId ?? derivedAttachmentId ?? path ?? originalName;
-  // A public viewer never has the uploader's cached thumbnail, so its chips
-  // read the shared file once they near the viewport instead of showing only
-  // a placeholder until clicked.
+  // External uploads and public viewers have no uploader-cached thumbnail.
   const publicShare = usePublicShareContext();
-  const nearViewport = useNearViewport(chipButtonRef, Boolean(publicShare));
+  const externalAttachment = getPersistedAttachmentUploadUrl(
+    path,
+    routeProjectId,
+  )?.startsWith("/api/local-image?");
+  const nearViewport = useNearViewport(
+    chipButtonRef,
+    Boolean(publicShare || externalAttachment),
+  );
   const {
     previewUrl: imagePreviewUrl,
     fullUrl,
@@ -353,6 +367,7 @@ function ImageAttachmentChip({
     cacheKey,
     path,
     showModal || showHoverPreview || nearViewport,
+    showModal,
     previewUrl,
     routeProjectId,
   );

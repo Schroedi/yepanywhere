@@ -43,6 +43,7 @@ import {
 } from "@yep-anywhere/shared";
 import { DEFAULT_IDLE_TIMEOUT_MS } from "../defaults.js";
 import { getLogger } from "../logging/logger.js";
+import { publishRendezvousUserTurn } from "../services/rendezvousActivity.js";
 import type { ToolResultMediaMessageMaterializer } from "../media/ToolResultMediaMessageMaterializer.js";
 import type { ToolResultMediaStore } from "../media/ToolResultMediaStore.js";
 import {
@@ -3772,6 +3773,31 @@ export class Process {
       message.metadata?.serverReceivedAt !== undefined
     ) {
       const receivedAtMs = Date.parse(message.metadata.serverReceivedAt);
+      if (
+        message.metadata.origin === "user" &&
+        this.execution.kind === "local" &&
+        (isClaudeProviderName(this.provider) ||
+          this.provider === "codex" ||
+          this.provider === "codex-oss")
+      ) {
+        const harness = isClaudeProviderName(this.provider)
+          ? "claude"
+          : "codex";
+        void this.providerSessionIdSettlement.then(
+          (providerSessionId) => {
+            publishRendezvousUserTurn({
+              projectPath: this.projectPath,
+              harness,
+              sessionId: this._sessionId,
+              providerSessionId,
+              receivedAt: Number.isFinite(receivedAtMs)
+                ? receivedAtMs
+                : Date.now(),
+            });
+          },
+          () => undefined,
+        );
+      }
       this._userTurnVersion += 1;
       this.resumeRecapsAfterUserTurn();
       this.emit({
@@ -3942,6 +3968,8 @@ export class Process {
         },
       });
     }
+    const inputError = this.inputRejectionError();
+    if (inputError) return { success: false, error: inputError };
     const acceptedMessage = this.acceptRecapResumeSignal(message);
     return this.queuePreparedMessage(
       this.prepareProviderMessage(acceptedMessage, options?.composeAnchor),

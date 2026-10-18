@@ -216,6 +216,12 @@ function publicRuntimeEntry(entry) {
     detachedAt: entry.detachedAt,
     reattach: entry.reattach,
     worker: entry.workerMetadata,
+    // Delivery policy, independent of any watcher or model catalogue.
+    imagePreparationProfile: {
+      maxLongEdge: 2000,
+      maxBytes: 4 * 1024 * 1024,
+      quality: 85,
+    },
     acceptsSessionTurns: entry.state !== "closing" && !entry.activeSubmissionId,
   };
 }

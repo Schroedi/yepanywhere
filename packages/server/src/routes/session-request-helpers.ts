@@ -318,6 +318,14 @@ export function buildUserMessageMetadata(
 
   return {
     deliveryIntent,
+    origin:
+      typeof rawMetadata.sourceSessionId === "string"
+        ? "coordination"
+        : rawMetadata.origin === "coordination" ||
+            rawMetadata.origin === "rendezvous" ||
+            rawMetadata.origin === "automation"
+          ? rawMetadata.origin
+          : "user",
     ...(typeof rawMetadata.sourceSessionId === "string"
       ? { sourceSessionId: rawMetadata.sourceSessionId }
       : {}),

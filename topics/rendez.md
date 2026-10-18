@@ -5,9 +5,32 @@
 
 Topic: rendez
 
-Status: approved design, implementation in progress. The workflow below is the
-intended interface; YA's monitoring setting and attachment presentation are not
-yet wired end to end.
+The current monitoring backend uses
+the `rendez` executable from graehl/agents on the YA server's PATH. It requires
+Linux for watching, Python 3.10+, and ImageMagick's `magick` for image preparation.
+Claude and Codex sessions are supported. Other platforms can use explicit scans
+of completed transfers; filesystem watching does not require provider hosting.
+
+## Enable monitoring
+
+Monitoring defaults off. The current setting is available through the
+authenticated `PUT /api/settings` API; there is no settings-pane control yet:
+
+```json
+{
+  "rendezvous": {
+    "enabled": false,
+    "projects": { "/work/project": true },
+    "windowMs": 1000,
+    "maxPerWindow": 10
+  }
+}
+```
+
+Set `enabled` to `true` for the global default. Each absolute project-path entry
+overrides that default; omit an entry to inherit it. YA checks live projects
+every 30 seconds, with at most 32 observers. Turning the setting off stops its
+observers; a helper failure is logged and requires a settings change to retry.
 
 ## Upload from another machine
 
@@ -24,8 +47,9 @@ Replace `user@host` and `/work/project` with your SSH destination and project
 path. This also works from Windows OpenSSH or a WSL shell. The receiving
 machine watches the directory; your desktop does not need to invoke
 `agentctl` or know the session id. Each completed upload becomes a user turn
-with an attachment. It queues behind work already running and may resume an
-idle session.
+with an attachment. It queues behind work already running; latest-session
+delivery is non-reviving by default. An inactive target is not resumed just
+because another session in the project is live.
 
 For repeated screenshot transfers, ordinary rsync preserves unchanged files:
 
@@ -40,6 +64,27 @@ stay in place, so subsequent rsync runs can compare size and modification time.
 The watcher compares file content to avoid redelivery of unchanged uploads and
 to notice a filename overwritten with new content.
 
+## Accidental bulk transfers
+
+Uploads start immediately. By default, each route admits at most ten uploads
+per rolling 1,000 ms, with at most ten uploads awaiting queue acceptance across
+the project. `windowMs` and `maxPerWindow` configure those limits. Acceptance
+can mean queued for the session; it does not wait for model completion.
+
+Excess arrivals are **held**, never automatically sent later. After overload,
+new arrivals remain held until four quiet windows pass (four seconds by
+default). That reset applies only to future uploads. One additional message
+says many files were uploaded, potentially unintentionally, and identifies the
+held records under `.rendez/delivered/<route>/`. Those records include the
+incoming paths and hashes; held originals are not separately archived.
+An explicit helper `unhold` command can bypass the limit if needed.
+
+The watcher ignores dot-prefixed temporary files and directories. Normal rsync
+publishes completed files by rename; `--delay-updates` can produce a rapid burst
+at the end, which these limits hold. Keep temporary files in rsync's usual
+location or a hidden directory, not as non-hidden files inside the watched
+inbox. [rsync manual](https://download.samba.org/pub/rsync/rsync.1)
+
 ## Choose the recipient
 
 `latest-session` follows the last session accepting an actual user message in
@@ -49,6 +94,10 @@ is fixed. For an ongoing transfer stream that must stay with one session, use
 the stable directory returned by an explicit subscription instead.
 
 Monitoring is opt-in, with a global default and a per-project override.
+YA watches only projects with a verified live session, including sessions
+known to the provider service but not owned by YA. Watcher ownership is
+independent: YA can use its own live-session state when provider hosting is
+disabled. An explicit helper subscription can opt into revival separately.
 The first creation adds `/.rendez/` to the checkout's local Git exclusions.
 Disabling monitoring stops delivery without deleting the files.
 
@@ -77,6 +126,5 @@ for helper commands, delivery state, native-provider fallback, and the shared
 protocol. Watching is an ordinary background process and consumes no model
 turns while idle.
 
-Broadcast subscriptions and an SSH receiver that accepts bytes, chooses a
-non-colliding filename, and delivers directly without a duplicate watcher send
+Broadcast subscriptions and the [atomic SSH receiver](../gaps/sketches/rendez-receive.md)
 remain future extensions.

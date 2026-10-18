@@ -45,6 +45,7 @@ import {
   parseSpeechVoiceBackends,
 } from "@yep-anywhere/shared";
 import { Hono, type Context } from "hono";
+import { parseRendezvousSettings } from "../services/RendezvousWatchService.js";
 import { InstructionPackets } from "../sdk/providers/instruction-packets.js";
 import { PRINCIPAL_VARIABLE, type Principal } from "../auth/principal.js";
 import {
@@ -318,6 +319,17 @@ export function createSettingsRoutes(deps: SettingsRoutesDeps) {
       const body = await c.req.json<Partial<ServerSettings>>();
 
       const updates: Partial<ServerSettings> = {};
+
+      if ("rendezvous" in body) {
+        try {
+          updates.rendezvous = parseRendezvousSettings(body.rendezvous);
+        } catch (error) {
+          return c.json(
+            { error: error instanceof Error ? error.message : String(error) },
+            400,
+          );
+        }
+      }
 
       if ("projectDirectoryStorage" in body) {
         if (

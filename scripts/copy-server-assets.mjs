@@ -59,6 +59,11 @@ copyFileSync(
 );
 
 copyFileSync(
+  join(serverSourceDir, "services/rendezvous-activity.mjs"),
+  join(serverTargetDir, "services/rendezvous-activity.mjs"),
+);
+
+copyFileSync(
   join(serverSourceDir, "augments/unicode-math-params.bin"),
   join(serverTargetDir, "augments/unicode-math-params.bin"),
 );

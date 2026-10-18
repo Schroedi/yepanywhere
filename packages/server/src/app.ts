@@ -341,6 +341,9 @@ import { initializeSessionHeartbeatDefaults } from "./services/sessionHeartbeatD
 import type { ProjectQueueService } from "./services/ProjectQueueService.js";
 import type { RelayClientService } from "./services/RelayClientService.js";
 import type { ServerSettingsService } from "./services/ServerSettingsService.js";
+import { RendezvousWatchService } from "./services/RendezvousWatchService.js";
+import { getLogger } from "./logging/logger.js";
+import { listHostedProviderRuntimes } from "./sdk/providers/provider-runtime-host.js";
 import {
   SessionWakeService,
   type SessionWakeDeliveryResult,
@@ -1483,11 +1486,63 @@ export function createApp(options: AppOptions): AppResult {
   let vocabularyKeyterms: VocabularyKeyterms | undefined;
   let unsubscribeVocabulary: (() => void) | undefined;
   let sessionReadersDisposal: Promise<void> | undefined;
+  const rendezvousWatch = options.serverSettingsService
+    ? new RendezvousWatchService(
+        options.serverSettingsService,
+        async () => {
+          const paths = new Set(
+            supervisor
+              .getAllProcesses()
+              .filter(
+                (process) =>
+                  process.execution.kind === "local" &&
+                  process.isProcessAlive === true,
+              )
+              .map((process) => process.projectPath),
+          );
+          try {
+            for (const runtime of await listHostedProviderRuntimes()) {
+              if (runtime.state !== "closing") paths.add(runtime.projectPath);
+            }
+          } catch (error) {
+            getLogger().warn(
+              { error: String(error) },
+              "Rendezvous provider inventory unavailable; using local live sessions",
+            );
+          }
+          return [...paths].map((path) => ({ path }));
+        },
+        (project, sessionId, id, text) => {
+          const process = supervisor
+            .getAllProcesses()
+            .find((candidate) => candidate.sessionId === sessionId);
+          if (!process) return undefined;
+          if (
+            process.projectPath !== project ||
+            process.execution.kind !== "local" ||
+            process.isProcessAlive !== true
+          )
+            return false;
+          return process.queueMessage(
+            {
+              uuid: id,
+              text,
+              metadata: {
+                origin: "rendezvous",
+                serverReceivedAt: new Date().toISOString(),
+              },
+            },
+            { allowSteer: false },
+          ).success;
+        },
+      )
+    : undefined;
   const disposeSessionReaders = (): Promise<void> => {
     // Explicit shutdown and fixture ownership may join the same disposal.
     // Cache the promise before asynchronous cleanup can close shared services.
     sessionReadersDisposal ??= (async () => {
       await supervisor.stopBackgroundTasks();
+      await rendezvousWatch?.close();
       await projectServices.close();
       await projectAppStore.close();
       await projectAppAutoStart.close();

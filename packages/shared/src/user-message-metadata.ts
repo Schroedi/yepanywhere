@@ -105,6 +105,8 @@ export interface NonHumanUserTurn {
 }
 
 export interface UserMessageMetadata {
+  /** Routing provenance; a provider user role does not imply human input. */
+  origin?: "user" | "coordination" | "rendezvous" | "automation";
   /** Caller-declared cross-session provenance; never a grant of authority. */
   sourceSessionId?: string;
   /** One-turn effort selection, resolved at provider admission. */
