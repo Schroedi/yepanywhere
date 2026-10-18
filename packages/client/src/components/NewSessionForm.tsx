@@ -90,7 +90,7 @@ import {
 } from "../hooks/useProviders";
 import { useProviderDescriptors } from "../hooks/useProviderDescriptors";
 import {
-  getAttachmentUploadLongEdgePx,
+  getAttachmentUploadProfile,
   useAttachmentUploadQuality,
 } from "../hooks/useAttachmentUploadQuality";
 import { useRemoteBasePath } from "../hooks/useRemoteBasePath";
@@ -576,6 +576,18 @@ export function NewSessionForm({
     Record<string, { uploaded: number; total: number }>
   >({});
   const [attachmentQuality] = useAttachmentUploadQuality();
+  const {
+    providers,
+    loading: providersLoading,
+    stale: providersStale,
+    refetch: refetchProviders,
+  } = useProviders();
+  const selectedProviderQuery = useProviderRow(selectedProvider);
+  const aggregateProviderInfo = providers.find(
+    (p) => p.name === selectedProvider,
+  );
+  const selectedProviderInfo =
+    selectedProviderQuery.row ?? aggregateProviderInfo;
   const { visibility: toolbarVisibility } = useSessionToolbarPresence();
   const [interimTranscript, setInterimTranscript] = useState("");
   const interimTranscriptRef = useRef(interimTranscript);
@@ -1028,7 +1040,11 @@ export function NewSessionForm({
           const preparedImage = file.type.startsWith("image/")
             ? await prepareImageUpload(
                 file,
-                getAttachmentUploadLongEdgePx(attachmentQuality),
+                getAttachmentUploadProfile(
+                  attachmentQuality,
+                  selectedProviderInfo,
+                  selectedModel,
+                ),
               )
             : { file };
           const uploadFile = preparedImage.file;
@@ -1152,6 +1168,8 @@ export function NewSessionForm({
     },
     [
       attachmentQuality,
+      selectedProviderInfo,
+      selectedModel,
       historyScope,
       sourceTransport,
       projectId,
@@ -1178,13 +1196,6 @@ export function NewSessionForm({
     addPendingFiles(incomingShareFiles);
   }, [addPendingFiles, allowAttachments, incomingShareFiles]);
 
-  // Fetch available providers
-  const {
-    providers,
-    loading: providersLoading,
-    stale: providersStale,
-    refetch: refetchProviders,
-  } = useProviders();
   const { providers: providerDescriptors } = useProviderDescriptors(
     serverHasCapability(
       versionInfo,
@@ -1257,15 +1268,6 @@ export function NewSessionForm({
     fork: t("recapAfterSecondsInlineFork"),
   };
 
-  // Get models and capabilities for the currently selected provider. Its named
-  // row wins once available because it is independent of the aggregate's
-  // slowest member and can carry stronger freshness than a retained snapshot.
-  const selectedProviderQuery = useProviderRow(selectedProvider);
-  const aggregateProviderInfo = providers.find(
-    (p) => p.name === selectedProvider,
-  );
-  const selectedProviderInfo =
-    selectedProviderQuery.row ?? aggregateProviderInfo;
   const providerChoices = (providerDescriptors ?? providers).map(
     (descriptor) => ({
       ...descriptor,
@@ -2763,7 +2765,11 @@ export function NewSessionForm({
           const preparedImage = pendingFile.file.type.startsWith("image/")
             ? await prepareImageUpload(
                 pendingFile.file,
-                getAttachmentUploadLongEdgePx(attachmentQuality),
+                getAttachmentUploadProfile(
+                  attachmentQuality,
+                  selectedProviderInfo,
+                  selectedModel,
+                ),
               )
             : { file: pendingFile.file };
           const uploadFile = preparedImage.file;
@@ -2829,7 +2835,14 @@ export function NewSessionForm({
       );
       return [...uploadedFiles, ...materializedFiles];
     },
-    [attachmentQuality, sourceTransport, showToast, t],
+    [
+      attachmentQuality,
+      selectedProviderInfo,
+      selectedModel,
+      sourceTransport,
+      showToast,
+      t,
+    ],
   );
 
   const deferSpeechDelivery = useCallback(

@@ -18,6 +18,10 @@ import {
 } from "@yep-anywhere/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CommittedRangeInput } from "../../components/ui/CommittedRangeInput";
+import {
+  type AttachmentUploadQuality,
+  useAttachmentUploadQuality,
+} from "../../hooks/useAttachmentUploadQuality";
 import { useKeepMobileKeyboardOpenAfterDelivery } from "../../hooks/useKeepMobileKeyboardOpenAfterDelivery";
 import { useQuestionAsideSetting } from "../../hooks/useQuestionAsideSetting";
 import { useServerSettings } from "../../hooks/useServerSettings";
@@ -82,6 +86,7 @@ interface MessageDeliveryBaseline {
   projectQueueCtrlEnterEnabled: boolean;
   keepMobileKeyboardOpenAfterDelivery: boolean;
   questionAsidesEnabled: boolean;
+  attachmentQuality: AttachmentUploadQuality;
 }
 
 /**
@@ -109,6 +114,8 @@ export function MessageDeliverySettings() {
   } = useKeepMobileKeyboardOpenAfterDelivery();
   const { questionAsidesEnabled, setQuestionAsidesEnabled } =
     useQuestionAsideSetting();
+  const [attachmentQuality, setAttachmentQuality] =
+    useAttachmentUploadQuality();
 
   // null drafts mirror the server value; non-null while the user is editing
   // or a save is in flight, cleared once the server catches up.
@@ -185,9 +192,15 @@ export function MessageDeliverySettings() {
           DEFAULT_PROJECT_QUEUE_CTRL_ENTER_ENABLED,
         keepMobileKeyboardOpenAfterDelivery,
         questionAsidesEnabled,
+        attachmentQuality,
       };
     }
-  }, [keepMobileKeyboardOpenAfterDelivery, questionAsidesEnabled, settings]);
+  }, [
+    attachmentQuality,
+    keepMobileKeyboardOpenAfterDelivery,
+    questionAsidesEnabled,
+    settings,
+  ]);
 
   const shownJoinWindowText =
     draftJoinWindow ?? String(serverJoinWindowSeconds);
@@ -364,12 +377,14 @@ export function MessageDeliverySettings() {
         shownProjectQueueCtrlEnter !== baseline.projectQueueCtrlEnterEnabled) ||
       keepMobileKeyboardOpenAfterDelivery !==
         baseline.keepMobileKeyboardOpenAfterDelivery ||
-      questionAsidesEnabled !== baseline.questionAsidesEnabled);
+      questionAsidesEnabled !== baseline.questionAsidesEnabled ||
+      attachmentQuality !== baseline.attachmentQuality);
 
   const undo = useCallback(async () => {
     const snapshot = baselineRef.current;
     if (!snapshot) return;
     setQuestionAsidesEnabled(snapshot.questionAsidesEnabled);
+    setAttachmentQuality(snapshot.attachmentQuality);
     setDraftJoinWindow(null);
     setDraftProjectQueueQuiet(null);
     setDraftClearloopInactivity(null);
@@ -414,6 +429,7 @@ export function MessageDeliverySettings() {
       // surfaced via the hook's error state
     });
   }, [
+    setAttachmentQuality,
     setKeepMobileKeyboardOpenAfterDelivery,
     setQuestionAsidesEnabled,
     supportsBangCommands,
@@ -432,6 +448,41 @@ export function MessageDeliverySettings() {
   return (
     <SettingsSection description={t("messageDeliveryDescription")}>
       <div className="settings-group">
+        <SettingsItem
+          label={t("attachmentQualityTitle")}
+          description={t("attachmentQualityDescription")}
+          descriptionLayout="full-width-on-narrow"
+          keywords={[
+            "SD",
+            "HD",
+            "image",
+            "photo",
+            "screenshot",
+            "resize",
+            "compression",
+            "resolution",
+            "upload",
+          ]}
+          valueText={
+            attachmentQuality === "sd"
+              ? t("attachmentQualitySd")
+              : t("attachmentQualityHd")
+          }
+        >
+          <select
+            className="settings-select"
+            aria-label={t("attachmentQualityTitle")}
+            value={attachmentQuality}
+            onChange={(event) =>
+              setAttachmentQuality(
+                event.target.value as AttachmentUploadQuality,
+              )
+            }
+          >
+            <option value="sd">{t("attachmentQualitySd")}</option>
+            <option value="hd">{t("attachmentQualityHd")}</option>
+          </select>
+        </SettingsItem>
         <SettingsItem
           label={t("messageDeliveryJoinWindowTitle")}
           description={t("messageDeliveryJoinWindowDescription")}

@@ -138,7 +138,7 @@ import {
 import { useToastContext } from "../contexts/ToastContext";
 import { useActivityBusState } from "../hooks/useActivityBusState";
 import {
-  getAttachmentUploadLongEdgePx,
+  getAttachmentUploadProfile,
   useAttachmentUploadQuality,
 } from "../hooks/useAttachmentUploadQuality";
 import { useDeveloperMode } from "../hooks/useDeveloperMode";
@@ -5040,7 +5040,11 @@ function SessionPageContent({
           sourceTransport,
           projectId,
           sessionId,
-          maxLongEdgePx: getAttachmentUploadLongEdgePx(attachmentQuality),
+          imageProfile: getAttachmentUploadProfile(
+            attachmentQuality,
+            currentProviderInfo,
+            effectiveModelConfig?.model ?? effectiveModel,
+          ),
           stagedBatchId:
             stagedAttachmentUploadsEnabled && draftBatchId
               ? draftBatchId
@@ -5132,6 +5136,9 @@ function SessionPageContent({
     },
     [
       attachmentQuality,
+      currentProviderInfo,
+      effectiveModelConfig?.model,
+      effectiveModel,
       sourceTransport,
       ensureDraftAttachmentBatchId,
       projectId,

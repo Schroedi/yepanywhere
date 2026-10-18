@@ -154,6 +154,8 @@ export interface ModelInfo {
   supportsAutoMode?: boolean;
   /** Provider-reported input modalities, e.g. text/image. */
   inputModalities?: string[];
+  /** Adapter image preparation for this model, overriding provider guidance. */
+  imageSizing?: ProviderImageSizing;
   /** Provider-reported personality support. */
   supportsPersonality?: boolean;
   /** Provider-reported opt-in service tiers, e.g. faster paid processing. */
@@ -183,6 +185,14 @@ export interface ProviderImageSizing {
   maxUsefulLongEdgePx: number;
   /** Optional note about model-family caveats or detail behavior. */
   note?: string;
+  /** Absent on older servers; quality is JPEG/WebP encoding percent. */
+  profiles?: Record<"sd" | "hd", ImagePreparationProfile>;
+}
+
+export interface ImagePreparationProfile {
+  maxLongEdge: number;
+  maxBytes: number;
+  quality: number;
 }
 
 export const RECAP_MODES = ["off", "side-session", "fork", "native"] as const;

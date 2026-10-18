@@ -46,7 +46,9 @@ describe("GET /health", () => {
     expect(json.providers).toEqual([
       expect.objectContaining({
         name: "claude",
-        models: [{ id: "mock-model", name: "Mock Model" }],
+        models: [
+          expect.objectContaining({ id: "mock-model", name: "Mock Model" }),
+        ],
       }),
     ]);
   });

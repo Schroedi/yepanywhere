@@ -64,6 +64,11 @@ copyFileSync(
 );
 
 copyFileSync(
+  join(serverSourceDir, "services/image-preparation.mjs"),
+  join(serverTargetDir, "services/image-preparation.mjs"),
+);
+
+copyFileSync(
   join(serverSourceDir, "augments/unicode-math-params.bin"),
   join(serverTargetDir, "augments/unicode-math-params.bin"),
 );

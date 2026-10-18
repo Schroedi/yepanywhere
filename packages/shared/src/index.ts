@@ -427,6 +427,7 @@ export type {
   ProviderLoginFlow,
   ProviderLoginFlowState,
   ProviderImageSizing,
+  ImagePreparationProfile,
   ModelCatalogStatus,
   ModelInfo,
   ModelServiceTier,
