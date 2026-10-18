@@ -34,6 +34,18 @@ host's runtime state and sign-ins untouched. Enable its Gradle module only with
 `-PworkspaceSpike`; ordinary host builds do not include it. This is physical
 storage qualification, not production onboarding or a general SAF mount.
 
+## Linux user and home
+
+YA and providers run as `user` (UID/GID 1000), with `/home/user` and the guest
+hostname `ya-phone`. Standard Alpine sudo permits passwordless guest
+administration: use `sudo apk add ...` or `sudo -i`. PRoot identities share the
+Android app's authority; guest sudo grants no Android root or user isolation.
+
+Existing app-private state is retained in place. `/home/host` aliases
+`/home/user`, preserving existing paths and provider profiles. Packages and
+custom account changes remain in the replaceable runtime. See the
+[user/admin contract](../../topics/android-host.md#guest-user-and-administration).
+
 ## Prepare and test without Android
 
 Prerequisites: this checkout's installed pnpm dependencies, Python 3.11+, curl,
@@ -74,6 +86,7 @@ wrapper. `prepare` supplies the hash-verified PRoot libraries and license assets
 packages/android-host/gradlew :app:assembleDebug :app:assembleRelease :app:lint
 python3 packages/android-host/tools/host.py install --serial "$ANDROID_TEST_SERIAL"
 python3 packages/android-host/tools/host.py stage --serial "$ANDROID_TEST_SERIAL"
+python3 packages/android-host/tools/host.py check-user --serial "$ANDROID_TEST_SERIAL"
 ```
 
 The package id is `com.yepanywhere.host.experimental`; its launcher label is

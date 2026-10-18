@@ -13,6 +13,11 @@ readiness and offers native recovery after process loss. Unattended wake,
 overnight/Doze survival and interrupted-provider resume remain incubation work;
 see the [lifecycle investigation](../testing/android-host-lifecycle-2026-10-18.md).
 
+The [Android guest user/admin environment](../../topics/android-host.md#guest-user-and-administration)
+now uses `user@ya-phone`, `/home/user` and passwordless guest sudo. Existing
+home paths and private state are preserved. Pixel 7a acceptance covers the
+staged runtime, guest administration and two real local-server launches.
+
 The Android storage spike validated a
 [durable local workspace](../../topics/android-host.md#durable-user-owned-workspace):
 select an ordinary shared folder, explicitly enable optional all-files access,

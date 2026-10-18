@@ -28,6 +28,55 @@ longer a placeholder for unimplemented host onboarding. Credential refresh,
 sign-out and recovery still need independent validation; see the
 [physical sign-in evidence](../docs/testing/android-host-scaffold-2026-10-17.md#completed-provider-sign-in).
 
+## Guest user and administration
+
+The host runs YA and its provider children as the guest account `user`
+(UID/GID 1000), with Bash and `/home/user` as its persistent home. The guest
+hostname is `ya-phone`, including `hostname`, `uname -n` and Node's hostname
+API. Android retains its own hostname, kernel version and architecture. The
+Linux harness uses the same account and explicitly sets its container hostname.
+The Android guest binds its own hostname/hosts files from the payload because
+Docker export does not retain the container's generated versions of those files.
+
+`sudo` is the standard pinned Alpine package. The `user` account has passwordless
+guest administration, including `sudo apk add ...` and `sudo -i`; ordinary
+commands start as `user`. Both account passwords remain locked. This is a
+development convenience under the existing Android app execution boundary,
+not a YA principal, API grant, real Android root or a boundary between mutually
+untrusted Linux users. PRoot emulates credentials and ownership; Android still
+enforces one app identity. Supplemental groups and file ownership need not look
+like a conventional multi-user kernel. Guest sudo does not grant Android
+permissions, privileged mounts or Codex sandbox support.
+Runtime staging restores sudo's setuid marker after Android tar strips it;
+the binary remains owned by the Android app identity. PRoot uses that marker
+for the emulated guest-root transition.
+
+Changing the guest home does not move or rewrite the persistent Android
+`files/state` tree. It is bound at `/home/user`, while `/home/host` remains a
+symlink to that same directory so saved project/transcript paths continue to
+resolve. Provider sign-ins, profiles, local access credentials and YA data stay
+in their existing private storage. Custom accounts, sudo policy changes and
+installed packages belong to the replaceable runtime and are not preserved by
+runtime staging; this does not change the durable workspace contract below.
+
+`host.py smoke` exercises the real Linux account, sudo, hostname and old-home
+alias alongside the existing protected server/SQLite restart check.
+`host.py check-user --serial ...` runs the same opt-in identity/admin check
+against the installed debug app's Android PRoot, preserving existing state and
+removing its temporary witness files. It does not establish provider sign-in,
+inference, Doze or interrupted-turn recovery.
+
+Physical acceptance on the explicitly selected Pixel 7a (2026-10-18) covers the
+staged APK/payload, standard sudo and root login, a temporary package installed
+and removed through sudo without network, an additional temporary guest account,
+both provider CLI version commands, hostname/name resolution and two real
+service-owned server launches. All 135 pre-existing state files remained present;
+the 106 provider-profile/access-credential files were byte-identical after both
+launches. Temporary account, package, files, probe runtime and transport were
+removed; the selected host was left stopped. This did not exercise inference or
+revalidate provider authentication. Linux Alpine smoke, Android Debug/Release
+builds/lint and the required root checks passed.
+
 ## Durable user-owned workspace
 
 **Direction accepted and disposable physical spike passed, 2026-10-18.** The first

@@ -9,6 +9,9 @@ export function hostProfile(home, development = {}) {
   }
   const env = {
     HOME: home,
+    USER: "user",
+    LOGNAME: "user",
+    HOSTNAME: "ya-phone",
     NODE_ENV: "production",
     HOST: "127.0.0.1",
     PORT: "13400",

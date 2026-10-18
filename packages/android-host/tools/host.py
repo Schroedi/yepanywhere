@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shlex
 import shutil
 import subprocess
 import tarfile
@@ -124,6 +125,7 @@ def prepare(cache, skip_build):
     if not (yep / 'node_modules/bcrypt/prebuilds/linux-arm64/bcrypt.musl.node').is_file():
         raise RuntimeError('Missing Linux ARM64/musl bcrypt prebuild')
     shutil.copytree(PACKAGE / 'runtime', context / 'runtime', dirs_exist_ok=True)
+    shutil.copyfile(downloads['notice-sudo-LICENSE.md'], context / 'runtime/sudo-LICENSE.md')
     shutil.copyfile(PACKAGE / 'runtime/Dockerfile', context / 'Dockerfile')
     run('docker', 'build', '--platform=linux/arm64', '-t', IMAGE, str(context))
     container = subprocess.check_output(['docker', 'create', IMAGE], text=True).strip()
@@ -154,12 +156,43 @@ def device(serial, action):
         run(str(controller), '--serial', serial, 'install', str(PACKAGE / 'app/build/outputs/apk/debug/app-debug.apk'))
         return
     adb = ['adb', '-s', serial]
+    if action == 'check-user':
+        # Debug-only integration probe. Exercise the installed Android PRoot,
+        # not Docker or a workstation provider profile. No server is started.
+        apk = subprocess.check_output([*adb, 'shell', 'pm', 'path', APP], text=True).strip()
+        if not apk.startswith('package:') or '\n' in apk:
+            raise RuntimeError('Expected one installed host APK')
+        lib = apk.removeprefix('package:').rsplit('/', 1)[0] + '/lib/arm64'
+        base = subprocess.check_output([*adb, 'shell', 'run-as', APP, 'pwd'], text=True).strip()
+        uts = [subprocess.check_output([*adb, 'shell', 'uname', flag], text=True).strip()
+               for flag in ['-s', '-r', '-v', '-m']]
+        kernel = '\\' + '\\'.join([uts[0], 'ya-phone', *uts[1:], 'localdomain', '-1', ''])
+        command = [lib + '/libproot.so', '--kill-on-exit', '--link2symlink', '-i', '1000:1000', '-k', kernel,
+                   '-r', base + '/files/runtime', '-b', '/dev', '-b', '/proc', '-b', '/sys',
+                   '-b', base + '/files/runtime/opt/host/hosts:/etc/hosts',
+                   '-b', base + '/files/runtime/opt/host/hostname:/etc/hostname',
+                   '-b', base + '/files/state:/home/user', '-w', '/home/user',
+                   '/usr/bin/env', '-i', 'HOME=/home/user', 'USER=user', 'LOGNAME=user',
+                   'HOSTNAME=ya-phone', 'SHELL=/bin/bash', 'PATH=/usr/bin:/bin:/usr/sbin:/sbin',
+                   '/usr/bin/node', '/opt/host/check-user.mjs']
+        environment = {'PROOT_LOADER': lib + '/libproot-loader.so',
+                       'PROOT_TMP_DIR': base + '/cache', 'LD_LIBRARY_PATH': lib}
+        script = '\n'.join('export ' + shlex.quote(key + '=' + value) for key, value in environment.items())
+        # An APK installation path can contain '='; Android env would mistake
+        # that executable path for another assignment. Exec through sh instead.
+        script += '\nexec ' + shlex.join(command)
+        run(*adb, 'shell', shlex.join(['run-as', APP, '/system/bin/sh', '-c', script]))
+        return
     run(*adb, 'shell', 'am', 'force-stop', APP)
     # Runtime replacement never touches state (sessions, sign-in and pairing).
     run(*adb, 'shell', 'run-as', APP, 'rm', '-rf', 'files/runtime.next')
     run(*adb, 'shell', 'run-as', APP, 'mkdir', '-p', 'files/runtime.next', 'files/state')
     with (LOCAL / 'runtime.tar').open('rb') as payload:
         run(*adb, 'shell', '-T', 'run-as', APP, 'tar', '-xf', '-', '-C', 'files/runtime.next', stdin=payload)
+    # Android tar strips setuid bits when extracting as the app identity.
+    # PRoot needs sudo's marker to emulate the guest-root transition; the
+    # actual executable is still owned by the unprivileged Android app UID.
+    run(*adb, 'shell', 'run-as', APP, 'chmod', '4755', 'files/runtime.next/usr/bin/sudo')
     run(*adb, 'shell', 'run-as', APP, 'rm', '-rf', 'files/runtime.previous')
     # The selected app is stopped, so there are no live roots to replace.
     exists = subprocess.run([*adb, 'shell', 'run-as', APP, 'test', '-d', 'files/runtime'], capture_output=True).returncode
@@ -180,11 +213,12 @@ def smoke():
         (home / 'development.json').write_text('{"providerMode":"mock"}')
         try:
             # A private named volume also works on Linux where container UID
-            # 10000 cannot share a mode-0700 host fixture directory.
+            # 1000 cannot share a mode-0700 host fixture directory.
             run('docker', 'volume', 'create', volume, stdout=subprocess.DEVNULL)
-            run('docker', 'create', '--name', name, '--mount', f'type=volume,src={volume},dst=/home/host', IMAGE, stdout=subprocess.DEVNULL)
-            run('docker', 'cp', str(home / 'development.json'), name + ':/home/host/development.json')
+            run('docker', 'create', '--name', name, '--hostname', 'ya-phone', '--mount', f'type=volume,src={volume},dst=/home/user', IMAGE, stdout=subprocess.DEVNULL)
+            run('docker', 'cp', str(home / 'development.json'), name + ':/home/user/development.json')
             run('docker', 'start', name, stdout=subprocess.DEVNULL)
+            run('docker', 'exec', name, 'node', '/opt/host/check-user.mjs')
             result = []
             for generation in range(2):
                 if generation:
@@ -193,7 +227,7 @@ def smoke():
                 while time.monotonic() < deadline:
                     probe = subprocess.run(['docker', 'exec', '-e', 'REQUIRE_SAVED='+('true' if generation else 'false'), name, 'node', '-e', """
 const fs=require('node:fs');
-const token=fs.readFileSync('/home/host/.local-access-token','utf8').trim();
+const token=fs.readFileSync('/home/user/.local-access-token','utf8').trim();
 (async()=>{
  const url='http://127.0.0.1:13400';
  const headers={'x-desktop-token':token,'x-yep-anywhere':'true'};
@@ -204,10 +238,10 @@ const token=fs.readFileSync('/home/host/.local-access-token','utf8').trim();
  if(inventory.enabled!==false)throw Error('external process inventory enabled');
  const html=await fetch(url); if(!html.ok)throw Error('frontend missing');
  const list=await (await fetch(url+'/api/projects',{headers})).json();
- const saved=list.projects?.some(p=>p.path==='/home/host/smoke-project');
+ const saved=list.projects?.some(p=>p.path==='/home/user/smoke-project');
  if(!saved){
    if(process.env.REQUIRE_SAVED==='true')throw Error('project lost on restart');
-   const added=await fetch(url+'/api/projects',{method:'POST',headers:{...headers,'content-type':'application/json'},body:JSON.stringify({path:'/home/host/smoke-project',name:'Persistent host smoke',create:true})});
+   const added=await fetch(url+'/api/projects',{method:'POST',headers:{...headers,'content-type':'application/json'},body:JSON.stringify({path:'/home/user/smoke-project',name:'Persistent host smoke',create:true})});
    if(!added.ok)throw Error('project registration failed');
  }
  console.log(JSON.stringify({sqlite:version.sqlite.state,externalInventory:inventory.enabled,unauthorizedStatus:denied.status,frontendStatus:html.status,persistedProjectVerified:!!saved}));
@@ -238,7 +272,7 @@ def main():
     prepare_parser.add_argument('--cache', type=Path, help='Optional verified existing downloads cache')
     prepare_parser.add_argument('--skip-build', action='store_true', help='Use an already-built bundle from this checkout')
     sub.add_parser('smoke')
-    for name in ['install', 'stage']:
+    for name in ['install', 'stage', 'check-user']:
         command = sub.add_parser(name); command.add_argument('--serial', required=True)
     args = parser.parse_args()
     if args.action == 'prepare': prepare(args.cache, args.skip_build)

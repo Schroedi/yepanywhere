@@ -655,6 +655,13 @@
       "sha256": "b39d8d73c1208838a436f2d481ba605b52a095f8d6ff781556eafc81cd1a13e9"
     },
     {
+      "name": "sudo",
+      "version": "1.9.17_p2-r1",
+      "license": "custom ISC",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/community/aarch64/sudo-1.9.17_p2-r1.apk",
+      "sha256": "57273b075643357104935eac1519b7da498c25d18d3aacab8e2a3d6f27a3bf1c"
+    },
+    {
       "name": "xz-libs",
       "version": "5.8.4-r0",
       "license": "GPL-2.0-or-later AND 0BSD AND Public-Domain AND LGPL-2.1-or-later",

@@ -5,6 +5,7 @@ import android.content.*;
 import android.os.*;
 import android.system.Os;
 import android.system.OsConstants;
+import android.system.StructUtsname;
 import java.io.*;
 import java.lang.Process;
 import java.nio.charset.StandardCharsets;
@@ -61,16 +62,24 @@ public final class HostService extends Service {
             File home = state(this); home.mkdirs();
             File tmp = new File(getCacheDir(), "proot"); tmp.mkdirs();
             String lib = getApplicationInfo().nativeLibraryDir;
+            StructUtsname uts = Os.uname();
+            // PRoot's full UTS format changes only the guest hostname. Keep
+            // the real kernel/architecture and leave hardware capabilities
+            // unchanged (-1); no Android hostname or namespace is modified.
+            String guestKernel = "\\" + uts.sysname + "\\ya-phone\\" + uts.release
+                + "\\" + uts.version + "\\" + uts.machine + "\\localdomain\\-1\\";
             synchronized (lock) {
                 if (stopping) return;
                 resolver = new HostResolver(this);
             }
             List<String> command = new ArrayList<>(Arrays.asList(
-                lib + "/libproot.so", "--kill-on-exit", "--link2symlink", "-0",
+                lib + "/libproot.so", "--kill-on-exit", "--link2symlink", "-i", "1000:1000", "-k", guestKernel,
                 "-r", root.toString(), "-b", "/dev", "-b", "/proc", "-b", "/sys",
+                "-b", new File(root, "opt/host/hosts") + ":/etc/hosts",
+                "-b", new File(root, "opt/host/hostname") + ":/etc/hostname",
                 "-b", resolver.file + ":/etc/resolv.conf",
-                "-b", home + ":/home/host", "-w", "/home/host", "/usr/bin/env", "-i",
-                "HOME=/home/host", "LANG=C.UTF-8", "PATH=/usr/bin:/bin",
+                "-b", home + ":/home/user", "-w", "/home/user", "/usr/bin/env", "-i",
+                "HOME=/home/user", "USER=user", "LOGNAME=user", "SHELL=/bin/bash", "HOSTNAME=ya-phone", "LANG=C.UTF-8", "PATH=/usr/bin:/bin",
                 "/usr/bin/node", "/opt/host/launch.mjs"));
             // Own a session/process group so Stop reaches tracees too. Killing
             // only the PRoot tracer can leave Node and providers orphaned.

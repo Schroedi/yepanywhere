@@ -7,9 +7,15 @@ ADD codex-package.tar.gz /opt/codex/
 COPY claude/ /opt/claude/
 COPY yep/ /opt/yep/
 COPY runtime/ /opt/host/
-RUN mkdir -p /home/host && chmod 755 /home && chown 10000:10000 /home/host \
-    && chmod 755 /opt/claude/claude
-ENV HOME=/home/host
-USER 10000:10000
-WORKDIR /home/host
+RUN addgroup -g 1000 user \
+    && adduser -D -u 1000 -G user -h /home/user -s /bin/bash user \
+    && ln -s user /home/host \
+    && install -m 440 /opt/host/user.sudoers /etc/sudoers.d/user \
+    && visudo -c \
+    && chmod 755 /home /opt/claude/claude
+COPY runtime/hostname /etc/hostname
+COPY runtime/hosts /etc/hosts
+ENV HOME=/home/user USER=user LOGNAME=user SHELL=/bin/bash HOSTNAME=ya-phone
+USER 1000:1000
+WORKDIR /home/user
 CMD ["/usr/bin/node", "/opt/host/launch.mjs"]

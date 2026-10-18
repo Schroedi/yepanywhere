@@ -6,8 +6,8 @@ import { test } from "node:test";
 import { hostProfile, initializeProfile } from "../runtime/profile.mjs";
 
 test("direct and AAR use separate private homes with external observation disabled", () => {
-  const direct = hostProfile("/home/host");
-  const aar = hostProfile("/home/host", {
+  const direct = hostProfile("/home/user");
+  const aar = hostProfile("/home/user", {
     providerMode: "aar",
     aarToken: `aar_${"a".repeat(43)}`,
   });
@@ -18,7 +18,7 @@ test("direct and AAR use separate private homes with external observation disabl
   assert.equal(aar.env.ANTHROPIC_BASE_URL, "http://127.0.0.1:18417/claude");
   assert(!aar.codexConfig.includes(aar.env.AAR_TOKEN));
   assert.throws(() =>
-    hostProfile("/home/host", {
+    hostProfile("/home/user", {
       providerMode: "aar",
       aarToken: aar.env.AAR_TOKEN,
       aarEndpoint: "http://example.com",
