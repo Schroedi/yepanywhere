@@ -5,7 +5,7 @@ import { shortenPath } from "../../lib/text";
 import { SettingsItem } from "./SettingsItem";
 import styles from "./RendezSettings.module.css";
 
-export type RendezSettingsValue = NonNullable<ServerSettings["rendezvous"]>;
+export type RendezSettingsValue = NonNullable<ServerSettings["rendez"]>;
 
 type RendezChoice = "on" | "inherit" | "off";
 

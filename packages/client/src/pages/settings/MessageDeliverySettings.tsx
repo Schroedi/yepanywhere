@@ -11,7 +11,7 @@ import {
   PROJECT_QUEUE_READINESS_CHECK_CAPABILITY,
   type ProjectQueueReadinessCommand,
   RENDEZ_PROJECT_STATUS_CAPABILITY,
-  RENDEZVOUS_UPLOADS_CAPABILITY,
+  RENDEZ_UPLOADS_CAPABILITY,
   SESSION_REWIND_CAPABILITY,
   clampClearloopInactivitySeconds,
   clampProjectQueueQuietSeconds,
@@ -235,9 +235,9 @@ export function MessageDeliverySettings() {
     PROJECT_QUEUE_READINESS_CHECK_CAPABILITY,
   );
   const supportsBangCommands = serverSupportsBangCommands(version);
-  const supportsRendezvous = serverHasCapability(
+  const supportsRendez = serverHasCapability(
     version,
-    RENDEZVOUS_UPLOADS_CAPABILITY,
+    RENDEZ_UPLOADS_CAPABILITY,
   );
   const supportsRendezStatus = serverHasCapability(
     version,
@@ -288,14 +288,14 @@ export function MessageDeliverySettings() {
   const [draftRendez, setDraftRendez] = useState<RendezSettingsValue | null>(
     null,
   );
-  const shownRendez = draftRendez ?? settings?.rendezvous ?? RENDEZ_OFF;
+  const shownRendez = draftRendez ?? settings?.rendez ?? RENDEZ_OFF;
   const { watching: rendezWatching, refresh: refreshRendezWatching } =
-    useRendezWatching(supportsRendezvous && supportsRendezStatus);
+    useRendezWatching(supportsRendez && supportsRendezStatus);
   const { projects: knownProjects } = useProjects();
   const saveRendez = useCallback(
     (next: RendezSettingsValue) => {
       setDraftRendez(next);
-      void updateSettings({ rendezvous: next })
+      void updateSettings({ rendez: next })
         .catch(() => {
           // surfaced via the hook's error state
         })
@@ -362,7 +362,7 @@ export function MessageDeliverySettings() {
         keepMobileKeyboardOpenAfterDelivery,
         questionAsidesEnabled,
         attachmentQuality,
-        rendez: settings.rendezvous ?? RENDEZ_OFF,
+        rendez: settings.rendez ?? RENDEZ_OFF,
       };
     }
   }, [
@@ -554,7 +554,7 @@ export function MessageDeliverySettings() {
         baseline.keepMobileKeyboardOpenAfterDelivery ||
       questionAsidesEnabled !== baseline.questionAsidesEnabled ||
       attachmentQuality !== baseline.attachmentQuality ||
-      (supportsRendezvous && !sameRendezChoices(shownRendez, baseline.rendez)));
+      (supportsRendez && !sameRendezChoices(shownRendez, baseline.rendez)));
 
   const undo = useCallback(async () => {
     const snapshot = baselineRef.current;
@@ -575,10 +575,10 @@ export function MessageDeliverySettings() {
       snapshot.keepMobileKeyboardOpenAfterDelivery,
     );
     await updateSettings({
-      ...(supportsRendezvous
+      ...(supportsRendez
         ? {
-            rendezvous: {
-              ...settings?.rendezvous,
+            rendez: {
+              ...settings?.rendez,
               enabled: snapshot.rendez.enabled,
               projects: snapshot.rendez.projects,
             },
@@ -628,9 +628,9 @@ export function MessageDeliverySettings() {
     supportsClearloop,
     supportsProjectQueue,
     supportsReadinessCheck,
-    supportsRendezvous,
+    supportsRendez,
     supportsTopicShift,
-    settings?.rendezvous,
+    settings?.rendez,
     updateSettings,
   ]);
 
@@ -643,7 +643,7 @@ export function MessageDeliverySettings() {
   return (
     <SettingsSection description={t("messageDeliveryDescription")}>
       <div className="settings-group">
-        {supportsRendezvous ? (
+        {supportsRendez ? (
           <RendezSettings
             value={shownRendez}
             projects={knownProjects}

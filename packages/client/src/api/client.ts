@@ -2036,7 +2036,7 @@ export const DEFAULT_FILE_ACCESS: FileAccessSettings = {
 export interface ServerSettings {
   issueAssociations?: import("@yep-anywhere/shared").IssueSettings;
   /** Opt-in project upload monitoring; absent means disabled. */
-  rendezvous?: {
+  rendez?: {
     enabled: boolean;
     projects: Record<string, boolean>;
     windowMs?: number;

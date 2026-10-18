@@ -10,7 +10,7 @@ Parent contract: [Project Directory Storage](project-directory-storage.md).
 
 Settings surface: [Storage Settings](storage-settings.md).
 
-[Rendezvous uploads](rendez.md) are a separate opt-in intake path. Their
+[rendez uploads](rendez.md) are a separate opt-in intake path. Their
 persisted attachment paths use the authorized local-media route, while normal
 browser uploads retain the storage and narrow upload routes described here.
 

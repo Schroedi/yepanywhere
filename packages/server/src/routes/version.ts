@@ -609,7 +609,7 @@ const BASE_CAPABILITIES: string[] = [
   SERVER_CAPABILITIES.retainedRecents.name,
   SERVER_CAPABILITIES.retainedProjects.name,
   SERVER_CAPABILITIES.providerDescriptors.name,
-  SERVER_CAPABILITIES.rendezvousUploads.name,
+  SERVER_CAPABILITIES.rendezUploads.name,
   SERVER_CAPABILITIES.patientTopicShift.name,
   SERVER_CAPABILITIES.rendezProjectStatus.name,
   PROJECT_QUEUE_ATTACHMENT_EDITING_CAPABILITY,

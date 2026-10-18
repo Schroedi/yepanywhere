@@ -2187,8 +2187,8 @@ export const SERVER_CAPABILITIES = {
         "No maintained client branches on provider-descriptors.",
     },
   },
-  rendezvousUploads: {
-    id: CAPABILITY_ID_ALLOCATIONS.rendezvousUploads.id,
+  rendezUploads: {
+    id: CAPABILITY_ID_ALLOCATIONS.rendezUploads.id,
     name: "rendez-uploads",
     kind: "permanent",
     area: "settings",
@@ -2197,15 +2197,15 @@ export const SERVER_CAPABILITIES = {
     description:
       "Configures opt-in project .rendez upload monitoring, project overrides and burst limits.",
     clientFallback:
-      "Show server-update guidance and make no rendezvous settings write.",
+      "Show server-update guidance and make no rendez settings write.",
     serverContract: {
       routes: ["GET /api/settings", "PUT /api/settings"],
-      requestFields: ["settings.rendezvous"],
-      responseFields: ["settings.rendezvous"],
+      requestFields: ["settings.rendez"],
+      responseFields: ["settings.rendez"],
     },
     lifecycle: {
       kind: "permanent",
-      reason: "Older servers cannot monitor rendezvous uploads.",
+      reason: "Older servers cannot monitor rendez uploads.",
     },
   },
   rendezProjectStatus: {
@@ -4354,8 +4354,7 @@ export const SIDEBAR_SESSION_RESUME_CAPABILITY =
   SERVER_CAPABILITIES.sidebarSessionResume.name;
 export const PATIENT_TOPIC_SHIFT_CAPABILITY =
   SERVER_CAPABILITIES.patientTopicShift.name;
-export const RENDEZVOUS_UPLOADS_CAPABILITY =
-  SERVER_CAPABILITIES.rendezvousUploads.name;
+export const RENDEZ_UPLOADS_CAPABILITY = SERVER_CAPABILITIES.rendezUploads.name;
 export const RENDEZ_PROJECT_STATUS_CAPABILITY =
   SERVER_CAPABILITIES.rendezProjectStatus.name;
 export const SYNTHETIC_DONE_COMMAND_CAPABILITY =

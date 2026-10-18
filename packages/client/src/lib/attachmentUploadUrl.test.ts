@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import { getPersistedAttachmentUploadUrl } from "./attachmentUploadUrl";
 
-it("routes rendezvous snapshots and other absolute uploads through authorized local media", () => {
+it("routes rendez snapshots and other absolute uploads through authorized local media", () => {
   for (const path of [
     "/work/project/.rendez/delivered/session/event/file.png",
     "/work/project/screenshots/example.png",

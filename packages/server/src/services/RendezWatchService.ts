@@ -2,28 +2,28 @@ import { lstat } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { getLogger } from "../logging/logger.js";
 import {
-  RendezvousConflictError,
-  RendezvousObserver,
-  type RendezvousSessions,
-  type RendezvousWatchBudget,
-} from "./RendezvousObserver.js";
-import { flushRendezvousUserTurn } from "./rendezvous-activity.mjs";
+  RendezConflictError,
+  RendezObserver,
+  type RendezSessions,
+  type RendezWatchBudget,
+} from "./RendezObserver.js";
+import { flushRendezUserTurn } from "./rendez-activity.mjs";
 import type { ServerSettingsService } from "./ServerSettingsService.js";
 
 const MAX_OBSERVED_PROJECTS = 32;
 // Each project needs one watch for its routes plus one per subscribed route.
 const MAX_DIRECTORY_WATCHES = 1024;
 
-export interface RendezvousSettings {
+export interface RendezSettings {
   enabled: boolean;
   projects: Record<string, boolean>;
   windowMs?: number;
   maxPerWindow?: number;
 }
 
-export function parseRendezvousSettings(value: unknown): RendezvousSettings {
+export function parseRendezSettings(value: unknown): RendezSettings {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error("rendezvous must be an object");
+    throw new Error("rendez must be an object");
   }
   const fields = value as Record<string, unknown>;
   if (
@@ -32,7 +32,7 @@ export function parseRendezvousSettings(value: unknown): RendezvousSettings {
     typeof fields.projects !== "object" ||
     Array.isArray(fields.projects)
   ) {
-    throw new Error("rendezvous requires enabled and a projects map");
+    throw new Error("rendez requires enabled and a projects map");
   }
   const projects = Object.entries(fields.projects);
   for (const [name, maximum] of [
@@ -47,9 +47,7 @@ export function parseRendezvousSettings(value: unknown): RendezvousSettings {
         value < 1 ||
         value > maximum)
     ) {
-      throw new Error(
-        `rendezvous.${name} must be an integer from 1 to ${maximum}`,
-      );
+      throw new Error(`rendez.${name} must be an integer from 1 to ${maximum}`);
     }
   }
   if (
@@ -59,7 +57,7 @@ export function parseRendezvousSettings(value: unknown): RendezvousSettings {
     )
   ) {
     throw new Error(
-      "rendezvous.projects requires at most 128 absolute paths with boolean overrides",
+      "rendez.projects requires at most 128 absolute paths with boolean overrides",
     );
   }
   return {
@@ -70,7 +68,7 @@ export function parseRendezvousSettings(value: unknown): RendezvousSettings {
   };
 }
 
-export interface RendezvousWatchStatus {
+export interface RendezWatchStatus {
   /** Projects whose observer is running. */
   watching: string[];
 }
@@ -87,10 +85,10 @@ const MAX_REMEMBERED_USER_TURNS = 256;
  * it was turned on, unless `.rendez` already exists. Trying settings out
  * therefore leaves no trace in any project.
  */
-export class RendezvousWatchService {
+export class RendezWatchService {
   private readonly observers = new Map<
     string,
-    { observer: RendezvousObserver; limits: string }
+    { observer: RendezObserver; limits: string }
   >();
   private readonly started = new Set<string>();
   /** Orders turn-ons and user messages exactly; values are event sequence numbers. */
@@ -104,7 +102,7 @@ export class RendezvousWatchService {
   private readonly unsubscribeUserTurns: () => void;
   private readonly failed = new Set<string>();
   private readonly conflicted = new Set<string>();
-  private readonly budget: RendezvousWatchBudget = {
+  private readonly budget: RendezWatchBudget = {
     used: 0,
     limit: MAX_DIRECTORY_WATCHES,
   };
@@ -114,26 +112,26 @@ export class RendezvousWatchService {
   private scheduled = false;
   private busy = false;
   private closed = false;
-  private settings: RendezvousSettings;
+  private settings: RendezSettings;
 
   constructor(
     settingsService: ServerSettingsService,
     private readonly listProjects: () => Promise<
       ReadonlyArray<{ path: string }>
     >,
-    private readonly sessions: RendezvousSessions,
+    private readonly sessions: RendezSessions,
     userTurns: (listener: (projectPath: string) => void) => () => void,
   ) {
-    this.settings = settingsService.getSetting("rendezvous") ?? {
+    this.settings = settingsService.getSetting("rendez") ?? {
       enabled: false,
       projects: {},
     };
     this.rearm({ enabled: false, projects: {} }, this.settings);
     this.unsubscribe = settingsService.onSettingsChanged(
       (settings, previous) => {
-        if (settings.rendezvous === previous.rendezvous) return;
+        if (settings.rendez === previous.rendez) return;
         const prior = this.settings;
-        this.settings = settings.rendezvous ?? { enabled: false, projects: {} };
+        this.settings = settings.rendez ?? { enabled: false, projects: {} };
         this.rearm(prior, this.settings);
         this.failed.clear();
         this.configure();
@@ -152,7 +150,7 @@ export class RendezvousWatchService {
     this.configure();
   }
 
-  status(): RendezvousWatchStatus {
+  status(): RendezWatchStatus {
     return { watching: [...this.started].sort() };
   }
 
@@ -161,7 +159,7 @@ export class RendezvousWatchService {
   }
 
   /** Record when projects turn on, so only later user messages attach them. */
-  private rearm(prior: RendezvousSettings, next: RendezvousSettings): void {
+  private rearm(prior: RendezSettings, next: RendezSettings): void {
     const now = ++this.sequence;
     if (prior.enabled !== next.enabled) {
       // Inheriting projects follow the new default from now on.
@@ -209,7 +207,7 @@ export class RendezvousWatchService {
       Object.values(this.settings.projects).some(Boolean);
     if (enabled && process.platform === "win32") {
       getLogger().warn(
-        "Rendezvous monitoring needs POSIX symlinks and is unavailable on Windows",
+        "Rendez monitoring needs POSIX symlinks and is unavailable on Windows",
       );
       return;
     }
@@ -233,7 +231,7 @@ export class RendezvousWatchService {
       .catch((error) => {
         getLogger().warn(
           { error: String(error) },
-          "Rendezvous watcher reconciliation failed",
+          "Rendez watcher reconciliation failed",
         );
       })
       .finally(() => {
@@ -283,7 +281,7 @@ export class RendezvousWatchService {
     for (const project of wanted) {
       if (this.closed) return;
       if (this.observers.has(project) || this.failed.has(project)) continue;
-      const observer = new RendezvousObserver(project, {
+      const observer = new RendezObserver(project, {
         windowMs,
         maxPerWindow,
         sessions: this.sessions,
@@ -292,7 +290,7 @@ export class RendezvousWatchService {
           this.failed.add(project);
           getLogger().warn(
             { projectPath: project, error: String(error) },
-            "Rendezvous watcher stopped; change its setting to retry",
+            "Rendez watcher stopped; change its setting to retry",
           );
           void this.retire(project);
         },
@@ -302,15 +300,15 @@ export class RendezvousWatchService {
         await observer.start();
         this.started.add(project);
         this.conflicted.delete(project);
-        flushRendezvousUserTurn(project);
+        flushRendezUserTurn(project);
       } catch (error) {
         await this.retire(project);
-        if (error instanceof RendezvousConflictError) {
+        if (error instanceof RendezConflictError) {
           if (!this.conflicted.has(project)) {
             this.conflicted.add(project);
             getLogger().warn(
               { projectPath: project, error: error.message },
-              "Rendezvous watching deferred: another observer serves this project",
+              "Rendez watching deferred: another observer serves this project",
             );
           }
           continue;
@@ -318,7 +316,7 @@ export class RendezvousWatchService {
         this.failed.add(project);
         getLogger().warn(
           { projectPath: project, error: String(error) },
-          "Rendezvous watcher stopped; change its setting to retry",
+          "Rendez watcher stopped; change its setting to retry",
         );
       }
     }

@@ -1,6 +1,6 @@
-# Rendezvous uploads
+# rendez uploads
 
-> Rendezvous sends files copied into a project's `.rendez` directory to a
+> rendez sends files copied into a project's `.rendez` directory to a
 > selected agent session, including the session most recently messaged by the user.
 
 Topic: rendez
@@ -50,15 +50,17 @@ shows no status and the client makes no status request.
 The optional-feature compatibility review covered stable v0.9.0, v0.9.1 and
 v0.9.2, none of which has rendez code. `rendez-uploads` has permanent ID 131 and
 `rendez-project-status` ID 133; both are version-implied from 0.9.4 and change
-no existing capability's meaning. ID 131 was renamed from `rendezvous-uploads`
-before release.
+no existing capability's meaning. Before release, ID 131 was renamed from
+`rendezvous-uploads` and the settings field from `rendezvous` to `rendez`; an
+old `rendezvous` settings entry is ignored. Delivered turns still carry the
+message origin `rendezvous`, a persisted value shared with the provider host.
 
 The settings and burst limits are also available through the authenticated
 `PUT /api/settings` API:
 
 ```json
 {
-  "rendezvous": {
+  "rendez": {
     "enabled": false,
     "projects": { "/work/project": true },
     "windowMs": 1000,
@@ -167,7 +169,7 @@ inbox. [rsync manual](https://download.samba.org/pub/rsync/rsync.1)
 
 `latest-session` follows the last session accepting an actual user message in
 that project. Coordination requests, takeover notices, automated turns, and
-rendezvous uploads do not change it. Once an upload is received, its recipient
+rendez uploads do not change it. Once an upload is received, its recipient
 is fixed. For an ongoing transfer stream that must stay with one session, use
 the stable directory returned by an explicit subscription instead.
 
@@ -199,7 +201,7 @@ the retained prepared copy is sufficient. There is no permanent second archive
 of full-size originals. Recorded snapshot paths are matched after resolving
 filesystem aliases through the same file-access policy. Browser uploads keep
 their existing [attachment storage policy](attachment-storage.md); enabling
-rendezvous does not migrate them or require all attachments to share one
+rendez does not migrate them or require all attachments to share one
 storage directory.
 
 ## Optional helpers outside YA

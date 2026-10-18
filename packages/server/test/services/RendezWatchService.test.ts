@@ -16,10 +16,10 @@ import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
 import sharp from "sharp";
 import { afterEach, expect, it, vi } from "vitest";
-import type { RendezvousSessions } from "../../src/services/RendezvousObserver.js";
-import { RendezvousWatchService } from "../../src/services/RendezvousWatchService.js";
+import type { RendezSessions } from "../../src/services/RendezObserver.js";
+import { RendezWatchService } from "../../src/services/RendezWatchService.js";
 import { ServerSettingsService } from "../../src/services/ServerSettingsService.js";
-import { subscribe } from "../../src/services/rendezvous-protocol.mjs";
+import { subscribe } from "../../src/services/rendez-protocol.mjs";
 
 const profile = { maxLongEdge: 2000, maxBytes: 4 * 1024 * 1024, quality: 85 };
 const target = {
@@ -44,7 +44,7 @@ async function harness(maxPerWindow = 10) {
   const project = await realpath(await mkdtemp(join(tmpdir(), "rendez-")));
   const root = join(project, ".rendez");
   const sent: Array<{ id: string; text: string }> = [];
-  const sessions: RendezvousSessions = {
+  const sessions: RendezSessions = {
     async route() {
       return {
         transport: "ya",
@@ -70,11 +70,11 @@ async function harness(maxPerWindow = 10) {
     userTurnListeners.add(listener);
     return () => userTurnListeners.delete(listener);
   };
-  let service: RendezvousWatchService | undefined;
+  let service: RendezWatchService | undefined;
   /** Apply settings afresh, which makes the service reconcile now. */
   const refresh = () =>
     settings.updateSettings({
-      rendezvous: {
+      rendez: {
         enabled: true,
         projects: {},
         windowMs: 60_000,
@@ -82,7 +82,7 @@ async function harness(maxPerWindow = 10) {
       },
     });
   const start = async ({ owned = true } = {}) => {
-    service = new RendezvousWatchService(
+    service = new RendezWatchService(
       settings,
       async () => [{ path: project }],
       sessions,
@@ -132,10 +132,10 @@ it.skipIf(process.platform === "win32")(
         () => false,
       );
     const apply = (enabled: boolean, projects: Record<string, boolean> = {}) =>
-      settings.updateSettings({ rendezvous: { enabled, projects } });
+      settings.updateSettings({ rendez: { enabled, projects } });
     const quiet = () => new Promise((resolve) => setTimeout(resolve, 300));
     // A message before the project is turned on does not count.
-    const service = new RendezvousWatchService(
+    const service = new RendezWatchService(
       settings,
       async () => [{ path: project }],
       sessions,

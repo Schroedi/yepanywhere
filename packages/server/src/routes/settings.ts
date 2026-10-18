@@ -46,9 +46,9 @@ import {
 } from "@yep-anywhere/shared";
 import { Hono, type Context } from "hono";
 import {
-  parseRendezvousSettings,
-  type RendezvousWatchStatus,
-} from "../services/RendezvousWatchService.js";
+  parseRendezSettings,
+  type RendezWatchStatus,
+} from "../services/RendezWatchService.js";
 import { InstructionPackets } from "../sdk/providers/instruction-packets.js";
 import { PRINCIPAL_VARIABLE, type Principal } from "../auth/principal.js";
 import {
@@ -144,7 +144,7 @@ export interface SettingsRoutesDeps {
   /** Process-global host-awake policy and status owner. */
   hostAwakeService?: HostAwakeService;
   /** Which projects' .rendez observers are running. */
-  getRendezvousStatus?: () => RendezvousWatchStatus;
+  getRendezStatus?: () => RendezWatchStatus;
 }
 
 /**
@@ -257,7 +257,7 @@ export function createSettingsRoutes(deps: SettingsRoutesDeps) {
     const principal = c.get(PRINCIPAL_VARIABLE);
     if (principal && principal.kind !== "superuser")
       return c.json({ error: "Administrator access required" }, 403);
-    return c.json(deps.getRendezvousStatus?.() ?? { watching: [] });
+    return c.json(deps.getRendezStatus?.() ?? { watching: [] });
   });
 
   app.post("/instruction-restoration/preview", async (c) => {
@@ -336,9 +336,9 @@ export function createSettingsRoutes(deps: SettingsRoutesDeps) {
 
       const updates: Partial<ServerSettings> = {};
 
-      if ("rendezvous" in body) {
+      if ("rendez" in body) {
         try {
-          updates.rendezvous = parseRendezvousSettings(body.rendezvous);
+          updates.rendez = parseRendezSettings(body.rendez);
         } catch (error) {
           return c.json(
             { error: error instanceof Error ? error.message : String(error) },

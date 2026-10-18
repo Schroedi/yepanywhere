@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { publishRendezvousUserTurn } from "../packages/server/src/services/rendezvous-activity.mjs";
+import { publishRendezUserTurn } from "../packages/server/src/services/rendez-activity.mjs";
 
 const ACCEPT_TIMEOUT_MS = 15_000;
 const DEFAULT_TURN_TIMEOUT_MS = 30 * 60_000;
@@ -240,7 +240,7 @@ export class ProviderRuntimeTurnLedger {
           submission.request.message?.metadata?.origin === "user" &&
           (runtime.harness === "claude" || runtime.harness === "codex")
         ) {
-          publishRendezvousUserTurn(
+          publishRendezUserTurn(
             {
               projectPath: runtime.projectPath,
               harness: runtime.harness,
@@ -250,7 +250,7 @@ export class ProviderRuntimeTurnLedger {
             },
             (error) =>
               console.error(
-                "[rendezvous] Latest-session publication failed:",
+                "[rendez] Latest-session publication failed:",
                 error.message,
               ),
           );

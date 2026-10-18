@@ -346,9 +346,9 @@ import { initializeSessionHeartbeatDefaults } from "./services/sessionHeartbeatD
 import type { ProjectQueueService } from "./services/ProjectQueueService.js";
 import type { RelayClientService } from "./services/RelayClientService.js";
 import type { ServerSettingsService } from "./services/ServerSettingsService.js";
-import { RendezvousWatchService } from "./services/RendezvousWatchService.js";
-import { createRendezvousSessions } from "./services/rendezvousSessions.js";
-import { onRendezvousUserTurn } from "./services/rendezvousActivity.js";
+import { RendezWatchService } from "./services/RendezWatchService.js";
+import { createRendezSessions } from "./services/rendezSessions.js";
+import { onRendezUserTurn } from "./services/rendezActivity.js";
 import { getLogger } from "./logging/logger.js";
 import { listHostedProviderRuntimes } from "./sdk/providers/provider-runtime-host.js";
 import {
@@ -1493,8 +1493,8 @@ export function createApp(options: AppOptions): AppResult {
   let vocabularyKeyterms: VocabularyKeyterms | undefined;
   let unsubscribeVocabulary: (() => void) | undefined;
   let sessionReadersDisposal: Promise<void> | undefined;
-  const rendezvousWatch = options.serverSettingsService
-    ? new RendezvousWatchService(
+  const rendezWatch = options.serverSettingsService
+    ? new RendezWatchService(
         options.serverSettingsService,
         async () => {
           const paths = new Set(
@@ -1514,13 +1514,13 @@ export function createApp(options: AppOptions): AppResult {
           } catch (error) {
             getLogger().warn(
               { error: String(error) },
-              "Rendezvous provider inventory unavailable; using local live sessions",
+              "Rendez provider inventory unavailable; using local live sessions",
             );
           }
           return [...paths].map((path) => ({ path }));
         },
-        createRendezvousSessions(() => supervisor.getAllProcesses()),
-        onRendezvousUserTurn,
+        createRendezSessions(() => supervisor.getAllProcesses()),
+        onRendezUserTurn,
       )
     : undefined;
   const disposeSessionReaders = (): Promise<void> => {
@@ -1528,7 +1528,7 @@ export function createApp(options: AppOptions): AppResult {
     // Cache the promise before asynchronous cleanup can close shared services.
     sessionReadersDisposal ??= (async () => {
       await supervisor.stopBackgroundTasks();
-      await rendezvousWatch?.close();
+      await rendezWatch?.close();
       await projectServices.close();
       await projectAppStore.close();
       await projectAppAutoStart.close();
@@ -3444,9 +3444,7 @@ export function createApp(options: AppOptions): AppResult {
         projectStoragePolicy,
         hostAwakeService: options.hostAwakeService,
         sessionMetadataService: options.sessionMetadataService,
-        getRendezvousStatus: rendezvousWatch
-          ? () => rendezvousWatch.status()
-          : undefined,
+        getRendezStatus: rendezWatch ? () => rendezWatch.status() : undefined,
         onAllowedHostsChanged: updateAllowedHosts,
         onFileAccessChanged: updateFileAccess,
         onRemoteSessionPersistenceChanged: options.remoteSessionService

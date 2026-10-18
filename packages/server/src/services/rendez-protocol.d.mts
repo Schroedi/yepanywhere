@@ -1,15 +1,15 @@
-export interface RendezvousTarget {
+export interface RendezTarget {
   harness: string;
   providerSessionId: string;
   yaSessionId?: string;
   liveOnly?: boolean;
 }
 
-export interface RendezvousSubscription {
+export interface RendezSubscription {
   version: 1;
   route: string;
   project: string;
-  target: RendezvousTarget;
+  target: RendezTarget;
   path: string;
 }
 
@@ -21,9 +21,9 @@ export function atomicJson(path: string, value: unknown): Promise<void>;
 
 export function subscribe(
   root: string,
-  target: RendezvousTarget,
+  target: RendezTarget,
   options?: { route?: string; latest?: boolean; receivedAt?: number },
-): Promise<RendezvousSubscription>;
+): Promise<RendezSubscription>;
 
 export function settleLatest(root: string): Promise<void>;
 

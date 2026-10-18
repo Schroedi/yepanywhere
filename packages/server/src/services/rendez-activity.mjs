@@ -1,22 +1,22 @@
 import { lstat, realpath } from "node:fs/promises";
 import { join } from "node:path";
-import { subscribe } from "./rendezvous-protocol.mjs";
+import { subscribe } from "./rendez-protocol.mjs";
 
 const latest = new Map();
 const running = new Set();
 
 /** Coalesce user activity per project without holding up session input. */
-export function publishRendezvousUserTurn(turn, onError) {
+export function publishRendezUserTurn(turn, onError) {
   const prior = latest.get(turn.projectPath);
   if (prior && prior.turn.receivedAt > turn.receivedAt) return;
   latest.delete(turn.projectPath);
   latest.set(turn.projectPath, { turn, onError });
   if (latest.size > 128) latest.delete(latest.keys().next().value);
-  flushRendezvousUserTurn(turn.projectPath);
+  flushRendezUserTurn(turn.projectPath);
 }
 
 /** Replay activity accepted before an opt-in watcher created its destination. */
-export function flushRendezvousUserTurn(projectPath) {
+export function flushRendezUserTurn(projectPath) {
   const entry = latest.get(projectPath);
   if (!entry || running.has(projectPath)) return;
   running.add(projectPath);
@@ -25,8 +25,7 @@ export function flushRendezvousUserTurn(projectPath) {
     .finally(() => {
       running.delete(projectPath);
       // A newer turn that arrived meanwhile is recorded next.
-      if (latest.get(projectPath) !== entry)
-        flushRendezvousUserTurn(projectPath);
+      if (latest.get(projectPath) !== entry) flushRendezUserTurn(projectPath);
     });
 }
 
@@ -36,7 +35,7 @@ async function recordUserTurn(turn) {
     root = join(await realpath(turn.projectPath), ".rendez");
     const stats = await lstat(root);
     if (stats.isSymbolicLink()) {
-      throw new Error("Rendezvous root must not be a symlink");
+      throw new Error("Rendez root must not be a symlink");
     }
     if (!stats.isDirectory()) return;
   } catch (error) {

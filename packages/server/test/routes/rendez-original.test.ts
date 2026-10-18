@@ -24,22 +24,22 @@ it("serves matching originals, preserves old uploads after overwrite, and checks
     const routes = createLocalImageRoutes({ allowedPaths: [project] });
     const url = `/?path=${encodeURIComponent(snapshot)}`;
     expect(await (await routes.request(url)).text()).toBe("prepared");
-    expect(
-      await (await routes.request(`${url}&rendezvousOriginal=1`)).text(),
-    ).toBe("original");
+    expect(await (await routes.request(`${url}&rendezOriginal=1`)).text()).toBe(
+      "original",
+    );
     await writeFile(original, "replaced");
-    expect(
-      await (await routes.request(`${url}&rendezvousOriginal=1`)).text(),
-    ).toBe("prepared");
+    expect(await (await routes.request(`${url}&rendezOriginal=1`)).text()).toBe(
+      "prepared",
+    );
     const outside = join(root, "outside.png");
     await writeFile(outside, "original");
     await writeFile(
       join(event, "record.json"),
       JSON.stringify({ ...record, originalPath: outside }),
     );
-    expect(
-      await (await routes.request(`${url}&rendezvousOriginal=1`)).text(),
-    ).toBe("prepared");
+    expect(await (await routes.request(`${url}&rendezOriginal=1`)).text()).toBe(
+      "prepared",
+    );
   } finally {
     await rm(root, { recursive: true });
   }

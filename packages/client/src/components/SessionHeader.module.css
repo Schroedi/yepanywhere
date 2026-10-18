@@ -148,6 +148,16 @@
   }
 }
 
+/* The project App button is a square home icon, level with the session's
+   last-view icon beside it. */
+.projectAppButton {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+}
+
 @media (width <= 700px) {
   .routerAccount {
     display: none;

@@ -1,6 +1,6 @@
-# In-session rendezvous observers shown as user uploads
+# In-session rendez observers shown as user uploads
 
-Extends [rendezvous uploads](../../topics/rendez.md).
+Extends [rendez uploads](../../topics/rendez.md).
 
 ## Desired outcome
 
