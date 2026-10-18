@@ -201,10 +201,14 @@ test("code headers never cover source and comments remain readable", async ({
               parseFloat(style.paddingRight),
             targetWidth: control.width,
             targetHeight: control.height,
+            headerOverhead:
+              pre.getBoundingClientRect().height -
+              code.getBoundingClientRect().height,
           };
         });
         expect(geometry.controlBottom).toBeLessThanOrEqual(geometry.sourceTop);
         expect(geometry.codeWidth).toBeCloseTo(geometry.availableWidth, 0);
+        expect(geometry.headerOverhead).toBeLessThanOrEqual(touch ? 56 : 36);
         expect((await block.boundingBox())!.height).toBe(before!.height);
         if (touch) {
           expect(geometry.targetWidth).toBeGreaterThanOrEqual(44);

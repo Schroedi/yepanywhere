@@ -100,7 +100,9 @@ always shown without a hover pointer, where it grows to a touch-sized target.
 The language label shares that row. Neither control may overlap the source,
 including wrapped first lines on narrow phones. Source text retains the full
 content width below the header; no right-hand control gutter reduces it.
-Touch targets are at least 44×44 CSS pixels.
+Keep padding and the gap before source compact; the button's touch target,
+not extra whitespace, determines the mobile header height. Touch targets
+remain at least 44×44 CSS pixels.
 
 It is a real `<button>` inside the `<pre>`, which the label deliberately is
 not, so it is built to leave every copy path untouched: icon-only (no text in
