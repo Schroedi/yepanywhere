@@ -10,6 +10,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { projectAppApi, type ProjectAppTarget } from "../api/projectApp";
 import { useLongPress } from "../hooks/useLongPress";
 import { useVersion } from "../hooks/useVersion";
+import { activityBus } from "../lib/activityBus";
 import { UI_KEYS } from "../lib/storageKeys";
 import { artifactAudience } from "../lib/artifactPreview";
 import type { VoiceInputButtonRef } from "./VoiceInputButton";
@@ -22,8 +23,10 @@ import actions from "./ViewerWindowActions.module.css";
 import styles from "./ProjectAppViewer.module.css";
 import { useI18n } from "../i18n";
 
-/** How often an open static app's files are checked for newer content. */
-const STATIC_WATCH_INTERVAL_MS = 3000;
+/** While a project agent works, how often an open static app is checked. */
+const STATIC_WATCH_INTERVAL_MS = 2000;
+/** How long checks continue after the project's agents stop working. */
+const STATIC_WATCH_TAIL_MS = 20_000;
 
 function Glyph({ path }: { path: string }) {
   return (
@@ -268,15 +271,49 @@ export function ProjectAppViewer({
     shownStamp !== undefined;
   const stale =
     watching && info?.updatedAt !== undefined && info.updatedAt !== shownStamp;
+  // Files change when something works on them, so readings follow that work:
+  // while an agent in this project is mid-turn and briefly after, and when
+  // the user returns to the page (perhaps from an editor). Otherwise the
+  // viewer reads nothing.
   useEffect(() => {
     if (!watching) return;
-    const poll = () => {
+    const working = new Set<string>();
+    let tailUntil = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const check = () => {
       if (document.visibilityState !== "visible") return;
-      // A missed reading only delays the hint; the next one retries.
+      // A missed reading only delays the hint; a later one retries.
       void projectAppApi.info(projectId).then(setInfo, () => {});
     };
-    const timer = setInterval(poll, STATIC_WATCH_INTERVAL_MS);
-    return () => clearInterval(timer);
+    const schedule = () => {
+      clearTimeout(timer);
+      if (working.size === 0 && Date.now() >= tailUntil) return;
+      timer = setTimeout(() => {
+        check();
+        schedule();
+      }, STATIC_WATCH_INTERVAL_MS);
+    };
+    const stopActivity = activityBus.on("process-state-changed", (event) => {
+      if (event.projectId !== projectId) return;
+      if (event.activity === "in-turn") working.add(event.sessionId);
+      else {
+        working.delete(event.sessionId);
+        tailUntil = Date.now() + STATIC_WATCH_TAIL_MS;
+        check();
+      }
+      schedule();
+    });
+    const returned = () => {
+      if (document.visibilityState === "visible") check();
+    };
+    document.addEventListener("visibilitychange", returned);
+    window.addEventListener("focus", returned);
+    return () => {
+      clearTimeout(timer);
+      stopActivity();
+      document.removeEventListener("visibilitychange", returned);
+      window.removeEventListener("focus", returned);
+    };
   }, [watching, projectId]);
   useEffect(() => {
     if (!stale || !(autoReload || reloadArmed)) return;

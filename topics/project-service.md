@@ -122,9 +122,14 @@ time, including an active runtime whose source declaration changed. Unknown
 stamps are omitted. Older servers without the field support first-declaration
 detection only, not rebuild detection; older servers stamp only the entry.
 
-An open static app polls App information every 3 seconds while the page is
-visible. When the stamp differs from the one read as its frame loaded, the
-reload button lights. A click with nothing new reloads and also arms one
+An open static app reads App information only around work that could change
+its files: every 2 seconds while an agent in the project is mid-turn and for
+20 seconds after it stops (from `process-state-changed`), once when any of
+them stops, and once when the page becomes visible or the window regains
+focus, as after editing in another program. It reads nothing while hidden or
+otherwise idle. An app opened mid-turn is first checked when that turn ends.
+When the stamp differs from the one read as its frame loaded, the reload
+button lights. A click with nothing new reloads and also arms one
 reload for the next change; holding or right-clicking reload toggles reloading
 on every change, remembered per project in the browser.
 The optional stamp is recorded under `project-app-address-links`; clients

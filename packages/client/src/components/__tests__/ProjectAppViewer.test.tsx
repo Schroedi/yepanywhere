@@ -24,6 +24,25 @@ vi.mock("../../hooks/useVersion", () => ({
   }),
 }));
 vi.mock("../../api/sourceApiFetch", () => ({ fetchJSON: mock.fetch }));
+// Process-state events, the agent activity a static app's watch follows.
+const activity = vi.hoisted(() => {
+  const listeners = new Set<(event: unknown) => void>();
+  return {
+    listeners,
+    emit: (event: object) => {
+      for (const listener of listeners)
+        listener({ type: "process-state-changed", ...event });
+    },
+  };
+});
+vi.mock("../../lib/activityBus", () => ({
+  activityBus: {
+    on: (_type: string, listener: (event: unknown) => void) => {
+      activity.listeners.add(listener);
+      return () => activity.listeners.delete(listener);
+    },
+  },
+}));
 beforeEach(() => {
   mock.version = "0.9.4";
   mock.denyLivePreview = false;
@@ -578,7 +597,6 @@ it("marks a copied launch link live until a confirmed restart revokes it", async
 });
 it("lights reload for newer static files, arms a one-shot reload, and holds to auto-reload", async () => {
   localStorage.clear();
-  vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
   let stamp = "2026-10-18T00:00:01.000Z";
   mock.fetch.mockImplementation(async (path: string) =>
     path.endsWith("/open")
@@ -612,16 +630,32 @@ it("lights reload for newer static files, arms a one-shot reload, and holds to a
   );
   await waitFor(() => expect(container.querySelector("iframe")).toBeTruthy());
   const reload = () => screen.getByRole("button", { name: "Reload from disk" });
+  const infoReads = () =>
+    mock.fetch.mock.calls.filter(([path]) => String(path).endsWith("/app"))
+      .length;
+  // Returning to the page is one trigger for a reading.
   const poll = async () => {
     await act(async () => {
-      vi.advanceTimersByTime(3000);
+      window.dispatchEvent(new Event("focus"));
     });
   };
   expect(reload().className).toBe("");
-  // Newer files light the button; clicking loads them and clears it.
+  // With no activity the viewer reads nothing, even as the files change.
   stamp = "2026-10-18T00:00:02.000Z";
-  await poll();
+  const quiet = infoReads();
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  expect(infoReads()).toBe(quiet);
+  // A project agent going idle reads at once and lights the button; another
+  // project's agent does not.
+  act(() => {
+    activity.emit({ projectId: "other", sessionId: "x", activity: "idle" });
+  });
+  expect(infoReads()).toBe(quiet);
+  act(() => {
+    activity.emit({ projectId: "test", sessionId: "s1", activity: "idle" });
+  });
   await waitFor(() => expect(reload().className).toMatch(/reloadStale/));
+  // Newer files light the button; clicking loads them and clears it.
   fireEvent.click(reload());
   await waitFor(() => expect(container.querySelector("iframe")).toBeTruthy());
   await waitFor(() => expect(reload().className).toBe(""));
@@ -644,7 +678,6 @@ it("lights reload for newer static files, arms a one-shot reload, and holds to a
   await poll();
   await waitFor(() => expect(opens()).toBe(autoOpens + 1));
   await waitFor(() => expect(reload().className).toMatch(/reloadAuto/));
-  vi.useRealTimers();
 });
 it("keeps the live iframe across settings and sharing and delegates mic synchronously to its composer", async () => {
   const toggle = vi.fn();
