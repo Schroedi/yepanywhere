@@ -394,6 +394,32 @@ it("returns Back from the latest artifact to the project app before closing", as
   );
   fireEvent.click(screen.getByRole("button", { name: "Back" }));
   expect(onBack).toHaveBeenCalledTimes(1);
+  // The project name is Home: from an artifact it shows the app, and from
+  // the app it reopens the entry route.
+  cleanup();
+  const titled = render(
+    <I18nProvider>
+      <ProjectAppViewer
+        projectId="test"
+        projectName="garden"
+        initialTarget={{ target: "artifact", artifactId: "a1" }}
+      />
+    </I18nProvider>,
+  );
+  await waitFor(() =>
+    expect(titled.container.querySelector("iframe")?.title).toBe(
+      "example.html",
+    ),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "garden" }));
+  await waitFor(() =>
+    expect(titled.container.querySelector("iframe")?.title).toBe("Canvas"),
+  );
+  const opens = () =>
+    mock.fetch.mock.calls.filter(([path]) => path.endsWith("/open")).length;
+  const before = opens();
+  fireEvent.click(screen.getByRole("button", { name: "garden" }));
+  await waitFor(() => expect(opens()).toBe(before + 1));
   // A host offering its own artifact button suppresses the toolbar's.
   cleanup();
   const hosted = render(

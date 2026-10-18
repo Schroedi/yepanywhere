@@ -15,6 +15,7 @@ import { ViewerWindowActions } from "./ViewerWindowActions";
 import { ComposerMicAction } from "./ComposerMicAction";
 import { AppViewerToolbar } from "./AppViewerToolbar";
 import { LastViewIcon } from "./LastViewIcon";
+import { ProjectAppIcon } from "./ProjectAppIcon";
 import actions from "./ViewerWindowActions.module.css";
 import styles from "./ProjectAppViewer.module.css";
 import { useI18n } from "../i18n";
@@ -50,6 +51,7 @@ export function ProjectAppViewer({
   onFullView,
   presentation = "viewer",
   offerLatestArtifact = true,
+  projectName,
   onInfoChanged,
   onAddressesChanged,
 }: {
@@ -67,6 +69,8 @@ export function ProjectAppViewer({
   presentation?: "viewer" | "settings";
   /** False where the host already offers an artifact, such as a session's App. */
   offerLatestArtifact?: boolean;
+  /** Names the app in its bar; the server's view label is generic. */
+  projectName?: string;
   onInfoChanged?: (info: ProjectAppInfo) => void;
   onAddressesChanged?: (addresses: ProjectAppAddresses) => void;
 }) {
@@ -236,7 +240,37 @@ export function ProjectAppViewer({
             </button>
           </div>
           <span className={styles.title}>
-            {view?.label ?? t("projectAppLabel")}
+            {/* Home: the app at its entry route, from an artifact or a page
+                navigated within the app. Back keeps the frame's own history. */}
+            <button
+              type="button"
+              className={styles.home}
+              title={t("projectAppHome")}
+              disabled={!declaration}
+              onClick={() => {
+                if (targetKind === "artifact") {
+                  setTarget({ target: "app" });
+                  return;
+                }
+                void refresh().catch((reason: Error) =>
+                  setError(reason.message),
+                );
+                setReload((value) => value + 1);
+              }}
+            >
+              <ProjectAppIcon />
+              <span className={styles.titleText}>
+                {projectName ??
+                  (targetKind === "artifact" ? undefined : view?.label) ??
+                  t("projectAppLabel")}
+              </span>
+            </button>
+            {targetKind === "artifact" && view && (
+              <>
+                <LastViewIcon />
+                <span className={styles.titleText}>{view.label}</span>
+              </>
+            )}
           </span>
           <div className={actions.actions}>
             {onFullView && (

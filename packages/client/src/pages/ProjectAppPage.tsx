@@ -74,6 +74,7 @@ function ProjectAppWorkspace({ projectId }: { projectId: string }) {
       >
         <ProjectAppViewer
           projectId={projectId}
+          projectName={project?.name}
           onTarget={setTarget}
           voice={voice}
           onSession={begin}

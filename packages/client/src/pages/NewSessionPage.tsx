@@ -300,6 +300,7 @@ export function NewSessionPage() {
               <ProjectAppViewer
                 key={projectId}
                 projectId={projectId}
+                projectName={confirmedSelectedProject?.name}
                 onTarget={setAppTarget}
                 voice={voice}
                 onBack={closeApp}
