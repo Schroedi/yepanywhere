@@ -69,9 +69,10 @@ matches on the class text rather than reading it is still exposed.
 ## The default language affordance
 
 A marked code block names its language on hover and on tap. It adds no visible
-chrome, no badge in the resting state, and no layout change: the existing
-default is not buggy, so the label stays a non-disturbing addition. A block
-with no language, or one whose info string normalizes away, shows nothing.
+badge in the resting state. The label occupies the reserved code-block header
+beside Copy, so revealing it does not cover code or change the block height.
+A block with no language, or one whose info string normalizes away, shows
+nothing.
 
 Three details are load-bearing:
 
@@ -88,15 +89,18 @@ Three details are load-bearing:
 
 ## Copy control
 
-Every fenced block — labeled, `text`, or bare — carries a small copy button in
-its top-right corner that copies the block's content verbatim: exactly the
-fence body, with indentation, blank lines, and entity-decoded characters, and
-nothing added. It is an established first-party convention (claude.ai code
+Every fenced block — labeled, `text`, or bare — carries a copy button in a
+reserved header row above the source that copies the block's content verbatim:
+exactly the fence body, with indentation, blank lines, and entity-decoded
+characters, and nothing added. It is an established first-party convention (claude.ai code
 blocks), so it ships visible under
 [vanilla defaults](vanilla-defaults.md#contract) rather than behind an option,
 revealed the way the language label is: on hover or focus for pointers, and
 always shown without a hover pointer, where it grows to a touch-sized target.
-The language label moves beside it.
+The language label shares that row. Neither control may overlap the source,
+including wrapped first lines on narrow phones. Source text retains the full
+content width below the header; no right-hand control gutter reduces it.
+Touch targets are at least 44×44 CSS pixels.
 
 It is a real `<button>` inside the `<pre>`, which the label deliberately is
 not, so it is built to leave every copy path untouched: icon-only (no text in
@@ -104,6 +108,9 @@ the block's `textContent` or a plain selection), marked
 `data-markdown-copy-ignore` for Markdown copy, and stripped by the semantic
 HTML clipboard with the rest of the active content. A confirmation state
 lasts about a second after a successful write.
+
+Fenced-code syntax comments must have at least 4.5:1 contrast against the
+code-block background in light, dark, verydark, and both automatic color schemes.
 
 ## Fixed-width Unicode grids
 

@@ -157,3 +157,111 @@ test("code grids preserve symbol advances, copying and typing during streaming",
   );
   expect(errors).toEqual([]);
 });
+
+test("code headers never cover source and comments remain readable", async ({
+  browser,
+}) => {
+  for (const touch of [false, true]) {
+    const context = await browser.newContext({
+      viewport: touch
+        ? { width: 375, height: 812 }
+        : { width: 1000, height: 600 },
+      hasTouch: touch,
+      isMobile: touch,
+    });
+    try {
+      const page = await context.newPage();
+      await page.goto(`${base}e2e/fixtures/code-grid.html`);
+      const android = page.locator("#android");
+      await expect(
+        android.getByRole("button", { name: "Copy code" }),
+      ).toBeAttached();
+      await page.evaluate(() => document.fonts.ready);
+      // Both a labeled, wrapped block and a bare grid need a separate header.
+      for (const id of ["android", "board"]) {
+        const block = page.locator(`#${id}`);
+        const before = await block.boundingBox();
+        if (touch) await block.tap();
+        else await block.hover();
+        const geometry = await block.evaluate((pre) => {
+          const button = pre.querySelector("button")!;
+          const code = pre.querySelector("code")!;
+          const range = document.createRange();
+          range.selectNodeContents(code);
+          const source = range.getBoundingClientRect();
+          const control = button.getBoundingClientRect();
+          const style = getComputedStyle(pre);
+          return {
+            controlBottom: control.bottom,
+            sourceTop: source.top,
+            codeWidth: code.getBoundingClientRect().width,
+            availableWidth:
+              pre.clientWidth -
+              parseFloat(style.paddingLeft) -
+              parseFloat(style.paddingRight),
+            targetWidth: control.width,
+            targetHeight: control.height,
+          };
+        });
+        expect(geometry.controlBottom).toBeLessThanOrEqual(geometry.sourceTop);
+        expect(geometry.codeWidth).toBeCloseTo(geometry.availableWidth, 0);
+        expect((await block.boundingBox())!.height).toBe(before!.height);
+        if (touch) {
+          expect(geometry.targetWidth).toBeGreaterThanOrEqual(44);
+          expect(geometry.targetHeight).toBeGreaterThanOrEqual(44);
+        }
+      }
+      for (const [theme, scheme] of [
+        ["dark", "dark"],
+        ["verydark", "dark"],
+        ["light", "light"],
+        ["auto", "dark"],
+        ["auto", "light"],
+      ] as const) {
+        await page.emulateMedia({ colorScheme: scheme });
+        await page.evaluate((theme) => {
+          document.documentElement.dataset.theme = theme;
+        }, theme);
+        const contrast = await android.evaluate((pre) => {
+          const luminance = (color: string) => {
+            const [r, g, b] = color
+              .match(/[\d.]+/g)!
+              .slice(0, 3)
+              .map(Number)
+              .map((value) => {
+                const channel = value / 255;
+                return channel <= 0.04045
+                  ? channel / 12.92
+                  : ((channel + 0.055) / 1.055) ** 2.4;
+              });
+            return r! * 0.2126 + g! * 0.7152 + b! * 0.0722;
+          };
+          const foreground = luminance(
+            getComputedStyle(pre.querySelector("code > span")!).color,
+          );
+          const background = luminance(getComputedStyle(pre).backgroundColor);
+          return (
+            (Math.max(foreground, background) + 0.05) /
+            (Math.min(foreground, background) + 0.05)
+          );
+        });
+        expect(
+          contrast,
+          `${theme}/${scheme} comment contrast`,
+        ).toBeGreaterThanOrEqual(4.5);
+      }
+      await page.evaluate(() => {
+        document.documentElement.dataset.theme = "dark";
+      });
+      await android.scrollIntoViewIfNeeded();
+      if (touch) await android.tap();
+      else await android.hover();
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth),
+      ).toBeLessThanOrEqual(touch ? 375 : 1000);
+      await recordUiCapture(page, `code-header-${touch ? "phone" : "desktop"}`);
+    } finally {
+      await context.close();
+    }
+  }
+});

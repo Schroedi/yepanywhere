@@ -145,25 +145,33 @@
   }
 }
 
-/* Copy control: the block's fence content, verbatim. Top-right, with the
-   language label moved beside it. Pointers reveal it on hover or focus, as
-   they do the label; touch has no hover, so it stays visible there. */
+/* Reserve a header row even when controls are hidden, so revealing Copy or
+   the language never covers source text or changes the block's height. */
 .root pre:has(> [data-ya-code-copy]) {
-  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.4rem 0.5rem;
 }
 
-/* Centered on the copy control's row rather than hugging the top edge. */
+.root pre:has(> [data-ya-code-copy]) > code {
+  grid-row: 2;
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
 .root pre[data-ya-code-language]:has(> [data-ya-code-copy])::after {
-  top: 0.4rem;
-  right: 1.95rem;
+  position: static;
+  grid-row: 1;
+  grid-column: 1;
+  place-self: center start;
 }
 
 .root [data-ya-code-copy] {
-  position: absolute;
-  top: 0.2rem;
-  right: 0.3rem;
-  width: 1.35rem;
-  height: 1.35rem;
+  grid-row: 1;
+  grid-column: 2;
+  justify-self: end;
+  width: 1.75rem;
+  height: 1.75rem;
   padding: 0;
   border: 1px solid var(--border-color);
   border-radius: 0.3rem;
@@ -202,13 +210,8 @@
 
 @media (hover: none) {
   .root [data-ya-code-copy] {
-    width: 1.75rem;
-    height: 1.75rem;
+    min-width: 44px;
+    min-height: 44px;
     opacity: 1;
-  }
-
-  .root pre[data-ya-code-language]:has(> [data-ya-code-copy])::after {
-    top: 0.55rem;
-    right: 2.35rem;
   }
 }

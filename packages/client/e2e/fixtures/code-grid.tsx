@@ -29,14 +29,29 @@ function Fixture() {
           margin: "auto",
           color: "var(--text-primary)",
           "--font-mono": '"YA Iosevka", monospace',
+          "--fixed-font-size-sm": "16px",
         } as React.CSSProperties
       }
     >
-      <h2>Fixed-width diagrams</h2>
+      <h2>Readable code blocks</h2>
       <div
         ref={ref}
         className={`text-block markdown-rendered ${codeFenceRootClass}`}
       >
+        <p>Copy stays above the source, including long wrapped comments.</p>
+        <pre id="android">
+          <code className="language-kotlin">
+            {"minSdk = 28     "}
+            <span style={{ color: "var(--shiki-token-comment)" }}>
+              {"// Runs on Android 9 and newer"}
+            </span>
+            {"\ntargetSdk = 36  "}
+            <span style={{ color: "var(--shiki-token-comment)" }}>
+              {"// Uses modern Android behavior rules"}
+            </span>
+            {"\ncompileSdk = 36"}
+          </code>
+        </pre>
         <p>Symbols retain the same columns as letters and spaces.</p>
         <pre id="board">
           <code>{board}</code>
