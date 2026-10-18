@@ -62,6 +62,13 @@ reverse-of-removal by construction — form 1 above.
 
 ## Session Header Space
 
+Session and shared page headers reserve a 44 CSS pixel single-line row. Their
+sidebar/back, model and overflow controls use 36 pixel mouse targets and 44
+pixel coarse-pointer targets. Vertical row padding fits around those targets
+within the reserved height, rather than increasing the row when actions load
+or pointer type changes. Model pills and icons keep their compact visual size;
+intentional multi-line content, including inline rename, may expand the row.
+
 The session header reserves space for the session title and the `…` menu.
 The model pill carries the activity indicator at every width; the header does
 not repeat it as a separate thinking icon.

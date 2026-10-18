@@ -5969,7 +5969,7 @@ function SessionPageContent({
           }
         >
           <div
-            className={`session-header-inner${isWideScreen ? ` ${sessionHeaderStyles.noLeadingControl}` : ""}`}
+            className={`session-header-inner ${sessionHeaderStyles.row}${isWideScreen ? ` ${sessionHeaderStyles.noLeadingControl}` : ""}`}
           >
             <div className={`session-header-left ${sessionHeaderStyles.left}`}>
               {/* Sidebar opener for the overlay sidebar only. On desktop the

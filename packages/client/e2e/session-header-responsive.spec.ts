@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import type { Locator } from "@playwright/test";
 import {
   decodeJsonFrame,
   type RemoteClientMessage,
@@ -8,11 +9,26 @@ import { recordUiCapture } from "./support/ui-capture.js";
 
 test.use({ serviceWorkers: "block", hasTouch: true });
 
+async function expectHeaderSizing(header: Locator, controlSize: number) {
+  await expect.poll(async () => (await header.boundingBox())?.height).toBe(44);
+  const controls = header.locator(
+    ".sidebar-toggle, .provider-badge-button, .session-menu-trigger",
+  );
+  const row = (await header.boundingBox())!;
+  for (const control of await controls.all()) {
+    const box = (await control.boundingBox())!;
+    expect(box.height).toBe(controlSize);
+    expect(box.width).toBeGreaterThanOrEqual(controlSize);
+    expect(box.y + box.height / 2).toBe(row.y + row.height / 2);
+  }
+}
+
 // Real header geometry, caret/focus, and sequential typing during streamed
 // transcript updates require the integrated SessionPage in a browser.
 test("header preserves identity, overflow actions and rename typing during live updates", async ({
   page,
   baseURL,
+  browser,
 }) => {
   const projectId = Buffer.from(join(e2ePaths.tempDir, "mockproject")).toString(
     "base64url",
@@ -208,6 +224,7 @@ test("header preserves identity, overflow actions and rename typing during live 
     }),
   ).toBeVisible();
   await expect.poll(() => Boolean(emit)).toBe(true);
+  await expectHeaderSizing(header, 44);
   await recordUiCapture(page, "session-header-desktop");
 
   await menu.click();
@@ -238,6 +255,7 @@ test("header preserves identity, overflow actions and rename typing during live 
       width >= 720 ? "full" : width >= 600 ? "compact" : "narrow",
     );
     await expect(menu).toBeInViewport();
+    await expectHeaderSizing(header, 44);
   }
   await expect(header.locator(".provider-badge")).toHaveText("So 6.1H");
   await expect(header.locator(".session-title-text")).toBeVisible();
@@ -371,8 +389,29 @@ test("header preserves identity, overflow actions and rename typing during live 
     })
     .click();
   await expect(page).toHaveURL(/\/issues\?/);
+  await expectHeaderSizing(page.locator("header.session-header"), 44);
   await expect(
     page.getByRole("button", { name: "Rename...", exact: true }),
   ).toHaveCount(0);
   expect(errors).toEqual([]);
+
+  // A mouse pointer keeps the same row height with smaller, equal targets.
+  const mousePage = await browser.newPage({
+    hasTouch: false,
+    viewport: { width: 1000, height: 600 },
+    serviceWorkers: "block",
+  });
+  try {
+    await mousePage.goto(
+      `${baseURL}/projects/${projectId}/sessions/${sessionId}`,
+    );
+    const mouseHeader = mousePage.locator("header.session-header");
+    await expect(mouseHeader.locator(".session-menu-trigger")).toBeVisible();
+    await expectHeaderSizing(mouseHeader, 36);
+    await recordUiCapture(mousePage, "session-header-mouse-desktop");
+    await mousePage.goto(`${baseURL}/projects`);
+    await expectHeaderSizing(mousePage.locator("header.session-header"), 36);
+  } finally {
+    await mousePage.close();
+  }
 });

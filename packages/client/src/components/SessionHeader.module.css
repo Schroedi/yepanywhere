@@ -8,6 +8,24 @@
  * the sidebar carries its own toggle — the title would otherwise sit 4px from
  * the content column's edge.
  */
+.row {
+  --header-control-size: 36px;
+  --header-row-size: 44px;
+}
+
+.row:global(.session-header-inner) {
+  min-height: var(--header-row-size);
+  padding-block: calc(
+    (var(--header-row-size) - var(--header-control-size)) /
+    2
+  );
+}
+
+.row :global(.sidebar-toggle) {
+  min-width: var(--header-control-size);
+  min-height: var(--header-control-size);
+}
+
 :global(.session-header-inner).noLeadingControl {
   padding-left: 0.75rem;
 }
@@ -69,13 +87,14 @@
 
 .header .modelButton {
   align-items: center;
-  min-height: 36px;
+  min-height: var(--header-control-size);
   max-width: 14rem;
+  transform: none;
 }
 
 .header .menuTrigger {
-  min-width: 36px;
-  min-height: 36px;
+  min-width: var(--header-control-size);
+  min-height: var(--header-control-size);
   opacity: 1;
 }
 
@@ -124,13 +143,8 @@
 }
 
 @media (pointer: coarse) {
-  .header .modelButton,
-  .header .menuTrigger {
-    min-height: 44px;
-  }
-
-  .header .menuTrigger {
-    min-width: 44px;
+  .row {
+    --header-control-size: 44px;
   }
 }
 
