@@ -139,11 +139,9 @@ test("reads the full session title on phone and desktop without losing the draft
     expect(geometry.scrollWidth).toBeGreaterThan(geometry.width);
     expect(geometry.whiteSpace).toBe("nowrap");
     expect(geometry.userSelect).toBe("text");
-    await current.getByRole("button", { name: "Copy title" }).click();
-    await expect(current.getByRole("status")).toHaveText("Title copied");
-    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
-      fullTitle,
-    );
+    await expect(
+      current.getByRole("button", { name: "Copy title" }),
+    ).toHaveCount(0);
     await recordUiCapture(page, `recent-session-title-${size.width}`);
     await page.keyboard.press("Escape");
 

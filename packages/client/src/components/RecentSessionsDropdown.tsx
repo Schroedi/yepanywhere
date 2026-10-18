@@ -217,6 +217,7 @@ export function RecentSessionsDropdown({
           title={currentSessionTitle}
           label={t("sessionCurrentSession")}
           singleLine
+          showCopy={false}
         />
       </div>
       <div className={styles.header}>{t("sessionRecentSessions")}</div>

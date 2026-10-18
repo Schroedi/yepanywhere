@@ -8,10 +8,12 @@ export function SessionTitleDetails({
   title,
   label,
   singleLine = false,
+  showCopy = true,
 }: {
   title: string;
   label: string;
   singleLine?: boolean;
+  showCopy?: boolean;
 }) {
   const { t } = useI18n();
   const [copyResult, setCopyResult] = useState<{
@@ -24,23 +26,25 @@ export function SessionTitleDetails({
     <section className={styles.root} aria-label={label}>
       <div className={styles.heading}>
         <h3 className={styles.label}>{label}</h3>
-        <button
-          type="button"
-          className={styles.copy}
-          onClick={async () => {
-            const success = await writeClipboardText(title);
-            setCopyResult({ title, success });
-          }}
-        >
-          {t("sessionCopyTitle")}
-        </button>
+        {showCopy && (
+          <button
+            type="button"
+            className={styles.copy}
+            onClick={async () => {
+              const success = await writeClipboardText(title);
+              setCopyResult({ title, success });
+            }}
+          >
+            {t("sessionCopyTitle")}
+          </button>
+        )}
       </div>
       <p
         className={`${styles.title}${singleLine ? ` ${styles.singleLine}` : ""}`}
       >
         {title}
       </p>
-      {result && (
+      {showCopy && result && (
         <span className={styles.feedback} role="status">
           {t(result.success ? "sessionTitleCopied" : "sessionTitleCopyFailed")}
         </span>
