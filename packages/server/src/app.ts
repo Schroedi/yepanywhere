@@ -62,6 +62,7 @@ import type {
 import {
   DEFAULT_CLEARLOOP_INACTIVITY_SECONDS,
   clampClearloopInactivitySeconds,
+  toUrlProjectId,
 } from "@yep-anywhere/shared";
 import {
   DEFAULT_HEARTBEAT_TURN_TEXT,
@@ -239,7 +240,10 @@ import { createInboxRoutes } from "./routes/inbox.js";
 import { createNetworkBindingRoutes } from "./routes/network-binding.js";
 import { createOnboardingRoutes } from "./routes/onboarding.js";
 import { createHostAgentProcessesRoutes } from "./routes/host-agent-processes.js";
-import { createProcessesRoutes } from "./routes/processes.js";
+import {
+  createProcessesRoutes,
+  describeCatalogSession,
+} from "./routes/processes.js";
 import {
   createGlobalProjectQueueRoutes,
   createProjectQueueRoutes,
@@ -2853,6 +2857,17 @@ export function createApp(options: AppOptions): AppResult {
         supervisor,
         serverSettingsService: options.serverSettingsService,
         enabled: options.externalSessionsEnabled !== false,
+        describeSession: (sessionId, projectPath) =>
+          describeCatalogSession(
+            {
+              scanner,
+              readerFactory,
+              sessionIndexService: options.sessionIndexService,
+              sessionMetadataService: options.sessionMetadataService,
+            },
+            toUrlProjectId(projectPath),
+            sessionId,
+          ),
       }),
     );
   }
