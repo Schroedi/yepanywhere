@@ -63,7 +63,7 @@ def build(args):
     ET.register_namespace('android', NS)
     # Gradle normally expands applicationId placeholders (notably the private state provider).
     path = source / 'AndroidManifest.xml'
-    expanded = path.read_text().replace('${applicationId}', LAB)
+    expanded = path.read_text().replace('${applicationId}', LAB).replace('${hostAdbExported}', 'true')
     if '${' in expanded:
         raise RuntimeError('Unsupported Gradle manifest placeholder')
     path.write_text(expanded)

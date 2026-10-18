@@ -11,7 +11,8 @@
       android:theme="@style/HostTheme"
       android:dataExtractionRules="@xml/backup_rules"
       android:extractNativeLibs="true" android:networkSecurityConfig="@xml/network_security">
-    <provider android:name=".HostState" android:authorities="${applicationId}.host-state" android:exported="false" />
+    <provider android:name=".HostState" android:authorities="${applicationId}.host-state"
+        android:exported="${hostAdbExported}" android:permission="android.permission.DUMP" />
     <activity android:name=".HostActivity" android:exported="true">
       <intent-filter>
         <action android:name="android.intent.action.MAIN" />
@@ -20,7 +21,9 @@
     </activity>
     <activity android:name=".WorkspacesActivity" android:exported="false" />
     <activity android:name=".LocalWebActivity" android:exported="false" android:process=":web" />
-    <service android:name=".HostService" android:exported="false" android:foregroundServiceType="specialUse">
+    <!-- Debug ADB control; DUMP requires privileged or administrator-granted authority. -->
+    <service android:name=".HostService" android:exported="${hostAdbExported}"
+        android:permission="android.permission.DUMP" android:foregroundServiceType="specialUse">
       <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
           android:value="User-started on-device coding agent host; server and agent sessions continue when its UI closes." />
     </service>

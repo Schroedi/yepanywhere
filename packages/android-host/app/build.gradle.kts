@@ -33,6 +33,7 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.1.0-experimental"
+        manifestPlaceholders["hostAdbExported"] = "false"
         ndk { abiFilters += "arm64-v8a" }
     }
     if (providers.gradleProperty("workspaceFixture").isPresent) {
@@ -49,6 +50,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     buildTypes {
+        getByName("debug") { manifestPlaceholders["hostAdbExported"] = "true" }
         getByName("release") { isMinifyEnabled = false }
     }
     // This incubation payload is deliberately ARM64-only, not a ChromeOS app.

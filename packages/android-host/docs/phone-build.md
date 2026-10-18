@@ -88,12 +88,14 @@ never clears or automatically reinstalls either app. Inspect that Lab before
 repairing it. An update does not overwrite an existing Lab runtime. Thus newer
 APK code and its required runtime must still be checked together.
 
-Open the Lab and start its host, then run:
+Start the current debug Lab without opening its UI, then run:
 
 ```sh
+python3 packages/android-host/tools/host.py control \
+  --serial "$ANDROID_TEST_SERIAL" --package com.yepanywhere.host.lab start
 python3 packages/android-host/tools/phone_lab.py \
   --serial "$ANDROID_TEST_SERIAL" --work-dir "$PHONE_BUILD_DIR" verify
-# Opt-in lifecycle test: stops/restarts only the Lab, bringing its UI forward.
+# Opt-in lifecycle test: stops/restarts only the Lab through protected ADB intents.
 python3 packages/android-host/tools/phone_lab.py \
   --serial "$ANDROID_TEST_SERIAL" --work-dir "$PHONE_BUILD_DIR" verify --restart-lab
 ```
@@ -157,8 +159,8 @@ Observed on this phone during the build/commit experiment:
   from musl guest binaries. The usual glibc ARM64 downloads are not a fallback.
 - ADB connections were lost between tool invocations. Explicit reconnecting to
   the previously configured serial worked; no listener or daemon reset was
-  needed. Android refused background foreground-service starts; the native
-  Lab control is the reliable start path.
+  needed. Android refused background foreground-service starts under `run-as`;
+  the current protected shell-intent control replaces that UI workaround.
 - Repo-wide lint/format, typecheck and test attempts made partial progress but
   stalled for minutes in this guest. A bounded one-file Biome command completed
   with `RAYON_NUM_THREADS=1`; full checks still stalled with `BIOME_THREADS=1`

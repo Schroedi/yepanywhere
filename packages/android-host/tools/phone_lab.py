@@ -16,7 +16,7 @@ import time
 import urllib.error
 import urllib.request
 import uuid
-import xml.etree.ElementTree as ET
+from lifecycle_control import control
 from phone_toolchain import digest
 
 MAIN = 'com.yepanywhere.host.experimental'
@@ -25,6 +25,7 @@ LAB = 'com.yepanywhere.host.lab'
 
 class Phone:
     def __init__(self, args):
+        self.serial = args.serial
         self.adb = ['adb', '-s', args.serial]
         self.work = args.work_dir.resolve()
         self.work.mkdir(parents=True, exist_ok=True)
@@ -123,23 +124,10 @@ class Phone:
         return value
 
     def start_lab(self):
-        # Use the app's own foreground control. A run-as shell service start can
-        # be rejected by newer Android foreground-service policy.
-        self.shell('am', 'start', '-W', '-n', LAB + '/com.yepanywhere.host.HostActivity')
-        remote = '/data/local/tmp/ya-lab-ui-' + uuid.uuid4().hex + '.xml'
-        try:
-            self.shell('uiautomator', 'dump', remote)
-            tree = ET.fromstring(self.shell('cat', remote))
-            matches = [node for node in tree.iter('node') if node.get('package') == LAB
-                       and node.get('text', '').casefold() in ('start lab host', 'start local host')
-                       and node.get('enabled') == 'true']
-            focus = self.run('shell', '-T', 'dumpsys window | grep mCurrentFocus', capture_output=True).stdout.decode()
-            if LAB not in focus or len(matches) != 1:
-                raise RuntimeError('Open the unlocked Lab and start it; no tap sent to another app')
-            x1, y1, x2, y2 = map(int, re.findall(r'\d+', matches[0].get('bounds')))
-            self.shell('input', 'tap', (x1 + x2) // 2, (y1 + y2) // 2)
-        finally:
-            self.shell('rm', '-f', remote)
+        def command(*words):
+            result = self.run('shell', '-T', shlex.join(words), capture_output=True)
+            return (result.stdout + result.stderr).decode()
+        control(self.serial, LAB, 'start', shell_command=command)
 
     def verify(self, restart):
         before = self.inventory()

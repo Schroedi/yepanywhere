@@ -20,6 +20,16 @@ and Open/Host controls/confirmed Stop actions. The
 records verification and its limits; unattended lifecycle and credential-renewal
 qualification remain separate incubation work.
 
+The enabled Android host now has a roughly ten-second remote-interactivity target.
+Its explicit [battery relay profile](../../topics/android-host.md#battery-aware-relay-liveness)
+experiments with probing existing sockets after scheduling gaps while desktop
+defaults retain their existing recovery policy. Unplugged Doze, real suspension
+and public encrypted-session readiness remain qualification work; this does
+not add unattended restart or remote wake.
+Protected debug ADB lifecycle controls now avoid foregrounding the phone UI;
+the [battery/lifecycle evidence](../testing/android-host-battery-profile-2026-10-18.md)
+records physical scheduling-gap results and the remaining demand/sleep limits.
+
 Android 9/API 28 ARM64 is supported for now within the experimental host,
 following the [Moto X4 feasibility test](../testing/android-host-moto-x4-2026-10-18.md).
 Android 11+ remains the routinely tested baseline. Revisit the older support

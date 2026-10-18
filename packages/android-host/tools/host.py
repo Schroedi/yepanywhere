@@ -19,6 +19,7 @@ import time
 import urllib.request
 import uuid
 import zipfile
+from lifecycle_control import control
 
 PACKAGE = Path(__file__).resolve().parents[1]
 REPO = PACKAGE.parents[1]
@@ -201,7 +202,7 @@ def device(serial, action):
     elif exists != 1:
         raise RuntimeError('Cannot inspect installed runtime')
     run(*adb, 'shell', 'run-as', APP, 'mv', 'files/runtime.next', 'files/runtime')
-    print('Runtime staged; app-private state preserved. Start the host from its launcher.')
+    print('Runtime staged; app-private state preserved. Start it with host.py control --serial DEVICE start.')
 
 
 def smoke():
@@ -274,9 +275,15 @@ def main():
     sub.add_parser('smoke')
     for name in ['install', 'stage', 'check-user']:
         command = sub.add_parser(name); command.add_argument('--serial', required=True)
+    command = sub.add_parser('control', help='Headless debug host lifecycle through authorized ADB')
+    command.add_argument('--serial', required=True)
+    command.add_argument('--package', choices=[APP, 'com.yepanywhere.host.lab', 'com.yepanywhere.host.workspace.acceptance'], default=APP)
+    command.add_argument('--timeout', type=float, default=45)
+    command.add_argument('operation', choices=['start', 'stop', 'restart', 'status'])
     args = parser.parse_args()
     if args.action == 'prepare': prepare(args.cache, args.skip_build)
     elif args.action == 'smoke': smoke()
+    elif args.action == 'control': control(args.serial, args.package, args.operation, args.timeout)
     else: device(args.serial, args.action)
 
 

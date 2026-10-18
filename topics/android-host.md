@@ -393,6 +393,20 @@ Reusable device-operation implementation still belongs to Machine Control.
   after two seconds. Killing only the PRoot tracer is insufficient. This bounded
   stop does not promise a live provider turn has checkpointed. No boot receiver,
   restart loop or remote push wake is installed.
+- Debug builds, including the isolated Lab, support ADB-only start, stop,
+  restart and authoritative status without opening an activity, waking the
+  display or dismissing keyguard. The service and snapshot provider are exported
+  only in debug builds and require Android's privileged `DUMP` permission;
+  ordinary applications cannot drive them. Release builds keep both components
+  non-exported. This is OS administrator access through already authorized ADB,
+  not a YA principal, remote grant or authentication bypass for the HTTP API.
+  `tools/host.py control` sends explicit shell service intents and waits for
+  native ready/stopped state; restart also requires a new runtime generation.
+  Status does not start the runtime. Unavailable ADB, an unsupported package,
+  an older/private component or a failed/expired readiness attempt fails the
+  command; there is no activity launch or screen-control fallback. Decrypted
+  app storage and an already provisioned runtime are prerequisites. See the
+  [headless commands](../packages/android-host/README.md#headless-debug-lifecycle).
 - **Open Yep Anywhere**, **Set up Codex** and **Set up Claude** are explicit
   requests to start a stopped host. The native screen waits for the current
   credential to be accepted by the protected loopback API before navigating.
@@ -504,6 +518,42 @@ Explicit Light, Dark and Very Dark choices remain authoritative. WebView's
 `prefers-color-scheme` comes from the native theme's day/night-qualified
 `isLightTheme` value; native toolbar colors do not override the web preference.
 
+## Battery-aware relay liveness
+
+The experimental host selects `YEP_RELAY_KEEPALIVE_PROFILE=battery`. General
+server launches default to `default`; no operating-system or battery-state
+detection changes desktop behavior. An explicit profile can be selected on
+another host. Android's private `development.json` can set
+`relayKeepaliveProfile` to `default` for comparison; unknown values fail startup.
+
+Both profiles ping an enabled remote-access waiting connection every 30 seconds.
+The default profile retains its existing 10-second pong deadline and replaces
+the socket after a greater-than-60-second clock gap. The battery profile probes
+the existing socket with a five-second deadline instead of treating a delayed
+timer alone as proof of failure. Each probe requires its own matching pong.
+If suspension or a stall also delays the deadline by more than another five
+seconds, a fresh probe receives a new bounded deadline; an earlier pong cannot
+satisfy it. Stop and connection handoff release the pending probe and timer.
+An unanswered timely probe starts the existing reconnect path, initially after
+one second. Saved relay endpoints and remote-access enablement remain authoritative.
+
+The product target is an interactive connection within approximately ten seconds
+of demand while the enabled host is running. A five-second probe leaves room
+for reconnect and registration on an available network; it is not an Android
+wake guarantee. A silently broken socket between scheduled probes can still
+take approximately 30 seconds to detect plus probe/reconnect time, exceeding the
+target; this profile alone does not establish ten-second reachability from any
+instant of demand. Battery exemption, actual suspension, radio/network availability,
+process death, and public relay/TLS behavior require separate qualification.
+This profile adds no wake lock, wake alarm, push enrollment, unattended restart,
+or permission change. Its initial scope avoids unnecessary reconnects after
+scheduling gaps; it does not reduce the normal ping cadence or establish a
+battery-drain improvement.
+
+The [2026-10-18 experiment](../docs/testing/android-host-battery-profile-2026-10-18.md)
+records physical scheduling-gap recovery, idle artifact persistence and protected
+ADB lifecycle checks, including the unqualified sleep/demand boundaries.
+
 ## Older Android support
 
 **Decision, 2026-10-18:** Support Android 9/API 28 on ARM64 for now within the
@@ -560,7 +610,8 @@ See [package development commands](../packages/android-host/README.md) and the
 
 The foreground service is the sole owner of starting, stopping and restarting
 its runtime. Native controls and the separate WebView process observe an
-app-private, non-exported state provider; observing or opening host controls
+app-private state provider (non-exported in release, `DUMP`-protected for ADB
+in debug); observing or opening host controls
 never starts the runtime. Snapshots distinguish stopped, starting, ready,
 stopping and failed, identify each launch generation, and report mappings
 applied to that launch. Diagnostic text retained on disk is not live authority.

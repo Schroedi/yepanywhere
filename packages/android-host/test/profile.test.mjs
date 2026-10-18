@@ -16,6 +16,16 @@ test("direct and AAR use separate private homes with external observation disabl
   assert.throws(() => hostProfile("/home/user", {}, 0), /Host port/);
   assert.notEqual(direct.env.CODEX_HOME, aar.env.CODEX_HOME);
   assert.equal(direct.env.YEP_EXTERNAL_SESSIONS, "false");
+  assert.equal(direct.env.YEP_RELAY_KEEPALIVE_PROFILE, "battery");
+  assert.equal(
+    hostProfile("/home/user", { relayKeepaliveProfile: "default" }).env
+      .YEP_RELAY_KEEPALIVE_PROFILE,
+    "default",
+  );
+  assert.throws(
+    () => hostProfile("/home/user", { relayKeepaliveProfile: "invalid" }),
+    /relayKeepaliveProfile/,
+  );
   assert.equal(direct.env.AUTH_DISABLED, "false");
   assert.equal(direct.env.AAR_TOKEN, undefined);
   assert.equal(aar.env.ANTHROPIC_BASE_URL, "http://127.0.0.1:18417/claude");

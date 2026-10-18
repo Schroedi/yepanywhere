@@ -140,6 +140,13 @@ The native controls are an incubation surface, not final onboarding. Notificatio
 permission and the battery exemption are offered only through explicit actions.
 Battery settings do not enable remote access or guarantee process survival.
 
+The host selects the `battery` relay keepalive profile: a long scheduling gap
+gets a fresh five-second liveness probe before reconnecting. Normal pings remain
+30 seconds apart. For comparison, set `"relayKeepaliveProfile": "default"` in
+private `development.json` and restart. General server/desktop defaults are
+unchanged. The [relay liveness contract](../../topics/android-host.md#battery-aware-relay-liveness)
+records the roughly ten-second interactivity target and Android wake limits.
+
 Use **Set up Codex** or **Set up Claude** from the native controls to open the
 shared focused sign-in page, then choose **Sign in**. These pages also work in
 desktop/remote YA without navigating the long advanced provider settings list.
@@ -212,6 +219,33 @@ No credentials are stored in tab preferences. See the
 See the [initial evidence record](../../docs/testing/android-host-scaffold-2026-10-17.md)
 and [lifecycle investigation](../../docs/testing/android-host-lifecycle-2026-10-18.md)
 for exactly which checks have run.
+
+## Headless debug lifecycle
+
+Use an already authorized ADB device and current debug APK installed for user 0.
+These commands also work with the display off or keyguard showing, after the first user unlock
+following boot. They preserve app data and never open an activity:
+
+```sh
+python3 packages/android-host/tools/host.py control --serial "$ANDROID_TEST_SERIAL" status
+python3 packages/android-host/tools/host.py control --serial "$ANDROID_TEST_SERIAL" start
+python3 packages/android-host/tools/host.py control --serial "$ANDROID_TEST_SERIAL" restart
+python3 packages/android-host/tools/host.py control --serial "$ANDROID_TEST_SERIAL" stop
+# Select the independent Lab explicitly:
+python3 packages/android-host/tools/host.py control --serial "$ANDROID_TEST_SERIAL" --package com.yepanywhere.host.lab start
+```
+
+Start/restart wait up to 45 seconds for native authenticated readiness; stop
+waits for native shutdown. `--timeout` changes this bounded wait (at most 120
+seconds). Failure is reported without foregrounding UI. For direct diagnostics,
+the shell intents are `am start-foreground-service --user 0 -n
+PACKAGE/com.yepanywhere.host.HostService -a host.start` (or `host.restart`), and
+`am startservice --user 0 -n PACKAGE/com.yepanywhere.host.HostService -a host.stop`.
+Read status with `content call --user 0 --uri content://PACKAGE.host-state --method snapshot`.
+Use the ADB shell identity, not `run-as`: Android may reject background service
+starts and external provider access under the app UID. Both debug entry points
+require Android's `DUMP` permission; release components remain non-exported.
+Use this path for lifecycle automation before considering any screen interaction.
 
 ## Physical lifecycle regression
 
