@@ -7,7 +7,7 @@ const projectId = Buffer.from(join(e2ePaths.tempDir, "mockproject")).toString(
 );
 const sessionId = "mock-session-001";
 const fullTitle =
-  "Make session titles readable on mobile: show the complete title in recent sessions and Session Info, with easy access from the header menu and below the composer, while preserving the draft and live conversation.";
+  "Make session titles readable on mobile: show the complete title in recent sessions and Session Info, with easy access from the header menu, while preserving the draft and live conversation.";
 
 test.use({ serviceWorkers: "block", hasTouch: true });
 
@@ -187,19 +187,11 @@ test("reads the full session title on phone and desktop without losing the draft
           .titleTypingSamples,
     );
     expect(Math.max(...delays)).toBeLessThan(100);
-    await recordUiCapture(page, `session-info-shortcut-${size.width}`);
-    if (size.width === 375) {
-      await expect(footerInfo).toBeVisible();
-      const box = await footerInfo.boundingBox();
-      expect(box!.height).toBeGreaterThanOrEqual(44);
-      await footerInfo.click();
-    } else {
-      await expect(footerInfo).toBeHidden();
-      await header.getByRole("button", { name: "Session options" }).click();
-      await page
-        .getByRole("button", { name: "Session info", exact: true })
-        .click();
-    }
+    await expect(footerInfo).toHaveCount(0);
+    await header.getByRole("button", { name: "Session options" }).click();
+    await page
+      .getByRole("button", { name: "Session info", exact: true })
+      .click();
     const info = page.getByRole("dialog");
     await expect(info.locator(".modal-title")).toHaveText("Session Info");
     await expect(
@@ -220,7 +212,8 @@ test("reads the full session title on phone and desktop without losing the draft
   // A stopped session has no process stream to supply its identity.
   live = false;
   await page.reload();
-  await footerInfo.click();
+  await header.getByRole("button", { name: "Session options" }).click();
+  await page.getByRole("button", { name: "Session info", exact: true }).click();
   await expect(
     page.getByRole("region", { name: "Session title" }).getByText(fullTitle),
   ).toBeVisible();

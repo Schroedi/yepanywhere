@@ -50,11 +50,11 @@ reachable.
 
 **Session Info** also starts with the complete, selectable title and a
 **Copy title** action. Copy failure leaves the text available for manual copy.
-The header's `…` menu offers **Session info** near its top, and phones at
-600px wide or less have a labeled **Session info** shortcut below the composer
-with a 44px minimum hit height. Both open the existing Info tab directly and
-preserve the draft. Session identity remains readable for stopped or
-disconnected sessions without requiring process-info discovery to succeed.
+The header's `…` menu offers **Session info** near its top at every width.
+It opens the existing Info tab directly and preserves the draft. The composer
+has no Session info shortcut or extra row below its controls.
+Session identity remains readable for stopped or disconnected sessions without
+requiring process-info discovery to succeed.
 
 These title-reading surfaces use the full effective title (including a local
 rename), not the header's display-length limit or a shortened catalog title.
