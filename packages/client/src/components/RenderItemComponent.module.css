@@ -165,6 +165,11 @@
   border-left: 3px solid var(--accent-secondary, #6b7280);
 }
 
+.compactBoundaryOutline pre {
+  background: var(--bg-code);
+  color: var(--text-primary);
+}
+
 /*
  * Provider tool output is primary transcript content even when its call is
  * unavailable. Keep its expanded body readable instead of inheriting the
