@@ -28,6 +28,52 @@ longer a placeholder for unimplemented host onboarding. Credential refresh,
 sign-out and recovery still need independent validation; see the
 [physical sign-in evidence](../docs/testing/android-host-scaffold-2026-10-17.md#completed-provider-sign-in).
 
+## Durable user-owned workspace
+
+**Requested direction, 2026-10-18; not implemented.** Agent-created working
+files must be able to live in a user-chosen folder outside the host's app data.
+Clearing host app data or reinstalling must not delete that folder. Setup must
+be able to reconnect to its existing contents after the user grants access
+again. Treat file lifetime, permission lifetime and app-local root registration
+as separate concerns; do not assume a persisted grant survives an app reset.
+This is stronger than the current app-private persistence across process death.
+
+The desired agent interface is an ordinary stable filesystem path, provisionally
+`/workspace`, backed by the selected directory. A SAF URI is not itself a Linux
+directory and cannot simply be supplied as a PRoot bind source. The existing
+[MC data spike](../../machine-control/platforms/android/resident-spike/README.md#independent-photo-and-document-reads)
+proved selected-tree reads and grant persistence across app restart on the Pixel
+7a. It deliberately supports no writes, mounting or production host registration.
+Copies exported into app-private Linux storage do not meet this requirement.
+
+Separate the next proof into two questions:
+
+- **Durable read/write access:** select a dedicated local SAF tree with the
+  returned read/write grants; create, read, replace and enumerate real documents
+  through MC's native document boundary. Confirm the external bytes independently.
+  Reconnect to the same folder after clearing only a disposable fixture app's
+  data, and verify file hashes. Revocation or provider failure must be visible;
+  an acknowledged write must not mean only an app-private cached copy exists.
+- **Ordinary filesystem access:** prove whether a local shared-storage directory
+  can be exposed inside the existing Alpine/PRoot guest at a stable path. Android
+  all-files access is a candidate requiring an explicit broader grant and real
+  device validation, not authority obtained from a SAF picker. For arbitrary SAF
+  providers, investigate an adapter or explicit workspace import/export; do not
+  describe a sync cache or document-tool API as a transparent mounted filesystem.
+  Ordinary unprivileged FUSE is not the baseline; see MC's
+  [platform research](../../machine-control/research/platforms/android.md#app-resident-capabilities-without-adb).
+
+Keep replaceable runtime files, provider credentials and app databases private;
+selecting a durable work folder does not move the whole Linux home into it.
+Validate basic shell/Python writes from both real providers and document the
+filesystem features actually available. Test reset survival only with disposable
+app state, preserving the user's signed-in host and existing documents. Physical
+write/reset/mount acceptance remains outstanding.
+
+Android documents [SAF ownership and URI operations](https://developer.android.com/training/data-storage/shared/documents-files)
+and [direct paths under all-files access](https://developer.android.com/training/data-storage/manage-all-files)
+as distinct access mechanisms. The current implementation must not conflate them.
+
 ## Phone capabilities and assistant entry points
 
 **Exploration recorded 2026-10-17; these capabilities are not implemented in

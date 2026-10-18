@@ -13,6 +13,14 @@ readiness and offers native recovery after process loss. Unattended wake,
 overnight/Doze survival and interrupted-provider resume remain incubation work;
 see the [lifecycle investigation](../testing/android-host-lifecycle-2026-10-18.md).
 
+The requested next Android storage milestone is a
+[durable user-owned workspace](../../topics/android-host.md#durable-user-owned-workspace):
+a chosen folder whose files survive app-data reset, with a stable agent-facing
+filesystem path as the goal. The MC SAF spike currently proves read access only;
+writes, reset recovery and a filesystem mapping remain unproved. The next
+storage proof must distinguish native SAF document access from ordinary Linux
+paths, and use disposable app state for destructive recovery tests.
+
 Last updated: 2026-10-18.
 
 This is Yep Anywhere's canonical product-priority overview. Keep initiative
