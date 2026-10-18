@@ -38,7 +38,7 @@ test("rendez search exposes a persisted toggle without replacing project overrid
       await expect(search).toHaveValue(value, { timeout: 100 });
     }
     const toggle = page.getByRole("checkbox", {
-      name: "Watch .rendez uploads (Rendez)",
+      name: "Watch .rendez uploads by default",
     });
     await expect(toggle).not.toBeChecked();
     await toggle.check();
