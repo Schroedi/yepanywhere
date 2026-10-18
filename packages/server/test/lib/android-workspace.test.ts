@@ -11,11 +11,23 @@ describe("Android native workspace admission", () => {
     await assertAndroidWorkspaceAvailable("/workspaces/desktop");
     vi.stubEnv("YEP_ANDROID_SAF_SOCKET", "absent");
     await assertAndroidWorkspaceAvailable("/home/user/project");
+    await assertAndroidWorkspaceAvailable("/sdcard-other/project");
   });
 
-  it.skipIf(process.platform !== "linux")(
-    "uses a fresh native check for each launch and refuses a subsequently revoked folder",
-    async () => {
+  it.skipIf(process.platform !== "linux").each([
+    {
+      cwd: "/workspaces/docs/project",
+      request: { op: "check", root: "docs" },
+      expectedPath: "/workspaces/docs",
+    },
+    {
+      cwd: "/sdcard/Documents/project",
+      request: { op: "check-shared" },
+      expectedPath: "/sdcard",
+    },
+  ])(
+    "rechecks $cwd for each launch and refuses subsequently revoked access",
+    async ({ cwd, request, expectedPath }) => {
       const endpoint = `ya-test-${randomBytes(8).toString("hex")}`;
       vi.stubEnv("YEP_ANDROID_SAF_SOCKET", endpoint);
       let requests = 0;
@@ -25,14 +37,11 @@ describe("Android native workspace admission", () => {
         socket.on("end", () => {
           const bytes = Buffer.concat(parts);
           expect(bytes.readUInt32BE()).toBe(bytes.length - 4);
-          expect(JSON.parse(bytes.subarray(4).toString())).toEqual({
-            op: "check",
-            root: "docs",
-          });
+          expect(JSON.parse(bytes.subarray(4).toString())).toEqual(request);
           const reply = Buffer.from(
             JSON.stringify(
               ++requests === 1
-                ? { ok: true, result: { path: "/workspaces/docs" } }
+                ? { ok: true, result: { path: expectedPath } }
                 : { ok: false, message: "Folder permission unavailable" },
             ),
           );
@@ -47,10 +56,10 @@ describe("Android native workspace admission", () => {
         server.listen(`\0${endpoint}`, accept),
       );
       try {
-        await assertAndroidWorkspaceAvailable("/workspaces/docs/project");
-        await expect(
-          assertAndroidWorkspaceAvailable("/workspaces/docs/project"),
-        ).rejects.toThrow("Folder permission unavailable");
+        await assertAndroidWorkspaceAvailable(cwd);
+        await expect(assertAndroidWorkspaceAvailable(cwd)).rejects.toThrow(
+          "Folder permission unavailable",
+        );
         expect(requests).toBe(2);
       } finally {
         await new Promise<void>((accept, reject) =>

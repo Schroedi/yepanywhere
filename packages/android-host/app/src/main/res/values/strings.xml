@@ -29,11 +29,12 @@
   <string name="host_tab_details">%1$s\n%2$s</string>
   <string name="workspace_pick">Pick folder</string>
   <string name="workspace_title">Workspace folders</string>
-  <string name="workspace_intro">Save folders for agents. SAF document tools work with individual folder grants. Direct paths under /workspaces require optional broad storage access. Runtime, sign-ins and YA data remain private.</string>
+  <string name="workspace_intro">Save folders for agents. SAF document tools work with individual folder grants. Optional broad storage access exposes primary shared storage at /sdcard and enables selected direct paths under /workspaces. Runtime, sign-ins and YA data remain private.</string>
+  <string name="workspace_shared">Primary shared storage · /sdcard\n%1$s</string>
   <string name="workspace_rw_required">Folder needs read and write access</string>
   <string name="workspace_saved">Saved. Direct mapping changes apply on the next host start.</string>
   <string name="workspace_pending">Folder mappings have pending changes. Restart the host to apply them; existing processes keep their old paths until then.</string>
-  <string name="workspace_empty">No shared folders selected. Private projects remain available. Add a folder to get started.</string>
+  <string name="workspace_empty">No folder shortcuts selected. With all-files access, agents can use /sdcard directly. Private projects remain available.</string>
   <string name="workspace_row">\n%1$s  →  %2$s</string>
   <string name="workspace_health">SAF: %1$s\nDirect: %2$s%3$s</string>
   <string name="workspace_saf_available">available via ya saf</string>

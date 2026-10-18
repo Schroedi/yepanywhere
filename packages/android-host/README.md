@@ -34,7 +34,13 @@ host's runtime state and sign-ins untouched. Enable its Gradle module only with
 `-PworkspaceSpike`; ordinary host builds do not include it. This is physical
 storage qualification, not production onboarding or a general SAF mount.
 
-The host now supports [multiple named workspace folders](docs/workspaces.md):
+Optional all-files access now maps primary shared storage directly to `/sdcard`
+on host start, without picking a folder. `/sdcard/Download` and
+`/sdcard/Documents` use the actual shared files. Enable the permission and use
+**Apply mappings / restart host**; the folder screen reports availability.
+Removable cards are separate volumes; see the investigation in the guide.
+
+The host also supports [multiple named workspace folders](docs/workspaces.md):
 open **Workspace folders**, add each folder through the picker, and optionally
 enable broad all-files permission plus per-folder direct access. Apply mappings
 with the explicit restart control, then select `/workspaces/<name>` as a normal

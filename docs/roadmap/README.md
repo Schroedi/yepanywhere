@@ -37,7 +37,11 @@ private. Running-session/handle revocation, arbitrary-provider qualification and
 store-policy acceptance remain open. Pixel 7a acceptance passed both real YA
 providers across two roots, SAF without broad permission, independent hashes,
 revocation/repair and fixture reset/reinstall recovery; owned test resources were
-removed afterward.
+removed afterward. Optional all-files access now also exposes primary shared
+storage at `/sdcard` without selecting a folder. Pixel 9 and Motorola physical
+fixtures passed no-picker access, independent hashes, revocation and app-data
+reset recovery. The Motorola removable exFAT card passed a separate temporary
+binding; production removable mappings and hot-unplug behavior remain open.
 
 Last updated: 2026-10-18.
 

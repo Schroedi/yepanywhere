@@ -10,10 +10,16 @@ export async function assertAndroidWorkspaceAvailable(
   const endpoint = process.env.YEP_ANDROID_SAF_SOCKET;
   if (!endpoint) return;
   const path = resolve(cwd);
-  if (path !== "/workspaces" && !path.startsWith("/workspaces/")) return;
+  const shared = path === "/sdcard" || path.startsWith("/sdcard/");
+  if (!shared && path !== "/workspaces" && !path.startsWith("/workspaces/"))
+    return;
   const root = path.split("/")[2];
-  if (!root) throw new Error("Choose a saved folder beneath /workspaces");
-  const request = Buffer.from(JSON.stringify({ op: "check", root }));
+  if (!shared && !root)
+    throw new Error("Choose a saved folder beneath /workspaces");
+  const expectedPath = shared ? "/sdcard" : `/workspaces/${root}`;
+  const request = Buffer.from(
+    JSON.stringify(shared ? { op: "check-shared" } : { op: "check", root }),
+  );
   const prefix = Buffer.alloc(4);
   prefix.writeUInt32BE(request.length);
   await new Promise<void>((accept, reject) => {
@@ -43,7 +49,7 @@ export async function assertAndroidWorkspaceAvailable(
           result?: { path?: string };
           message?: string;
         };
-        if (!result.ok || result.result?.path !== `/workspaces/${root}`) {
+        if (!result.ok || result.result?.path !== expectedPath) {
           fail(new Error(result.message ?? "folder mapping refused"));
           return;
         }

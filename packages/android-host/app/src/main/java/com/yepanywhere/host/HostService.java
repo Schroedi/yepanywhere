@@ -17,6 +17,7 @@ import java.util.concurrent.TimeUnit;
 /** Android owns the process tree; closing an activity does not stop the host. */
 public final class HostService extends Service {
     static volatile boolean running;
+    static volatile String appliedSharedStorage;
     static volatile Map<String, String> appliedWorkspaces = Collections.emptyMap();
     private WorkspaceRuntime workspaces;
     private static volatile CountDownLatch shutdown = new CountDownLatch(0);
@@ -74,6 +75,7 @@ public final class HostService extends Service {
                 if (stopping) return;
                 resolver = new HostResolver(this);
                 workspaces = new WorkspaceRuntime(getApplicationContext());
+                appliedSharedStorage = workspaces.sharedSource == null ? null : workspaces.sharedSource.toString();
                 appliedWorkspaces = Collections.unmodifiableMap(new HashMap<>(workspaces.applied));
             }
             List<String> command = new ArrayList<>(Arrays.asList(
@@ -134,7 +136,7 @@ public final class HostService extends Service {
         synchronized (lock) {
             stopping = true; process = child; pidFile = groupFile;
             if (resolver != null) resolver.close();
-            if (workspaces != null) { workspaces.close(); workspaces = null; appliedWorkspaces = Collections.emptyMap(); }
+            if (workspaces != null) { workspaces.close(); workspaces = null; appliedWorkspaces = Collections.emptyMap(); appliedSharedStorage = null; }
         }
         if (process != null) {
             new Thread(() -> {

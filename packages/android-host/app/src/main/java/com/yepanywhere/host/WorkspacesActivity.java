@@ -13,6 +13,7 @@ import org.json.*;
 /** Native folder onboarding; provider queries never compete with shortcut typing. */
 public final class WorkspacesActivity extends Activity {
     private TextView message;
+    private TextView shared;
     private LinearLayout rows;
     private WorkspaceRegistry registry;
     private String pending;
@@ -22,6 +23,7 @@ public final class WorkspacesActivity extends Activity {
     private boolean destroyed;
     private int generation;
     private boolean pendingMappings;
+    private boolean renaming;
     private void button(LinearLayout parent, String title, Runnable action) {
         Button button = new Button(this); button.setText(title); button.setAllCaps(false);
         button.setOnClickListener(view -> action.run()); parent.addView(button);
@@ -35,7 +37,7 @@ public final class WorkspacesActivity extends Activity {
         TextView intro = new TextView(this); intro.setText(R.string.workspace_intro); content.addView(intro);
         button(content, getString(R.string.workspace_pick), () -> choose(null));
         button(content, "All-files access (optional)", () -> new AlertDialog.Builder(this).setTitle("Allow broad storage access?")
-            .setMessage("This lets the app read, modify and delete files throughout accessible shared storage, including Downloads, Documents and photos. It is broader than your selected folders. PRoot does not restrict that authority. SAF tools do not require this permission.")
+            .setMessage("This lets the app read, modify and delete files throughout accessible shared storage, including Downloads, Documents and photos. After restarting the host, primary shared storage is available at /sdcard without picking a folder. This access is broader than your selected folders. PRoot does not restrict that authority. SAF tools do not require this permission.")
             .setNegativeButton("Cancel", null).setPositiveButton("Open settings", (dialog, which) -> startActivity(new Intent(
                 Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:" + getPackageName())))).show());
         button(content, "Apply mappings / restart host", () -> new AlertDialog.Builder(this).setTitle("Apply folder mappings?")
@@ -47,6 +49,7 @@ public final class WorkspacesActivity extends Activity {
                     refresh();
                 }, 500);
             }).show());
+        shared = new TextView(this); shared.setTextIsSelectable(true); content.addView(shared);
         message = new TextView(this); message.setTextIsSelectable(true); content.addView(message);
         rows = new LinearLayout(this); rows.setOrientation(LinearLayout.VERTICAL); content.addView(rows);
         ScrollView scroll = new ScrollView(this); scroll.addView(content);
@@ -98,6 +101,8 @@ public final class WorkspacesActivity extends Activity {
         AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Rename shortcut")
             .setMessage("Changing the name changes its /workspaces path after restart.").setView(edit)
             .setNegativeButton("Cancel", null).setPositiveButton("Save", null).create();
+        renaming = true;
+        dialog.setOnDismissListener(ignored -> { renaming = false; refresh(); });
         dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(view -> {
             String renamed = edit.getText().toString();
             try { WorkspaceRegistry.name(renamed); }
@@ -113,16 +118,21 @@ public final class WorkspacesActivity extends Activity {
         ScheduledFuture<?> deadline = timer.schedule(signal::cancel, 15, TimeUnit.SECONDS);
         worker.execute(() -> {
             try {
+                JSONObject storage = WorkspaceRuntime.sharedStatus(this, HostService.running ? HostService.appliedSharedStorage : null);
                 JSONArray status = registry.status(signal, HostService.running ? HostService.appliedWorkspaces : null);
                 runOnUiThread(() -> {
-                    if (destroyed || current != generation) return;
+                    if (destroyed || renaming || current != generation) return;
                     rows.removeAllViews();
                     java.util.Map<String, String> desired = new java.util.HashMap<>();
                     for (int i = 0; i < status.length(); i++) try {
                         JSONObject root = status.getJSONObject(i);
                         if (root.getBoolean("directAvailable")) desired.put(root.getString("name"), root.getString("tree"));
                     } catch (Exception error) { message.setText(error.getMessage()); }
-                    boolean changed = HostService.running && !desired.equals(HostService.appliedWorkspaces);
+                    shared.setText(getString(R.string.workspace_shared, storage.optBoolean("mapped") ? getString(R.string.workspace_mapped) :
+                        storage.optBoolean("available") ? getString(R.string.workspace_ready) : storage.optString("reason")));
+                    String desiredShared = storage.optBoolean("available") ? storage.optString("source") : null;
+                    boolean changed = HostService.running && (!desired.equals(HostService.appliedWorkspaces) ||
+                        !java.util.Objects.equals(desiredShared, HostService.appliedSharedStorage));
                     if (changed) message.setText(R.string.workspace_pending);
                     else if (pendingMappings) message.setText(R.string.workspace_saved);
                     pendingMappings = changed;

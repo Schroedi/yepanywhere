@@ -7,6 +7,7 @@ import android.os.CancellationSignal;
 import android.system.Os;
 import dev.machinecontrol.android.storage.LocalWorkspace;
 import dev.machinecontrol.android.storage.SafDocuments;
+import dev.machinecontrol.android.storage.SharedStorage;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -15,7 +16,12 @@ import org.json.*;
 
 /** Same-app-UID native document bridge, owned by the foreground host lifecycle. */
 final class WorkspaceRuntime implements AutoCloseable {
+    // This is a guest path. Android supplies the actual source through StorageManager.
+    @android.annotation.SuppressLint("SdCardPath")
+    static final String SHARED_PATH = "/sdcard";
     final String socket;
+    final File sharedSource;
+    private final File sharedPlaceholder;
     final Map<String, String> applied = new HashMap<>(); // At most 16 registry roots; fixed for this runtime.
     private final Map<String, File> sources = new LinkedHashMap<>();
     private final Context context;
@@ -28,6 +34,13 @@ final class WorkspaceRuntime implements AutoCloseable {
     WorkspaceRuntime(Context context) throws Exception {
         deadlines.setRemoveOnCancelPolicy(true);
         this.context = context.getApplicationContext(); registry = new WorkspaceRegistry(context); socket = context.getPackageName() + ".saf." + UUID.randomUUID();
+        File primary = null;
+        try { primary = SharedStorage.primary(context); }
+        catch (IOException ignored) { /* Shared status reports current authority/availability. */ }
+        sharedSource = primary;
+        sharedPlaceholder = new File(context.getFilesDir(), "shared-storage-blocked");
+        if (!sharedPlaceholder.isDirectory() && !sharedPlaceholder.mkdir()) throw new IOException("Cannot create blocked shared-storage placeholder");
+        Os.chmod(sharedPlaceholder.toString(), 0000);
         JSONArray roots = registry.roots();
         File view = new File(context.getFilesDir(), "workspace-view"); view.mkdirs(); Os.chmod(view.toString(), 0700);
         File[] old = view.listFiles();
@@ -58,7 +71,16 @@ final class WorkspaceRuntime implements AutoCloseable {
             }
         }, "ya-saf-accept"); accept.start();
     }
+    static JSONObject sharedStatus(Context context, String applied) throws Exception {
+        JSONObject status = new JSONObject().put("path", SHARED_PATH).put("available", false).put("mapped", false);
+        try {
+            File source = SharedStorage.primary(context);
+            status.put("available", true).put("source", source.toString()).put("mapped", source.toString().equals(applied));
+        } catch (IOException error) { status.put("reason", error.getMessage()); }
+        return status;
+    }
     void bind(List<String> command) {
+        command.addAll(Arrays.asList("-b", (sharedSource == null ? sharedPlaceholder : sharedSource) + ":" + SHARED_PATH + "!"));
         command.addAll(Arrays.asList("-b", new File(context.getFilesDir(), "workspace-view") + ":/workspaces"));
         // PRoot consumes a final ! as its no-dereference marker. Append that
         // marker explicitly so a folder whose actual name ends in ! stays intact.
@@ -66,7 +88,13 @@ final class WorkspaceRuntime implements AutoCloseable {
     }
     private JSONObject dispatch(JSONObject request, CancellationSignal cancel, File transfer) throws Exception {
         String operation = request.getString("op");
-        if (operation.equals("roots")) return new JSONObject().put("roots", registry.status(cancel, applied)).put("maxBytes", SafDocuments.MAX_BYTES);
+        if (operation.equals("roots")) return new JSONObject().put("roots", registry.status(cancel, applied))
+            .put("sharedStorage", sharedStatus(context, sharedSource == null ? null : sharedSource.toString())).put("maxBytes", SafDocuments.MAX_BYTES);
+        if (operation.equals("check-shared")) {
+            File actual = SharedStorage.primary(context);
+            if (!actual.equals(sharedSource)) throw new IOException("Shared storage mapping changed; restart host to apply it");
+            return new JSONObject().put("path", SHARED_PATH);
+        }
         String name = request.getString("root"); JSONObject root = registry.root(name);
         android.net.Uri tree = android.net.Uri.parse(root.getString("tree"));
         if (operation.equals("check")) {

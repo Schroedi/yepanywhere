@@ -79,6 +79,21 @@ builds/lint and the required root checks passed.
 
 ## Durable user-owned workspace
 
+### Built-in shared storage
+
+With optional all-files access enabled, primary shared storage is mapped to
+`/sdcard` on host start without choosing a folder or taking a SAF grant.
+Downloads, Documents and other accessible shared files use ordinary direct
+filesystem operations. The native folder screen distinguishes current
+availability from the applied mapping and offers controlled restart.
+Unavailable authority/storage exposes a blocked path, not a private fallback;
+new provider launches under `/sdcard` recheck authority and applied identity.
+Existing handles/processes do not gain new mappings or guaranteed immediate
+revocation. Named shortcuts remain optional; runtime, credentials and YA state
+remain private. `/sdcard` always means primary shared storage, not a removable
+card. The [workspace guide](../packages/android-host/docs/workspaces.md) owns
+volume qualification, failure/recovery details and physical evidence.
+
 ### Multiple folder shortcuts
 
 **Implemented in the experimental host, 2026-10-18.** Save up to 16 named,
@@ -102,6 +117,8 @@ spaces and Unicode within the guide's path-safety/length bounds. Name collisions
 use the first free `-1`, `-2`, `-3` suffix. Optional Rename changes a shortcut
 afterward; Reselect and app updates preserve its existing name. Canceling adds
 nothing, and picking an already registered folder reports its existing shortcut.
+Root-status rendering waits until Rename closes so background refreshes do not
+interrupt sequential typing.
 
 The native UI adds, reselects, renames and removes registrations. Removing a
 shortcut leaves external files intact and releases unused SAF permission.

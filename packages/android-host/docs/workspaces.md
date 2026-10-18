@@ -40,6 +40,35 @@ The host must remain usable without all-files access. Private projects remain
 an explicitly private choice with their existing app-data lifetime. They are
 never a substitute for an unavailable durable folder.
 
+## Built-in primary shared storage
+
+Enabling optional all-files access exposes the phone's primary shared storage
+at `/sdcard` on the next host start. No folder selection or SAF grant is needed
+for this mapping. `/sdcard/Download`, `/sdcard/Documents` and `/sdcard/DCIM` refer
+to the actual shared files; `/sdcard` is Android's conventional name and does
+not mean a removable card. Android's StorageManager supplies the current primary
+volume directory instead of a hardcoded user number/path.
+
+The native folder screen shows current availability and whether the running
+host applied it. Use the controlled restart action after a permission change;
+existing processes keep their original bindings. No permission or unavailable
+storage yields a blocked `/sdcard`, never a writable app-private fallback.
+Before a provider starts with a working directory under `/sdcard`, recheck
+actual all-files authority, mounted storage and the applied source identity.
+This admission check does not revoke already open handles or confine other
+commands from accessing paths outside their working directory.
+
+Folder shortcuts under `/workspaces` remain optional conveniences into the
+same files. Removing a shortcut or releasing its SAF grant does not remove
+access through `/sdcard` while broad authority is enabled. SAF-only operation
+remains independent. Runtime, credentials, sessions and internal databases stay
+private. Android's restrictions on other apps' private storage and protected
+shared-storage directories still apply.
+
+Removable cards are distinct volumes; they must never replace what `/sdcard`
+means. Their direct mapping, filesystem semantics and card-removal behavior
+require independent qualification, below.
+
 ## Optional direct filesystem access
 
 Request broad authority only when the user chooses direct access, separately
@@ -135,6 +164,37 @@ durability guarantees remain provider-specific and require separate evidence.
 JSTorrent's seekable-descriptor patterns are a reference, not proof of a
 general filesystem namespace.
 
+## Removable-card investigation
+
+The attached Motorola identified as Moto G Power (2022), Android 12, with one
+mounted public exFAT volume. A disposable fixture queried StorageManager and
+bound that exact removable directory into PRoot at `/external-card` for this
+investigation only. With all-files authority and zero SAF grants, Python and
+shell I/O reached the real card; independent controller reads matched its
+bytes/hashes. Process restart, broad-permission revocation and re-enabling after
+fixture app-data clear preserved/recovered both primary and card files. Only
+new UUID-named folders were written and removed; no formatting, ejection or
+existing-document changes occurred.
+
+Both tested volumes passed positional writes, rename/replace, file/directory
+`fsync`, Git with explicit repository trust, `core.filemode=false` and
+`core.createObject=rename`, and a basic SQLite WAL roundtrip. They were
+case-insensitive, rejected symlinks and ignored executable-bit changes. `flock`
+returned ENOSYS; POSIX record locks were accepted. This is a basic acceptance
+fixture, not proof of lock contention, power-loss safety, safe card removal,
+SQLite workloads or complete POSIX compatibility. Runtime binaries and YA's
+live databases should continue to stay private.
+
+**Next direction, not implemented:** expose removable volumes separately, for
+example `/storage/<volume-uuid>`, using Android volume identity rather than list
+position or a mutable label. Never substitute one card for another or change
+what `/sdcard` means. Recheck mount state/identity before admitting work; card
+removal or a missing/read-only card must fail visibly without private fallback.
+Insertion/removal during running sessions and unmount handling need a separate
+physical test. The current selected-folder direct resolver still qualifies only
+primary storage; an external folder's SAF grant remains a distinct document
+access route. `/external-card` is a fixture path, not a shipping product mapping.
+
 ## Identity, permissions and recovery
 
 Keep root registration, shortcut name, requested access methods and provider/
@@ -214,6 +274,48 @@ including spaces and uppercase letters. It checks automatic suffix allocation,
 reuse of a freed suffix, cancellation, duplicate identity rejection, optional
 rename, reselect, process restart and sequential typing with 16 visible roots.
 External byte/hash checks and exact-resource cleanup apply in both modes.
+
+For primary storage and an optional removable-card investigation, build/copy
+the isolated APK to `.local/shared-storage/fixture.apk`, prepare the shared
+Alpine payload, then run:
+
+```sh
+python3 packages/android-host/tools/shared_storage_live.py \
+  --device-file <private-device-json> --registry <private-MC-registry> \
+  --target <selected-target> --model '<observed-model>'
+# Add --external only for one mounted removable volume.
+```
+
+This runner uses only the disposable workspace fixture, native StorageManager,
+production workspace binding/bridge code and real Alpine Python/Git/SQLite. It
+uses actual Android Settings by default. `--headless-permission` changes only
+the disposable fixture's all-files app-op and permits a locked display when
+ADB, boot, administration and credential-encrypted storage are ready. It tests
+blocked writes without permission, no-picker/no-SAF primary access, process
+restart, revocation, fixture data-clear recovery and independent bytes/hashes.
+`--external` adds a temporary removable binding for investigation. Exact owned
+resources remain in a private recovery receipt on failure; `--resume` verifies
+ownership before replacing them. No card format/eject operation is performed.
+
+**Built-in `/sdcard` acceptance passed, 2026-10-18:** Pixel 9 over Wi-Fi ADB
+via mDNS and Moto G Power (2022) over USB passed the fixture checks above,
+including zero SAF grants, blocked access before permission, direct writes,
+process restart, revocation and recovery after clearing only the disposable
+fixture's data. Motorola used actual Settings; the Pixel fixture used the
+headless app-op route. Both fixtures and their owned shared-storage trees were
+removed. On Motorola, the native folder screen and 16-root Rename typing check
+passed with all 16 sequential characters acknowledged within 78 ms. Root lint,
+format, typecheck and tests, Alpine smoke, Linux native-socket admission checks
+and normal/fixture Android build/lint passed. Machine Control commit `b9b0c34`
+owns the reusable primary-volume resolver under its MIT license.
+
+The normal Pixel 9 host was then updated over Wi-Fi ADB via mDNS with a fresh
+shared runtime, preserving byte hashes of all 566 private-state files and the
+existing folder registry before restarting it. The running production PRoot
+command contained the primary-storage binding, native admission accepted it,
+and the running YA server confirmed `/sdcard/Download` and `/sdcard/Documents`
+as accessible project directories with no selected shortcuts. This final check
+was read-only; user documents and the normal Motorola host were untouched.
 
 **Picker-first follow-up passed on Pixel 9 over Wi-Fi ADB, 2026-10-18:**
 three actual picked roots preserved their display names, spaces and case;
