@@ -187,5 +187,12 @@ protocol. Watching consumes no model turns while idle.
 Showing an in-session observer's output as user turns with visible attachments
 is [sketched](../gaps/sketches/rendez-in-session-observer.md).
 
-Broadcast subscriptions and the [atomic SSH receiver](../gaps/sketches/rendez-receive.md)
-remain future extensions.
+For senders that want feedback, `ssh host rendez --project oss receive --wait
+123/shot.png < shot.png` publishes one upload from stdin into the route
+`latest-session` points at, or `--route`. It refuses when no observer is
+listening, so YA watching must be on, and creates subfolders. A taken name
+gets `-2`, `-3` and so on, and the rename is atomic, so YA sees one completed
+file. It reports the `.rendez`-relative destination, such as
+`session-a/123/shot.png`, and with `--wait` whether YA accepted, failed or held
+the upload. The helper's topic has the details. Broadcast subscriptions remain
+a future extension.
