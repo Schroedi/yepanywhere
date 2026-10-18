@@ -656,11 +656,16 @@ it("lights reload for newer static files, arms a one-shot reload, and holds to a
   });
   await waitFor(() => expect(reload().className).toMatch(/reloadStale/));
   // Newer files light the button; clicking loads them and clears it.
-  fireEvent.click(reload());
+  await act(async () => {
+    fireEvent.click(reload());
+  });
   await waitFor(() => expect(container.querySelector("iframe")).toBeTruthy());
   await waitFor(() => expect(reload().className).toBe(""));
   // A click with nothing new arms one reload for the next change.
-  fireEvent.click(reload());
+  // Await the open and its focus-listener effect before returning to the page.
+  await act(async () => {
+    fireEvent.click(reload());
+  });
   await waitFor(() => expect(reload().className).toMatch(/reloadArmed/));
   const armedOpens = opens();
   stamp = "2026-10-18T00:00:03.000Z";
