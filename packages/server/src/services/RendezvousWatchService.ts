@@ -1,9 +1,17 @@
-import { spawn, type ChildProcess } from "node:child_process";
 import { isAbsolute } from "node:path";
-import { createInterface } from "node:readline";
-import { flushRendezvousUserTurn } from "./rendezvous-activity.mjs";
 import { getLogger } from "../logging/logger.js";
+import {
+  RendezvousConflictError,
+  RendezvousObserver,
+  type RendezvousSessions,
+  type RendezvousWatchBudget,
+} from "./RendezvousObserver.js";
+import { flushRendezvousUserTurn } from "./rendezvous-activity.mjs";
 import type { ServerSettingsService } from "./ServerSettingsService.js";
+
+const MAX_OBSERVED_PROJECTS = 32;
+// Each project needs one watch for its routes plus one per subscribed route.
+const MAX_DIRECTORY_WATCHES = 1024;
 
 export interface RendezvousSettings {
   enabled: boolean;
@@ -61,13 +69,22 @@ export function parseRendezvousSettings(value: unknown): RendezvousSettings {
   };
 }
 
-/** Own bounded project watchers; failed observers require a settings change to retry. */
+/**
+ * Own bounded in-process project observers. A failed observer requires a
+ * settings change to retry; a project another observer already serves is
+ * retried on the next check, so a restart overlap resolves itself.
+ */
 export class RendezvousWatchService {
-  private readonly children = new Map<
+  private readonly observers = new Map<
     string,
-    { process: ChildProcess; closed: Promise<void>; limits: string }
+    { observer: RendezvousObserver; limits: string }
   >();
   private readonly failed = new Set<string>();
+  private readonly conflicted = new Set<string>();
+  private readonly budget: RendezvousWatchBudget = {
+    used: 0,
+    limit: MAX_DIRECTORY_WATCHES,
+  };
   private readonly unsubscribe: () => void;
   private timer?: ReturnType<typeof setInterval>;
   private work: Promise<void> = Promise.resolve();
@@ -81,12 +98,7 @@ export class RendezvousWatchService {
     private readonly listProjects: () => Promise<
       ReadonlyArray<{ path: string }>
     >,
-    private readonly deliverToLiveSession: (
-      project: string,
-      sessionId: string,
-      id: string,
-      text: string,
-    ) => boolean | undefined,
+    private readonly sessions: RendezvousSessions,
   ) {
     this.settings = settingsService.getSetting("rendezvous") ?? {
       enabled: false,
@@ -109,9 +121,9 @@ export class RendezvousWatchService {
     const enabled =
       this.settings.enabled ||
       Object.values(this.settings.projects).some(Boolean);
-    if (enabled && process.platform !== "linux") {
+    if (enabled && process.platform === "win32") {
       getLogger().warn(
-        "Rendezvous monitoring requires Linux; use the explicit scan helper for completed transfers",
+        "Rendezvous monitoring needs POSIX symlinks and is unavailable on Windows",
       );
       return;
     }
@@ -143,13 +155,11 @@ export class RendezvousWatchService {
       });
   }
 
-  private stop(child: ChildProcess): void {
-    if (child.pid === undefined) return;
-    try {
-      process.kill(-child.pid, "SIGTERM");
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
-    }
+  private async retire(project: string): Promise<void> {
+    const entry = this.observers.get(project);
+    if (!entry) return;
+    this.observers.delete(project);
+    await entry.observer.close();
   }
 
   private async reconcile(): Promise<void> {
@@ -166,99 +176,57 @@ export class RendezvousWatchService {
     for (const project of projects) {
       if (configured.projects[project.path] ?? configured.enabled) {
         wanted.add(project.path);
-        if (wanted.size === 32) break;
+        if (wanted.size === MAX_OBSERVED_PROJECTS) break;
       }
     }
-    for (const [project, child] of this.children) {
-      if (wanted.has(project) && child.limits === limits) continue;
-      this.stop(child.process);
-      await child.closed;
+    for (const [project, entry] of this.observers) {
+      if (wanted.has(project) && entry.limits === limits) {
+        // Pick up subscriptions whose route events were missed.
+        await entry.observer.rescanRoutes();
+        continue;
+      }
+      await this.retire(project);
     }
     for (const project of wanted) {
       if (this.closed) return;
-      if (this.children.has(project) || this.failed.has(project)) continue;
-      const process = spawn(
-        "rendez",
-        [
-          "--json",
-          "--project",
-          project,
-          "watch",
-          "--ya-stdio",
-          "--window-ms",
-          String(windowMs),
-          "--max-per-window",
-          String(maxPerWindow),
-        ],
-        {
-          stdio: ["pipe", "pipe", "pipe"],
-          detached: true,
-        },
-      );
-      let diagnostics = "";
-      const lines = createInterface({ input: process.stdout });
-      lines.on("line", (line) => {
-        try {
-          const message = JSON.parse(line);
-          if (message.state === "watching") flushRendezvousUserTurn(project);
-          if (message.type !== "delivery-request") {
-            if (message.state === "failed" || message.state === "uncertain") {
-              getLogger().warn(
-                { projectPath: project, delivery: message },
-                "Rendezvous upload was not confirmed",
-              );
-            }
-            return;
-          }
-          const { id, target } = message.record;
-          if (
-            typeof id !== "string" ||
-            typeof target.yaSessionId !== "string" ||
-            typeof message.text !== "string"
-          ) {
-            throw new Error("Invalid rendezvous delivery request");
-          }
-          const accepted = this.deliverToLiveSession(
-            project,
-            target.yaSessionId,
-            id,
-            message.text,
-          );
-          process.stdin.write(
-            `${JSON.stringify({ id, ...(accepted === undefined ? { provider: true } : { accepted }) })}\n`,
-          );
-        } catch (error) {
+      if (this.observers.has(project) || this.failed.has(project)) continue;
+      const observer = new RendezvousObserver(project, {
+        windowMs,
+        maxPerWindow,
+        sessions: this.sessions,
+        budget: this.budget,
+        onFailure: (error) => {
+          this.failed.add(project);
           getLogger().warn(
             { projectPath: project, error: String(error) },
-            "Rendezvous delivery protocol failed",
+            "Rendezvous watcher stopped; change its setting to retry",
           );
-          this.stop(process);
-        }
+          void this.retire(project);
+        },
       });
-      process.stdin.on("error", (error) => {
-        diagnostics = error.message;
-      });
-      process.stderr?.on("data", (chunk: Buffer) => {
-        diagnostics = (diagnostics + chunk.toString()).slice(-4096);
-      });
-      process.on("error", (error) => {
-        diagnostics = error.message;
-      });
-      const closed = new Promise<void>((resolve) => {
-        process.once("close", (code, signal) => {
-          lines.close();
-          this.children.delete(project);
-          if (!this.closed && signal !== "SIGTERM") {
-            this.failed.add(project);
+      this.observers.set(project, { observer, limits });
+      try {
+        await observer.start();
+        this.conflicted.delete(project);
+        flushRendezvousUserTurn(project);
+      } catch (error) {
+        await this.retire(project);
+        if (error instanceof RendezvousConflictError) {
+          if (!this.conflicted.has(project)) {
+            this.conflicted.add(project);
             getLogger().warn(
-              { projectPath: project, code, diagnostics },
-              "Rendezvous watcher stopped; change its setting to retry",
+              { projectPath: project, error: error.message },
+              "Rendezvous watching deferred: another observer serves this project",
             );
           }
-          resolve();
-        });
-      });
-      this.children.set(project, { process, closed, limits });
+          continue;
+        }
+        this.failed.add(project);
+        getLogger().warn(
+          { projectPath: project, error: String(error) },
+          "Rendezvous watcher stopped; change its setting to retry",
+        );
+      }
     }
   }
 
@@ -267,8 +235,8 @@ export class RendezvousWatchService {
     this.unsubscribe();
     if (this.timer) clearInterval(this.timer);
     await this.work;
-    const children = [...this.children.values()];
-    for (const child of children) this.stop(child.process);
-    await Promise.all(children.map((child) => child.closed));
+    await Promise.all(
+      [...this.observers.keys()].map((project) => this.retire(project)),
+    );
   }
 }

@@ -9,7 +9,7 @@ export function publishRendezvousUserTurn(turn: RendezvousUserTurn): void {
   publish(turn, (error) => {
     getLogger().warn(
       { projectPath: turn.projectPath, error: error.message },
-      "Rendezvous latest-session publication failed; check the rendez helper",
+      "Rendezvous latest-session publication failed",
     );
   });
 }

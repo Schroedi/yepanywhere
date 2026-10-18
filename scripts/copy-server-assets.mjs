@@ -58,10 +58,12 @@ copyFileSync(
   join(serverTargetDir, "highlighting/highlight-worker.mjs"),
 );
 
-copyFileSync(
-  join(serverSourceDir, "services/rendezvous-activity.mjs"),
-  join(serverTargetDir, "services/rendezvous-activity.mjs"),
-);
+for (const name of ["rendezvous-activity.mjs", "rendezvous-protocol.mjs"]) {
+  copyFileSync(
+    join(serverSourceDir, "services", name),
+    join(serverTargetDir, "services", name),
+  );
+}
 
 copyFileSync(
   join(serverSourceDir, "services/image-preparation.mjs"),

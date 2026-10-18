@@ -3695,7 +3695,7 @@
   "messageDeliveryPatientCompactOff": "Off: deliver without compacting",
   "messageDeliveryPatientCompactOn": "Compact first at {percent}% context or more",
   "messageDeliveryRendezvousTitle": "Watch .rendez uploads (Rendezvous)",
-  "messageDeliveryRendezvousDescription": "Watch project .rendez directories while a session is live. Files copied to .rendez/latest-session become attachments for the session most recently messaged by you, without waking an inactive session. Requires the rendez helper on the server. Project overrides still apply.",
+  "messageDeliveryRendezvousDescription": "Watch project .rendez directories while a session is live. Files copied to .rendez/latest-session become attachments for the session most recently messaged by you, without waking an inactive session. Project overrides still apply.",
   "messageDeliveryRendezvousUnavailable": "Update the server to configure Rendezvous uploads here.",
   "messageDeliveryProjectQueueShortcutTitle": "Use Ctrl+Enter for Project Queue",
   "messageDeliveryProjectQueueShortcutDescription": "When the Project Queue button is visible, Ctrl+Enter uses it instead of the per-session queue shortcut.",

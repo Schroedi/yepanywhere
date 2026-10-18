@@ -1,12 +1,11 @@
-import { execFile } from "node:child_process";
-import { existsSync } from "node:fs";
+import { lstat, realpath } from "node:fs/promises";
 import { join } from "node:path";
+import { subscribe } from "./rendezvous-protocol.mjs";
 
-const pending = new Map();
 const latest = new Map();
-let running = false;
+const running = new Set();
 
-/** Coalesce user activity without holding up session input or spawning per turn. */
+/** Coalesce user activity per project without holding up session input. */
 export function publishRendezvousUserTurn(turn, onError) {
   const prior = latest.get(turn.projectPath);
   if (prior && prior.turn.receivedAt > turn.receivedAt) return;
@@ -19,45 +18,39 @@ export function publishRendezvousUserTurn(turn, onError) {
 /** Replay activity accepted before an opt-in watcher created its destination. */
 export function flushRendezvousUserTurn(projectPath) {
   const entry = latest.get(projectPath);
-  if (!entry) return;
-  const { turn, onError } = entry;
-  if (!existsSync(join(turn.projectPath, ".rendez"))) return;
-  if (pending.size >= 128 && !pending.has(turn.projectPath)) {
-    onError(new Error("Rendezvous activity queue reached its project limit"));
-    return;
-  }
-  const previous = pending.get(turn.projectPath);
-  if (previous && previous.turn.receivedAt > turn.receivedAt) return;
-  pending.set(turn.projectPath, { turn, onError });
-  drain();
+  if (!entry || running.has(projectPath)) return;
+  running.add(projectPath);
+  recordUserTurn(entry.turn)
+    .catch(entry.onError)
+    .finally(() => {
+      running.delete(projectPath);
+      // A newer turn that arrived meanwhile is recorded next.
+      if (latest.get(projectPath) !== entry)
+        flushRendezvousUserTurn(projectPath);
+    });
 }
 
-function drain() {
-  if (running || pending.size === 0) return;
-  const [projectPath, { turn, onError }] = pending.entries().next().value;
-  pending.delete(projectPath);
-  running = true;
-  execFile(
-    "rendez",
-    [
-      "--project",
-      projectPath,
-      "subscribe",
-      "--harness",
-      turn.harness,
-      "--session",
-      turn.sessionId,
-      "--provider-session",
-      turn.providerSessionId,
-      "--latest",
-      "--received-at",
-      String(turn.receivedAt),
-    ],
-    { timeout: 10_000, maxBuffer: 16 * 1024 },
-    (error) => {
-      running = false;
-      if (error) onError(error);
-      drain();
+async function recordUserTurn(turn) {
+  let root;
+  try {
+    root = join(await realpath(turn.projectPath), ".rendez");
+    const stats = await lstat(root);
+    if (stats.isSymbolicLink()) {
+      throw new Error("Rendezvous root must not be a symlink");
+    }
+    if (!stats.isDirectory()) return;
+  } catch (error) {
+    if (error.code === "ENOENT") return;
+    throw error;
+  }
+  await subscribe(
+    root,
+    {
+      harness: turn.harness,
+      providerSessionId: turn.providerSessionId,
+      yaSessionId: turn.sessionId,
+      liveOnly: true,
     },
+    { latest: true, receivedAt: turn.receivedAt },
   );
 }

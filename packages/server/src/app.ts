@@ -342,6 +342,7 @@ import type { ProjectQueueService } from "./services/ProjectQueueService.js";
 import type { RelayClientService } from "./services/RelayClientService.js";
 import type { ServerSettingsService } from "./services/ServerSettingsService.js";
 import { RendezvousWatchService } from "./services/RendezvousWatchService.js";
+import { createRendezvousSessions } from "./services/rendezvousSessions.js";
 import { getLogger } from "./logging/logger.js";
 import { listHostedProviderRuntimes } from "./sdk/providers/provider-runtime-host.js";
 import {
@@ -1512,29 +1513,7 @@ export function createApp(options: AppOptions): AppResult {
           }
           return [...paths].map((path) => ({ path }));
         },
-        (project, sessionId, id, text) => {
-          const process = supervisor
-            .getAllProcesses()
-            .find((candidate) => candidate.sessionId === sessionId);
-          if (!process) return undefined;
-          if (
-            process.projectPath !== project ||
-            process.execution.kind !== "local" ||
-            process.isProcessAlive !== true
-          )
-            return false;
-          return process.queueMessage(
-            {
-              uuid: id,
-              text,
-              metadata: {
-                origin: "rendezvous",
-                serverReceivedAt: new Date().toISOString(),
-              },
-            },
-            { allowSteer: false },
-          ).success;
-        },
+        createRendezvousSessions(() => supervisor.getAllProcesses()),
       )
     : undefined;
   const disposeSessionReaders = (): Promise<void> => {
