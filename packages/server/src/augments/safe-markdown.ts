@@ -3,6 +3,7 @@ import { isAbsolute, normalize, posix, win32 } from "node:path";
 import { katex as markdownItKatex } from "@mdit/plugin-katex";
 import katex from "katex";
 import {
+  buildProjectFileViewerHref,
   type LocalResourceMediaType,
   linkifyToHtml,
   normalizeTexForKatex,
@@ -759,20 +760,6 @@ function resolveProjectFileCodeReference(
   return target;
 }
 
-function projectFileViewerHref(
-  projectId: string,
-  target: ProjectFileCodeLink,
-): string {
-  const params = new URLSearchParams({ path: target.relativePath });
-  if (target.lineNumber !== undefined) {
-    params.set("line", String(target.lineNumber));
-  }
-  if (target.columnNumber !== undefined) {
-    params.set("column", String(target.columnNumber));
-  }
-  return `/projects/${encodeURIComponent(projectId)}/file?${params}`;
-}
-
 function renderProjectFileLinkOpen(
   options: ProjectFileLinkOptions,
   target: ProjectFileCodeLink,
@@ -783,7 +770,15 @@ function renderProjectFileLinkOpen(
   } = {},
 ): string {
   const attributes: Array<[string, string]> = [
-    ["href", projectFileViewerHref(options.projectId, target)],
+    [
+      "href",
+      buildProjectFileViewerHref({
+        projectId: options.projectId,
+        filePath: target.relativePath,
+        lineNumber: target.lineNumber,
+        columnNumber: target.columnNumber,
+      }),
+    ],
     ["data-ya-resource", "project-file"],
     ["data-ya-project-id", options.projectId],
     ["data-ya-path", target.relativePath],

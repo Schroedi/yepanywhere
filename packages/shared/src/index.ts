@@ -382,8 +382,10 @@ export type {
   LocalResourceMediaType,
   LocalResourceRef,
   ParseLocalResourceOptions,
+  ProjectFileViewerTarget,
 } from "./local-resource.js";
 export {
+  buildProjectFileViewerHref,
   normalizeWindowsDrivePathname,
   parseLocalResourceAttributes,
   parseLocalResourceHref,
@@ -1126,9 +1128,13 @@ export type {
   ToolDisplaySearchAction,
 } from "./tool-display-actions.js";
 export {
+  type CitedFilePosition,
+  citedProjectPathTokenExtent,
   findProjectPathTokens,
   type ProjectPathLinkTarget,
   type ProjectPathToken,
+  readLeadingCitedPosition,
+  splitTrailingCitedPosition,
 } from "./project-path-links.js";
 export type {
   CodexWebRunLine,

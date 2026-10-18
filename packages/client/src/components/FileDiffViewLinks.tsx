@@ -1,4 +1,7 @@
-import type { GitFileDiffMode } from "@yep-anywhere/shared";
+import {
+  buildProjectFileViewerHref,
+  type GitFileDiffMode,
+} from "@yep-anywhere/shared";
 import type { MouseEvent, ReactNode } from "react";
 import type { useFileVersionControl } from "../hooks/useFileVersionControl";
 import { useRemoteBasePath } from "../hooks/useRemoteBasePath";
@@ -39,21 +42,14 @@ export function buildProjectFileViewUrl({
   projectId: string;
   viewMode?: FileViewerMode;
 }): string {
-  const params = new URLSearchParams({ path: filePath });
-  if (diffMode) {
-    params.set("diff", diffMode);
-  } else {
-    if (lineNumber !== undefined) {
-      params.set("line", String(lineNumber));
-    }
-    if (lineEnd !== undefined) {
-      params.set("lineEnd", String(lineEnd));
-    }
-    if (viewMode === "range") {
-      params.set("view", "range");
-    }
-  }
-  return `${basePath}/projects/${projectId}/file?${params.toString()}`;
+  return `${basePath}${buildProjectFileViewerHref({
+    diffMode,
+    filePath,
+    lineEnd,
+    lineNumber,
+    projectId,
+    viewMode,
+  })}`;
 }
 
 export function FileDiffViewLinks({

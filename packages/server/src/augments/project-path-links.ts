@@ -2,6 +2,7 @@ import {
   findProjectPathTokens,
   type ProjectPathLinkTarget,
   type ProjectPathToken,
+  splitTrailingCitedPosition,
 } from "@yep-anywhere/shared";
 import {
   dirname,
@@ -62,9 +63,6 @@ function absoluteTokenTarget(token: string): string {
   return token.startsWith("~/") ? join(homedir(), token.slice(2)) : token;
 }
 
-/** A cited position after a path: `:29`, `:29-56`, or `:29:7`. */
-const LINE_SUFFIX = /:(\d+)(?:-\d+|:(\d+))?$/;
-
 interface AbsoluteFileTarget {
   filePath: string;
   lineNumber?: number;
@@ -82,13 +80,13 @@ function absoluteTokenTargets(token: string): AbsoluteFileTarget[] {
   const targets: AbsoluteFileTarget[] = [
     { filePath: absoluteTokenTarget(token) },
   ];
-  const suffix = LINE_SUFFIX.exec(token);
-  const path = suffix ? token.slice(0, suffix.index) : "";
-  if (suffix && mayCostAbsoluteLookup(path)) {
+  const cited = splitTrailingCitedPosition(token);
+  if (cited && mayCostAbsoluteLookup(cited.path)) {
+    const { lineNumber, columnNumber } = cited.position;
     targets.push({
-      filePath: absoluteTokenTarget(path),
-      lineNumber: Number(suffix[1]),
-      ...(suffix[2] ? { columnNumber: Number(suffix[2]) } : {}),
+      filePath: absoluteTokenTarget(cited.path),
+      lineNumber,
+      ...(columnNumber !== undefined ? { columnNumber } : {}),
     });
   }
   return targets;

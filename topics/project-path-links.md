@@ -43,11 +43,26 @@ the `~/` spelling. It is never tried as a project-relative path. The whole token
 an existing prefix is never linked out of a longer filename. The one exception
 is a cited position: when the whole token is not a file and it ends in `:N`,
 `:N-M`, or `:N:C`, the path before that suffix is probed too, from the same
-64-candidate budget. A hit links the whole visible token, suffix included, as
-inline-code `path:42` links do, so clients that match confirmed links by token
-text need no change; server-rendered links also open the viewer at that line
-and column. It is never added to the project index or discovered by a
-filesystem crawl.
+64-candidate budget. A hit is confirmed under the whole visible token, suffix
+included, so clients that match confirmed links by token text need no change.
+It is never added to the project index or discovered by a filesystem crawl.
+
+**A visible cited position is its own link.** Wherever a confirmed file link
+shows `path:N`, `path:N-M`, or `path:N:C`, the client renders two adjacent
+links: the path opens the file at the top, and the `:N…` suffix opens it at
+that position. Both carry the same file target and resource attributes, so
+they share one context menu; only viewing is position-specific. The rule
+covers every surface: server-rendered Markdown (inline code, prose, and local
+file links), user prompts, and command and tool output. A project-relative
+token stops at the colon, so its suffix is the citation text right after the
+link; an absolute token carries its suffix unless the whole token is itself
+the file. The split happens in the client, so transcripts rendered and stored
+before it gain the split without re-rendering. Inline code stays one pill
+holding both links. A link whose label does not end in its cited position,
+such as a Markdown link with its own text, stays one link.
+`readLeadingCitedPosition` and `splitTrailingCitedPosition` in
+`packages/shared/src/project-path-links.ts` are the one citation grammar that
+the server resolver and every client surface share.
 The probe uses the same realpath-resolved allow-set and regular-file check as
 the authenticated file endpoint, and click-time fetching repeats that check.
 At most 64 distinct direct-filesystem candidates are probed for one completed
