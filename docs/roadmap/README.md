@@ -20,6 +20,15 @@ and Open/Host controls/confirmed Stop actions. The
 records verification and its limits; unattended lifecycle and credential-renewal
 qualification remain separate incubation work.
 
+Android 9/API 28 ARM64 is supported for now within the experimental host,
+following the [Moto X4 feasibility test](../testing/android-host-moto-x4-2026-10-18.md).
+Android 11+ remains the routinely tested baseline. Revisit the older support
+floor if it adds upgrade, implementation, testing or release friction; the
+[host contract](../../topics/android-host.md#older-android-support) owns that
+review trigger. The next compatibility step is to integrate the local changes
+into the standard build, which still requires API 30. Unattended lifecycle
+acceptance remains unqualified; existing incubation priorities are unchanged.
+
 The [Android guest user/admin environment](../../topics/android-host.md#guest-user-and-administration)
 now uses `user@ya-phone`, `/home/user` and passwordless guest sudo. Existing
 home paths and private state are preserved. Pixel 7a acceptance covers the

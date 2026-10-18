@@ -166,6 +166,25 @@ async function page() {
     .filter({ visible: true })
     .first()
     .waitFor();
+  assert.deepEqual(
+    await selected.evaluate(() => {
+      const probe = document.createElement("div");
+      probe.style.cssText =
+        "position:fixed;visibility:hidden;padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)";
+      document.body.append(probe);
+      const style = getComputedStyle(probe);
+      const values = [
+        style.paddingTop,
+        style.paddingRight,
+        style.paddingBottom,
+        style.paddingLeft,
+      ].map(Number.parseFloat);
+      probe.remove();
+      return values;
+    }),
+    [0, 0, 0, 0],
+    "Native system-bar/cutout padding must not reach WebView CSS again",
+  );
   assert(
     shell("dumpsys", "activity", "activities")
       .split("\n")

@@ -418,6 +418,11 @@ Reusable device-operation implementation still belongs to Machine Control.
   main menu without finishing the web activity; **Open Yep Anywhere** returns
   to its selected tab. Android Back retains the ordinary activity-close
   behavior; use Home to keep the mounted document alive.
+- The native WebView container owns system-bar and display-cutout spacing
+  once, including side cutouts in landscape. It forwards zero for those
+  handled insets to CSS while preserving keyboard/visual-viewport updates.
+  Opening, switching tabs and recreating the activity must not retain duplicate
+  safe-area padding. Shared browser/PWA safe-area styles remain unchanged.
 - Tabs follow the companion's single-mounted-document pattern: up to 32 local
   tabs, a switcher with page titles/paths, selection and separate close targets,
   and new tabs opening Projects. Page titles stay in memory only. Long-pressing a local link offers **Open in new tab**;
@@ -498,6 +503,25 @@ preference when appearance is Auto, including after a system theme change.
 Explicit Light, Dark and Very Dark choices remain authoritative. WebView's
 `prefers-color-scheme` comes from the native theme's day/night-qualified
 `isLightTheme` value; native toolbar colors do not override the web preference.
+
+## Older Android support
+
+**Decision, 2026-10-18:** Support Android 9/API 28 on ARM64 for now within the
+experimental host. Keep Android 11/API 30 and newer as the routinely tested
+baseline. Revisit the Android 9 support floor if it blocks runtime or dependency
+upgrades, requires substantial special-case code, or causes recurring testing,
+debugging or release friction. Reassess the trade-off when that friction appears
+rather than accumulating compatibility workarounds by default.
+
+A local Moto X4/API 28 prototype ran the existing ARM64 Alpine/PRoot payload,
+real Claude/Codex tool turns, WebView submission/streaming, sequential typing,
+full-host restart and actual provider resume through temporary USB AAR access.
+It required local native API compatibility changes. Delivering the accepted
+support floor in the standard build remains follow-up work: the checked-in APK
+still requires API 30, and the compatibility changes remain local. Shared-storage
+mapping, direct subscription authentication, Doze and overnight operation were
+not qualified. See the [dated evidence](../docs/testing/android-host-moto-x4-2026-10-18.md)
+for measured results, compatibility gaps and cleanup.
 
 ## Test boundary
 

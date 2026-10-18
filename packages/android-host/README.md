@@ -226,7 +226,9 @@ The opt-in runner uses the MC doctor/launcher/capture CLI, actual native taps
 and the debug WebView's CDP endpoint. It checks opening a stopped host, document
 identity across system Home/launcher/Open and native Home/Open, tab switching,
 history retention, closing a background tab, server termination during navigation,
-Retry, rapid Stop/Open, force-stop/reopen and missing-runtime repair. It briefly
+Retry, rapid Stop/Open, force-stop/reopen and missing-runtime repair. Each opened
+WebView also checks that native system-bar/cutout spacing is not applied again
+through CSS safe areas. It briefly
 renames only `launch.mjs` while the app is stopped and restores the exact file;
 a private recovery record names that rename until restored. It preserves
 app-private sessions/configuration, isolates/restores the native tab preferences,

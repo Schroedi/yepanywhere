@@ -406,6 +406,10 @@ public final class LocalWebActivity extends Activity {
     }
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
+        getWindow().setDecorFitsSystemWindows(false);
+        android.view.WindowManager.LayoutParams windowLayout = getWindow().getAttributes();
+        windowLayout.layoutInDisplayCutoutMode = android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS;
+        getWindow().setAttributes(windowLayout);
         LinearLayout frame = new LinearLayout(this); frame.setOrientation(LinearLayout.VERTICAL);
         LinearLayout toolbar = new LinearLayout(this); toolbar.setGravity(android.view.Gravity.CENTER_VERTICAL);
         toolbar.setPadding(dp(4), 0, dp(4), 0);
@@ -429,8 +433,13 @@ public final class LocalWebActivity extends Activity {
         Button controls = new Button(this); controls.setText(R.string.host_controls); controls.setOnClickListener(view -> home());
         recovery.addView(controls); page.addView(recovery, new FrameLayout.LayoutParams(-1, -1));
         frame.setOnApplyWindowInsetsListener((view, insets) -> {
-            android.graphics.Insets bars = insets.getInsets(android.view.WindowInsets.Type.systemBars());
-            view.setPadding(bars.left, bars.top, bars.right, bars.bottom); return insets;
+            int handled = android.view.WindowInsets.Type.systemBars() | android.view.WindowInsets.Type.displayCutout();
+            android.graphics.Insets bars = insets.getInsets(handled);
+            view.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+            // Native layout owns these edges. Zero them for WebView's CSS
+            // safe areas while preserving keyboard/visual-viewport updates.
+            return new android.view.WindowInsets.Builder(insets)
+                .setInsets(handled, android.graphics.Insets.NONE).build();
         });
         setContentView(frame); restore();
         Tab initial = selected; selected = null;
