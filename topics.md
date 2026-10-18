@@ -461,3 +461,5 @@
 - android-secure-transport - Reliable Android resume, progressive native byte responses and packaged service-worker artifact delivery (plan 156).
 
 - android-host — experimental on-device YA host, shared Alpine payload and lifecycle.
+
+- rendezvous — project file uploads, live-session routing, attachment previews, and held burst overflow.
