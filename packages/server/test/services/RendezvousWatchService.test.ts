@@ -126,14 +126,17 @@ it.skipIf(process.platform === "win32")(
       .toBuffer();
     await upload(inbox, "screenshot.png", original);
     await vi.waitFor(() => expect(sent).toHaveLength(1), wait);
-    const [record] = await records(root);
-    expect(record).toMatchObject({
-      state: "accepted",
-      transport: "ya",
-      width: 2000,
-      height: 800,
-      originalName: "screenshot.png",
-    });
+    const record = await vi.waitFor(async () => {
+      const [record] = await records(root);
+      expect(record).toMatchObject({
+        state: "accepted",
+        transport: "ya",
+        width: 2000,
+        height: 800,
+        originalName: "screenshot.png",
+      });
+      return record;
+    }, wait);
     expect(sent[0]?.text).toContain(
       `User uploaded files:\n- [screenshot.png](<${record.path}>)`,
     );
@@ -168,16 +171,18 @@ it.skipIf(process.platform === "win32")(
       await upload(inbox, name, Buffer.from(name));
     }
     await vi.waitFor(() => expect(sent).toHaveLength(3), wait);
-    const states = (await records(root)).map((record) =>
-      record.kind === "overload" ? "notice" : record.state,
-    );
-    expect(states.sort()).toEqual([
-      "accepted",
-      "accepted",
-      "held",
-      "held",
-      "notice",
-    ]);
+    await vi.waitFor(async () => {
+      const states = (await records(root)).map((record) =>
+        record.kind === "overload" ? "notice" : record.state,
+      );
+      expect(states.sort()).toEqual([
+        "accepted",
+        "accepted",
+        "held",
+        "held",
+        "notice",
+      ]);
+    }, wait);
     expect(sent.map(({ text }) => text).join("\n")).toContain(
       "potentially unintentionally",
     );

@@ -147,9 +147,11 @@ does not change the image in an older message.
 YA presents one attachment with its filename and thumbnail. The original can
 be opened while its content still matches that upload; after an overwrite,
 the retained prepared copy is sufficient. There is no permanent second archive
-of full-size originals. Browser uploads keep their existing
-[attachment storage policy](attachment-storage.md); enabling rendezvous does
-not migrate them or require all attachments to share one storage directory.
+of full-size originals. Recorded snapshot paths are matched after resolving
+filesystem aliases through the same file-access policy. Browser uploads keep
+their existing [attachment storage policy](attachment-storage.md); enabling
+rendezvous does not migrate them or require all attachments to share one
+storage directory.
 
 ## Optional helpers outside YA
 

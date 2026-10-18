@@ -27,10 +27,16 @@ export async function readRendezvousOriginal(
       await readFile(recordFile.file.resolvedPath, "utf8"),
     );
     if (
-      record.path !== snapshotPath ||
+      typeof record.path !== "string" ||
       typeof record.originalPath !== "string" ||
       typeof record.sha256 !== "string" ||
       !/^[a-f0-9]{64}$/.test(record.sha256)
+    )
+      return;
+    const recordedSnapshot = await policy.resolveAllowedFilePath(record.path);
+    if (
+      !recordedSnapshot.ok ||
+      recordedSnapshot.file.resolvedPath !== snapshotPath
     )
       return;
     const original = await policy.resolveAllowedFilePath(record.originalPath);
