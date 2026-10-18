@@ -1,4 +1,5 @@
-import { isAbsolute } from "node:path";
+import { lstat } from "node:fs/promises";
+import { isAbsolute, join } from "node:path";
 import { getLogger } from "../logging/logger.js";
 import {
   RendezvousConflictError,
@@ -69,16 +70,38 @@ export function parseRendezvousSettings(value: unknown): RendezvousSettings {
   };
 }
 
+export interface RendezvousWatchStatus {
+  /** Projects whose observer is running. */
+  watching: string[];
+}
+
+const MAX_REMEMBERED_USER_TURNS = 256;
+
 /**
  * Own bounded in-process project observers. A failed observer requires a
  * settings change to retry; a project another observer already serves is
  * retried on the next check, so a restart overlap resolves itself.
+ *
+ * Turning a project on attaches nothing by itself: its observer, and so its
+ * `.rendez` directory, waits for a user message to one of its sessions after
+ * it was turned on, unless `.rendez` already exists. Trying settings out
+ * therefore leaves no trace in any project.
  */
 export class RendezvousWatchService {
   private readonly observers = new Map<
     string,
     { observer: RendezvousObserver; limits: string }
   >();
+  private readonly started = new Set<string>();
+  /** Orders turn-ons and user messages exactly; values are event sequence numbers. */
+  private sequence = 0;
+  /** When each explicitly configured project last turned on. */
+  private readonly projectArmedAt = new Map<string, number>();
+  /** When the global default last turned on, for inheriting projects. */
+  private globalArmedAt: number | undefined;
+  /** When each project last received an actual user message. */
+  private readonly messagedAt = new Map<string, number>();
+  private readonly unsubscribeUserTurns: () => void;
   private readonly failed = new Set<string>();
   private readonly conflicted = new Set<string>();
   private readonly budget: RendezvousWatchBudget = {
@@ -99,20 +122,83 @@ export class RendezvousWatchService {
       ReadonlyArray<{ path: string }>
     >,
     private readonly sessions: RendezvousSessions,
+    userTurns: (listener: (projectPath: string) => void) => () => void,
   ) {
     this.settings = settingsService.getSetting("rendezvous") ?? {
       enabled: false,
       projects: {},
     };
+    this.rearm({ enabled: false, projects: {} }, this.settings);
     this.unsubscribe = settingsService.onSettingsChanged(
       (settings, previous) => {
         if (settings.rendezvous === previous.rendezvous) return;
+        const prior = this.settings;
         this.settings = settings.rendezvous ?? { enabled: false, projects: {} };
+        this.rearm(prior, this.settings);
         this.failed.clear();
         this.configure();
       },
     );
+    this.unsubscribeUserTurns = userTurns((projectPath) => {
+      this.messagedAt.delete(projectPath);
+      this.messagedAt.set(projectPath, ++this.sequence);
+      if (this.messagedAt.size > MAX_REMEMBERED_USER_TURNS) {
+        this.messagedAt.delete(this.messagedAt.keys().next().value as string);
+      }
+      if (this.isOn(projectPath) && !this.observers.has(projectPath)) {
+        this.schedule();
+      }
+    });
     this.configure();
+  }
+
+  status(): RendezvousWatchStatus {
+    return { watching: [...this.started].sort() };
+  }
+
+  private isOn(project: string, settings = this.settings): boolean {
+    return settings.projects[project] ?? settings.enabled;
+  }
+
+  /** Record when projects turn on, so only later user messages attach them. */
+  private rearm(prior: RendezvousSettings, next: RendezvousSettings): void {
+    const now = ++this.sequence;
+    if (prior.enabled !== next.enabled) {
+      // Inheriting projects follow the new default from now on.
+      for (const project of [...this.projectArmedAt.keys()]) {
+        if (!(project in next.projects)) this.projectArmedAt.delete(project);
+      }
+      this.globalArmedAt = next.enabled ? now : undefined;
+    }
+    const explicit = new Set([
+      ...Object.keys(prior.projects),
+      ...Object.keys(next.projects),
+    ]);
+    for (const project of explicit) {
+      const wasOn = this.isOn(project, prior);
+      const isOn = this.isOn(project, next);
+      if (!isOn) this.projectArmedAt.delete(project);
+      else if (!wasOn) this.projectArmedAt.set(project, now);
+    }
+  }
+
+  private async mayAttach(project: string): Promise<boolean> {
+    const armedAt = this.projectArmedAt.get(project) ?? this.globalArmedAt;
+    const messagedAt = this.messagedAt.get(project);
+    if (
+      armedAt !== undefined &&
+      messagedAt !== undefined &&
+      messagedAt > armedAt
+    ) {
+      return true;
+    }
+    try {
+      return (await lstat(join(project, ".rendez"))).isDirectory();
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === "ENOENT" || code === "ENOTDIR") return false;
+      throw error;
+    }
   }
 
   private configure(): void {
@@ -159,6 +245,7 @@ export class RendezvousWatchService {
     const entry = this.observers.get(project);
     if (!entry) return;
     this.observers.delete(project);
+    this.started.delete(project);
     await entry.observer.close();
   }
 
@@ -174,10 +261,16 @@ export class RendezvousWatchService {
     const maxPerWindow = configured.maxPerWindow ?? 10;
     const limits = `${windowMs}:${maxPerWindow}`;
     for (const project of projects) {
-      if (configured.projects[project.path] ?? configured.enabled) {
-        wanted.add(project.path);
-        if (wanted.size === MAX_OBSERVED_PROJECTS) break;
+      if (!this.isOn(project.path, configured)) continue;
+      if (
+        !this.observers.has(project.path) &&
+        !(await this.mayAttach(project.path))
+      ) {
+        continue;
       }
+      if (this.closed || configured !== this.settings) return;
+      wanted.add(project.path);
+      if (wanted.size === MAX_OBSERVED_PROJECTS) break;
     }
     for (const [project, entry] of this.observers) {
       if (wanted.has(project) && entry.limits === limits) {
@@ -207,6 +300,7 @@ export class RendezvousWatchService {
       this.observers.set(project, { observer, limits });
       try {
         await observer.start();
+        this.started.add(project);
         this.conflicted.delete(project);
         flushRendezvousUserTurn(project);
       } catch (error) {
@@ -233,6 +327,7 @@ export class RendezvousWatchService {
   async close(): Promise<void> {
     this.closed = true;
     this.unsubscribe();
+    this.unsubscribeUserTurns();
     if (this.timer) clearInterval(this.timer);
     await this.work;
     await Promise.all(

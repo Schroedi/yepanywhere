@@ -2189,7 +2189,7 @@ export const SERVER_CAPABILITIES = {
   },
   rendezvousUploads: {
     id: CAPABILITY_ID_ALLOCATIONS.rendezvousUploads.id,
-    name: "rendezvous-uploads",
+    name: "rendez-uploads",
     kind: "permanent",
     area: "settings",
     introducedIn: "0.9.4",
@@ -2206,6 +2206,26 @@ export const SERVER_CAPABILITIES = {
     lifecycle: {
       kind: "permanent",
       reason: "Older servers cannot monitor rendezvous uploads.",
+    },
+  },
+  rendezProjectStatus: {
+    id: CAPABILITY_ID_ALLOCATIONS.rendezProjectStatus.id,
+    name: "rendez-project-status",
+    kind: "permanent",
+    area: "settings",
+    introducedIn: "0.9.4",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Reports which projects' .rendez observers are running, for the settings project list.",
+    clientFallback:
+      "Show the project list without watching or waiting status and make no status request.",
+    serverContract: {
+      routes: ["GET /api/settings/rendez/status"],
+      responseFields: ["watching"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason: "Older servers do not report .rendez observer status.",
     },
   },
   patientTopicShift: {
@@ -4336,6 +4356,8 @@ export const PATIENT_TOPIC_SHIFT_CAPABILITY =
   SERVER_CAPABILITIES.patientTopicShift.name;
 export const RENDEZVOUS_UPLOADS_CAPABILITY =
   SERVER_CAPABILITIES.rendezvousUploads.name;
+export const RENDEZ_PROJECT_STATUS_CAPABILITY =
+  SERVER_CAPABILITIES.rendezProjectStatus.name;
 export const SYNTHETIC_DONE_COMMAND_CAPABILITY =
   SERVER_CAPABILITIES.syntheticDoneCommand.name;
 export const SYNTHETIC_ARCHIVE_COMMAND_CAPABILITY =

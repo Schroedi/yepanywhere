@@ -45,7 +45,10 @@ import {
   parseSpeechVoiceBackends,
 } from "@yep-anywhere/shared";
 import { Hono, type Context } from "hono";
-import { parseRendezvousSettings } from "../services/RendezvousWatchService.js";
+import {
+  parseRendezvousSettings,
+  type RendezvousWatchStatus,
+} from "../services/RendezvousWatchService.js";
 import { InstructionPackets } from "../sdk/providers/instruction-packets.js";
 import { PRINCIPAL_VARIABLE, type Principal } from "../auth/principal.js";
 import {
@@ -140,6 +143,8 @@ export interface SettingsRoutesDeps {
   publicShareService?: PublicShareService;
   /** Process-global host-awake policy and status owner. */
   hostAwakeService?: HostAwakeService;
+  /** Which projects' .rendez observers are running. */
+  getRendezvousStatus?: () => RendezvousWatchStatus;
 }
 
 /**
@@ -242,6 +247,17 @@ export function createSettingsRoutes(deps: SettingsRoutesDeps) {
         gatewayServiceExportPaths: defaultGatewayServiceExportPaths(),
       },
     });
+  });
+
+  /**
+   * GET /api/settings/rendez/status
+   * Projects whose .rendez observer is running; empty when none is.
+   */
+  app.get("/rendez/status", (c) => {
+    const principal = c.get(PRINCIPAL_VARIABLE);
+    if (principal && principal.kind !== "superuser")
+      return c.json({ error: "Administrator access required" }, 403);
+    return c.json(deps.getRendezvousStatus?.() ?? { watching: [] });
   });
 
   app.post("/instruction-restoration/preview", async (c) => {

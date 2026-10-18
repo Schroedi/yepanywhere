@@ -348,6 +348,7 @@ import type { RelayClientService } from "./services/RelayClientService.js";
 import type { ServerSettingsService } from "./services/ServerSettingsService.js";
 import { RendezvousWatchService } from "./services/RendezvousWatchService.js";
 import { createRendezvousSessions } from "./services/rendezvousSessions.js";
+import { onRendezvousUserTurn } from "./services/rendezvousActivity.js";
 import { getLogger } from "./logging/logger.js";
 import { listHostedProviderRuntimes } from "./sdk/providers/provider-runtime-host.js";
 import {
@@ -1519,6 +1520,7 @@ export function createApp(options: AppOptions): AppResult {
           return [...paths].map((path) => ({ path }));
         },
         createRendezvousSessions(() => supervisor.getAllProcesses()),
+        onRendezvousUserTurn,
       )
     : undefined;
   const disposeSessionReaders = (): Promise<void> => {
@@ -3442,6 +3444,9 @@ export function createApp(options: AppOptions): AppResult {
         projectStoragePolicy,
         hostAwakeService: options.hostAwakeService,
         sessionMetadataService: options.sessionMetadataService,
+        getRendezvousStatus: rendezvousWatch
+          ? () => rendezvousWatch.status()
+          : undefined,
         onAllowedHostsChanged: updateAllowedHosts,
         onFileAccessChanged: updateFileAccess,
         onRemoteSessionPersistenceChanged: options.remoteSessionService

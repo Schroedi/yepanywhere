@@ -1716,6 +1716,10 @@ export const api = {
       { method: "POST", body: JSON.stringify(settings) },
     ),
 
+  /** Gated by `RENDEZ_PROJECT_STATUS_CAPABILITY`. */
+  getRendezStatus: () =>
+    fetchJSON<{ watching: string[] }>("/settings/rendez/status"),
+
   getHostAwakeStatus: (forceRefresh = false) =>
     fetchJSON<{ status: HostAwakeStatus }>(
       `/settings/host-awake/status${forceRefresh ? "?refresh=1" : ""}`,
