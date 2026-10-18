@@ -40,8 +40,14 @@ direct file probe when it contains at least four characters. A `~/` token is
 expanded against the connected server's home directory, never the browser's;
 the probe and link target use the expanded path while the visible text keeps
 the `~/` spelling. It is never tried as a project-relative path. The whole token is queried, including legal punctuation, so
-an existing prefix is never linked out of a longer filename. It is never added
-to the project index or discovered by a filesystem crawl.
+an existing prefix is never linked out of a longer filename. The one exception
+is a cited position: when the whole token is not a file and it ends in `:N`,
+`:N-M`, or `:N:C`, the path before that suffix is probed too, from the same
+64-candidate budget. A hit links the whole visible token, suffix included, as
+inline-code `path:42` links do, so clients that match confirmed links by token
+text need no change; server-rendered links also open the viewer at that line
+and column. It is never added to the project index or discovered by a
+filesystem crawl.
 The probe uses the same realpath-resolved allow-set and regular-file check as
 the authenticated file endpoint, and click-time fetching repeats that check.
 At most 64 distinct direct-filesystem candidates are probed for one completed

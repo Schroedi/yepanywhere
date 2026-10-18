@@ -62,6 +62,38 @@ function absoluteTokenTarget(token: string): string {
   return token.startsWith("~/") ? join(homedir(), token.slice(2)) : token;
 }
 
+/** A cited position after a path: `:29`, `:29-56`, or `:29:7`. */
+const LINE_SUFFIX = /:(\d+)(?:-\d+|:(\d+))?$/;
+
+interface AbsoluteFileTarget {
+  filePath: string;
+  lineNumber?: number;
+  columnNumber?: number;
+}
+
+/**
+ * Files an absolute token may name, in preference order.
+ *
+ * The whole token comes first, so a file really named `notes.md:12` still
+ * wins. Only when it is not a file does a trailing line suffix count as a
+ * citation of the path before it; the token is never cut anywhere else.
+ */
+function absoluteTokenTargets(token: string): AbsoluteFileTarget[] {
+  const targets: AbsoluteFileTarget[] = [
+    { filePath: absoluteTokenTarget(token) },
+  ];
+  const suffix = LINE_SUFFIX.exec(token);
+  const path = suffix ? token.slice(0, suffix.index) : "";
+  if (suffix && mayCostAbsoluteLookup(path)) {
+    targets.push({
+      filePath: absoluteTokenTarget(path),
+      lineNumber: Number(suffix[1]),
+      ...(suffix[2] ? { columnNumber: Number(suffix[2]) } : {}),
+    });
+  }
+  return targets;
+}
+
 function decodeHtmlText(text: string): string {
   return text.replace(
     /&(amp|lt|gt|quot|apos|#39|#\d+|#x[\da-f]+);/gi,
@@ -161,7 +193,7 @@ export interface ProjectPathLinkOptions {
 
 interface ResolvedProjectPathCandidates {
   /** Visible absolute or `~/` token → the existing file it names. */
-  absolute: ReadonlyMap<string, string>;
+  absolute: ReadonlyMap<string, AbsoluteFileTarget>;
   externalRelative: ReadonlyMap<string, string>;
   relative: ReadonlyMap<string, string>;
 }
@@ -281,15 +313,25 @@ async function resolveProjectPathCandidates(
   const absoluteTargets = new Map(
     Array.from(new Set(absoluteCandidates))
       .slice(0, MAX_ABSOLUTE_PATH_PROBES)
-      .map((token) => [token, absoluteTokenTarget(token)] as const),
+      .map((token) => [token, absoluteTokenTargets(token)] as const),
   );
   const cappedAbsoluteCandidates = Array.from(
-    new Set(absoluteTargets.values()),
+    new Set(
+      [...absoluteTargets.values()].flatMap((targets) =>
+        targets.map((target) => target.filePath),
+      ),
+    ),
   );
   const absoluteHits = (
     existing: ReadonlySet<string>,
-  ): ReadonlyMap<string, string> =>
-    new Map([...absoluteTargets].filter(([, target]) => existing.has(target)));
+  ): ReadonlyMap<string, AbsoluteFileTarget> => {
+    const hits = new Map<string, AbsoluteFileTarget>();
+    for (const [token, targets] of absoluteTargets) {
+      const hit = targets.find((target) => existing.has(target.filePath));
+      if (hit) hits.set(token, hit);
+    }
+    return hits;
+  };
   const externalCandidateTargets =
     projectId && (knownAbsoluteFilePaths || resolveAbsoluteFilePaths)
       ? externalRelativeCandidateTargets(
@@ -418,7 +460,7 @@ export async function resolveProjectPathTextLinks(
   for (const token of tokens) {
     const filePath =
       token.kind === "absolute"
-        ? resolved.absolute.get(token.text)
+        ? resolved.absolute.get(token.text)?.filePath
         : (resolved.externalRelative.get(token.text) ??
           resolved.relative.get(token.text));
     if (!filePath || targets.has(token.text)) continue;
@@ -644,11 +686,16 @@ export async function linkifyProjectPaths(
   let cursor = 0;
   for (const token of occurrences) {
     const directoryFile = directoryFiles.get(token);
-    const absoluteTarget = token.exact
-      ? token.kind === "absolute"
+    const externalRelativeTarget =
+      token.exact && token.kind === "relative"
+        ? resolved?.externalRelative.get(token.text)
+        : undefined;
+    const absoluteTarget =
+      token.exact && token.kind === "absolute"
         ? resolved?.absolute.get(token.text)
-        : resolved?.externalRelative.get(token.text)
-      : undefined;
+        : externalRelativeTarget
+          ? { filePath: externalRelativeTarget }
+          : undefined;
     const projectTarget =
       token.exact && token.kind === "relative"
         ? resolved?.relative.get(token.text)

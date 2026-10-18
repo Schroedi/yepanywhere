@@ -815,16 +815,19 @@ function renderProjectFileLinkOpen(
 /** Render one already-authorized path through the project FileViewer route. */
 export function renderProjectFileViewerLink(
   projectId: string,
-  filePath: string,
+  target: { filePath: string; lineNumber?: number; columnNumber?: number },
   label: string,
 ): string {
+  const { filePath, lineNumber, columnNumber } = target;
   const open = renderProjectFileLinkOpen(
     { projectId, projectPath: "" },
-    { absolutePath: filePath, relativePath: filePath },
     {
-      privateReference: true,
-      title: `${filePath}\nClick to view, or use a browser link gesture to open this file`,
+      absolutePath: filePath,
+      relativePath: filePath,
+      lineNumber,
+      columnNumber,
     },
+    { privateReference: true },
   );
   return `${open}${escapeHtml(label)}</a>`;
 }
