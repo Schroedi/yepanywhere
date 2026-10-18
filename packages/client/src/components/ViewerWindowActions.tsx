@@ -1,4 +1,10 @@
-import { type Ref, useEffect, useRef, useState } from "react";
+import {
+  type MouseEventHandler,
+  type Ref,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { useI18n } from "../i18n";
 import { writeClipboardText } from "../lib/clipboard";
 import styles from "./ViewerWindowActions.module.css";
@@ -22,6 +28,7 @@ export function ViewerWindowActions({
   copyNotice,
   copyLink = true,
   copyLabel,
+  onCopyLinkContextMenu,
 }: {
   url: string;
   copyUrl?: string;
@@ -32,6 +39,7 @@ export function ViewerWindowActions({
   copyNotice?: string;
   copyLink?: boolean;
   copyLabel?: string;
+  onCopyLinkContextMenu?: MouseEventHandler<HTMLAnchorElement>;
   closeRef?: Ref<HTMLButtonElement>;
   className?: string;
   minimizeLabel?: string;
@@ -96,13 +104,14 @@ export function ViewerWindowActions({
       )}
       {copyLink && (
         <a
-          className={copyLabel ? styles.textAction : undefined}
+          className={`${styles.copyLink} ${copyLabel ? styles.textAction : ""}`}
           href={absoluteUrl}
           target="_blank"
           rel="noopener noreferrer"
           role="button"
           aria-label={t("fileLinkMenuCopyViewerLink")}
           title={linkTitle}
+          onContextMenu={onCopyLinkContextMenu}
           onKeyDown={(event) => {
             if (event.key === " ") {
               event.preventDefault();

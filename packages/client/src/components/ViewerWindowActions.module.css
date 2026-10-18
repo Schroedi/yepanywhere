@@ -2,7 +2,7 @@
   display: flex;
   align-items: center;
   flex: 0 0 auto;
-  gap: 2px;
+  gap: 0;
 }
 .actions > a,
 .actions > button {
@@ -22,6 +22,13 @@
 }
 .actions > a:hover,
 .actions > button:hover {
+  background: var(--bg-hover);
+}
+.actions > .copyLink {
+  border-color: transparent;
+  background: transparent;
+}
+.actions > .copyLink:hover {
   background: var(--bg-hover);
 }
 .actions > .destructive {
