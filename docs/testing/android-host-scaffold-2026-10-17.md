@@ -1,11 +1,18 @@
 # Android host scaffold evidence — 2026-10-17
 
 This record covers the new `packages/android-host` scaffold, not acceptance of
-a released Android host. The earlier independent feasibility repository proved
+a released Android host. The earlier independent
+[feasibility repository](../../../android-agent-spike/README.md) proved
 real Claude/Codex inference, arbitrary same-phone ADB via MCP, YA server/UI
 hosting, and Codex's built-in shell with its extra Linux sandbox explicitly
 disabled. Those results motivate this scaffold; they are not reclassified as
 new-package inference/resume tests.
+
+The feasibility repository is the local sibling checkout `../android-agent-spike`
+relative to the YA repository root (normally `~/code/android-agent-spike`). It has
+no configured Git remote. Its [setup and recovery sketch](../../../android-agent-spike/docs/product-direction.md#setup-and-recovery-experience)
+describes same-phone ADB enablement and the proposed desktop helper; these links
+require that sibling checkout and do not point to a published GitHub repository.
 
 ## Implemented and checked
 
