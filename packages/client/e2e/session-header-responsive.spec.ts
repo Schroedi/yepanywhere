@@ -267,13 +267,21 @@ test("header preserves identity, overflow actions and rename typing during live 
     );
   });
   await expect(projectLink).toHaveText("tomfit-content-service");
-  for (const width of [320, 375, 650, 720, 650, 375]) {
+  const titleFontSize = await header
+    .locator(".session-title")
+    .evaluate((element) => getComputedStyle(element).fontSize);
+  for (const width of [320, 375, 599, 600, 601, 650, 720, 1000, 650, 375]) {
     await page.setViewportSize({ width, height: 812 });
     await expect(header).toHaveAttribute(
       "data-header-layout",
       width >= 720 ? "full" : width >= 600 ? "compact" : "narrow",
     );
     await expect(menu).toBeInViewport();
+    expect(
+      await header
+        .locator(".session-title")
+        .evaluate((element) => getComputedStyle(element).fontSize),
+    ).toBe(titleFontSize);
     await expect(projectLink).toBeInViewport();
     const projectBox = (await projectLink.boundingBox())!;
     const titleBox = (await header

@@ -68,6 +68,8 @@ pixel coarse-pointer targets. Vertical row padding fits around those targets
 within the reserved height, rather than increasing the row when actions load
 or pointer type changes. Model pills and icons keep their compact visual size;
 intentional multi-line content, including inline rename, may expand the row.
+Session titles use the base UI font size at every width. Crossing a responsive
+breakpoint changes available text space and controls, never the title's size.
 
 The session header reserves space for the session title and the `…` menu.
 The project breadcrumb stays visible on the same line at every width. It uses
