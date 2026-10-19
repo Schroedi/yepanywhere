@@ -100,11 +100,12 @@
 
 .header .project {
   max-width: 8.5rem;
-  flex-shrink: 8;
+  flex-shrink: 0;
   min-width: 0;
 }
 
 .header .project > :global(.project-breadcrumb) {
+  display: block;
   min-width: 0;
   flex-shrink: 1;
   overflow: hidden;
@@ -120,10 +121,6 @@
 .header[data-header-layout="narrow"] .project {
   max-width: 3.5rem;
   overflow: hidden;
-}
-
-.header .projectHidden {
-  display: none;
 }
 
 .header[data-header-layout="narrow"] .modelButton {

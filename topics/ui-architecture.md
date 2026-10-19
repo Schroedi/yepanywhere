@@ -70,6 +70,12 @@ or pointer type changes. Model pills and icons keep their compact visual size;
 intentional multi-line content, including inline rename, may expand the row.
 
 The session header reserves space for the session title and the `…` menu.
+The project breadcrumb stays visible on the same line at every width. It uses
+the assigned short code when enabled and supported, otherwise the project
+name. The label is ellipsized to fit its width budget; the session title yields
+space first. Its accessible label and tooltip retain the full project name,
+and its link still opens the project's sessions. Missing code metadata or an
+older server never hides the project identity.
 The model pill carries the activity indicator at every width; the header does
 not repeat it as a separate thinking icon.
 Its responsive tiers use the header column's width, including space taken by
@@ -82,8 +88,8 @@ the sidebar or a docked pane, and restore controls in the reverse order:
 - Below 600 pixels, the model pill keeps model identity with abbreviated effort
   (`L`, `M`, `H`, `XH`), retains full accessible labels and its configuration
   action, and carries the activity dot.
-  The project breadcrumb yields to the title; an enabled short project code
-  may remain, while the full project name stays available in navigation.
+  The project breadcrumb retains up to 3.5rem (5rem in the compact tier,
+  8.5rem in the full tier), independently of session-title length.
 
 Narrow or crowded headers open manual Rename in a compact dialog with a labeled
 input and explicit Save/Cancel actions. Leaving the field or dismissing the

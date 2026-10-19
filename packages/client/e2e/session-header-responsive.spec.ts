@@ -36,6 +36,8 @@ test("header preserves identity, overflow actions and rename typing during live 
   const sessionId = "mock-session-001";
   const timestamp = new Date().toISOString();
   let title = "Investigate Android workspaces";
+  const desktopTitle =
+    "Keep project identity visible during long conversations";
   const saves: string[] = [];
   let refuseSave = false;
   const errors: string[] = [];
@@ -79,6 +81,7 @@ test("header preserves identity, overflow actions and rename typing during live 
         ...body,
         settings: {
           ...body.settings,
+          hostIdentity: { icon: "🍏" },
           publicSharesEnabled: true,
           issueAssociations: { enabled: true, scope: "viewed", recentDays: 7 },
         },
@@ -241,22 +244,54 @@ test("header preserves identity, overflow actions and rename typing during live 
   await expect(input).toBeFocused();
   expect((await input.boundingBox())!.width).toBeGreaterThan(180);
   await page.setViewportSize({ width: 1000, height: 600 });
-  await input.pressSequentially("Desktop title");
+  await input.pressSequentially(desktopTitle);
   await input.press("Enter");
-  await expect(header.locator(".session-title-text")).toHaveText(
-    "Desktop title",
-  );
+  await expect(header.locator(".session-title-text")).toHaveText(desktopTitle);
 
   // The same tier returns on widening; overflow never competes with the title.
-  for (const width of [375, 650, 720, 650, 375]) {
+  const projectLink = header.getByRole("link", {
+    name: "tomfit-content-service",
+    exact: true,
+  });
+  await page.setViewportSize({ width: 375, height: 812 });
+  await expect(projectLink).toBeInViewport();
+  await expect(projectLink).toHaveText("tfc");
+  await recordUiCapture(page, "session-header-code-phone");
+  // Simulate the preference change broadcast by another tab. The ordinary
+  // name must remain legible even when a long title competes for the row.
+  await page.evaluate(() => {
+    const key = "yep-anywhere-project-code-names-enabled";
+    localStorage.setItem(key, "false");
+    window.dispatchEvent(
+      new StorageEvent("storage", { key, newValue: "false" }),
+    );
+  });
+  await expect(projectLink).toHaveText("tomfit-content-service");
+  for (const width of [320, 375, 650, 720, 650, 375]) {
     await page.setViewportSize({ width, height: 812 });
     await expect(header).toHaveAttribute(
       "data-header-layout",
       width >= 720 ? "full" : width >= 600 ? "compact" : "narrow",
     );
     await expect(menu).toBeInViewport();
+    await expect(projectLink).toBeInViewport();
+    const projectBox = (await projectLink.boundingBox())!;
+    const titleBox = (await header
+      .locator(".session-title-row")
+      .boundingBox())!;
+    expect(projectBox.width).toBeGreaterThanOrEqual(50);
+    expect(projectBox.x + projectBox.width).toBeLessThanOrEqual(titleBox.x);
     await expectHeaderSizing(header, 44);
   }
+  await expect(projectLink).toHaveAttribute(
+    "href",
+    `/sessions?project=${projectId}`,
+  );
+  expect(
+    await projectLink.evaluate(
+      (element) => element.scrollWidth > element.clientWidth,
+    ),
+  ).toBe(true);
   await expect(header.locator(".provider-badge")).toHaveText("So 6.1H");
   await expect(header.locator(".session-title-text")).toBeVisible();
   await expect(
@@ -345,7 +380,7 @@ test("header preserves identity, overflow actions and rename typing during live 
   await recordUiCapture(page, "session-rename-phone");
   // Keyboard dismissal/blur does not save. Rotation keeps the original field.
   await dialog.getByText("Rename session", { exact: true }).click();
-  expect(saves).toEqual(["Desktop title"]);
+  expect(saves).toEqual([desktopTitle]);
   await page.setViewportSize({ width: 1000, height: 450 });
   await expect(dialog).toBeVisible();
   await expect(input).toHaveValue("yahost saf");
@@ -381,7 +416,7 @@ test("header preserves identity, overflow actions and rename typing during live 
   await input.pressSequentially("Unsaved");
   await page.goBack();
   await expect(dialog).toHaveCount(0);
-  expect(saves).toEqual(["Desktop title", "Retry title", "Retry title"]);
+  expect(saves).toEqual([desktopTitle, "Retry title", "Retry title"]);
   await menu.click();
   await page
     .getByRole("link", {

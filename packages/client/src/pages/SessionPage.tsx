@@ -6016,7 +6016,7 @@ function SessionPageContent({
               {/* Project breadcrumb */}
               {project?.name && (
                 <div
-                  className={`project-breadcrumb-wrapper ${sessionHeaderStyles.project} ${condensedHeader && !(projectCodeNamesEnabled && supportsProjectCodeNames && project.codeName) ? sessionHeaderStyles.projectHidden : ""}`}
+                  className={`project-breadcrumb-wrapper ${sessionHeaderStyles.project}`}
                 >
                   <Link
                     ref={projectBreadcrumbRef}
@@ -6034,9 +6034,7 @@ function SessionPageContent({
                     supportsProjectCodeNames &&
                     project.codeName
                       ? project.codeName
-                      : project.name.length > 12
-                        ? `${project.name.slice(0, 12)}...`
-                        : project.name}
+                      : project.name}
                   </Link>
                   {showProjectReclassifyMenu && (
                     <div
