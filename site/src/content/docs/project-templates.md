@@ -14,10 +14,11 @@ using its `project-templates` directory. It contains **App canvas**, **Web
 page** and **Storybook**. It is the default library for this system; a separate
 repository or future vendored copy is not required to use its bases.
 
-**Current delivery:** YA's source settings retrieve and validate libraries.
-Creating and preparing projects through YA is still being integrated. Draft
-templates can be inspected but are not approved for project creation. The
-default templates remain draft until their content review is complete.
+**Current delivery:** YA's source settings retrieve and validate libraries,
+and YA creates projects from `ready` templates, including for users granted
+template access. Draft templates can be inspected but are not approved for
+project creation. The three default templates are ready. Retained App access
+and personal workspace scopes are still pending.
 
 ## Add a source in YA
 
