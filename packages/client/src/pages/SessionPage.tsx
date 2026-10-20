@@ -150,6 +150,7 @@ import {
 import { useDeveloperMode } from "../hooks/useDeveloperMode";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useComposerBeacon } from "../hooks/useComposerBeacon";
+import { useTranscriptComposerFocus } from "../hooks/useTranscriptComposerFocus";
 import type { DraftControls } from "../hooks/useDraftPersistence";
 import { applyEarlyComposerTyping } from "../lib/earlyComposerTyping";
 import {
@@ -1126,6 +1127,12 @@ function SessionPageContent({
     messages,
     isMessageDelivered,
   });
+  const transcriptComposerFocus = useTranscriptComposerFocus(
+    !isDomLingerParked &&
+      !mainComposerForAside &&
+      !(projectAppEnabled && projectAppOpen),
+    draftControlsRef,
+  );
   const [correctionDraft, setCorrectionDraft] = useState<{
     messageId: string;
     originalText: string;
@@ -6807,6 +6814,7 @@ function SessionPageContent({
             className={`${styles.messages} session-messages`}
             tabIndex={-1}
             data-session-read-scope={sessionId}
+            {...transcriptComposerFocus}
           >
             {error && (
               <div role="status">

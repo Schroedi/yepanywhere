@@ -1,6 +1,10 @@
 import { useEffect, useRef } from "react";
 import { useInboxCounts } from "../lib/clientSummaryStore";
 import {
+  getMicTitlePrefix,
+  MIC_TITLE_ATTRIBUTE,
+} from "../lib/micTitleActivity";
+import {
   appendComposerBeacon,
   COMPOSER_BEACON_ATTRIBUTE,
   stripComposerBeacon,
@@ -76,7 +80,7 @@ export function stripTabTitlePrefixes(
   hostIdentityIcon?: string,
   projectCodeNameTitle = /^[A-Za-z0-9_-]{1,12}:/u.test(title),
 ): string {
-  let next = stripComposerBeacon(title);
+  let next = stripComposerBeacon(title).replace(/^(?:◷)?🎙 /u, "");
   for (;;) {
     const stripped = next
       .replace(BADGE_PREFIX_REGEX, "")
@@ -192,16 +196,18 @@ export function useNeedsAttentionBadge(hostIdentityIcon?: string) {
           ? getTabTitleActivityFrame(activityStartedAt)
           : undefined;
 
-      const nextTitle = appendComposerBeacon(
-        composeTabTitle(
-          baseTitle,
-          count,
-          activityFrame,
-          hostIdentityIcon,
-          projectCodeNameTitle,
-          projectCodeNameActivityPulseEnabled,
-        ),
-      );
+      const nextTitle =
+        getMicTitlePrefix() +
+        appendComposerBeacon(
+          composeTabTitle(
+            baseTitle,
+            count,
+            activityFrame,
+            hostIdentityIcon,
+            projectCodeNameTitle,
+            projectCodeNameActivityPulseEnabled,
+          ),
+        );
       if (document.title !== nextTitle) document.title = nextTitle;
     };
 
@@ -225,6 +231,7 @@ export function useNeedsAttentionBadge(hostIdentityIcon?: string) {
         attributes: true,
         attributeFilter: [
           COMPOSER_BEACON_ATTRIBUTE,
+          MIC_TITLE_ATTRIBUTE,
           PROJECT_CODE_NAME_TITLE_ATTRIBUTE,
         ],
       });

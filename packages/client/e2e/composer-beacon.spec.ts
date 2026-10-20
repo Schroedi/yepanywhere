@@ -40,6 +40,35 @@ test("composer beacon acknowledges real sends and leaves typing and title option
     messageCount: 160,
   };
   const errors: string[] = [];
+  await page.addInitScript(() => {
+    localStorage.setItem("yep-anywhere-voice-input-enabled", "true");
+    localStorage.setItem("yep-anywhere-speech-method", "browser-native");
+    class Recognition {
+      onstart?: (event: Event) => void;
+      onaudiostart?: (event: Event) => void;
+      onend?: (event: Event) => void;
+      onresult?: (event: Event) => void;
+      constructor() {
+        Object.assign(window, { testRecognition: this });
+      }
+      start() {
+        queueMicrotask(() => {
+          this.onstart?.(new Event("start"));
+          this.onaudiostart?.(new Event("audiostart"));
+        });
+      }
+      stop() {}
+      abort() {}
+      emit(transcript: string, isFinal: boolean) {
+        this.onresult?.({
+          resultIndex: 0,
+          results: [{ isFinal, 0: { transcript } }],
+        } as unknown as Event);
+        if (isFinal) this.onend?.(new Event("end"));
+      }
+    }
+    Object.defineProperty(window, "SpeechRecognition", { value: Recognition });
+  });
   page.on("pageerror", (error) => errors.push(error.message));
   await page.route(/\/api\/sessions(?:\?|$)/, (route) =>
     route.fulfill({ json: { sessions: [row], hasMore: false, total: 1 } }),
@@ -96,6 +125,27 @@ test("composer beacon acknowledges real sends and leaves typing and title option
     const composer = page.locator("[data-composer-input]:visible");
     await expect(composer).toBeVisible({ timeout: 30_000 });
     await composer.focus();
+    await composer.fill("mid draft");
+    await composer.evaluate((element) =>
+      (element as HTMLTextAreaElement).setSelectionRange(3, 3),
+    );
+    await page
+      .getByText(
+        "Transcript turn 159. Keep the composer responsive while this history is mounted.",
+        { exact: true },
+      )
+      .click();
+    await expect(composer).toBeFocused();
+    await expect(composer).toHaveJSProperty("selectionStart", 3);
+    await page.keyboard.press("Control+s");
+    const search = page.getByRole("search");
+    await expect(search).toBeVisible();
+    await search.getByRole("textbox").click();
+    await expect(composer).not.toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(search).not.toBeVisible();
+    await composer.fill("");
+    await composer.focus();
     await expect(page).toHaveTitle(/\[YA1 f=[1-9]\d* r=0 a=0 s=idle\] w=1/);
     await page.keyboard.press("Control+Alt+Shift+F8");
     await expect(composer).toBeFocused();
@@ -147,6 +197,40 @@ test("composer beacon acknowledges real sends and leaves typing and title option
       new RegExp(`✓ \\[YA1 .*r=${request} a=${request} s=delivered\\]`),
     );
     await expect(composer).toHaveValue("");
+
+    await page.keyboard.press("Control+Alt+Shift+F8");
+    const speechRequest = / r=(\d+)/.exec(await page.title())?.[1];
+    await page.keyboard.press("Control+Space");
+    await expect(page).toHaveTitle(/^🎙 /);
+    await page.evaluate(() => {
+      (
+        window as unknown as {
+          testRecognition: { emit(text: string, final: boolean): void };
+        }
+      ).testRecognition.emit("provisional words", false);
+    });
+    await expect(page.locator(".speech-interim-inline")).toHaveText(
+      "provisional words",
+    );
+    received = "";
+    await composer.press("Enter");
+    await expect(page).not.toHaveTitle(/^🎙 /);
+    await composer.pressSequentially("next draft");
+    expect(received).toBe("");
+    await page.evaluate(() => {
+      (
+        window as unknown as {
+          testRecognition: { emit(text: string, final: boolean): void };
+        }
+      ).testRecognition.emit("final wording", true);
+    });
+    await expect.poll(() => received).toContain("🎤 final wording");
+    await expect.poll(() => typeof responseGate.release).toBe("function");
+    releaseResponse();
+    await expect(page).toHaveTitle(
+      new RegExp(`a=${speechRequest} s=delivered`),
+    );
+    await expect(composer).toHaveValue("next draft");
 
     await page.goto(`${origin}/settings/appearance`);
     const setting = page.getByRole("checkbox", {

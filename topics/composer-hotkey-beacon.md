@@ -16,6 +16,14 @@ has focus. The normal Enter/Shift+Enter
 behavior remains authoritative; YA does not intercept the operating system's
 global keys or manage native window focus.
 
+A simple mouse click on inert transcript content returns typing to the composer
+without moving its saved caret. This applies only to the main session composer
+with no App viewer open. Controls, links, scrollbars, selection/drag gestures,
+touch, dialogs and the transcript's isearch overlay retain their own behavior.
+Window/tab activation alone does not force composer focus; browser chrome is
+outside the page's click handling. The explicit Ctrl+Alt+Shift+F8 shortcut can
+still focus the composer while an App viewer is open.
+
 **Composer Hotkey Beacon** is a browser-local Appearance setting beside the
 tab-title activity and project-code options. It defaults **on**, explicitly
 requested by the maintainer on 2026-10-20. Disabling removes both the suffix
