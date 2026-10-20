@@ -919,6 +919,8 @@
   "appearanceProjectCodeNamesDescription": "Use editable short project codes in browser tab titles and sidebar session rows. Full project names with ordinary ellipsis are used when this is off.",
   "appearanceTabTitleActivityTitle": "Show Session Activity in Tab Title",
   "appearanceTabTitleActivityDescription": "Animate the browser tab title while sessions are working.",
+  "appearanceComposerBeaconTitle": "Composer Hotkey Beacon",
+  "appearanceComposerBeaconDescription": "Append send status and a machine-readable beacon to session tab titles for desktop hotkey helpers. Ctrl+Alt+Shift+F8 focuses and arms the composer. Keep the YA tab selected in its window.",
   "appearanceProjectCodeNameActivityPulseTitle": "Pulse Project Code for Tab Activity",
   "appearanceProjectCodeNameActivityPulseDescription": "When short project codes and tab-title activity are enabled, pulse the project code using Mathematical Bold instead of the circle indicator.",
   "appearanceConnectionBarsTitle": "Connection Bars",

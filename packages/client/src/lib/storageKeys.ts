@@ -147,6 +147,7 @@ export const UI_KEYS = {
   emulatorAdaptiveFps: "yep-anywhere-emulator-adaptive-fps",
   attachmentUploadQuality: "yep-anywhere-attachment-upload-quality",
   tabTitleActivityEnabled: "yep-anywhere-tab-title-activity-enabled",
+  composerBeaconEnabled: "yep-anywhere-composer-beacon-enabled",
   projectCodeNamesEnabled: "yep-anywhere-project-code-names-enabled",
   projectCodeNameActivityPulseEnabled:
     "yep-anywhere-project-code-name-activity-pulse-enabled",
