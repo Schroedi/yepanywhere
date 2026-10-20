@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-20
+
+### Added
+- Choose Stable or Latest nightly updates in the desktop updater. Returning
+  from Latest waits for a newer Stable; this release supersedes the 0.3.x
+  nightly series.
+- Bundle the current server and client, including managed artifact viewers,
+  sandboxed project apps and templates, project rendez uploads, and improved
+  draft recovery and session navigation.
+
+### Fixed
+- Sign bundled macOS shared libraries before notarization and remove nested
+  package executable links from the installed runtime.
+- Preserve the exact bundled source identity and require complete signed
+  installers and verified updater artifacts before publication.
+
 ## [0.2.2] - 2026-09-26
 
 ### Security
