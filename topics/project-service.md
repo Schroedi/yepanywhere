@@ -198,7 +198,12 @@ composer-adjacent session content are tracked in the
 
 **Copy link** copies an authorized, current viewer link; it does not publish
 or reserve anything. Explain when that link grants transferable access and
-when it expires. **Share** offers existing public-audience artifact sharing
+when it expires. A copied link is for someone else, so on a local
+(`.localhost`) page without a served address, Copy link mints the public link
+at click time when sharing is allowed (`canShare`), else copies the local one;
+viewing alone mints no public grant. Open in new tab keeps the local link. When
+the copied link differs from the view link only by host, it names the page the
+crumbs show, keeping its own `ya_access`. **Share** offers existing public-audience artifact sharing
 when this target, server and principal support it, without requiring a vhost.
 For a service, it may offer reservation and serving through enabled vhosts,
 subject to publication authority and the private-apps ceiling. Show an existing

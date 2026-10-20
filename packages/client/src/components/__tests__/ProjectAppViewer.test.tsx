@@ -769,3 +769,67 @@ it("shows the page its frame reports and opens a crumb under the view's link", a
     "https://app-x.example/research/papers/?ya_access=view-token",
   );
 });
+it.each([true, false])(
+  "copies the public link to the shown page from a local view when canShare=%s",
+  async (canShare) => {
+    const original = mock.fetch.getMockImplementation()!;
+    mock.fetch.mockImplementation(
+      async (path: string, options?: { body: string }) => {
+        if (path.endsWith("/open")) {
+          const { audience } = JSON.parse(options!.body);
+          return {
+            id: "service:test",
+            kind: "service",
+            label: "App",
+            url:
+              audience === "public"
+                ? "https://app-x.apps.example/?ya_access=public-token"
+                : "http://app-x.localhost:3400/?ya_access=local-token",
+          };
+        }
+        const value = await original(path, options);
+        return path.endsWith("/app") ? { ...value, canShare } : value;
+      },
+    );
+    const writeText = vi.fn(async () => {});
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    const { container } = render(
+      <I18nProvider>
+        <ProjectAppViewer projectId="test" />
+      </I18nProvider>,
+    );
+    await waitFor(() =>
+      expect(container.querySelector("iframe")?.src).toContain("localhost"),
+    );
+    const frame = container.querySelector("iframe")!;
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          data: {
+            type: "yep-anywhere:app-location",
+            href: "http://app-x.localhost:3400/docs/a.html?q=1#s",
+          },
+          source: frame.contentWindow,
+        }),
+      );
+    });
+    await screen.findByRole("navigation", { name: "Page shown in the app" });
+    fireEvent.click(screen.getByRole("button", { name: "Copy viewer link" }));
+    await waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith(
+        canShare
+          ? "https://app-x.apps.example/docs/a.html?q=1&ya_access=public-token#s"
+          : "http://app-x.localhost:3400/docs/a.html?q=1&ya_access=local-token#s",
+      ),
+    );
+    // Open in new tab keeps the local link.
+    expect(
+      screen
+        .getByRole("link", { name: "Move viewer to new tab" })
+        .getAttribute("href"),
+    ).toContain("app-x.localhost");
+  },
+);

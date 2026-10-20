@@ -48,6 +48,27 @@ function locationCrumbs(pathname: string) {
   });
 }
 
+/**
+ * The shown page under another host's link to the same app, keeping that
+ * link's access. Only a host swap maps a page: when the link's entry differs
+ * from the view's, the paths are not known to correspond, so the link stays
+ * at its entry.
+ */
+function framePageLink(link: string, viewUrl: string, page: URL | null) {
+  const target = new URL(link, window.location.href);
+  if (
+    !page ||
+    target.pathname !== new URL(viewUrl, window.location.href).pathname
+  )
+    return target.href;
+  const access = target.searchParams.get(ACCESS_QUERY);
+  target.pathname = page.pathname;
+  target.search = page.search;
+  if (access) target.searchParams.set(ACCESS_QUERY, access);
+  target.hash = page.hash;
+  return target.href;
+}
+
 /** While a project agent works, how often an open static app is checked. */
 const STATIC_WATCH_INTERVAL_MS = 2000;
 /** How long checks continue after the project's agents stop working. */
@@ -318,6 +339,21 @@ export function ProjectAppViewer({
     )
       ? served.url
       : undefined;
+  // A copied link goes to someone else, so a local page copies the public
+  // link when sharing is allowed, minted only on copy; Open in new tab keeps
+  // the local one. The copy also names the page the crumbs show.
+  const resolveCopyUrl = async (): Promise<string> => {
+    if (!view || !target) throw new Error("No app view to copy");
+    let base = servedUrl;
+    if (!base && audience === "local" && info?.canShare) {
+      try {
+        base = (await projectAppApi.open(projectId, target, "public")).url;
+      } catch {
+        // Without a public link, the local one still works for this user.
+      }
+    }
+    return framePageLink(base ?? view.url, view.url, frameLocation);
+  };
   const command =
     declaration && "start" in declaration
       ? declaration.start.argv.join(" ")
@@ -591,7 +627,7 @@ export function ProjectAppViewer({
           {view && (
             <ViewerWindowActions
               url={view.url}
-              copyUrl={servedUrl ?? view.url}
+              copyUrl={resolveCopyUrl}
               copyLink={info?.canCopyLink !== false}
               // Tinted while a handed-out link works: a served address, or the
               // launch link once copied, until a restart revokes it.
