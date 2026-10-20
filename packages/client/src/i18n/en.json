@@ -148,6 +148,7 @@
   "projectCopyFailed": "Could not copy the project",
   "projectAppBack": "Back",
   "projectAppHome": "App home",
+  "projectAppLocation": "Page shown in the app",
   "projectAppFullView": "Full view",
   "appToolbarShow": "Show app toolbar",
   "appToolbarHide": "Collapse app toolbar (swipe left or right to choose a corner)",

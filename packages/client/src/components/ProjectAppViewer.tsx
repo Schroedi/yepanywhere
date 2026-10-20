@@ -23,6 +23,31 @@ import actions from "./ViewerWindowActions.module.css";
 import styles from "./ProjectAppViewer.module.css";
 import { useI18n } from "../i18n";
 
+/** What an app's page posts to name the page its frame is showing. */
+const APP_LOCATION_MESSAGE = "yep-anywhere:app-location";
+/** The access query a view link carries; YA keeps it out of the bar. */
+const ACCESS_QUERY = "ya_access";
+
+/** A path's directories as crumbs, each ending in "/", then its last segment. */
+function locationCrumbs(pathname: string) {
+  const segments = pathname.split("/").filter(Boolean);
+  return segments.map((segment, index) => {
+    const last = index === segments.length - 1;
+    const path = `/${segments.slice(0, index + 1).join("/")}`;
+    let label = segment;
+    try {
+      label = decodeURIComponent(segment);
+    } catch {
+      // A malformed escape shows as written.
+    }
+    return {
+      label,
+      path: last && !pathname.endsWith("/") ? path : `${path}/`,
+      current: last,
+    };
+  });
+}
+
 /** While a project agent works, how often an open static app is checked. */
 const STATIC_WATCH_INTERVAL_MS = 2000;
 /** How long checks continue after the project's agents stop working. */
@@ -189,6 +214,47 @@ export function ProjectAppViewer({
   useEffect(() => {
     if (target) onTarget?.(target);
   }, [target, onTarget]);
+  // A cross-origin frame's location is unreadable, so an app that wants its
+  // page shown in the bar posts it; only this frame's own origin counts.
+  const frameRef = useRef<HTMLIFrameElement>(null);
+  const [frameLocation, setFrameLocation] = useState<URL | null>(null);
+  const viewUrl = view?.url;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: A reload remounts the frame, whose page reports itself again.
+  useEffect(() => {
+    setFrameLocation(null);
+    if (!viewUrl) return;
+    const origin = new URL(viewUrl, window.location.href).origin;
+    const receive = (event: MessageEvent) => {
+      if (event.source !== frameRef.current?.contentWindow) return;
+      const data = event.data as { type?: unknown; href?: unknown } | null;
+      if (data?.type !== APP_LOCATION_MESSAGE || typeof data.href !== "string")
+        return;
+      let next: URL;
+      try {
+        next = new URL(data.href);
+      } catch {
+        return;
+      }
+      if (next.origin !== origin) return;
+      next.searchParams.delete(ACCESS_QUERY);
+      setFrameLocation(next);
+    };
+    window.addEventListener("message", receive);
+    return () => window.removeEventListener("message", receive);
+  }, [viewUrl, reload]);
+  // A crumb opens its path in the frame under the view's own access link.
+  const openFramePath = (path: string) => {
+    if (!viewUrl || !frameRef.current) return;
+    const link = new URL(viewUrl, window.location.href);
+    const next = new URL(path, link.origin);
+    const token = link.searchParams.get(ACCESS_QUERY);
+    if (token) next.searchParams.set(ACCESS_QUERY, token);
+    frameRef.current.src = next.href;
+  };
+  const crumbs =
+    targetKind === "app" && frameLocation
+      ? locationCrumbs(frameLocation.pathname)
+      : [];
   // The bar shows whether the app is shared and copies its served address,
   // so addresses load with the app and refresh when settings open.
   useEffect(() => {
@@ -381,6 +447,34 @@ export function ProjectAppViewer({
                 <LastViewIcon />
                 <span className={styles.titleText}>{view.label}</span>
               </>
+            )}
+            {crumbs.length > 0 && (
+              <nav
+                className={styles.crumbs}
+                aria-label={t("projectAppLocation")}
+              >
+                {/* The container runs right to left so a long path clips at
+                    its start and keeps the current page visible. */}
+                <span className={styles.crumbTrail}>
+                  {crumbs.map((crumb) => (
+                    <span key={crumb.path}>
+                      <span className={styles.crumbSeparator}>/</span>
+                      {crumb.current ? (
+                        <span aria-current="page">{crumb.label}</span>
+                      ) : (
+                        <button
+                          type="button"
+                          className={styles.crumb}
+                          title={crumb.path}
+                          onClick={() => openFramePath(crumb.path)}
+                        >
+                          {crumb.label}
+                        </button>
+                      )}
+                    </span>
+                  ))}
+                </span>
+              </nav>
             )}
           </span>
           <div className={actions.actions}>
@@ -1014,6 +1108,7 @@ export function ProjectAppViewer({
       {view && (
         <iframe
           key={`${view.id}:${reload}`}
+          ref={frameRef}
           hidden={details}
           className={styles.frame}
           title={view.label}

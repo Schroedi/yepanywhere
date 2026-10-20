@@ -723,3 +723,49 @@ it("keeps the live iframe across settings and sharing and delegates mic synchron
   await screen.findByText("Valid while this app launch is running.");
   expect(container.querySelector("iframe")).toBe(frame);
 });
+it("shows the page its frame reports and opens a crumb under the view's link", async () => {
+  const original = mock.fetch.getMockImplementation()!;
+  mock.fetch.mockImplementation(async (...args) =>
+    String(args[0]).endsWith("/open")
+      ? {
+          id: "service:test",
+          kind: "service",
+          label: "App",
+          url: "https://app-x.example/?ya_access=view-token",
+        }
+      : original(...args),
+  );
+  const { container } = render(
+    <I18nProvider>
+      <ProjectAppViewer projectId="test" projectName="draft" />
+    </I18nProvider>,
+  );
+  await waitFor(() => expect(container.querySelector("iframe")).not.toBeNull());
+  const frame = container.querySelector("iframe")!;
+  const report = (href: string, source: MessageEventSource | null) =>
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          data: { type: "yep-anywhere:app-location", href },
+          source,
+        }),
+      );
+    });
+  const paper = "/research/papers/p/_build/index.html";
+  // Neither another window nor another origin names the frame's page.
+  report(`https://app-x.example${paper}`, window);
+  report(`https://elsewhere.example${paper}`, frame.contentWindow);
+  expect(
+    screen.queryByRole("navigation", { name: "Page shown in the app" }),
+  ).toBeNull();
+  report(`https://app-x.example${paper}?ya_access=leak`, frame.contentWindow);
+  const trail = await screen.findByRole("navigation", {
+    name: "Page shown in the app",
+  });
+  expect(trail.textContent).toBe("/research/papers/p/_build/index.html");
+  expect(trail.textContent).not.toContain("leak");
+  fireEvent.click(screen.getByRole("button", { name: "papers" }));
+  expect(frame.src).toBe(
+    "https://app-x.example/research/papers/?ya_access=view-token",
+  );
+});

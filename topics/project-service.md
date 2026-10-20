@@ -83,6 +83,17 @@ add New session, Share, Settings and the microphone in that same top band.
 New tab, Back, new session and mic are direct icon actions with accessible
 labels. Keep the icon band thin, truncating its title when space is tight;
 service details stay in Settings.
+
+**Page location in the bar.** The app frame is cross-origin, so YA cannot read
+which page it shows. An app that wants its page named in the bar posts
+`{type: "yep-anywhere:app-location", href}` to its parent on load and on
+history or `#` changes (the repo-view template base does). YA
+accepts it only from its own frame's window with the view's origin, drops any
+`ya_access`, and shows the path after the project name as small crumbs. The
+crumbs clip at their start, so the current page stays visible, and give way
+first when the bar is crowded (on phones they usually vanish). A directory
+crumb navigates the frame under the view's own access link. Apps that never
+post keep the static title; nothing changes for them.
 Closing it changes navigation only. Stop is a separate service control in
 Settings. Use the existing iframe sandbox, credential
 separation, and safe new-tab behavior in [active-content security](active-content-security.md).
