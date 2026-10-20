@@ -39,7 +39,11 @@ must remain visible in its window for ordinary OS window-title matching.
 ## Version 1 title protocol
 
 Human title formatting runs first: unread counts, host identity, full project
-names or short project codes, and optional activity pulsing. Then YA appends:
+names or short project codes, and optional activity pulsing.
+
+Length limits apply only to the human title. Title writes and beacon state
+updates synchronously append the complete suffix after formatting/truncation;
+they do not depend on a later badge-observer callback to restore it. The result is:
 
 ```text
 <normal title> <optional glyph> [YA1 f=1792526000000 r=1792526000100 a=0 s=idle] w=1

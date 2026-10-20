@@ -11,5 +11,6 @@ export function appendComposerBeacon(title: string): string {
   const beacon = document
     .querySelector("title")
     ?.getAttribute(COMPOSER_BEACON_ATTRIBUTE);
-  return beacon ? `${title} ${beacon}` : title;
+  const humanTitle = stripComposerBeacon(title);
+  return beacon ? `${humanTitle} ${beacon}` : humanTitle;
 }

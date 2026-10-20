@@ -162,10 +162,12 @@ export function useNeedsAttentionBadge(hostIdentityIcon?: string) {
       const projectCodeNameTitle = document
         .querySelector("title")
         ?.hasAttribute(PROJECT_CODE_NAME_TITLE_ATTRIBUTE);
-      document.title = stripTabTitlePrefixes(
-        document.title,
-        hostIdentityIcon,
-        projectCodeNameTitle,
+      document.title = appendComposerBeacon(
+        stripTabTitlePrefixes(
+          document.title,
+          hostIdentityIcon,
+          projectCodeNameTitle,
+        ),
       );
     };
   }, [hostIdentityIcon]);

@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef } from "react";
-import { COMPOSER_BEACON_ATTRIBUTE } from "../lib/composerBeacon";
+import {
+  appendComposerBeacon,
+  COMPOSER_BEACON_ATTRIBUTE,
+} from "../lib/composerBeacon";
 import type { DraftControls } from "./useDraftPersistence";
 import { useComposerBeaconPreference } from "./useComposerBeaconPreference";
 import type { PendingMessage } from "./useSession";
@@ -59,6 +62,7 @@ export function useComposerBeacon({
           COMPOSER_BEACON_ATTRIBUTE,
           `${GLYPHS[state.delivery]}[YA1 f=${state.focusedAt} r=${state.ready} a=${state.accepted} s=${state.delivery}] w=${state.windowFocused ? 1 : 0}`,
         );
+        document.title = appendComposerBeacon(document.title);
       },
     };
     stateRef.current = state;
@@ -119,6 +123,7 @@ export function useComposerBeacon({
       window.removeEventListener("keydown", onKey, true);
       stateRef.current = null;
       title.removeAttribute(COMPOSER_BEACON_ATTRIBUTE);
+      document.title = appendComposerBeacon(document.title);
     };
   }, [active, composerBeaconEnabled, controlsRef, sessionKey]);
 
