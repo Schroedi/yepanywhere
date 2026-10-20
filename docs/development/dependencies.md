@@ -84,6 +84,19 @@ The 2026-10-20 release audit moves the server's exact `markdown-it` pin to
 YA already sets `typographer: false`; the patch removes the vulnerable
 dependency without adding an advisory exclusion.
 
+The same day's CI audit repair moves that pin to 15.0.3 for
+[quadratic link reference definitions](https://github.com/advisories/GHSA-gfr2-rv44-r23c)
+and [quadratic inline HTML](https://github.com/advisories/GHSA-vfgh-jcmw-g37q),
+raises the server's `sanitize-html` floor to 2.18.1 for
+[`nonTextTags` early close](https://github.com/advisories/GHSA-x3q4-9hxx-gx8m),
+[`meta` refresh URLs](https://github.com/advisories/GHSA-cv27-6wvh-8x7j), and
+[SMIL namespace prefixes](https://github.com/advisories/GHSA-374f-7chj-9948),
+and resolves `http-proxy -> follow-redirects` to 1.16.1 within its declared
+range ([GHSA-q3jh-wrc6-jgq8](https://github.com/advisories/GHSA-q3jh-wrc6-jgq8),
+[GHSA-8r9p-f939-6h3c](https://github.com/advisories/GHSA-8r9p-f939-6h3c)).
+The refresh also re-resolved jsdom 29's `undici` and `tldts` to patch
+releases. No new advisory exclusions are added.
+
 ### Install-script allowlist
 
 Dependency install scripts (preinstall/install/postinstall) are blocked by
@@ -186,6 +199,11 @@ everything pending.
   at the supported Node floor. Node 22.23 and 24 load them. Lift the hold
   when the supported floor moves past the fix. Playwright's
   `PLAYWRIGHT_FORCE_ASYNC_LOADER` avoids the path but is undocumented.
+  The held release also refuses to install browsers on Ubuntu 26.04
+  (`Playwright does not support chromium on ubuntu26.04-x64`; 1.64 knows
+  that image), so every workflow job that runs `playwright install` pins
+  `ubuntu-24.04` instead of `ubuntu-latest`. Return those jobs to
+  `ubuntu-latest` together with lifting the hold.
 - `@anthropic-ai/claude-agent-sdk` and the pixi STT environment update
   only when requested from the dashboard, because they follow the
   [provider refresh](../../topics/provider-refresh.md) audit and the
