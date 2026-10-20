@@ -96,7 +96,7 @@ test("composer beacon acknowledges real sends and leaves typing and title option
     const composer = page.locator("[data-composer-input]:visible");
     await expect(composer).toBeVisible({ timeout: 30_000 });
     await composer.focus();
-    await expect(page).toHaveTitle(/\[YA1 f=[1-9]\d* r=0 a=0 s=idle\]/);
+    await expect(page).toHaveTitle(/\[YA1 f=[1-9]\d* r=0 a=0 s=idle\] w=1/);
     await page.keyboard.press("Control+Alt+Shift+F8");
     await expect(composer).toBeFocused();
     await expect(page).toHaveTitle(/r=[1-9]\d* a=0 s=idle/);

@@ -10,8 +10,9 @@ Keep YA selected in a dedicated Chrome window on the second monitor. The
 desktop helper saves the game's window handle, finds the most recently focused
 YA composer, activates its window, and sends **Ctrl+Alt+Shift+F8**. YA focuses
 the existing composer without replacing its draft or selecting its text.
-After an accepted send, the helper restores the saved game window. A second
-hotkey press or Escape can return manually. The normal Enter/Shift+Enter
+After an accepted send, the helper restores the saved game window. Escape
+can return manually; the entrance hotkey can pass through while YA already
+has focus. The normal Enter/Shift+Enter
 behavior remains authoritative; YA does not intercept the operating system's
 global keys or manage native window focus.
 
@@ -33,7 +34,7 @@ Human title formatting runs first: unread counts, host identity, full project
 names or short project codes, and optional activity pulsing. Then YA appends:
 
 ```text
-<normal title> <optional glyph> [YA1 f=1792526000000 r=1792526000100 a=0 s=idle]
+<normal title> <optional glyph> [YA1 f=1792526000000 r=1792526000100 a=0 s=idle] w=1
 ```
 
 Fields are ASCII and always in that order:
@@ -50,6 +51,18 @@ Fields are ASCII and always in that order:
   newer invocation or another mounted session.
 - `s`: latest main-composer submission state: `idle`, `sending`, `queued`,
   `delivered`, or `error`. It is independent of whether the helper is armed.
+- `w`, after the closing bracket: `1` when the YA document is visible and has
+  focus, `0` otherwise. It does not require composer focus. Browser chrome
+  such as the address bar can take document focus even while the native Chrome
+  window remains foreground; AHK's `WinActive` remains authoritative for that
+  native distinction. There is no additional focus glyph.
+
+The optional ` w=0` / ` w=1` tail was added on 2026-10-20 outside the existing
+bracket so previously supplied AHK parsers still find the unchanged `YA1`
+record. Updated parsers should accept both forms and treat missing `w` as
+unknown, not unfocused. AHK may use a conditional hotkey to pass the entrance
+chord through when a YA window is foreground, while keeping its acknowledgement
+watcher active. Never hide the focused beacon: the watcher needs `r` and `a`.
 
 Glyphs are `↥` for an unacknowledged send (including attachment preparation),
 `◷` for an acknowledged deferred send, `✓` for an acknowledged direct/steered
@@ -59,7 +72,10 @@ answering. The suffix describes this tab's latest submission during the current
 mount, not every message or a durable delivery history.
 
 AHK should ignore glyphs and match the bracketed fields anywhere in the OS
-title, allowing Chrome's own trailing application name. The title contains no
+title, allowing Chrome's own trailing application name. All fields are ordinary,
+human-visible title text; "machine-readable" describes their parseable format,
+not hidden metadata. Chrome's tab strip may truncate them, while full-title
+surfaces can expose them. The title contains no
 session IDs, message text, credentials or cross-device discovery information
 beyond whatever the ordinary human title already reveals.
 

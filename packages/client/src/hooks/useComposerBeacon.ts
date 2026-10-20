@@ -16,6 +16,7 @@ const GLYPHS: Record<DeliveryState, string> = {
 
 interface BeaconState {
   focusedAt: number;
+  windowFocused: boolean;
   ready: number;
   accepted: number;
   delivery: DeliveryState;
@@ -47,6 +48,8 @@ export function useComposerBeacon({
     if (!title) return;
     const state: BeaconState = {
       focusedAt: 0,
+      windowFocused:
+        document.hasFocus() && document.visibilityState === "visible",
       ready: 0,
       accepted: 0,
       delivery: "idle",
@@ -54,19 +57,16 @@ export function useComposerBeacon({
       publish() {
         title.setAttribute(
           COMPOSER_BEACON_ATTRIBUTE,
-          `${GLYPHS[state.delivery]}[YA1 f=${state.focusedAt} r=${state.ready} a=${state.accepted} s=${state.delivery}]`,
+          `${GLYPHS[state.delivery]}[YA1 f=${state.focusedAt} r=${state.ready} a=${state.accepted} s=${state.delivery}] w=${state.windowFocused ? 1 : 0}`,
         );
       },
     };
     stateRef.current = state;
     const recordFocus = () => {
-      if (
-        document.visibilityState !== "visible" ||
-        !document.hasFocus() ||
-        !controlsRef.current?.isFocused?.()
-      )
-        return;
-      state.focusedAt = Math.max(Date.now(), state.focusedAt + 1);
+      state.windowFocused =
+        document.visibilityState === "visible" && document.hasFocus();
+      if (state.windowFocused && controlsRef.current?.isFocused?.())
+        state.focusedAt = Math.max(Date.now(), state.focusedAt + 1);
       state.publish();
     };
     const disarm = () => {
@@ -74,8 +74,12 @@ export function useComposerBeacon({
       state.accepted = 0;
       state.publish();
     };
+    const onBlur = () => {
+      state.windowFocused = false;
+      disarm();
+    };
     const onVisibility = () => {
-      if (document.visibilityState === "hidden") disarm();
+      if (document.visibilityState === "hidden") onBlur();
       else recordFocus();
     };
     const onKey = (event: KeyboardEvent) => {
@@ -92,6 +96,7 @@ export function useComposerBeacon({
         return;
       event.preventDefault();
       event.stopImmediatePropagation();
+      state.windowFocused = true;
       disarm();
       controlsRef.current?.focus?.({ preventScroll: true });
       if (!controlsRef.current?.isFocused?.()) return;
@@ -103,13 +108,13 @@ export function useComposerBeacon({
     recordFocus();
     document.addEventListener("focusin", recordFocus);
     window.addEventListener("focus", recordFocus);
-    window.addEventListener("blur", disarm);
+    window.addEventListener("blur", onBlur);
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("keydown", onKey, true);
     return () => {
       document.removeEventListener("focusin", recordFocus);
       window.removeEventListener("focus", recordFocus);
-      window.removeEventListener("blur", disarm);
+      window.removeEventListener("blur", onBlur);
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("keydown", onKey, true);
       stateRef.current = null;

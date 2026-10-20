@@ -132,6 +132,26 @@ it("preserves formatted titles and acknowledges only the current armed submissio
   act(() => hook.result.current.setComposerBeaconEnabled(false));
   await waitFor(() => expect(document.title).not.toContain("[YA1"));
   expect(document.title).not.toContain("✓");
+  expect(document.title).not.toMatch(/ w=[01]/);
+});
+
+it("reports window focus without requiring composer focus or losing title formatting", async () => {
+  mount();
+  await waitFor(() =>
+    expect(document.title).toContain("f=0 r=0 a=0 s=idle] w=1"),
+  );
+  const request = await arm();
+  act(() => window.dispatchEvent(new Event("blur")));
+  await waitFor(() => expect(document.title).toContain("r=0 a=0 s=idle] w=0"));
+  act(() => {
+    textarea.blur();
+    window.dispatchEvent(new Event("focus"));
+  });
+  await waitFor(() =>
+    expect(document.title).toContain(`f=${request} r=0 a=0 s=idle] w=1`),
+  );
+  expect(document.title.match(/\[YA1/g)).toHaveLength(1);
+  expect(document.title.match(/ w=[01]/g)).toHaveLength(1);
 });
 
 it("does not acknowledge failures, blurred invocations, or old session completions", async () => {

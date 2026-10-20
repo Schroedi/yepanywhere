@@ -1,6 +1,6 @@
 export const COMPOSER_BEACON_ATTRIBUTE = "data-ya-composer-beacon";
 const BEACON_SUFFIX =
-  / (?:[↥◷✓!] )?\[YA1 f=\d+ r=\d+ a=\d+ s=(?:idle|sending|queued|delivered|error)\]$/u;
+  / (?:[↥◷✓!] )?\[YA1 f=\d+ r=\d+ a=\d+ s=(?:idle|sending|queued|delivered|error)\](?: w=[01])?$/u;
 
 /** Keep the machine-readable composer beacon outside human title formatting. */
 export function stripComposerBeacon(title: string): string {
