@@ -79,6 +79,11 @@ YA code imports nothing from the SDK; the pin satisfies
 `@anthropic-ai/claude-agent-sdk`'s `^1.29.0` peer range, which 1.32.1 stays
 within. No new advisory exclusions are added.
 
+The 2026-10-20 release audit moves the server's exact `markdown-it` pin to
+15.0.2 for [quadratic smartquotes processing](https://github.com/advisories/GHSA-r7fv-28h4-cvq7).
+YA already sets `typographer: false`; the patch removes the vulnerable
+dependency without adding an advisory exclusion.
+
 ### Install-script allowlist
 
 Dependency install scripts (preinstall/install/postinstall) are blocked by

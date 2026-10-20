@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-## [0.4.0] - 2026-10-20
+## [0.4.1] - 2026-10-20
 
 ### Added
 - Choose Stable or Latest nightly updates in the desktop updater. Returning
@@ -13,6 +13,7 @@
   draft recovery and session navigation.
 
 ### Fixed
+- Bundle markdown-it 15.0.2 for GHSA-r7fv-28h4-cvq7.
 - Sign bundled macOS shared libraries before notarization and remove nested
   package executable links from the installed runtime.
 - Preserve the exact bundled source identity and require complete signed

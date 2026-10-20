@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.10.0] - 2026-10-20
+## [0.10.1] - 2026-10-20
 
 ### Added
 - Managed HTML artifact viewing over encrypted remote connections, with media
@@ -38,6 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   response ownership during cancellation and reconnect.
 
 ### Security
+- Update markdown-it to 15.0.2 for the smartquotes denial-of-service advisory
+  GHSA-r7fv-28h4-cvq7. YA keeps typography disabled.
 - Limited-user Project Queue and All Sessions responses are now scoped to
   granted projects, including queue messages and attachments, recovered queue
   items, project options, pagination, and aggregate statistics. The Users
