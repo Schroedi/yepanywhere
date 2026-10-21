@@ -99,7 +99,10 @@ Replace `user@host` and `/work/project` with your SSH destination and project
 path. This also works from Windows OpenSSH or a WSL shell. The receiving
 machine watches the directory; your desktop does not need to invoke
 `agentctl` or know the session id. Each completed upload becomes a user turn
-with an attachment. It queues behind work already running.
+with an attachment, delivered like a message typed at that moment: into a
+running turn where the provider supports steering, else queued for the turn's
+end. An upload therefore reaches the agent before commentary sent after it,
+rather than after a long turn finishes.
 
 Delivery reaches only a live session. `latest-session` points at the session
 you last messaged in the project, and nothing arrives while that session is not

@@ -43,17 +43,17 @@ export function createRendezSessions(
                 diagnostics: "The target session is not live in this project",
               };
             }
-            const result = owned.queueMessage(
-              {
-                uuid: id,
-                text,
-                metadata: {
-                  origin: "rendezvous",
-                  serverReceivedAt: new Date().toISOString(),
-                },
+            // An upload is the user's own input and steers like a typed
+            // send: held to turn end, it would land after the commentary
+            // the user sent about it, merged with every other held upload.
+            const result = owned.queueMessage({
+              uuid: id,
+              text,
+              metadata: {
+                origin: "rendezvous",
+                serverReceivedAt: new Date().toISOString(),
               },
-              { allowSteer: false },
-            );
+            });
             return { accepted: result.success, diagnostics: result.error };
           },
         };
