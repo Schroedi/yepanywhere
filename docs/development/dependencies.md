@@ -152,6 +152,17 @@ advisories were triaged as not applying and dismissed the same way on
 The patched Python pins in that snapshot (`anyio`, `msgpack`, `pip`) were
 dry-run resolved against the live `stt` env before they were committed.
 
+The 2026-10-21 security refresh raises the snapshot's `certifi` pin from
+2026.5.20 to 2026.10.19 for
+[the compromised emSign CA advisory](https://github.com/advisories/GHSA-6q48-6c7w-9gw2).
+Linux/Python 3.12 resolution passes for both the snapshot and its NeMo 2.0.0
+constraint consumer, retaining the pinned Torch and Transformers versions.
+An isolated Python environment verifies that the affected emSign ECC Root CA
+G3 is absent and that `requests` and `httpx` can validate HTTPS with the new
+bundle. This pin secures subsequent recovery/NeMo installs; existing speech
+environments must update their installed certifi separately. Live environments
+were not updated or qualified by this repository change.
+
 ## Automated Dependency Updates
 
 The hosted Mend Renovate app proposes updates from `renovate.json`, using
