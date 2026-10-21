@@ -243,7 +243,11 @@ test("composer beacon acknowledges real sends and leaves typing and title option
       { name: "phone", width: 375, height: 812 },
     ]) {
       await page.setViewportSize(viewport);
-      await setting.locator("..").scrollIntoViewIfNeeded();
+      // Crossing the phone breakpoint swaps the settings layout and remounts
+      // the pane, which can detach the row mid-scroll; retry on the new row.
+      await expect(async () => {
+        await setting.locator("..").scrollIntoViewIfNeeded({ timeout: 2000 });
+      }).toPass();
       await recordUiCapture(page, `composer-beacon-${viewport.name}`);
     }
     await setting.locator("..").click();

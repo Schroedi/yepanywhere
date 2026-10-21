@@ -742,6 +742,9 @@ it("shows the page its frame reports and opens a crumb under the view's link", a
   );
   await waitFor(() => expect(container.querySelector("iframe")).not.toBeNull());
   const frame = container.querySelector("iframe")!;
+  // The frame is committed before the effect that listens for its reports
+  // runs; flush effects so a report is not posted into that gap.
+  await act(async () => {});
   const report = (href: string, source: MessageEventSource | null) =>
     act(() => {
       window.dispatchEvent(
@@ -805,6 +808,8 @@ it.each([true, false])(
       expect(container.querySelector("iframe")?.src).toContain("localhost"),
     );
     const frame = container.querySelector("iframe")!;
+    // Flush the effect that listens for the frame's reports (see above).
+    await act(async () => {});
     act(() => {
       window.dispatchEvent(
         new MessageEvent("message", {
