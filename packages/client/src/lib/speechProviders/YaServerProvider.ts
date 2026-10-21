@@ -22,6 +22,11 @@ import {
   stopSpeechStreamTracks,
 } from "./sharedMicCapture";
 import {
+  connectMicSampleTap,
+  type MicSampleTap,
+  prepareMicSampleTap,
+} from "./micSampleTap";
+import {
   decideBatchSpeechCommand,
   getTrailingTranscriptCommand,
   getWordText,
@@ -117,7 +122,7 @@ const STREAM_CHUNK_MS = 100;
 const STREAM_CHUNK_SAMPLES = Math.round(
   (STREAM_SAMPLE_RATE * STREAM_CHUNK_MS) / 1000,
 );
-const SCRIPT_PROCESSOR_BUFFER_SIZE = 1024;
+const CAPTURE_BATCH_SAMPLES = 1024;
 const PCM_FRAME_POOL_SIZE = 16;
 const STREAM_MIME_TYPE = `audio/pcm;rate=${STREAM_SAMPLE_RATE};encoding=s16le`;
 // If the Web Audio processor never fires within this window the capture
@@ -532,8 +537,7 @@ export class YaServerProvider implements SpeechProvider {
   private ws: SpeechStreamingSocket | null = null;
   private audioContext: AudioContext | null = null;
   private audioSource: MediaStreamAudioSourceNode | null = null;
-  private processor: ScriptProcessorNode | null = null;
-  private silentGain: GainNode | null = null;
+  private sampleTap: MicSampleTap | null = null;
   private pcmChunker: Pcm16Chunker | null = null;
   private batchRecording: BatchRecording | null = null;
   private mimeType = "audio/webm";
@@ -823,6 +827,9 @@ export class YaServerProvider implements SpeechProvider {
     resumePromise.catch((err: unknown) => {
       console.warn("[YaSTT] AudioContext.resume() rejected", err);
     });
+    // Load the capture worklet while the mic opens, so building the graph
+    // does not add a module load after getUserMedia.
+    void prepareMicSampleTap(audioContext);
 
     const abandonContext = (): void => {
       void audioContext.close();
@@ -906,18 +913,11 @@ export class YaServerProvider implements SpeechProvider {
     pcmChunker = new Pcm16Chunker(sendPcmFrame);
     this.pcmChunker = pcmChunker;
     const source = audioContext.createMediaStreamSource(stream);
-    const processor = audioContext.createScriptProcessor(
-      SCRIPT_PROCESSOR_BUFFER_SIZE,
-      1,
-      1,
-    );
-    const silentGain = audioContext.createGain();
-    silentGain.gain.value = 0;
+    this.audioSource = source;
     this.audioProcessorActive = false;
     let loudnessFramesLeft = 6;
-    processor.onaudioprocess = (event) => {
+    const onCaptureSamples = (input: Float32Array): void => {
       if (token !== this.startToken || this.disposed) return;
-      const input = event.inputBuffer.getChannelData(0);
       if (!this.audioProcessorActive) {
         // First real callback: capture is genuinely live. Only now flip to
         // "listening" so the indicator never claims to record while the
@@ -939,15 +939,26 @@ export class YaServerProvider implements SpeechProvider {
       this.options.onAudioSamples?.(input);
       pcmChunker.writeFloatSamples(input, audioContext.sampleRate);
     };
-    source.connect(processor);
-    processor.connect(silentGain);
-    silentGain.connect(audioContext.destination);
-
-    this.audioSource = source;
-    this.processor = processor;
-    this.silentGain = silentGain;
+    let sampleTap: MicSampleTap;
+    try {
+      sampleTap = await connectMicSampleTap(audioContext, source, {
+        batchSize: CAPTURE_BATCH_SAMPLES,
+        onSamples: onCaptureSamples,
+      });
+    } catch (err) {
+      closePendingSocket();
+      this.cleanupStreamingMedia();
+      throw err;
+    }
+    if (this.disposed || token !== this.startToken) {
+      // The superseding start or disposal owns the rest of this graph.
+      sampleTap.disconnect();
+      closePendingSocket();
+      return;
+    }
+    this.sampleTap = sampleTap;
     this.startAudioFlowWatchdog(token);
-    mark("graph built");
+    mark(`graph built (capture=${sampleTap.mode})`);
 
     const sendStartAndFlush = (): void => {
       if (!ws) return;
@@ -1871,12 +1882,10 @@ export class YaServerProvider implements SpeechProvider {
     this.stopWaveformMonitor = null;
     this.clearSmartTurnGrace();
     this.clearAudioFlowWatchdog();
-    this.processor?.disconnect();
+    this.sampleTap?.disconnect();
     this.audioSource?.disconnect();
-    this.silentGain?.disconnect();
-    this.processor = null;
+    this.sampleTap = null;
     this.audioSource = null;
-    this.silentGain = null;
     this.pcmChunker = null;
     void this.audioContext?.close();
     this.audioContext = null;

@@ -2780,9 +2780,8 @@ describe("YA server speech provider", () => {
     await Promise.resolve();
     await Promise.resolve();
     FakeWebSocket.instances[0]?.open();
-    await Promise.resolve();
-    await Promise.resolve();
     const ws = FakeWebSocket.instances[0]!;
+    await vi.waitFor(() => expect(ws.onmessage).not.toBeNull());
 
     // A finalized block commits to the draft.
     ws.receive({
@@ -4078,9 +4077,10 @@ describe("direct xAI speech provider", () => {
     expect(ws.protocols).toEqual(["xai-client-secret.browser-xai-key"]);
 
     ws.receive({ type: "transcript.created" });
-    await Promise.resolve();
 
-    expect(provider.getState().status).toBe("listening");
+    await vi.waitFor(() =>
+      expect(provider.getState().status).toBe("listening"),
+    );
     expect(ws.sent.some((data) => typeof data !== "string")).toBe(true);
 
     ws.receive({

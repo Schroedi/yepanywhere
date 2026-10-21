@@ -3482,6 +3482,8 @@
   "speechSettingsReducePlaybackSection": "Playback",
   "speechSettingsReducePlaybackTitle": "Reduce playback while dictating",
   "speechSettingsReducePlaybackDescription": "Mute audio played by YA and request browser echo cancellation while listening. On Android, also keep other apps' audio lowered until the microphone closes; an app may pause instead of lowering.",
+  "speechSettingsAudioWorkletTitle": "Capture microphone off the main thread",
+  "speechSettingsAudioWorkletDescription": "Read microphone audio with an AudioWorklet so busy page work cannot drop or delay it. Turn off to use the older ScriptProcessor capture, which YA also falls back to where AudioWorklet is unavailable. Applies from the next dictation or recording.",
   "speechSettingsFollowUpListenTitle": "Follow-up listening",
   "speechSettingsFollowUpListenDescription": "After a Smart Turn send, listen for another utterance for this long. Each speech-triggered send restarts the window; 0 turns follow-up listening off.",
   "speechSettingsMessagePrefixTitle": "Speech message prefix",
