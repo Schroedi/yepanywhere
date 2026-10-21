@@ -1,4 +1,6 @@
 {
+  "projectFileLinkCopy": "Copy public app link",
+  "projectFileLinkAccess": "This existing project app link grants access to the app, not just this file.",
   "vhostOauthProvider": "Hosted sign-in provider (OAuth)",
   "vhostOauthEnabled": "Enable hosted sign-in",
   "vhostOauthEnabledHint": "Requires a configured provider. Switching off keeps settings and email lists; hosts requiring sign-in stay blocked.",

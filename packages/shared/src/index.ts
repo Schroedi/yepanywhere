@@ -1687,6 +1687,9 @@ export { PDFJS_VERSION } from "./pdfjs.js";
 
 export {
   projectServiceSchema,
+  projectFileLinksSchema,
+  projectFileLink,
+  type ProjectFileLinks,
   type ProjectServiceDeclaration,
   type ProjectAppInfo,
   type ProjectAppView,
