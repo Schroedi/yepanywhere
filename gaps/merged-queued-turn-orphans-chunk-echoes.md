@@ -16,9 +16,10 @@ reconciliation.
 Observed 2026-10-21 in Codex session `01a156bf-2f81-75a3-a970-063e53ecfc2c`:
 nine rendez screenshots uploaded over ten minutes of one turn arrived as a
 single nine-attachment turn at its end, below the two latest uploads still
-shown individually as "sent". Rendez uploads now steer like typed sends, which
-removes that trigger, but any non-steered in-turn queue (other
-`allowSteer: false` callers, providers without steering) still merges this way.
+shown individually as "sent". Rendez uploads no longer take this path: they
+steer, or wait as queued chips with temp ids, per `rendez.delivery`. Any other
+id-only message queued during a turn (other `allowSteer: false` callers, a
+steer the provider declines) still merges this way.
 
 Cheap fix: record every chunk's `uuid` on the combined message beside
 `tempIds` and clear echoes by either identity; or show a non-steered in-turn
