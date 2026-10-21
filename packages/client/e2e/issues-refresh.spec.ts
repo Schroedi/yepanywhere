@@ -77,18 +77,13 @@ test("ticket refresh gestures stay compact and typing stays immediate during ref
   await refresh.click();
   await expect.poll(() => requests).toEqual([false]);
   await refresh.click({ button: "right" });
-  await page
-    .getByRole("menuitem", { name: "Recheck all tickets, ignoring cache age" })
-    .click();
   await expect.poll(() => requests).toEqual([false, true]);
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await expect(refresh).toBeEnabled();
   await refresh.focus();
   await page.keyboard.press("Shift+F10");
-  await expect(
-    page.getByRole("menuitem", {
-      name: "Recheck all tickets, ignoring cache age",
-    }),
-  ).toBeVisible();
-  await page.keyboard.press("Escape");
+  await expect.poll(() => requests).toEqual([false, true, true]);
+  await expect(page.getByRole("menu")).toHaveCount(0);
 
   for (const viewport of [
     { width: 1000, height: 600 },
@@ -111,7 +106,7 @@ test("ticket refresh gestures stay compact and typing stays immediate during ref
     );
     await recordUiCapture(page, `issues-refresh-${viewport.width}`);
   }
-  // The common menu owner must suppress the click synthesized after a hold.
+  // A hold executes directly and consumes the following compatibility click.
   await refresh.dispatchEvent("pointerdown", {
     pointerType: "touch",
     isPrimary: true,
@@ -119,17 +114,13 @@ test("ticket refresh gestures stay compact and typing stays immediate during ref
     clientX: 285,
     clientY: 90,
   });
-  await expect(
-    page.getByRole("menuitem", {
-      name: "Recheck all tickets, ignoring cache age",
-    }),
-  ).toBeVisible();
+  await expect.poll(() => requests).toEqual([false, true, true, true]);
   await refresh.dispatchEvent("pointerup", { pointerType: "touch" });
-  await recordUiCapture(page, "issues-refresh-phone-menu");
-  await page
-    .getByRole("menuitem", { name: "Recheck all tickets, ignoring cache age" })
-    .click();
-  await expect.poll(() => requests).toEqual([false, true, true]);
+  await expect(refresh).toBeEnabled();
+  await refresh.dispatchEvent("click");
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await recordUiCapture(page, "issues-refresh-phone-direct");
+  expect(requests).toEqual([false, true, true, true]);
   active = true;
   await refresh.click();
   const search = page.getByRole("searchbox");

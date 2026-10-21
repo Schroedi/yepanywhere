@@ -41,9 +41,9 @@ The refresh and settings controls are compact icons with accessible names and
 44-pixel targets. Normal refresh scans all stored canonical ticket URLs,
 including old-session references, for missing or expired content. It respects
 a shared two-week subject/body TTL and two-week 404/410 negative cache.
-Right-click, long-press or Shift+F10 on refresh offers **Recheck all tickets,
-ignoring cache age**. This bypasses TTL, including cached misses, but respects
-retry cooldowns and provider rate limits. Selecting a ticket requests the same
+Right-click, long-press or Shift+F10 on refresh immediately rechecks all tickets,
+ignoring cache age, without opening a menu. This bypasses TTL, including cached
+misses, but respects retry cooldowns and provider rate limits. Selecting a ticket requests the same
 revalidation for that item; saved content remains visible. Concurrent requests
 coalesce, with at most the latest selected item retained for a follow-up pass.
 These actions refresh already discovered references; they do not read previously

@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useCurrentSourceRuntime } from "../contexts/SourceRuntimeContext";
 import { useIssuesEnabled } from "../hooks/useIssuesEnabled";
+import { useLongPress } from "../hooks/useLongPress";
 import { useRemoteBasePath } from "../hooks/useRemoteBasePath";
 import { useI18n } from "../i18n";
 import { PageHeader } from "../components/PageHeader";
@@ -212,9 +213,11 @@ function IssueBrowser() {
     };
   }, [selected, supportsContent, refreshing, revision, transport, t]);
   const refresh = (force: boolean) => {
+    if (busy || refreshing) return;
     if (supportsContent) void action("/issues/refresh", "POST", { force });
     else setRevision((x) => x + 1);
   };
+  const refreshPress = useLongPress(() => refresh(true));
   const edit = (item: IssueItem, kind: "title" | "url" | "delete") => {
     if (kind === "url") select(item);
     setEditing({ item, kind });
@@ -285,17 +288,17 @@ function IssueBrowser() {
           aria-label={t("issuesRefresh")}
           title={supportsContent ? t("issuesRefreshHint") : t("issuesRefresh")}
           disabled={busy || refreshing}
-          {...menu.targetProps(
-            supportsContent
-              ? [
-                  {
-                    label: t("issuesForceRefresh"),
-                    onSelect: () => refresh(true),
-                  },
-                ]
-              : [],
-            () => refresh(false),
-          )}
+          {...refreshPress.handlers}
+          onClick={refreshPress.click(() => refresh(false))}
+          onKeyDown={(event) => {
+            if (
+              event.key === "ContextMenu" ||
+              (event.shiftKey && event.key === "F10")
+            ) {
+              event.preventDefault();
+              refresh(true);
+            }
+          }}
         >
           <svg
             width="20"
