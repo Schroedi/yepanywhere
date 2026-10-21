@@ -463,6 +463,7 @@ export type {
   ProviderSessionDefaults,
   NewSessionDefaults,
   BusyComposerDefaultAction,
+  RendezDelivery,
   ClientDefaults,
   CollapsedComposerButtonPreference,
   GrokSpeechAudioClientDefault,
@@ -549,6 +550,7 @@ export {
   DEFAULT_CACHE_MISS_BILLING_SETTINGS,
   DEFAULT_PROJECT_QUEUE_CTRL_ENTER_ENABLED,
   DEFAULT_STEER_NOW_ENABLED,
+  RENDEZ_DELIVERIES,
 } from "./types.js";
 
 export type {

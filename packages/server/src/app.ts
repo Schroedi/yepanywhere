@@ -1519,7 +1519,10 @@ export function createApp(options: AppOptions): AppResult {
           }
           return [...paths].map((path) => ({ path }));
         },
-        createRendezSessions(() => supervisor.getAllProcesses()),
+        createRendezSessions(
+          () => supervisor.getAllProcesses(),
+          () => options.serverSettingsService?.getSetting("rendez")?.delivery,
+        ),
         onRendezUserTurn,
       )
     : undefined;

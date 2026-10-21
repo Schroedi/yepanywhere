@@ -30,7 +30,8 @@ env:
 jobs:
   package:
     if: github.event_name != 'workflow_dispatch' || inputs.mode != 'check'
-    runs-on: ubuntu-latest
+    # Pinned for the held Playwright; see ci.yml computer-control.
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
