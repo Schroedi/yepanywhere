@@ -1,4 +1,5 @@
 import { setSpeechCaptureActivity } from "./speechCaptureActivity";
+import { setMicTitleActivity } from "./micTitleActivity";
 import {
   speechMicConstraints,
   releaseSharedSpeechMicStream,
@@ -59,6 +60,7 @@ export class AudioMemoRecording {
   }): Promise<MediaStream> {
     releaseSharedSpeechMicStream();
     this.context = new AudioContext({ sampleRate: AUDIO_MEMO_SAMPLE_RATE });
+    setMicTitleActivity(this, "starting");
     try {
       await this.context.resume();
       if (this.closed) throw new Error("Audio memo recording cancelled");
@@ -104,6 +106,7 @@ export class AudioMemoRecording {
       this.source.connect(this.processor);
       this.processor.connect(this.gain);
       this.gain.connect(this.context.destination);
+      setMicTitleActivity(this, "capturing");
       return stream;
     } catch (error) {
       this.cancel();
@@ -113,6 +116,7 @@ export class AudioMemoRecording {
 
   private close(): void {
     this.closed = true;
+    setMicTitleActivity(this, null);
     if (this.processor) this.processor.onaudioprocess = null;
     this.processor?.disconnect();
     this.source?.disconnect();
