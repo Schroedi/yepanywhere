@@ -1,9 +1,27 @@
 # Searchable tracker subjects and bodies
 
 Candidate extension to [Issues & PRs](issue-session-associations.md).
-This records design decisions, not implemented behavior or authorization to
-implement. Subject and main body are the proposed first slice; comments remain
-a later extension.
+Staged implementation is authorized. The current contract remains in the main
+topic; the remainder below is candidate work. Subject and main body are the
+first content scope; comments and separate per-content TTL policies remain
+later extensions.
+
+## Delivery stages
+
+1. Search and display subjects already fetched by the existing confirmation
+   worker, preserving manual titles. This stage changes no acquisition policy,
+   adds no network work, and needs no new schema or wire fields.
+2. Add canonical-identity-owned subject/body storage and bounded acquisition,
+   public access, negative caching, first-mention checks and historical backfill.
+   Start with a shared two-week TTL and explicit-click revalidation; independent
+   body/comment TTL controls remain deferred. Preserve the candidate policy
+   below for later refinement.
+3. Add body search and the full incremental-search interaction, reusing existing
+   display primitives, with cached details and responsive input. Prove matching
+   independently of UI polish if that gives earlier useful evidence.
+
+Each stage should leave a useful tested result and move its actual contract
+into the main topic. The order may change as implementation evidence warrants.
 
 ## Intent and acquisition
 
@@ -54,13 +72,16 @@ The existing schema has observed/manual titles in `external_issues`, a fetched
 title and check time in `issue_confirmations`, and separate tracker status
 facts in `issue_tracker_status`. It has no tracker-body storage. The shared
 `IssueItem` contract likewise has no body. `IssueConfirmer` already extracts
-subjects, but requires credentials even for public items; the search predicate
-in `IssueStore` does not include its separate confirmation title.
+subjects, but requires credentials even for public items. The first delivery
+stage makes that separate confirmation title searchable and supplies it as
+the displayed title unless manually overridden.
 
 Propose a durable content record owned by `IssueStore`, keyed by canonical
 issue identity and content part (subject or body). Keep tracker content
 separate from session mention evidence and from user title overrides. Exact
-table/column names and migration are implementation work. Each part needs:
+table/column names and migration are implementation work. Resolve the existing
+[confirmation identity gap](../gaps/issue-confirmation-cache-lacks-tracker-identity.md)
+before widening acquisition to more sites. Each part needs:
 
 - Acquisition state: never requested, acquired (including a genuinely empty
   body), unavailable, or transient failure. Unavailable must not be mistaken
@@ -102,18 +123,42 @@ literal substring semantics. Ordinary token full-text search is not an
 equivalent replacement. Keep input acknowledgement independent of lookup and
 result rendering; verify sequential typing under concurrent acquisition.
 
-Reuse the existing incremental-search machinery where it fits. The maintainer
-suggested a compact server-supplied searchable-state dump and also accepts
-server-side matching. The existing `packages/server/src/routes/session-content-search.ts`
-can send whole searchable text with `includeSearchText`, supporting retained
-client refinement described in [all-session search](all-session-content-search.md).
-An Aho-Corasick dump implementation was not located in the initial inspection;
-do not assume that algorithm or build a second search engine before checking
-the existing owners. Compare bounded client snapshots/refinement with
-server-side indexed queries for actual ticket volume and relay latency.
-Responsive incremental search is the requirement; index placement is open.
-Superseded queries must not overwrite newer results, and background content
-updates must preserve the user's input and selection.
+### Existing search and display reuse
+
+Keep display reuse independent of index placement. The maintainer wants the
+full incremental-search experience and accepts server-side matching.
+
+- [All Sessions search](all-session-content-search.md) uses bounded per-session
+  server reads with client fan-out, progressively delivered results and retained
+  whole-text refinement, not a persistent corpus substring index.
+  `packages/server/src/routes/session-content-search.ts` supplies optional
+  `searchText` in response batches. Its client display owners under
+  `packages/client/src/components/session-search/` include `SearchDetail`,
+  `SearchPreviews` and `SearchSessionMatches`; shared highlighting lives in
+  `packages/client/src/components/SearchPreview.tsx`. Reuse suitable highlighting,
+  detail presentation, progressive result mounting, keyboard interaction and
+  selection preservation. Extract only genuinely shared pieces; ticket results
+  must not acquire artificial session/turn identities to fit these components.
+- [Glossary tooltips](glossary-tooltips.md) do ship a server-compiled
+  Aho-Corasick-style artifact. The owners are
+  `packages/server/src/projects/glossaryIndexService.ts` and
+  `packages/shared/src/glossary/{compiler,matcher}.ts`. This indexes a small,
+  known phrase set to find those phrases in incoming text. Arbitrary user
+  substrings over ticket bodies are a different indexing direction. Reuse its
+  versioned artifact/cache ideas where useful, not its boundary semantics or
+  algorithm by assumption.
+- `packages/server/src/projects/projectPathIndex.ts` is a demand-driven,
+  bounded directory-component cache used for server-side path annotation;
+  it does not ship the filesystem matcher to the browser. Its generation,
+  invalidation and memory-budget patterns are relevant references.
+- `packages/client/src/lib/fileSearchIndex.ts` normalizes a fetched filename
+  corpus once and refines cached prefix candidates. This is another small-corpus
+  reference, distinct from the server's project-path index.
+
+Compare bounded client snapshots/refinement with server-side indexed queries
+for actual ticket volume and relay latency. Responsive incremental search is
+the requirement; index placement is open. Superseded queries must not overwrite
+newer results, and background content updates must preserve input and selection.
 
 ## Later: fresh comment search
 

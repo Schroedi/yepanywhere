@@ -25,6 +25,12 @@ normalized text is available. Compressed Codex sources cannot be read by this
 background adapter.
 
 Search uses literal, case-insensitive substrings of stored keys, URLs and titles.
+Fetched confirmation subjects also participate in substring search, even when
+a manual title overrides the displayed subject. Display prefers the manual
+title, then the fetched subject, then a descriptive observed link label. This
+uses already-saved confirmation data and adds no tracker request. Body search,
+new acquisition policy and richer incremental-search presentation remain in the
+[content-search sketch](issue-session-associations.sketches.md).
 Pasting a full URL finds its canonical record. An exact lookup, `GET /api/issues?ref=<url>`,
 matches only the item whose canonical identity the URL names, from any URL a
 browser shows for it: GitHub subpaths such as `/files`, either the `issues/`

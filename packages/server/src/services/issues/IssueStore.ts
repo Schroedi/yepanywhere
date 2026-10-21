@@ -837,13 +837,18 @@ export class IssueStore {
       SELECT NULL,ref_key,NULL,NULL,provider,'unknown',COUNT(DISTINCT session_id),current_project,MAX(activity),MAX(julianday(source_time)),0 FROM observations WHERE link_id IS NULL GROUP BY current_project,provider,ref_key
     ), numbered AS (
       SELECT *,CASE WHEN provider='github' THEN instr(ref_key,'#')+1 ELSE instr(ref_key,'-')+1 END AS number_start FROM items
-    ) SELECT items.*,
+    ), confirmed_titles AS MATERIALIZED (
+      -- Search joins one saved subject per key instead of rescanning confirmations per item.
+      SELECT provider AS confirmation_provider,ref_key AS confirmation_key,title AS confirm_title,
+        ROW_NUMBER() OVER (PARTITION BY provider,ref_key ORDER BY checked_at DESC,project_id) AS title_rank
+      FROM issue_confirmations WHERE state='confirmed' AND title IS NOT NULL
+    ) SELECT items.*,confirmed_titles.confirm_title,
       -- The most decisive verdict for this reference: one project confirming
       -- it settles the key even when another only recorded an outage.
       (SELECT c.state FROM issue_confirmations c WHERE c.ref_key=items.ref_key
-        ORDER BY CASE c.state WHEN 'confirmed' THEN 0 WHEN 'rejected' THEN 1 WHEN 'unreachable' THEN 2 ELSE 3 END LIMIT 1) AS confirm_state,
-      (SELECT c.title FROM issue_confirmations c WHERE c.ref_key=items.ref_key AND c.state='confirmed' AND c.title IS NOT NULL LIMIT 1) AS confirm_title
-      FROM numbered items WHERE CASE WHEN ?<>'' THEN id=? ELSE ref_key LIKE ? ESCAPE '\\' OR title LIKE ? ESCAPE '\\' OR url LIKE ? ESCAPE '\\' END
+        ORDER BY CASE c.state WHEN 'confirmed' THEN 0 WHEN 'rejected' THEN 1 WHEN 'unreachable' THEN 2 ELSE 3 END LIMIT 1) AS confirm_state
+      FROM numbered items LEFT JOIN confirmed_titles ON confirmation_provider=items.provider AND confirmation_key=items.ref_key AND title_rank=1
+      WHERE CASE WHEN ?<>'' THEN id=? ELSE ref_key LIKE ? ESCAPE '\\' OR title LIKE ? ESCAPE '\\' OR url LIKE ? ESCAPE '\\' OR confirm_title LIKE ? ESCAPE '\\' END
       -- A reference the tracker says does not exist is hidden like a dismissed
       -- one; an exact lookup still finds it.
       AND (?<>'' OR ?=1 OR confirm_state IS NOT 'rejected')
@@ -864,6 +869,7 @@ export class IssueStore {
       escaped(query),
       escaped(query),
       escaped(query),
+      escaped(query),
       options.identity ?? "",
       dismissed ? 1 : 0,
       limit,
@@ -874,12 +880,13 @@ export class IssueStore {
         ? String(row.id)
         : unresolvedId(String(row.context), String(row.ref_key)),
       key: String(row.ref_key),
-      title:
-        typeof row.title === "string" &&
-        !row.manual &&
-        isReferenceLabel(row.title, String(row.ref_key))
-          ? null
-          : (row.title as string | null),
+      title: row.manual
+        ? (row.title as string | null)
+        : ((row.confirm_title as string | null) ??
+          (typeof row.title === "string" &&
+          !isReferenceLabel(row.title, String(row.ref_key))
+            ? row.title
+            : null)),
       url: row.url as string | null,
       provider: String(row.provider),
       kind: String(row.kind),

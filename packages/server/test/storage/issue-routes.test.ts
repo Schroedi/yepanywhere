@@ -481,7 +481,12 @@ it("asks a tracker only about a reference YA captured in that project", async ()
   });
   const fetcher = vi.fn(
     async () =>
-      new Response(JSON.stringify({ title: "A pull" }), { status: 200 }),
+      new Response(
+        JSON.stringify({ title: "Repair 50%_complete cancellation" }),
+        {
+          status: 200,
+        },
+      ),
   );
   const confirmer = new IssueConfirmer(store, {
     settings: () => settings.getSetting("issueAssociations")!,
@@ -520,6 +525,22 @@ it("asks a tracker only about a reference YA captured in that project", async ()
       { id: "m", text: "see https://github.com/a/b/issues/7" },
     );
     await confirmer.drain();
+    expect(fetcher).toHaveBeenCalledTimes(1);
+
+    const search = async (query: string) =>
+      (await app.request(`/issues?q=${encodeURIComponent(query)}`)).json();
+    const found = await search("CANCELL");
+    expect(found.items).toMatchObject([
+      { key: "a/b#7", title: "Repair 50%_complete cancellation" },
+    ]);
+    expect((await search("50%_complete")).items).toHaveLength(1);
+    expect((await search("50%complete")).items).toHaveLength(0);
+    expect((await search("50__complete")).items).toHaveLength(0);
+    store.title(found.items[0].id, "Local override");
+    expect((await search("cancellation")).items).toMatchObject([
+      { title: "Local override" },
+    ]);
+    expect((await search("local override")).items).toHaveLength(1);
     expect(fetcher).toHaveBeenCalledTimes(1);
 
     // A typo, a key captured only in another project, and the right key under
