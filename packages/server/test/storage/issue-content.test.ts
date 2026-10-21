@@ -233,3 +233,37 @@ it("does not save missing description as a successful empty body, or publish an 
   await h.refresh(true);
   expect(h.store.list("Do not save")).toHaveLength(0);
 });
+
+it("applies the content TTL to both trackers, with one-second and never-expire endpoints", async () => {
+  const fetcher = vi.fn<typeof fetch>().mockImplementation(async () =>
+    Response.json({
+      title: "Subject",
+      body: "Body",
+      fields: { summary: "Subject", description: "Body" },
+    }),
+  );
+  const h = fixture(fetcher);
+  h.settings.contentTtlSeconds = 1;
+  h.settings.statusCommentTtlSeconds = 300;
+  h.capture("https://example.atlassian.net/browse/ASR-7");
+  h.capture("https://github.com/o/r/issues/1");
+  await h.refresh();
+  expect(fetcher).toHaveBeenCalledTimes(2);
+  h.advance(999);
+  await h.refresh();
+  expect(fetcher).toHaveBeenCalledTimes(2);
+  h.advance(1);
+  await h.refresh();
+  expect(fetcher).toHaveBeenCalledTimes(4);
+  h.settings.contentTtlSeconds = null;
+  h.advance(365 * 86400_000);
+  await h.refresh();
+  expect(fetcher).toHaveBeenCalledTimes(4);
+  await h.refresh(true);
+  expect(fetcher).toHaveBeenCalledTimes(6);
+  h.settings.enabled = false;
+  expect((await h.app.request("/api/issues/content?id=any")).status).toBe(403);
+  expect(
+    (await h.app.request("/api/issues/refresh", { method: "POST" })).status,
+  ).toBe(403);
+});

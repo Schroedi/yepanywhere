@@ -40,14 +40,29 @@ fetched. GitHub uses the issue endpoint's `body`, including for pull requests.
 The refresh and settings controls are compact icons with accessible names and
 44-pixel targets. Normal refresh scans all stored canonical ticket URLs,
 including old-session references, for missing or expired content. It respects
-a shared two-week subject/body TTL and two-week 404/410 negative cache.
+a shared subject/body TTL, default two weeks, including 404/410 negative results.
 Right-click, long-press or Shift+F10 on refresh immediately rechecks all tickets,
 ignoring cache age, without opening a menu. This bypasses TTL, including cached
-misses, but respects retry cooldowns and provider rate limits. Selecting a ticket requests the same
-revalidation for that item; saved content remains visible. Concurrent requests
-coalesce, with at most the latest selected item retained for a follow-up pass.
+misses, but respects retry cooldowns and provider rate limits. Selecting a ticket
+requests the same revalidation for that item; saved content remains visible.
+Concurrent requests coalesce, with at most the latest selected item retained
+for a follow-up pass.
 These actions refresh already discovered references; they do not read previously
 unindexed session transcripts.
+
+Settings provides two cache-lifetime sliders: **Subject & body** defaults to
+two weeks for both Jira and GitHub; **Status & comments** defaults to five
+minutes and currently controls GitHub status checks only. Comments are not
+fetched yet. Both sliders have discrete stops from one second through
+**Never expire (∞)**. A drag updates its displayed value immediately and saves
+when released; keyboard changes save on key release. Expiration only permits
+a later refresh/view to fetch again; it never starts a polling timer. Never
+expire still permits initial acquisition, explicit content revalidation and
+status-cache clearing. Failed requests retain their separate retry cooldown.
+The settings response supplies `contentTtlSeconds` and
+`statusCommentTtlSeconds`, with `null` meaning never expire. Older servers omit
+these fields, so clients hide the controls; older clients omit them on save,
+so servers preserve the saved values.
 
 Refresh runs serially, pauses one second between requests, reads at most 50
 candidate identities per page, and yields between cached pages. Requests time
@@ -77,7 +92,7 @@ The optional `contentRefresh` response field advertises the refresh and cached
 content routes. Clients connected to earlier servers retain list-only refresh
 and offer no force-refresh action or body read. Disabling the feature or changing
 its settings fences in-flight content publication. The fuller first-mention
-TTL policy, TTL slider, indexed search/highlighting and comments remain in the
+TTL policy, indexed search/highlighting and comments remain in the
 [content-search sketch](issue-session-associations.sketches.md).
 Pasting a full URL finds its canonical record. An exact lookup, `GET /api/issues?ref=<url>`,
 matches only the item whose canonical identity the URL names, from any URL a
@@ -342,7 +357,8 @@ badge. Jira status and Enterprise hosts remain deferred. These operations only
 read GitHub metadata, even when the underlying token has broader permissions.
 
 A `GET /api/issues` read returns cached facts and queues returned items whose
-state is missing or at least five minutes old. Merged facts never automatically
+state is missing or older than the status/comment TTL (default five minutes).
+Merged facts never automatically
 expire or refresh. A failed lookup retains the last successful state/check time
 and persists a five-minute retry delay. Readers share one server-wide pass,
 with up to 50 items per GraphQL query and at most 200 queued/in-flight items.

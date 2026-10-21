@@ -1,9 +1,12 @@
 import { setTimeout as delay } from "node:timers/promises";
-import type { IssueSearchResult, IssueSettings } from "@yep-anywhere/shared";
+import {
+  DEFAULT_ISSUE_CONTENT_TTL_SECONDS,
+  type IssueSearchResult,
+  type IssueSettings,
+} from "@yep-anywhere/shared";
 import type { IssueContent, IssueStore } from "./IssueStore.js";
 import type { IssueCredentials } from "./credentials.js";
 
-const TTL = 14 * 86400_000;
 const RETRY = 5 * 60_000;
 const MAX_RESPONSE = 2 * 1024 * 1024;
 
@@ -157,6 +160,11 @@ export class IssueContentRefresher {
     let after = "";
     let requested = false;
     const settings = this.deps.settings();
+    const ttl =
+      settings.contentTtlSeconds === null
+        ? Infinity
+        : (settings.contentTtlSeconds ?? DEFAULT_ISSUE_CONTENT_TTL_SECONDS) *
+          1000;
     const configuration = JSON.stringify(settings);
     const current = () =>
       !this.closed &&
@@ -175,7 +183,7 @@ export class IssueContentRefresher {
           (freshness.retryAfter > now ||
             (!force &&
               freshness.state !== "failed" &&
-              now - freshness.checkedAt < TTL))
+              now - freshness.checkedAt < ttl))
         ) {
           ++this.progress.skipped;
           continue;

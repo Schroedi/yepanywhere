@@ -3,28 +3,28 @@
 Candidate extension to [Issues & PRs](issue-session-associations.md).
 Staged implementation is authorized. The current contract remains in the main
 topic; the remainder below is candidate work. Subject and main body are the
-first content scope; comments and separate per-content TTL policies remain
-later extensions.
+first content scope; comments remain a later extension.
 
 ## Delivery stages
 
 Landed: cached subject search; canonical subject/body storage and literal body
 search; first-confirmation description retention; serial explicit historical
-refresh with a two-week TTL and negative caching; icon controls with right-click,
-long-press and keyboard force refresh; conditional revalidation and plain-text
-cached details. The main topic owns these contracts. Remaining stages below
-include automatic per-mention TTL checks, the TTL slider, automatic resumable
-backfill, shared scheduling of confirmation/content work, and richer indexed
-incremental-search presentation. Comments and independent TTLs remain deferred.
+refresh with a configurable two-week default TTL and negative caching; icon
+controls with right-click, long-press and keyboard force refresh; conditional revalidation and plain-text
+cached details; independent subject/body and status/comment TTL sliders. The
+main topic owns these contracts. Remaining stages below include automatic
+per-mention TTL checks, automatic resumable backfill, shared scheduling of
+confirmation/content work, and richer indexed
+incremental-search presentation. Comments remain deferred.
 
 1. Search and display subjects already fetched by the existing confirmation
    worker, preserving manual titles. This stage changes no acquisition policy,
    adds no network work, and needs no new schema or wire fields.
 2. Add canonical-identity-owned subject/body storage and bounded acquisition,
    public access, negative caching, first-mention checks and historical backfill.
-   Start with a shared two-week TTL and explicit-click revalidation; independent
-   body/comment TTL controls remain deferred. Preserve the candidate policy
-   below for later refinement.
+   Subject/body now share a configurable two-week default TTL and explicit-click
+   revalidation. Comments will use the status/comment tier. Preserve the
+   candidate acquisition policy below for later refinement.
 3. Add body search and the full incremental-search interaction, reusing existing
    display primitives, with cached details and responsive input. Prove matching
    independently of UI polish if that gives earlier useful evidence.
@@ -57,10 +57,10 @@ viewed tickets take priority over the historical backlog.
 
 ## Freshness and explicit clicks
 
-Use a global subject TTL slider with a two-week default and a discrete
-Never expire (infinity) endpoint. Body freshness has an independent TTL;
-its default remains to be chosen and may be shorter. Future comments need a
-shorter freshness policy of their own. TTL expiration only makes a part
+The implemented sliders share one TTL for subject/body (two-week default) and
+another for status/comments (five-minute default), each from one second through
+Never expire (infinity). Future comment acquisition should use the latter.
+TTL expiration only makes a part
 eligible for refresh when a mention, view, or backfill checks it; expiration
 does not start timers or polling.
 
@@ -86,12 +86,12 @@ description text from its authenticated first lookup; explicit content refresh
 also permits public access. The legacy confirmation identity gap still applies
 to old verdict/title fallback, not to canonical body storage.
 
-Propose a durable content record owned by `IssueStore`, keyed by canonical
-issue identity and content part (subject or body). Keep tracker content
-separate from session mention evidence and from user title overrides. Exact
-table/column names and migration are implementation work. Resolve the existing
+Extend the canonical content record owned by `IssueStore` for future comment
+acquisition; retain the implemented shared subject/body snapshot. Keep tracker
+content separate from session mention evidence and user title overrides.
+Resolve the existing
 [confirmation identity gap](../gaps/issue-confirmation-cache-lacks-tracker-identity.md)
-before widening acquisition to more sites. Each part needs:
+before widening acquisition to more sites. Future comment storage needs:
 
 - Acquisition state: never requested, acquired (including a genuinely empty
   body), unavailable, or transient failure. Unavailable must not be mistaken
@@ -173,7 +173,7 @@ newer results, and background content updates must preserve input and selection.
 ## Later: fresh comment search
 
 Comments are useful search material, but excluded from the first slice.
-Their eventual acquisition needs separate freshness, stable comment identities,
+Their eventual acquisition needs the status/comment TTL, stable comment identities,
 pagination completion/cursors, edits and deletions, and bounded incremental
 refresh where the provider supports it. A timestamp alone cannot claim that
 all comments were acquired. Expose partial/stale coverage in search results.

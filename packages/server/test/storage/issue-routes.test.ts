@@ -51,6 +51,33 @@ it("gates all data routes, validates settings, saves through the shared settings
     expect((await request("/")).status).toBe(403);
     expect((await request("/evidence?id=anything")).status).toBe(403);
     expect((await request("/settings")).status).toBe(200);
+    expect((await (await request("/settings")).json()).settings).toMatchObject({
+      contentTtlSeconds: 1209600,
+      statusCommentTtlSeconds: 300,
+    });
+    for (const value of [0, -1, 2, "never"]) {
+      expect(
+        (
+          await request("/settings", "PUT", {
+            enabled: true,
+            scope: "viewed",
+            recentDays: 7,
+            contentTtlSeconds: value,
+          })
+        ).status,
+      ).toBe(400);
+    }
+    expect(
+      (
+        await request("/settings", "PUT", {
+          enabled: true,
+          scope: "viewed",
+          recentDays: 7,
+          contentTtlSeconds: null,
+          statusCommentTtlSeconds: 1,
+        })
+      ).status,
+    ).toBe(200);
     expect(
       (
         await request("/settings", "PUT", {
@@ -152,6 +179,11 @@ it("gates all data routes, validates settings, saves through the shared settings
     const second = new ServerSettingsService({ dataDir });
     await second.initialize();
     expect(second.getSetting("issueAssociations")?.enabled).toBe(true);
+    // Older clients omit both fields; their later PUTs must preserve them.
+    expect(second.getSetting("issueAssociations")).toMatchObject({
+      contentTtlSeconds: null,
+      statusCommentTtlSeconds: 1,
+    });
   } finally {
     unsub();
     await indexer.close();
