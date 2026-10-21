@@ -85,6 +85,15 @@ export interface PendingConfirmation {
   provider: string;
   refKey: string;
 }
+export interface IssueContent {
+  title: string | null;
+  body: string | null;
+  checkedAt: number;
+  retryAfter: number;
+  state: "available" | "unavailable" | "failed";
+  etag: string | null;
+  modified: string | null;
+}
 const escaped = (value: string) => `%${value.replace(/[\\%_]/g, "\\$&")}%`;
 export const unresolvedId = (project: string, key: string) =>
   `ref:${JSON.stringify([project, key])}`;
@@ -163,6 +172,91 @@ export class IssueStore {
 
   clearTrackerStatuses(): void {
     this.run("DELETE FROM issue_tracker_status");
+  }
+
+  contentCandidates(after = "", id = "") {
+    return this.rows(
+      "SELECT id,url,provider,ref_key FROM external_issues WHERE id>? AND (?='' OR id=?) ORDER BY id LIMIT 50",
+      after,
+      id,
+      id,
+    ).map((row) => ({
+      id: String(row.id),
+      url: String(row.url),
+      provider: String(row.provider),
+      key: String(row.ref_key),
+    }));
+  }
+
+  contentBackoff(until?: number): number {
+    if (until !== undefined)
+      this.run(
+        "INSERT INTO issue_content_backoff(singleton,until_at) VALUES(1,?) ON CONFLICT(singleton) DO UPDATE SET until_at=MAX(until_at,excluded.until_at)",
+        until,
+      );
+    return Number(
+      this.rows(
+        "SELECT until_at FROM issue_content_backoff WHERE singleton=1",
+      )[0]?.until_at ?? 0,
+    );
+  }
+
+  content(id: string): IssueContent | null {
+    const row = this.rows(
+      "SELECT * FROM issue_content WHERE issue_id=?",
+      id,
+    )[0];
+    return row
+      ? {
+          title: row.title as string | null,
+          body: row.body as string | null,
+          checkedAt: Number(row.checked_at),
+          retryAfter: Number(row.retry_after),
+          state: row.state as IssueContent["state"],
+          etag: row.etag as string | null,
+          modified: row.modified as string | null,
+        }
+      : null;
+  }
+
+  contentFreshness(id: string) {
+    const row = this.rows(
+      "SELECT checked_at,retry_after,state FROM issue_content WHERE issue_id=?",
+      id,
+    )[0];
+    return row
+      ? {
+          checkedAt: Number(row.checked_at),
+          retryAfter: Number(row.retry_after),
+          state: String(row.state),
+        }
+      : null;
+  }
+
+  validateContent(id: string, checkedAt: number): void {
+    this.run(
+      "UPDATE issue_content SET checked_at=?,retry_after=0,state='available' WHERE issue_id=?",
+      checkedAt,
+      id,
+    );
+  }
+
+  saveContent(id: string, value: IssueContent): void {
+    this.run(
+      `INSERT INTO issue_content(issue_id,title,body,checked_at,retry_after,state,etag,modified)
+      SELECT id,?,?,?,?,?,?,? FROM external_issues WHERE id=?
+      ON CONFLICT(issue_id) DO UPDATE SET title=excluded.title,body=excluded.body,
+      checked_at=excluded.checked_at,retry_after=excluded.retry_after,state=excluded.state,
+      etag=excluded.etag,modified=excluded.modified`,
+      value.title,
+      value.body,
+      value.checkedAt,
+      value.retryAfter,
+      value.state,
+      value.etag,
+      value.modified,
+      id,
+    );
   }
 
   private rows(sql: string, ...values: SqliteValue[]): SqliteRow[] {
@@ -842,16 +936,17 @@ export class IssueStore {
       SELECT provider AS confirmation_provider,ref_key AS confirmation_key,title AS confirm_title,
         ROW_NUMBER() OVER (PARTITION BY provider,ref_key ORDER BY checked_at DESC,project_id) AS title_rank
       FROM issue_confirmations WHERE state='confirmed' AND title IS NOT NULL
-    ) SELECT items.*,confirmed_titles.confirm_title,
+    ) SELECT items.*,confirmed_titles.confirm_title,content.title AS content_title,
       -- The most decisive verdict for this reference: one project confirming
       -- it settles the key even when another only recorded an outage.
       (SELECT c.state FROM issue_confirmations c WHERE c.ref_key=items.ref_key
         ORDER BY CASE c.state WHEN 'confirmed' THEN 0 WHEN 'rejected' THEN 1 WHEN 'unreachable' THEN 2 ELSE 3 END LIMIT 1) AS confirm_state
       FROM numbered items LEFT JOIN confirmed_titles ON confirmation_provider=items.provider AND confirmation_key=items.ref_key AND title_rank=1
-      WHERE CASE WHEN ?<>'' THEN id=? ELSE ref_key LIKE ? ESCAPE '\\' OR title LIKE ? ESCAPE '\\' OR url LIKE ? ESCAPE '\\' OR confirm_title LIKE ? ESCAPE '\\' END
+      LEFT JOIN issue_content content ON content.issue_id=items.id
+      WHERE CASE WHEN ?<>'' THEN id=? ELSE ref_key LIKE ? ESCAPE '\\' OR items.title LIKE ? ESCAPE '\\' OR url LIKE ? ESCAPE '\\' OR confirm_title LIKE ? ESCAPE '\\' OR content.title LIKE ? ESCAPE '\\' OR content.body LIKE ? ESCAPE '\\' END
       -- A reference the tracker says does not exist is hidden like a dismissed
       -- one; an exact lookup still finds it.
-      AND (?<>'' OR ?=1 OR confirm_state IS NOT 'rejected')
+      AND (?<>'' OR ?=1 OR content.state='available' OR confirm_state IS NOT 'rejected')
       ORDER BY ${order},ref_key,context,id LIMIT ? OFFSET ?`,
       JSON.stringify(
         (options.sessionActivity ?? []).map(({ sessionId, updatedAt }) => ({
@@ -870,6 +965,8 @@ export class IssueStore {
       escaped(query),
       escaped(query),
       escaped(query),
+      escaped(query),
+      escaped(query),
       options.identity ?? "",
       dismissed ? 1 : 0,
       limit,
@@ -882,7 +979,8 @@ export class IssueStore {
       key: String(row.ref_key),
       title: row.manual
         ? (row.title as string | null)
-        : ((row.confirm_title as string | null) ??
+        : ((row.content_title as string | null) ??
+          (row.confirm_title as string | null) ??
           (typeof row.title === "string" &&
           !isReferenceLabel(row.title, String(row.ref_key))
             ? row.title

@@ -195,6 +195,14 @@ export interface IssueCoverage {
   counts: Array<{ state: string; count: number }>;
 }
 export interface IssueSearchResult {
+  /** Presence advertises subject/body refresh and cached content endpoints. */
+  contentRefresh?: {
+    active: boolean;
+    checked: number;
+    skipped: number;
+    failed: number;
+    error: string | null;
+  };
   /** Absent on earlier experimental servers; do not offer unsupported sorting. */
   supportedSorts?: IssueSort[];
   sort?: IssueSort | "key";

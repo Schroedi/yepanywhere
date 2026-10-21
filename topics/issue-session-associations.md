@@ -28,8 +28,56 @@ Search uses literal, case-insensitive substrings of stored keys, URLs and titles
 Fetched confirmation subjects also participate in substring search, even when
 a manual title overrides the displayed subject. Display prefers the manual
 title, then the fetched subject, then a descriptive observed link label. This
-uses already-saved confirmation data and adds no tracker request. Body search,
-new acquisition policy and richer incremental-search presentation remain in the
+also searches durably fetched descriptions. Canonical content subjects take
+precedence over legacy confirmation subjects. Search itself makes no tracker
+requests and list responses never carry complete bodies. Selected tickets show
+the cached plain-text description; fetching it does not require downloading
+other tickets' bodies. Jira v3 requests explicitly include `summary,description`;
+ADF text, paragraph breaks, link destinations and smart-link card URLs become
+searchable text. Remote smart-card preview metadata and attachments are not
+fetched. GitHub uses the issue endpoint's `body`, including for pull requests.
+
+The refresh and settings controls are compact icons with accessible names and
+44-pixel targets. Normal refresh scans all stored canonical ticket URLs,
+including old-session references, for missing or expired content. It respects
+a shared two-week subject/body TTL and two-week 404/410 negative cache.
+Right-click, long-press or Shift+F10 on refresh offers **Recheck all tickets,
+ignoring cache age**. This bypasses TTL, including cached misses, but respects
+retry cooldowns and provider rate limits. Selecting a ticket requests the same
+revalidation for that item; saved content remains visible. Concurrent requests
+coalesce, with at most the latest selected item retained for a follow-up pass.
+These actions refresh already discovered references; they do not read previously
+unindexed session transcripts.
+
+Refresh runs serially, pauses one second between requests, reads at most 50
+candidate identities per page, and yields between cached pages. Requests time
+out after ten seconds and responses are bounded to 2 MiB. ETag and Last-Modified
+validators are used when returned; a 304 advances validation time and retains
+the body. A provider without validators receives a normal GET. Transient errors
+preserve prior content without marking it fresh and impose a five-minute retry
+cooldown. Rate limits stop the pass and persist their retry deadline across
+restarts, with no automatic retry timer. Refresh progress and failure counts
+appear beneath the toolbar. A stopped/restarted server needs another refresh;
+completed per-ticket results survive, so regular refresh skips them.
+
+Content is stored once per canonical tracker identity in `issue_content`, in
+app-data SQLite. A 404/410 removes previously saved content for that ticket;
+other failures retain the last good text. Deleting an item cascades to its
+content. Public HTTPS Jira tickets and github.com items can be fetched without
+credentials. Jira credentials are sent only to the exact configured site and
+context path; GitHub credentials only to api.github.com. Redirects are refused.
+Unsupported hosts/protocols count as failed attempts. Public shares receive no
+cached tracker content. Explicit refresh requires Issues & PRs enabled, while
+automatic confirmation retains its separate setting and once-per-reference
+policy. That first confirmation now retains description text from the same
+response when the fetched site's canonical record exists. Existing subject-only
+confirmations remain eligible for normal refresh.
+
+The optional `contentRefresh` response field advertises the refresh and cached
+content routes. Clients connected to earlier servers retain list-only refresh
+and offer no force-refresh action or body read. Disabling the feature or changing
+its settings fences in-flight content publication. The fuller first-mention
+TTL policy, TTL slider, indexed search/highlighting and comments remain in the
 [content-search sketch](issue-session-associations.sketches.md).
 Pasting a full URL finds its canonical record. An exact lookup, `GET /api/issues?ref=<url>`,
 matches only the item whose canonical identity the URL names, from any URL a

@@ -1,4 +1,5 @@
 import { createIssueStatusRoutes } from "./issue-status.js";
+import type { IssueContentRefresher } from "../services/issues/content.js";
 import { Hono, type MiddlewareHandler } from "hono";
 import type {
   IssueSettings,
@@ -69,6 +70,7 @@ export function createIssueRoutes(
     }[]
   > = async () => [],
   statuses?: IssueStatusRefresher,
+  content?: IssueContentRefresher,
 ) {
   const routes = new Hono();
   routes.get("/issues/settings", (c) => c.json(indexer.coverage()));
@@ -228,10 +230,30 @@ export function createIssueRoutes(
       sort,
       ...(ref === undefined ? {} : { ref }),
       items,
+      ...(content ? { contentRefresh: content.status() } : {}),
       ...(refreshing ? { statusRefreshing: true } : {}),
       coverage: indexer.coverage(),
       nextOffset: items.length === p.size ? p.start + p.size : null,
     });
+  });
+  routes.post("/issues/refresh", async (c) => {
+    const body = await c.req.json().catch(() => null);
+    if (
+      !body ||
+      typeof body.force !== "boolean" ||
+      (body.id !== undefined &&
+        (typeof body.id !== "string" || body.id.length > 4096))
+    )
+      return c.json({ error: "Expected force and optional issue id" }, 400);
+    if (!content) return c.json({ error: "Content refresh unavailable" }, 503);
+    content.start(body.force, body.id);
+    return c.json(content.status(), 202);
+  });
+  routes.get("/issues/content", (c) => {
+    const id = c.req.query("id");
+    if (!id || id.length > 4096)
+      return c.json({ error: "Expected issue id" }, 400);
+    return c.json({ content: indexer.store.content(id) });
   });
   routes.get("/issues/sessions", async (c) => {
     const p = page(c.req.query("limit"), c.req.query("offset"));

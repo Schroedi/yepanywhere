@@ -11,6 +11,7 @@ import {
 import { createConversationSource } from "./experimental/conversation-source.js";
 import { createExperimentalConversationRoutes } from "./routes/experimental-conversation.js";
 import { IssueStore } from "./services/issues/IssueStore.js";
+import { IssueContentRefresher } from "./services/issues/content.js";
 import { IssueIndexer } from "./services/issues/IssueIndexer.js";
 import { createIssueRoutes } from "./routes/issues.js";
 import { IssueCredentials } from "./services/issues/credentials.js";
@@ -1487,6 +1488,7 @@ export function createApp(options: AppOptions): AppResult {
   let retainedCollections: RetainedSessionCollections | undefined;
   let issueIndexer: IssueIndexer | undefined;
   let issueConfirmer: IssueConfirmer | undefined;
+  let issueContent: IssueContentRefresher | undefined;
   let issueStatuses: IssueStatusRefresher | undefined;
   const issueDisposers: Array<() => void> = [];
   let vocabularyLearning: VocabularyLearning | undefined;
@@ -1542,6 +1544,7 @@ export function createApp(options: AppOptions): AppResult {
       for (const dispose of issueDisposers) dispose();
       await issueIndexer?.close();
       await issueConfirmer?.close();
+      await issueContent?.close();
       await issueStatuses?.close();
       unsubscribeVocabulary?.();
       options.speechBackendRegistry?.setVocabularySource(undefined);
@@ -2983,6 +2986,11 @@ export function createApp(options: AppOptions): AppResult {
       credentials: issueCredentials,
     });
     issueConfirmer = confirmer;
+    const content = new IssueContentRefresher(issueStore, {
+      settings: issueSettings,
+      credentials: issueCredentials,
+    });
+    issueContent = content;
     const statuses = new IssueStatusRefresher({
       store: issueStore,
       settings: issueSettings,
@@ -3069,6 +3077,7 @@ export function createApp(options: AppOptions): AppResult {
         confirmer,
         async () => (await catalog.read()).rows,
         statuses,
+        content,
       ),
     );
     indexer.configure();

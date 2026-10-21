@@ -8,6 +8,15 @@ later extensions.
 
 ## Delivery stages
 
+Landed: cached subject search; canonical subject/body storage and literal body
+search; first-confirmation description retention; serial explicit historical
+refresh with a two-week TTL and negative caching; icon controls with right-click,
+long-press and keyboard force refresh; conditional revalidation and plain-text
+cached details. The main topic owns these contracts. Remaining stages below
+include automatic per-mention TTL checks, the TTL slider, automatic resumable
+backfill, shared scheduling of confirmation/content work, and richer indexed
+incremental-search presentation. Comments and independent TTLs remain deferred.
+
 1. Search and display subjects already fetched by the existing confirmation
    worker, preserving manual titles. This stage changes no acquisition policy,
    adds no network work, and needs no new schema or wire fields.
@@ -70,11 +79,12 @@ block opening or navigating the item.
 
 The existing schema has observed/manual titles in `external_issues`, a fetched
 title and check time in `issue_confirmations`, and separate tracker status
-facts in `issue_tracker_status`. It has no tracker-body storage. The shared
-`IssueItem` contract likewise has no body. `IssueConfirmer` already extracts
-subjects, but requires credentials even for public items. The first delivery
-stage makes that separate confirmation title searchable and supplies it as
-the displayed title unless manually overridden.
+facts in `issue_tracker_status`. Canonical subject/body snapshots now live in
+`issue_content`; the shared `IssueItem` deliberately carries no body. An
+individual cached-content route loads it on selection. `IssueConfirmer` retains
+description text from its authenticated first lookup; explicit content refresh
+also permits public access. The legacy confirmation identity gap still applies
+to old verdict/title fallback, not to canonical body storage.
 
 Propose a durable content record owned by `IssueStore`, keyed by canonical
 issue identity and content part (subject or body). Keep tracker content
