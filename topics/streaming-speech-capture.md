@@ -33,7 +33,8 @@ Primary code: `packages/client/src/lib/speechProviders/YaServerProvider.ts`
   default until desktop Chrome plus mobile browsers prove reliable. This will
   address processor deprecation and likely mobile frame-delivery flakiness; it
   will **not** fix the pre-graph `getUserMedia` cold-open latency, which occurs
-  before either processor type exists.
+  before either processor type exists. Design sketch:
+  [audioworklet-mic-capture.md](../gaps/sketches/audioworklet-mic-capture.md).
 
 ## Hard contracts (each cost a debugging cycle)
 

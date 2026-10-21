@@ -599,6 +599,51 @@ describe("browser-native speech provider", () => {
     return Recognition;
   }
 
+  it("accepts the final result after stop and settles only on end", () => {
+    class DelayedRecognition extends FakeSpeechRecognition {
+      stop() {}
+    }
+    const Recognition = installFakeSpeechRecognition(DelayedRecognition);
+    const onResult = vi.fn();
+    const provider = new BrowserNativeProvider({ onResult });
+    provider.start();
+    provider.stop();
+    expect(provider.getState().status).toBe("finalizing");
+    Recognition.instance?.onresult?.({
+      resultIndex: 0,
+      results: [{ isFinal: true, 0: { transcript: "final wording" } }],
+    } as unknown as Event);
+    expect(onResult).toHaveBeenCalledWith("final wording");
+    expect(provider.getState().status).toBe("finalizing");
+    Recognition.instance?.onend?.(new Event("end"));
+    expect(provider.getState().status).toBe("idle");
+    provider.dispose();
+  });
+
+  it("fails a stalled finalization and ignores late results", () => {
+    vi.useFakeTimers();
+    class DelayedRecognition extends FakeSpeechRecognition {
+      stop() {}
+    }
+    const Recognition = installFakeSpeechRecognition(DelayedRecognition);
+    const onResult = vi.fn();
+    const provider = new BrowserNativeProvider({ onResult });
+    try {
+      provider.start();
+      provider.stop();
+      vi.advanceTimersByTime(5000);
+      expect(provider.getState().status).toBe("error");
+      Recognition.instance?.onresult?.({
+        resultIndex: 0,
+        results: [{ isFinal: true, 0: { transcript: "too late" } }],
+      } as unknown as Event);
+      expect(onResult).not.toHaveBeenCalled();
+    } finally {
+      provider.dispose();
+      vi.useRealTimers();
+    }
+  });
+
   it("does not expose prewarm, avoiding browser-owned recording indicators", () => {
     const provider = new BrowserNativeProvider();
 

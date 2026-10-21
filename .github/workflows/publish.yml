@@ -11,7 +11,8 @@ env:
 jobs:
   validate:
     name: Validate release
-    runs-on: ubuntu-latest
+    # Pinned for the held Playwright; see ci.yml computer-control.
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
 
