@@ -5203,6 +5203,9 @@ describe("Sessions metadata route", () => {
   });
 
   it("gives a failed fork's number to the next fork", async () => {
+    const warn = vi
+      .spyOn(getLogger(), "warn")
+      .mockImplementation(() => undefined);
     const project = createProject();
     const dataDir = await mkdtemp(join(tmpdir(), "ya-fork-ordinal-"));
     try {
@@ -5243,6 +5246,13 @@ describe("Sessions metadata route", () => {
         });
 
       expect((await fork()).status).toBe(500);
+      expect(warn).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          event: "session_fork_failed",
+          error: "provider fork failed",
+        }),
+        "Transcript fork failed",
+      );
       const response = await fork();
       expect(response.status).toBe(200);
       expect((await response.json()).title).toBe("Fork: Refactor session");
