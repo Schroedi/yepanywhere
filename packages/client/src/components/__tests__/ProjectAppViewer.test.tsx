@@ -761,12 +761,27 @@ it("shows the page its frame reports and opens a crumb under the view's link", a
   expect(
     screen.queryByRole("navigation", { name: "Page shown in the app" }),
   ).toBeNull();
+  const answers = vi
+    .spyOn(frame.contentWindow!, "postMessage")
+    .mockImplementation(() => {});
   report(`https://app-x.example${paper}?ya_access=leak`, frame.contentWindow);
   const trail = await screen.findByRole("navigation", {
     name: "Page shown in the app",
   });
   expect(trail.textContent).toBe("/research/papers/p/_build/index.html");
   expect(trail.textContent).not.toContain("leak");
+  // The page learns whether the bar shows its whole path: jsdom lays out
+  // nothing, so not yet; a trail that fits answers that it does.
+  const shown = (value: boolean) =>
+    expect(answers).toHaveBeenLastCalledWith(
+      { type: "yep-anywhere:app-location-shown", shown: value },
+      "https://app-x.example",
+    );
+  await waitFor(() => shown(false));
+  Object.defineProperty(trail, "clientWidth", { value: 300 });
+  Object.defineProperty(trail, "scrollWidth", { value: 300 });
+  report(`https://app-x.example${paper}`, frame.contentWindow);
+  await waitFor(() => shown(true));
   fireEvent.click(screen.getByRole("button", { name: "papers" }));
   expect(frame.src).toBe(
     "https://app-x.example/research/papers/?ya_access=view-token",

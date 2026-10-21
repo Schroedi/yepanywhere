@@ -91,7 +91,12 @@ history or `#` changes (the repo-view template base does). YA
 accepts it only from its own frame's window with the view's origin, drops any
 `ya_access`, and shows the path after the project name as small crumbs. The
 crumbs clip at their start, so the current page stays visible, and give way
-first when the bar is crowded (on phones they usually vanish). A directory
+first when the bar is crowded (on phones they usually vanish). YA answers each
+report, and each later change, with `{type:
+"yep-anywhere:app-location-shown", shown}` posted to the frame at the view's
+origin; `shown` is false while the trail is clipped, so an app can show its
+own crumbs only when the bar does not (repo-view hides its crumbs while framed
+unless told `shown: false`). A directory
 crumb navigates the frame under the view's own access link. Apps that never
 post keep the static title; nothing changes for them.
 Closing it changes navigation only. Stop is a separate service control in

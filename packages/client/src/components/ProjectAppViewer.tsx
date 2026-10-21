@@ -25,6 +25,8 @@ import { useI18n } from "../i18n";
 
 /** What an app's page posts to name the page its frame is showing. */
 const APP_LOCATION_MESSAGE = "yep-anywhere:app-location";
+/** YA's answer: whether the bar shows that page's whole path. */
+const APP_LOCATION_SHOWN_MESSAGE = "yep-anywhere:app-location-shown";
 /** The access query a view link carries; YA keeps it out of the bar. */
 const ACCESS_QUERY = "ya_access";
 
@@ -276,6 +278,31 @@ export function ProjectAppViewer({
     targetKind === "app" && frameLocation
       ? locationCrumbs(frameLocation.pathname)
       : [];
+  // The page hides its own crumbs while framed; tell it when the bar's trail
+  // is clipped (narrow bars, phones), so it shows them instead.
+  const crumbsRef = useRef<HTMLElement>(null);
+  const hasCrumbs = crumbs.length > 0;
+  useEffect(() => {
+    const trail = crumbsRef.current;
+    if (!hasCrumbs || !trail || !viewUrl || !frameLocation) return;
+    const origin = new URL(viewUrl, window.location.href).origin;
+    let answered: boolean | null = null;
+    const answer = () => {
+      const shown =
+        trail.clientWidth > 0 && trail.scrollWidth <= trail.clientWidth + 1;
+      if (shown === answered) return;
+      answered = shown;
+      frameRef.current?.contentWindow?.postMessage(
+        { type: APP_LOCATION_SHOWN_MESSAGE, shown },
+        origin,
+      );
+    };
+    answer();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(answer);
+    observer.observe(trail);
+    return () => observer.disconnect();
+  }, [hasCrumbs, viewUrl, frameLocation]);
   // The bar shows whether the app is shared and copies its served address,
   // so addresses load with the app and refresh when settings open.
   useEffect(() => {
@@ -486,6 +513,7 @@ export function ProjectAppViewer({
             )}
             {crumbs.length > 0 && (
               <nav
+                ref={crumbsRef}
                 className={styles.crumbs}
                 aria-label={t("projectAppLocation")}
               >
