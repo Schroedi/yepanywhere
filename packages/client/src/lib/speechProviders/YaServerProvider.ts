@@ -27,6 +27,11 @@ import {
   prepareMicSampleTap,
 } from "./micSampleTap";
 import {
+  acquireStreamingCaptureContext,
+  prewarmStreamingCaptureContext,
+  type StreamingCaptureContextLease,
+} from "./streamingCaptureContext";
+import {
   decideBatchSpeechCommand,
   getTrailingTranscriptCommand,
   getWordText,
@@ -223,23 +228,6 @@ function getAudioContextConstructor(): typeof AudioContext | null {
       .webkitAudioContext ??
     null
   );
-}
-
-function createStreamingAudioContext(
-  AudioContextCtor: typeof AudioContext,
-): AudioContext {
-  try {
-    return new AudioContextCtor({
-      latencyHint: "interactive",
-      sampleRate: STREAM_SAMPLE_RATE,
-    });
-  } catch {
-    try {
-      return new AudioContextCtor({ latencyHint: "interactive" });
-    } catch {
-      return new AudioContextCtor();
-    }
-  }
 }
 
 function speechWsUrl(basePath: string): string {
@@ -535,7 +523,7 @@ export class YaServerProvider implements SpeechProvider {
   // does not re-hit /speech/prewarm. Cleared on failure to allow a retry.
   private prewarmedBackendKey: string | null = null;
   private ws: SpeechStreamingSocket | null = null;
-  private audioContext: AudioContext | null = null;
+  private audioContextLease: StreamingCaptureContextLease | null = null;
   private audioSource: MediaStreamAudioSourceNode | null = null;
   private sampleTap: MicSampleTap | null = null;
   private pcmChunker: Pcm16Chunker | null = null;
@@ -671,6 +659,10 @@ export class YaServerProvider implements SpeechProvider {
     // a one-shot /speech/prewarm HTTP call — no audio, no held WebSocket — and
     // needs no mic permission, so it runs even where the mic warm cannot.
     this.prewarmBackendModel();
+    const AudioContextCtor = getAudioContextConstructor();
+    if (this.options.serverStreaming && AudioContextCtor) {
+      prewarmStreamingCaptureContext(AudioContextCtor, STREAM_SAMPLE_RATE);
+    }
     const permissions = navigator.permissions;
     if (typeof permissions?.query !== "function") return;
     if (this.prewarmRequest) return;
@@ -814,10 +806,20 @@ export class YaServerProvider implements SpeechProvider {
     // resume runs inside the click's user-activation window. iOS/Android refuse
     // to start an AudioContext resumed outside a user gesture; resuming after
     // `await getUserMedia` previously left capture dead on mobile.
-    const audioContext = createStreamingAudioContext(AudioContextCtor);
-    this.audioContext = audioContext;
+    // With Keep Mic Warm the context and its capture worklet survive between
+    // dictations too, so a warm start pays neither a device open nor a module
+    // load.
+    const audioContextLease = acquireStreamingCaptureContext(
+      AudioContextCtor,
+      STREAM_SAMPLE_RATE,
+      { reuse: this.options.keepMicWarm === true },
+    );
+    this.audioContextLease = audioContextLease;
+    const audioContext = audioContextLease.context;
+    // A shared context always resumes: the previous dictation's suspend may
+    // still be pending while its state reads "running".
     const resumePromise =
-      audioContext.state === "suspended"
+      audioContext.state === "suspended" || this.options.keepMicWarm === true
         ? audioContext.resume()
         : Promise.resolve();
     // Do not swallow a rejected resume. We still build the graph (connecting a
@@ -832,8 +834,10 @@ export class YaServerProvider implements SpeechProvider {
     void prepareMicSampleTap(audioContext);
 
     const abandonContext = (): void => {
-      void audioContext.close();
-      if (this.audioContext === audioContext) this.audioContext = null;
+      audioContextLease.release();
+      if (this.audioContextLease === audioContextLease) {
+        this.audioContextLease = null;
+      }
     };
 
     // Open the socket in parallel with mic acquisition and graph setup. Relay
@@ -1887,8 +1891,8 @@ export class YaServerProvider implements SpeechProvider {
     this.sampleTap = null;
     this.audioSource = null;
     this.pcmChunker = null;
-    void this.audioContext?.close();
-    this.audioContext = null;
+    this.audioContextLease?.release();
+    this.audioContextLease = null;
     if (releaseMic) this.releaseActiveStream();
   }
 

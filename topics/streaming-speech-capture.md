@@ -38,7 +38,16 @@ into PCM16.
   rather than dropping them, and the ScriptProcessor deprecation warning goes
   away. The module is loaded from a blob URL (the app CSP allows `blob:`
   scripts), and loading starts when the capture `AudioContext` is created, in
-  parallel with `getUserMedia`, so it adds no dead window (contract #2).
+  parallel with `getUserMedia`. A module load is per context and took 30-75 ms
+  on desktop Chrome, longer than a warm mic takes to open, so with **Keep Mic
+  Warm** on, streaming STT reuses one capture context
+  (`streamingCaptureContext.ts`): it is created and loaded at prewarm (after
+  the page has had user activation) or at the first dictation, resumed in each
+  dictation's gesture, suspended when no dictation uses it, and closed when the
+  page is hidden while idle. Without Keep Mic Warm, the mobile norm, each
+  dictation creates and closes its own context as before. Speech in the gap
+  before the capture is built is not buffered, so this load shows directly as
+  later `first audio frame` and later red indicator.
   The browser-local Speech setting **Capture microphone off the main thread**
   (`yep-anywhere-speech-audio-worklet`, default on by maintainer direction)
   turns it off. The setting is read at each capture start.

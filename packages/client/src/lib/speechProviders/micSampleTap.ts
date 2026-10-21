@@ -94,10 +94,12 @@ function workletSupported(context: BaseAudioContext): boolean {
 export function prepareMicSampleTap(
   context: BaseAudioContext,
 ): Promise<boolean> {
+  // Not cached: a long-lived context must follow a later setting change.
+  if (!getSpeechAudioWorkletSetting()) return Promise.resolve(false);
   const prepared = preparedContexts.get(context);
   if (prepared) return prepared;
   let loading: Promise<boolean>;
-  if (!getSpeechAudioWorkletSetting() || !workletSupported(context)) {
+  if (!workletSupported(context)) {
     loading = Promise.resolve(false);
   } else {
     moduleUrl ??= URL.createObjectURL(

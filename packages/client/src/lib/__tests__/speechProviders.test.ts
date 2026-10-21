@@ -1108,6 +1108,7 @@ describe("YA server speech provider", () => {
     }
 
     class FakeAudioContext {
+      suspend = vi.fn(async () => undefined);
       readonly state = "running";
       readonly sampleRate = 48_000;
       readonly destination = {};
@@ -1686,6 +1687,7 @@ describe("YA server speech provider", () => {
     }
 
     class FakeAudioContext {
+      suspend = vi.fn(async () => undefined);
       readonly state = "running";
       readonly sampleRate = 48_000;
       readonly destination = {};
@@ -2016,6 +2018,7 @@ describe("YA server speech provider", () => {
     }
 
     class FakeAudioContext {
+      suspend = vi.fn(async () => undefined);
       readonly state = "running";
       readonly sampleRate = 48_000;
       readonly destination = {};
@@ -2155,6 +2158,7 @@ describe("YA server speech provider", () => {
     }
 
     class FakeAudioContext {
+      suspend = vi.fn(async () => undefined);
       readonly state = "running";
       readonly sampleRate = 48_000;
       readonly destination = {};
@@ -2293,6 +2297,7 @@ describe("YA server speech provider", () => {
     }
 
     class FakeAudioContext {
+      suspend = vi.fn(async () => undefined);
       readonly state = "running";
       readonly sampleRate = 48_000;
       readonly destination = {};
@@ -2436,6 +2441,7 @@ describe("YA server speech provider", () => {
     }
 
     class FakeAudioContext {
+      suspend = vi.fn(async () => undefined);
       readonly state = "running";
       readonly sampleRate = 48_000;
       readonly destination = {};
@@ -2566,6 +2572,7 @@ describe("YA server speech provider", () => {
     }
 
     class FakeAudioContext {
+      suspend = vi.fn(async () => undefined);
       readonly state = "running";
       readonly sampleRate = 48_000;
       readonly destination = {};
@@ -2734,6 +2741,7 @@ describe("YA server speech provider", () => {
     }
 
     class FakeAudioContext {
+      suspend = vi.fn(async () => undefined);
       readonly state = "running";
       readonly sampleRate = 48_000;
       readonly destination = {};
@@ -2864,6 +2872,7 @@ describe("YA server speech provider", () => {
       // A context that resumes but whose processor never fires a callback:
       // capture is dead even though state reports "running".
       class FakeAudioContext {
+        suspend = vi.fn(async () => undefined);
         readonly state = "suspended";
         readonly sampleRate = 48_000;
         readonly destination = {};
@@ -2980,6 +2989,7 @@ describe("YA server speech provider", () => {
     const audioContextOptions: AudioContextOptions[] = [];
     const scriptProcessorArgs: Array<[number, number, number]> = [];
     class FakeAudioContext {
+      suspend = vi.fn(async () => undefined);
       readonly state = "running";
       readonly sampleRate = 16_000;
       readonly destination = {};
@@ -3139,6 +3149,7 @@ describe("YA server speech provider", () => {
     }
 
     class FakeAudioContext {
+      suspend = vi.fn(async () => undefined);
       readonly state = "running";
       readonly sampleRate = 48_000;
       readonly destination = {};
@@ -3726,6 +3737,7 @@ describe("YA server speech provider", () => {
     }
 
     class FakeAudioContext {
+      suspend = vi.fn(async () => undefined);
       readonly state = "running";
       readonly sampleRate = 48_000;
       readonly destination = {};
@@ -3821,6 +3833,7 @@ describe("YA server speech provider", () => {
     }
 
     class FakeAudioContext {
+      suspend = vi.fn(async () => undefined);
       readonly state = "running";
       readonly sampleRate = 48_000;
       readonly destination = {};
@@ -3923,6 +3936,7 @@ describe("YA server speech provider", () => {
     }
 
     class FakeAudioContext {
+      suspend = vi.fn(async () => undefined);
       readonly state = "running";
       readonly sampleRate = 48_000;
       readonly destination = {};
@@ -4014,6 +4028,7 @@ describe("direct xAI speech provider", () => {
     }
 
     class FakeAudioContext {
+      suspend = vi.fn(async () => undefined);
       state: AudioContextState = "running";
       sampleRate = 16_000;
       destination = {};
