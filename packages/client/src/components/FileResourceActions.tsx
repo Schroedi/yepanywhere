@@ -420,13 +420,13 @@ export function ResourceContextMenu({
   const saveDownload = useSaveResourceDownload();
   const githubLink = useGitHubFileLink(fileTarget);
   const projectAppLink = useProjectFileLink(fileTarget);
-  const copyPublicUrl =
-    onCopyPublicUrl ??
-    (projectAppLink
-      ? () => {
-          void writeClipboardText(projectAppLink);
-        }
-      : undefined);
+  // A declared app presentation outranks the caller's YA file-share fallback;
+  // the File Viewer's Share surface still offers both.
+  const copyPublicUrl = projectAppLink
+    ? () => {
+        void writeClipboardText(projectAppLink);
+      }
+    : onCopyPublicUrl;
   const [panel, setPanel] = useState<"open" | "root">("root");
   const hasPresentationChoice = Boolean(onOpenSource && onOpenPreview);
   const hasCopyActions = Boolean(
