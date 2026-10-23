@@ -198,6 +198,13 @@ waited, the write landed uninterrupted, and the steer arrived as the next
 item (level 1, the behavior in the table above). In real use the default
 cost a session four rewrites of a multi-minute write, one per user steer.
 
+Contract: YA Codex session launches pass `-c features.instant_interrupt=false`
+so ↗ steer stays level 1. When `$CODEX_HOME/config.toml` mentions
+`instant_interrupt` at all, YA passes nothing and the user's setting governs.
+The `-c` form is deliberate: a CLI without the feature ignores an unknown
+`features.*` key but exits on `--disable <unknown>`. One-shot app-servers
+(model list, rate limits, recaps, summaries) take no steers and are unchanged.
+
 Asymmetry worth knowing: Codex exposes steering in the protocol but
 queueing only as client-side holding; Claude exposes all three native
 lanes as data on the user message itself (`priority`), so "Claude can't
