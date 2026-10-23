@@ -37,25 +37,16 @@ Fix direction:
 2. Optional detail for Codex: "tool call generating since 19:40:33" from the
    trace log, labelled as provider-log evidence, never as user-visible
    progress, and absent when the log is unreadable.
-3. Gate steers during such a silence; a passive warning does not prevent the
-   loss. Existing queue/patient delivery does not fit: for Codex it waits for
-   turn end (this turn ran 50 minutes). Add a hold-until-next-item delivery
-   point: first Enter holds the message and shows "Held until Codex's current
-   tool call starts (generating 3m 40s). Enter again to interrupt now"; YA
-   sends it as `turn/steer` on the next `item/started` (tool input complete,
-   execution beginning), on completion of an assistant-message item, or at
-   turn end. Second Enter or the chip's `Steer now` steers immediately. Fire
-   only on evidence of a long in-flight generation (silence past threshold,
-   ideally plus the trace-log tool-call start), so steers into visibly
-   progressing turns are unchanged.
-   Premise to verify first: a steer during tool execution is held as pending
-   input for the next sampling request rather than cancelling the running
-   tool. Observed steers here cancelled an in-flight response stream
-   (`response.interrupt.accepted`), which does not exist during execution,
-   and the native TUI shows "Messages to be submitted after next tool call";
-   no execution-time steer was observed. Confirm by test or Codex source.
-   This changes Enter's default; justify it as a fix for silent work loss,
-   or ship it behind a setting if that is judged a preference change.
+3. Steers must not discard in-flight generation. The cause is Codex 0.164's
+   default `instant_interrupt` flag, which turns `turn/steer` from "after the
+   current tool call" into "cancel and resample"; with the flag disabled, a
+   steer during tool-input generation waits and lands right after the call
+   (measured; see `topics/steer-queue-provider-differences.md` level
+   ladder). The provider-owned fix is to launch Codex with
+   `--disable instant_interrupt`, which needs no YA-side hold queue or
+   confirm gate. Open: whether YA should impose that on every Codex launch
+   or leave it to the user's Codex config, and what replaces Codex level 0
+   (TUI-style `Esc`-steer) if anything.
 
 Not fixed in place: this was a diagnosis session; the change touches liveness
 presentation contracts and needs typing/latency checks on the composer path.
