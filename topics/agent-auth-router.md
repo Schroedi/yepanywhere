@@ -442,7 +442,9 @@ The ordinary provider/model/thinking controls remain visible. One Pool selector
 uses compatible granted members and the pool's default policy. It is laid
 out like the other New Session options: a Pool dropdown listing Direct first and
 then every granted pool for the provider, each with its policy and how many of
-its accounts offer the selected model; a pool no account can serve is listed
+its accounts offer the selected model. A provider with no granted pool shows no
+Pool control, so granting only Codex pools routes Codex alone; a held selection
+still shows as unavailable. A pool no account can serve is listed
 with the reason (no enabled accounts, no model chosen, no account offers the
 model, or no account supports the effort) but cannot be chosen. Choosing a pool
 adds a Router account dropdown (since 2026-10-11): the pool's default policy,
