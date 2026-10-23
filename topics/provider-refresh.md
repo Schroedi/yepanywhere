@@ -1251,7 +1251,25 @@ Previous-model registry review:
 6. Use read-only catalog and lifecycle checks routinely. Do not spend tokens
    on live model turns without explicit approval.
 
-Current source refresh, 2026-10-21 (Claude Code 2.1.306 / SDK 0.3.306):
+Current source refresh, 2026-10-23 (Claude Code 2.1.309 / SDK 0.3.309):
+
+- The SDK and matching native packages advance from 0.3.306 to 0.3.309;
+  the bundled Linux executable reports Claude Code 2.1.309, ahead of the
+  standalone 2.1.308 install. Compatibility markers advance together.
+- The declaration delta is additive and unused by YA: a `liveReply`
+  control option for cloud and Remote Control workers, an
+  `sshHostCommands` desktop setting, documented value filtering for
+  `disableAllHooks` and HTTP-hook allowlists in embedder settings, and
+  bridge reconnect semantics for undelivered writes. `agentSdkTypes`,
+  `core`, and tool declarations are unchanged.
+- A no-turn handshake returns the same 13 model rows and efforts as
+  0.3.306. `/goal` and `/loop` remain native. Claude provider tests (48),
+  transcript-schema tests (26), and server type checking pass.
+- No assistant turn ran, so authenticated generation and 2.1.309
+  transcripts are not covered. Existing provider-host workers must
+  restart to adopt the update.
+
+Previous source refresh, 2026-10-21 (Claude Code 2.1.306 / SDK 0.3.306):
 
 - The SDK and matching native packages advance from 0.3.301 to 0.3.306.
   The bundled Linux executable reports Claude Code 2.1.306 and embeds
