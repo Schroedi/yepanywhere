@@ -91,7 +91,21 @@ matching upstream release tags when the version changed; the real zero-token
 probe covers the production model-discovery command but intentionally does not
 exercise authenticated assistant events or persisted sessions.
 
-Current refresh, 2026-10-16 (Pi 1.3.0): the installed binary passes the
+Current refresh, 2026-10-23 (Pi 1.4.0): the installed binary passes the
+zero-token RPC contract and the local-server effort-retry integration test
+with `PI_EXECUTABLE` set explicitly to the managed launcher. Against the
+installed 1.3.0 release, `dist/modes/rpc` and the session manager are
+unchanged; `dist/cli.js` remains. The agent session now omits a recovery
+attempt cut off at the output limit, together with its tool results, from
+model context through context edits, which `PiSessionReader` already
+skips. Compaction summaries use the model's output limit, and resumed
+sessions activate extension tools registered after the branch recorded its
+loadout. None changes an RPC command, response, lifecycle event, or entry
+type YA consumes, so root compatibility advances to 1.4.0 with no adapter
+change. No authenticated turn ran; the evidence is the installed `dist`
+diff and the package changelog.
+
+Previous refresh, 2026-10-16 (Pi 1.3.0): the installed binary passes the
 zero-token RPC contract and the local-server effort-retry integration test
 with `PI_EXECUTABLE` set explicitly to the managed launcher. Compared with
 the installed 1.2.0 release, Pi's RPC mode, agent-core lifecycle events,
