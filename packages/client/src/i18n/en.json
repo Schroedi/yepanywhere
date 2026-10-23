@@ -1038,6 +1038,8 @@
   "processingThinkingRightClickLatestOnly": "Right-click: auto-expand only the latest thinking block",
   "processingAnimationPause": "Pause processing text animation",
   "processingAnimationResume": "Resume processing text animation",
+  "processingQuietNoOutput": "No new output for {silence}",
+  "processingQuietProviderActive": "No new output for {silence} · provider reports the turn active ({checked} ago)",
   "composerModelChipTitle": "Model for this session — click to change",
   "floatingComposerModelChipTitle": "Model a new session will start with — adjust it on the New Session page",
   "localeNameEn": "English",
