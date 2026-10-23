@@ -38,12 +38,22 @@ Fix direction:
    trace log, labelled as provider-log evidence, never as user-visible
    progress, and absent when the log is unreadable.
 3. Gate steers during such a silence; a passive warning does not prevent the
-   loss. First Enter queues the message for the next tool boundary through
-   the existing patient-delivery path and shows "Queued: Codex is generating
-   a tool call (3m 40s). Enter again to interrupt now"; a second Enter (or a
-   steer-now control) sends it as a steer. Fire only on evidence of a long
-   in-flight generation (silence past threshold, ideally plus the trace-log
-   tool-call start), so steers into visibly progressing turns are unchanged.
+   loss. Existing queue/patient delivery does not fit: for Codex it waits for
+   turn end (this turn ran 50 minutes). Add a hold-until-next-item delivery
+   point: first Enter holds the message and shows "Held until Codex's current
+   tool call starts (generating 3m 40s). Enter again to interrupt now"; YA
+   sends it as `turn/steer` on the next `item/started` (tool input complete,
+   execution beginning), on completion of an assistant-message item, or at
+   turn end. Second Enter or the chip's `Steer now` steers immediately. Fire
+   only on evidence of a long in-flight generation (silence past threshold,
+   ideally plus the trace-log tool-call start), so steers into visibly
+   progressing turns are unchanged.
+   Premise to verify first: a steer during tool execution is held as pending
+   input for the next sampling request rather than cancelling the running
+   tool. Observed steers here cancelled an in-flight response stream
+   (`response.interrupt.accepted`), which does not exist during execution,
+   and the native TUI shows "Messages to be submitted after next tool call";
+   no execution-time steer was observed. Confirm by test or Codex source.
    This changes Enter's default; justify it as a fix for silent work loss,
    or ship it behind a setting if that is judged a preference change.
 
