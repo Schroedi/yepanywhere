@@ -97,6 +97,15 @@ range ([GHSA-q3jh-wrc6-jgq8](https://github.com/advisories/GHSA-q3jh-wrc6-jgq8),
 The refresh also re-resolved jsdom 29's `undici` and `tldts` to patch
 releases. No new advisory exclusions are added.
 
+The 2026-10-23 CI audit repair refreshes `mermaid -> dompurify` to 3.4.17
+for the [shadow-root template bypass](https://github.com/advisories/GHSA-cg2g-xh64-v4q7),
+[detached-subtree event handlers](https://github.com/advisories/GHSA-mrv2-3pqr-j5jr)
+and [XHTML SMIL guard bypass](https://github.com/advisories/GHSA-c6gr-qvv4-5v3f),
+and the MCP SDK's `express-rate-limit -> ip-address` edge to 10.7.4 for
+[quadratic IPv6 zone parsing](https://github.com/advisories/GHSA-rxp7-6hxx-x8q5).
+Both patches fit their parents' declared ranges; no new overrides or advisory
+exclusions are needed. Unrelated lockfile resolutions remain unchanged.
+
 ### Install-script allowlist
 
 Dependency install scripts (preinstall/install/postinstall) are blocked by
