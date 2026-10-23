@@ -1961,7 +1961,26 @@ Difference detectors:
 - `@agentclientprotocol/sdk` changes enough to alter `ACPClient` request,
   notification, or permission typings.
 
-Current compatibility audit, 2026-10-16 (1.0.60, no adapter change):
+Current compatibility audit, 2026-10-23 (1.0.67, no adapter change):
+
+- Installed Grok is `grok 1.0.67 (2fe064390d07) [stable]`; ACP
+  `initialize` reports agent 1.0.67, protocol 1. Public `xai-org/grok-build`
+  was not rechecked. Local release notes cover 1.0.63–1.0.67.
+- `grok models`, `models_cache.json`, and a no-token `session/new` list the
+  same four models as 1.0.60, default `grok-4.7`, every model at `high`
+  effort. `session/new` still returns `configOptions` for model and effort
+  and no modes.
+- Launch remains `grok agent [--effort] [-m] --no-leader stdio`.
+  `session/load` with `_meta.noReplay` succeeds on an empty session.
+  `sessionCapabilities` adds `resume`, which YA does not use.
+- Release-note items touching YA's path: since 1.0.64 an untrusted folder
+  runs only managed hooks, while headless sessions treat user hooks as
+  trusted; 1.0.63 `/fork` keeps the parent's `-m`/`--effort`. YA configures
+  no Grok hooks. The rest are terminal UI, worktree, and auth fixes.
+- The four Grok provider/reader test files (73 tests) pass. No live prompt
+  ran; the probe left two empty sessions under `~/.grok/sessions/`.
+
+Previous compatibility audit, 2026-10-16 (1.0.60, no adapter change):
 
 - Installed Grok is `grok 1.0.60 (01a8e1c591c0) [stable]`; ACP `initialize`
   reports agent 1.0.60, protocol 1. Public `xai-org/grok-build` is git
@@ -2008,8 +2027,8 @@ official agent SDKs inject into spawned non-leader agents, against
 `session/set_config_option` for mid-session model/effort and `session/close`
 for shutdown.
 
-Status: Grok ACP is current through installed 1.0.60, subject to the
-live-prompt coverage gap. Root `compatibleThroughVersion` records `1.0.60`.
+Status: Grok ACP is current through installed 1.0.67, subject to the
+live-prompt coverage gap. Root `compatibleThroughVersion` records `1.0.67`.
 
 Previous source refresh, 2026-08-16:
 
