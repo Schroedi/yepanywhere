@@ -2233,8 +2233,9 @@ export class CodexProvider implements AgentProvider {
       effortUpdatesActiveTurn: true,
       setServiceTier: async (serviceTier) => {
         const next = serviceTier || null;
-        // Thread settings apply from the next turn; resume does not restore
-        // them, so later turn/start requests carry the selection too.
+        // Thread settings apply from the next turn. Resume restores them only
+        // from Codex 0.164.0, so later turn/start requests carry the
+        // selection too.
         if (activeClient && runtimeState.threadId) {
           await activeClient.request("thread/settings/update", {
             threadId: runtimeState.threadId,

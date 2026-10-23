@@ -228,11 +228,39 @@ older installs may continue to work when YA does not need newer protocol fields,
 and version-sensitive behavior should be capability- or version-gated where
 possible ([provider-version-support](provider-version-support.md)).
 
+Current source refresh, 2026-10-23 (0.164.0, generated types only):
+
+- Installed Codex is `codex-cli 0.164.0`; the official `rust-v0.164.0` tag
+  resolves to `6aaac6948`, 1,004 commits after `rust-v0.163.0`.
+  `expectedVersion` and `compatibleThroughVersion` record `0.164.0`.
+- Regeneration adds `ImageGenerationInputImage` and changes five subset
+  files, all with fields YA does not read: image-generation items carry
+  either a `fileId` attachment reference or an inline `result`, plus
+  observed `inputImages`; MCP server status gains `toolListMeta`;
+  `thread/fork` gains `experimentalDisablePredictionMcp` and narrows
+  prediction-mode config overrides; `turn/start` and `turn/steer` gain
+  `responsesapiClientMetadataPatch`. YA renders no image-generation item
+  and never requests prediction mode. No adapter change.
+- Cold resume now restores a thread's saved service tier, reasoning
+  summary, and personality unless the caller overrides them (upstream
+  `430a16799`). YA sends a selected tier on resume and the current
+  selection on every `turn/start`, and its live tier change writes
+  `thread/settings/update`, so Codex's saved tier tracks YA's. The
+  `setServiceTier` comment now states the version-dependent behavior.
+  Residual: a tier saved by another client (the Codex TUI) on a thread YA
+  resumes at standard speed would be restored, because YA omits the field
+  for standard rather than sending an explicit clear.
+- A zero-token `model/list` returns the same eight models as the 0.163.0
+  audit, `gpt-6.1-sol` default at low effort.
+- No 0.164.0 rollout exists locally yet, and no credentialed smoke ran.
+  Server type checking and the provider suites (809 tests) pass on the
+  regenerated types.
+
 Recheck, 2026-10-16: installed Codex is still `0.163.0`, the latest stable
 release (only `0.164.0` alphas are newer), and `pnpm codex:protocol:check`
 reports no drift. Nothing to refresh.
 
-Current source refresh, 2026-10-15 (0.163.0, generated types only):
+Previous source refresh, 2026-10-15 (0.163.0, generated types only):
 
 - Installed Codex is `codex-cli 0.163.0`; the official `rust-v0.163.0` tag
   resolves to `83086188a`, 232 commits after `rust-v0.162.1`.
