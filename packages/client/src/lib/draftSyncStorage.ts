@@ -452,8 +452,20 @@ export interface PendingDraft {
  * focused sibling types into: that write lands in the sibling's composer and
  * drops whatever was typed after the text it was merged from.
  */
-function holdsRemote(e: Entry, local: DraftPayload): boolean {
+function holdsRemote(
+  e: Entry,
+  local: DraftPayload,
+  merged: DraftPayload,
+): boolean {
   if (siblingForeground()) return true;
+  // Attachment-only reconciliation leaves the typed text and selection alone.
+  if (
+    draftPayloadEqual(
+      { ...local, attachments: [] },
+      { ...merged, attachments: [] },
+    )
+  )
+    return false;
   if (!editing(e.key)) return false;
   return (
     draftHasContent(local) ||
@@ -866,7 +878,7 @@ export class DraftSyncClient {
       );
       if (!draftPayloadEqual(local, merged)) {
         e.remote = read;
-        if (holdsRemote(e, local) || conflicting(e)) {
+        if (holdsRemote(e, local, merged) || conflicting(e)) {
           status();
           return;
         }

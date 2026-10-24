@@ -349,6 +349,8 @@ import type { RelayClientService } from "./services/RelayClientService.js";
 import type { ServerSettingsService } from "./services/ServerSettingsService.js";
 import { RendezWatchService } from "./services/RendezWatchService.js";
 import { createRendezSessions } from "./services/rendezSessions.js";
+import { RendezCompose } from "./services/RendezCompose.js";
+import { createRendezComposeRoutes } from "./routes/rendez-compose.js";
 import { onRendezUserTurn } from "./services/rendezActivity.js";
 import { getLogger } from "./logging/logger.js";
 import { listHostedProviderRuntimes } from "./sdk/providers/provider-runtime-host.js";
@@ -1495,44 +1497,57 @@ export function createApp(options: AppOptions): AppResult {
   let vocabularyKeyterms: VocabularyKeyterms | undefined;
   let unsubscribeVocabulary: (() => void) | undefined;
   let sessionReadersDisposal: Promise<void> | undefined;
-  const rendezWatch = options.serverSettingsService
-    ? new RendezWatchService(
-        options.serverSettingsService,
-        async () => {
-          const paths = new Set(
-            supervisor
-              .getAllProcesses()
-              .filter(
-                (process) =>
-                  process.execution.kind === "local" &&
-                  process.isProcessAlive === true,
-              )
-              .map((process) => process.projectPath),
-          );
-          try {
-            for (const runtime of await listHostedProviderRuntimes()) {
-              if (runtime.state !== "closing") paths.add(runtime.projectPath);
-            }
-          } catch (error) {
-            getLogger().warn(
-              { error: String(error) },
-              "Rendez provider inventory unavailable; using local live sessions",
+  const rendezCompose =
+    draftStore && options.serverSettingsService && process.platform !== "win32"
+      ? new RendezCompose(
+          draftStore,
+          attachmentStagingService,
+          () => rendezWatch,
+        )
+      : undefined;
+  const rendezWatch: RendezWatchService | undefined =
+    options.serverSettingsService
+      ? new RendezWatchService(
+          options.serverSettingsService,
+          async () => {
+            const paths = new Set(
+              supervisor
+                .getAllProcesses()
+                .filter(
+                  (process) =>
+                    process.execution.kind === "local" &&
+                    process.isProcessAlive === true,
+                )
+                .map((process) => process.projectPath),
             );
-          }
-          return [...paths].map((path) => ({ path }));
-        },
-        createRendezSessions(
-          () => supervisor.getAllProcesses(),
-          () => options.serverSettingsService?.getSetting("rendez")?.delivery,
-        ),
-        onRendezUserTurn,
-      )
-    : undefined;
+            try {
+              for (const runtime of await listHostedProviderRuntimes()) {
+                if (runtime.state !== "closing") paths.add(runtime.projectPath);
+              }
+            } catch (error) {
+              getLogger().warn(
+                { error: String(error) },
+                "Rendez provider inventory unavailable; using local live sessions",
+              );
+            }
+            return [...paths].map((path) => ({ path }));
+          },
+          createRendezSessions(
+            () => supervisor.getAllProcesses(),
+            () => options.serverSettingsService?.getSetting("rendez")?.delivery,
+            rendezCompose
+              ? (project, target) => rendezCompose.route(project, target)
+              : undefined,
+          ),
+          onRendezUserTurn,
+        )
+      : undefined;
   const disposeSessionReaders = (): Promise<void> => {
     // Explicit shutdown and fixture ownership may join the same disposal.
     // Cache the promise before asynchronous cleanup can close shared services.
     sessionReadersDisposal ??= (async () => {
       await supervisor.stopBackgroundTasks();
+      await rendezCompose?.close();
       await rendezWatch?.close();
       await projectServices.close();
       await projectAppStore.close();
@@ -2464,6 +2479,7 @@ export function createApp(options: AppOptions): AppResult {
         Boolean(conversationSubscriptions),
       getSqliteStatus: () => discoverySqlite.getStatus(),
       getDraftSyncAvailable: () => Boolean(draftStore),
+      getRendezComposeAvailable: () => Boolean(rendezCompose),
       getIssueAssociationsAvailable: () => Boolean(issueIndexer),
       vhostAppControlAvailable,
       getArtifactViewerStatus: () => ({
@@ -2957,6 +2973,8 @@ export function createApp(options: AppOptions): AppResult {
         sessions: sessionAccessResolver,
       }),
     );
+  if (rendezCompose)
+    app.route("/api/rendez", createRendezComposeRoutes(rendezCompose, scanner));
   const issueDatabase = discoverySqlite.getDatabase();
   if (options.serverSettingsService) {
     const catalog = retainedCollections;

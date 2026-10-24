@@ -11,6 +11,7 @@ import type { Process } from "../supervisor/Process.js";
 import {
   RENDEZ_DEFAULT_PROFILE,
   type RendezDeliveryRoute,
+  type RendezDraftTarget,
   type RendezSessions,
 } from "./RendezObserver.js";
 import type { RendezTarget } from "./rendez-protocol.mjs";
@@ -24,9 +25,18 @@ const PROVIDER_HOST_SEND_MS = 30_000;
 export function createRendezSessions(
   getAllProcesses: () => Process[],
   getDelivery: () => RendezDelivery | undefined,
+  draftRoute?: (
+    project: string,
+    target: RendezDraftTarget,
+  ) => RendezDeliveryRoute,
 ): RendezSessions {
   return {
     async route(project, target): Promise<RendezDeliveryRoute> {
+      if ("draft" in target) {
+        if (!draftRoute)
+          throw new Error("Rendez draft delivery is unavailable");
+        return draftRoute(project, target);
+      }
       const owned = getAllProcesses().find(
         (candidate) => candidate.sessionId === target.yaSessionId,
       );

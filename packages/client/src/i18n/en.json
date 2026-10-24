@@ -3729,7 +3729,7 @@
   "messageDeliveryPatientCompactOff": "Off: deliver without compacting",
   "messageDeliveryPatientCompactOn": "Compact first at {percent}% context or more",
   "rendezDefaultTitle": "Watch .rendez uploads by default",
-  "rendezDefaultDescription": "Applies to projects set to Inherit; On or Off is saved for that project's path. Watching starts when you next message a session in the project. Files copied to <project>/.rendez/latest-session go to the live session you last messaged there, and <project>/.rendez/<session id> to that session; nothing arrives while the target session is not live.",
+  "rendezDefaultDescription": "Applies to projects set to Inherit; On or Off is saved for that project's path. Files copied to <project>/.rendez/latest-session go to the live session you last messaged there, and <project>/.rendez/<session id> to that session; nothing arrives while the target session is not live.",
   "rendezUnavailable": "Update the server to configure rendez uploads here.",
   "rendezDeliveryTitle": "Uploads during a running turn",
   "rendezDeliveryDescription": "Steer adds an upload to the agent's current turn, like a steered message. Queue holds it as a queued message until the turn ends. Auto repeats how you last sent a message while that session was working, and steers before you have.",

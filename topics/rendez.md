@@ -39,6 +39,9 @@ message sent before turning it on does not count. A project whose `.rendez`
 already exists attaches without waiting, so a server restart resumes watching.
 Trying settings out therefore leaves no trace in any project. Turning a project
 off stops its observer and keeps its files.
+On servers supporting [active-compose](#attach-to-the-active-new-session-draft),
+opening an eligible new-session composer also starts watching its enabled
+project, without requiring a first message or an existing session.
 
 With the `rendez-project-status` capability, each watched row also shows
 **watching** while its observer runs, or **starts at your next message**
@@ -194,6 +197,57 @@ inbox. [rsync manual](https://download.samba.org/pub/rsync/rsync.1)
 
 ## Choose the recipient
 
+### Attach to the active new-session draft
+
+Upload to `<project>/.rendez/active-compose/` to attach files to the visible
+new-session composer, or use the ordinary `latest-session` destination when
+there is no active composer claim. `active-compose` is a separate symlink;
+neither `latest-session` nor explicit session destinations change meaning.
+
+The server owner has one reconciled new-session draft per server, independent
+of project selection. A visible ordinary new-session composer with a confirmed
+project acquires its claim when opened, foregrounded, or reconnected. The last
+acquisition wins across windows and devices. Renewals cannot reclaim ownership
+from a newer claimant. Fork/handoff/template composers and limited accounts do
+not acquire this filesystem destination.
+
+The visible claimant renews every 15 seconds. Hiding the tab, navigating away,
+changing project, starting the session, or disconnecting releases its claim.
+Loss of the browser expires eligibility after 45 seconds; the shared server
+cleanup sweep restores the fallback symlink within another minute. During that
+cleanup delay, stale draft deliveries fail rather than reaching a session.
+Window blur alone does not release it: using a screenshot tool must not change
+the destination. A hidden tab does not renew, and an older visible window does
+not take over merely because its renewal is due.
+
+The project must have rendez monitoring enabled. Opening an eligible composer
+can start its observer before any session exists or has received a message.
+Accepted files become normal protected staging references in the shared draft;
+they appear as attachments without sending a turn or creating a session.
+Reconciliation can apply attachment-only changes while typing, retaining the
+text and selection. Normal Send later consumes the draft attachments.
+
+Capture fixes the claim identity. A claim that ends during preparation fails
+that delivery; it never retargets the upload to another claim or session.
+Existing files and delivery records stay on disk. Burst limits and held-file
+behavior still apply; an overload diagnostic is recorded rather than inserted
+as draft text. The internal `ya-new-session-draft` route is YA-owned and is not
+a provider session or a target for the standalone helper's turn delivery.
+
+The optional `rendez-active-compose` capability (ID 135) advertises
+`POST /api/rendez/compose` with `claimId`, `projectId` (null releases), and
+`acquire`. It requires POSIX watching, server settings and draft storage.
+The 2026-10-24 compatibility review checked stable `v0.10.0`, `v0.10.1`,
+`v0.10.2` and `v0.11.0`; none has this contract. Without the capability clients
+send no claim requests. Existing session uploads and draft editing remain
+available. The uploader must explicitly select the new destination.
+
+**Separate active-compose destination** (vs. redirecting latest-session):
+opening a draft must not intercept a transfer explicitly addressed to the
+last-messaged or a named session.
+
+### Session destinations
+
 `latest-session` follows the last session accepting an actual user message in
 that project. Coordination requests, takeover notices, automated turns, and
 rendez uploads do not change it. Once an upload is received, its recipient
@@ -201,8 +255,9 @@ is fixed. For an ongoing transfer stream that must stay with one session, use
 the stable directory returned by an explicit subscription instead.
 
 Monitoring is opt-in, with a global default and a per-project override.
-YA watches only projects with a verified live session, including sessions
-known to the provider service but not owned by YA, and attaches a project only
+YA watches projects with a verified live session or an active new-session
+compose claim. Live sessions include those known to the provider service but
+not owned by YA. It attaches a project only
 as [Enable monitoring](#enable-monitoring) describes. Watcher ownership is
 independent: YA can use its own live-session state when provider hosting is
 disabled. An explicit helper subscription can opt into revival separately.
@@ -211,7 +266,7 @@ Disabling monitoring stops delivery without deleting the files.
 
 ## Files and attachment history
 
-Any file type can be uploaded. Each becomes one user turn whose
+Any file type can be uploaded. A session-addressed upload becomes one user turn whose
 `User uploaded files:` section is the same one browser attachments use, so YA
 shows it as an attachment. The incoming file remains the original. Delivery
 stores a separate snapshot under `.rendez/delivered/<route>/<delivery-id>/`.

@@ -11,6 +11,7 @@ import { resolveRouterModel, routerAliasTargets } from "@yep-anywhere/shared";
 import type { RouterSelection } from "./RouterPoolSelector";
 import { DraftSyncNotice } from "./DraftSyncNotice";
 import { DRAFT_STORAGE_EVENT, draftStorage } from "../lib/draftSyncStorage";
+import { useRendezCompose } from "../hooks/useRendezCompose";
 import { MachineControlSessionSelection } from "./MachineControlSessionSelection";
 import { useComposerVoiceRef } from "../hooks/useComposerVoiceRef";
 import type { ProjectAppTarget } from "../api/projectApp";
@@ -695,6 +696,15 @@ export function NewSessionForm({
   const launchLock = useMemo<LaunchLock>(
     () => launchLockFor(principal),
     [principal],
+  );
+  useRendezCompose(
+    sourceTransport,
+    selectedProject?.id === projectId ? projectId : undefined,
+    principalResolved &&
+      !launchLock.limited &&
+      !launch &&
+      !isStarting &&
+      serverHasCapability(versionInfo, SERVER_CAPABILITIES.rendezCompose),
   );
   const supportsSessionSandboxing =
     serverHasAvailableSessionSandbox(versionInfo);

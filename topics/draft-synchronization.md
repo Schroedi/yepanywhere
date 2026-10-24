@@ -88,6 +88,10 @@ keeps its anchor even when another device removed that comment. Attachment sets
 union new IDs and respect removal of a base attachment.
 
 A remote change never replaces a focused input, its selection, or IME input.
+Attachment-only reconciliation may apply while focused when the resulting
+text fields are identical to the local fields. It preserves the input and
+selection while allowing an incoming rendez attachment to appear immediately
+after synchronization. The sibling-tab foreground guard still applies.
 One-sided remote updates, including a cleared draft after another device sends,
 wait quietly while their editor is focused and apply after focus leaves. They
 are not conflicts and do not produce a notice. An input counts as focused only
