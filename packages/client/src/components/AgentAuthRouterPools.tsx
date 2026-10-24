@@ -359,7 +359,11 @@ export function AgentAuthRouterPools() {
             )}
             {!account.enabled && <p>{t("routerAccountDisabledLabel")}</p>}
             {account.error && (
-              <p role="status">{t("routerPoolRefreshFailed")}</p>
+              <p role="status">
+                {t("routerPoolRefreshFailed")}
+                {/* AAR's reason, already scrubbed of secrets and paths. */}
+                <span className={styles.muted}> ({account.error})</span>
+              </p>
             )}
             {account.blocked && (
               <p>

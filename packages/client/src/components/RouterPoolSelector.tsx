@@ -450,7 +450,7 @@ function AccountQuota({ account }: { account: OverviewAccount }) {
       ))}
       {age && <span className={styles.quotaUnknown}>{age}</span>}
       {account.error && (
-        <span className={styles.quotaWarning}>
+        <span className={styles.quotaWarning} title={account.error}>
           {t("routerQuotaRefreshFailed")}
         </span>
       )}

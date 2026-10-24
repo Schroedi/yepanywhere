@@ -223,12 +223,16 @@ it("reads cached pool usage and refreshes only after an explicit action", async 
           },
         ],
         attemptedAt: null,
-        error: null,
+        error:
+          "Quota refresh unavailable: app-server quota process failed (exit 3)",
       },
     ],
   });
   render(<AgentAuthRouterSettings />);
   await screen.findByText("75% remaining");
+  expect(
+    screen.getByText(/app-server quota process failed \(exit 3\)/),
+  ).toBeTruthy();
   expect(fixture.api.routerRefreshOverview).not.toHaveBeenCalled();
   expect(screen.getByText(/Stale observation/)).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Refresh usage" }));
