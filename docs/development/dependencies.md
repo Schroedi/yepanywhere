@@ -15,7 +15,7 @@ upstream fix.
 
 When a transitive dep has no direct upgrade path, prefer a pnpm override. Pin it
 exactly if a newer major would escape the parent's declared range — `fast-uri`
-is pinned to `3.1.8` rather than `^3.1.8` because 4.x is published and `ajv`
+is pinned to `3.1.9` rather than `^3.1.9` because 4.x is published and `ajv`
 declares `^3.0.1`. When the parent's declared range already contains the patched
 version, no override is needed: refresh the lockfile with
 `pnpm -r update <pkg> --depth=Infinity` (plain `pnpm update` skips transitive
@@ -105,6 +105,27 @@ and the MCP SDK's `express-rate-limit -> ip-address` edge to 10.7.4 for
 [quadratic IPv6 zone parsing](https://github.com/advisories/GHSA-rxp7-6hxx-x8q5).
 Both patches fit their parents' declared ranges; no new overrides or advisory
 exclusions are needed. Unrelated lockfile resolutions remain unchanged.
+
+The 2026-10-24 security refresh raises the Zod floor to 4.6.7 for
+[oversized constrained collections](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5),
+resolves `express -> body-parser` to 2.4.0 within its declared range for
+[compressed request trailing bytes](https://github.com/advisories/GHSA-27r3-jxmh-p828),
+and moves the existing exact `fast-uri` override to 3.1.9 for its URI
+normalization advisories. Vitest and its mocker move together to 4.1.12 for
+[manual mock injection](https://github.com/advisories/GHSA-qxg6-89mg-rqv8)
+and [Windows redirect traversal](https://github.com/advisories/GHSA-xp26-3454-mjgp).
+Desktop Tokio resolves to 1.51.6 for
+[AsyncFd I/O safety](https://rustsec.org/advisories/RUSTSEC-2026-0386.html).
+No new audit exclusions or install-script permissions are added.
+
+Zod 4.6.7 requires a key whose schema is `z.undefined()` to be present;
+the Write acknowledgement's absent `file` key is explicitly optional so
+captured native and live results retain their existing rich presentation.
+The pnpm patch for Zod changes only explanatory comments in its ESM and
+CommonJS builds: the comments accidentally contain Rollup's pure-annotation
+token, which makes the warning-free client build fail. The executable
+annotation and runtime code remain intact. Drop this patch when an upstream
+release removes the misplaced annotation token.
 
 ### Install-script allowlist
 
