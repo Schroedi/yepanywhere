@@ -74,13 +74,16 @@ lives in the dotfiles runbooks.
 For a coordinated release, prepare all product version metadata and changelogs
 in one commit on `main`. The standalone desktop and extension helpers normally
 create their own version commits; applying those metadata changes together
-keeps the release tags on one source revision. Validate the clean source,
-unused versions, changelogs and extension store identity before atomically
-pushing `main` with its npm, desktop and extension release tags. The tagged
-workflows retain their normal tests, exact-ZIP acceptance, signing and
-publication checks.
+keeps the release tags on one source revision. Push the candidate to `main`
+and pass platform CI plus the extension's manual `package` acceptance run.
+Recheck the clean source, unused versions, changelogs and extension store
+identity, then atomically push the npm, desktop and extension tags to that
+verified commit. The tagged workflows retain their normal tests, exact-ZIP
+acceptance, signing and publication checks.
 
-Dispatch the Android internal release on that same `main` revision and verify
-the workflow's `headSha` matches the coordinated release commit. The dispatch
-pins its source; later branch movement does not change the selected artifact.
+The Android internal workflow can run in parallel; its own build and native
+acceptance gates still precede publication. Dispatch it on the same `main`
+revision and verify the workflow's `headSha` matches the coordinated release
+commit. The dispatch pins its source; later branch movement does not change
+the selected artifact.
 Chrome review and Android public-beta promotion remain separate delivery steps.
