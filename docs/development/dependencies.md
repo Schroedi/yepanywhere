@@ -13,6 +13,16 @@ CI runs `pnpm audit --prod` on every pull request and push to `main` (the
 Keep `bn.js` patched (currently via pnpm override) until `web-push` ships an
 upstream fix.
 
+The same job audits both standalone npm lockfiles (`site/` and
+`sharing-worker/`), including development dependencies, and the pinned STT
+recovery snapshot with `pip-audit`. The Python audit queries the complete
+snapshot's indexed versions without installing its CUDA stack. Its exceptions
+must match the Python rows under **Known-unreachable advisories** below.
+The sole commit-pinned Transformers Git requirement has no PyPI version to
+query and is explicitly excluded; changes to that source pin still require
+review. Other unscannable requirements fail the audit. This gate does not audit
+unpinned optional speech environments or qualify installed GPU environments.
+
 When a transitive dep has no direct upgrade path, prefer a pnpm override. Pin it
 exactly if a newer major would escape the parent's declared range — `fast-uri`
 is pinned to `3.1.9` rather than `^3.1.9` because 4.x is published and `ajv`
@@ -137,6 +147,20 @@ checks own the unchanged-server boundary. This dependency patch does not
 establish whole-protocol constant-time behavior or a formal crypto audit;
 the accepted limits remain in [mobile SRP](../../topics/security.md#mobile-srp-implementation-decision).
 
+The standalone 2026-10-24 refresh resolves the website's `undici` to 8.12.2,
+`fast-uri` to 3.1.9 and Zod to 4.6.6 within their parents' declared ranges.
+Together these updates address eight website alerts and one sharing-worker
+alert. The worker's Miniflare pins Undici exactly, so its
+scoped npm override raises only `miniflare -> undici` to 7.30.1 for
+[excessive content encodings](https://github.com/advisories/GHSA-xjj6-f33q-929c).
+Drop that override when the pinned Miniflare declares a patched Undici.
+
+The STT recovery snapshot raises `filelock` to 4.2.1 for its SQLite reader/writer
+lock and Windows soft-lock advisories. Linux/Python 3.12 resolution for the
+snapshot and its NeMo constraint consumer preserves the pinned Torch and
+Transformers builds. This secures subsequent installs; live speech environments
+need a separate update and inference qualification.
+
 ### Install-script allowlist
 
 Dependency install scripts (preinstall/install/postinstall) are blocked by
@@ -176,15 +200,16 @@ Anything not on this list is untriaged — treat a new advisory as actionable.
 
 `ignoreGhsas` only quiets `pnpm audit`. GitHub's Dependabot alerts for the
 same advisories are dismissed per alert, as "vulnerable code not used", with
-a comment pointing here. Dependabot also scans manifests outside pnpm; these
-advisories were triaged as not applying and dismissed the same way on
-2026-09-28:
+a comment pointing here. Dependabot also scans manifests outside pnpm. The
+table below records additional non-applicable findings, beginning with the
+2026-09-28 triage:
 
 | Advisory | Manifest | Why it does not apply | Revisit when |
 |---|---|---|---|
 | `accelerate` sharded-checkpoint path traversal (GHSA-4j2p-28q2-5m79) | `requirements/stt-known-good-2026-06-16.txt` | The affected functions are `load_checkpoint_in_model` and `load_checkpoint_and_dispatch`. YA's speech workers load models by operator-configured id through `from_pretrained` and never call either function | A speech worker loads raw accelerate checkpoints, or a patched release lands (then bump the pin) |
 | `torch` `torch.jit.script` memory corruption (GHSA-rrmf-rvhw-rf47) | same snapshot | Needs crafted input to `torch.jit.script` on the local host; YA only runs inference and never scripts code | Moving the snapshot to torch ≥ 2.13, which also frees the setuptools pin |
 | `setuptools` sdist MANIFEST.in bypass (GHSA-h35f-9h28-mq5c) | same snapshot | Affects building sdists on macOS filesystems. The snapshot is a Linux runtime env, and `torch==2.12.0` requires `setuptools<82`, so the patched 83 cannot be pinned | Same torch move |
+| `setuptools` Windows legacy wheel path escape ([GHSA-xmj3-9gf7-h52w](https://github.com/advisories/GHSA-xmj3-9gf7-h52w)) | same snapshot | Needs Windows drive-qualified paths in `namespace_packages.txt` during legacy wheel installation. This snapshot is a Linux runtime environment; Torch 2.12.0 also requires `setuptools<82`, excluding the patched 84.1.0 | Supporting this snapshot on Windows, using legacy wheel installation there, or moving Torch so the patched setuptools can resolve |
 | `pytorch-lightning` `load_from_checkpoint` pickle loading (GHSA-75m9-98v2-hjpm) | `requirements/stt-nemo.txt` | NeMo 2.0.0 needs `pytorch-lightning==2.4.0`. The NeMo worker loads through `ASRModel.from_pretrained`, never `LightningModule.load_from_checkpoint`. The current NeMo env (`stt-nemo-recent.txt`) resolves 2.6.5 | Retiring the in-place NeMo 2.0.0 add-on |
 | `glib` `VariantStrIter` unsoundness (GHSA-wrw7-89jp-8q8g) | `packages/desktop/src-tauri/Cargo.lock` | gtk-rs 0.18 is the last GTK3 binding and Tauri's Linux backend requires it, so no patched `glib` is reachable. Neither the desktop crate nor its Tauri/GTK dependencies iterate string-array variants | Tauri moves its Linux backend off gtk-rs 0.18 |
 | `rand` unsound with a custom logger (GHSA-cq8v-f236-94qc) | same `Cargo.lock` | `rand 0.7.3` is used only by `phf_generator` during the build. The defect requires a custom `log` logger that itself draws random numbers | `phf_generator` moves off rand 0.7 |
