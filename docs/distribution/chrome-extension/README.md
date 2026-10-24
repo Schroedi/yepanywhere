@@ -1,8 +1,8 @@
 # Chrome Web Store publication
 
-Version **0.1.1** is **Published — public**, verified on **2026-10-14**, in
-all regions. Version **0.1.3** was submitted on **2026-10-14** and is
-**Pending review**, with automatic publication after approval. The item is
+Version **0.1.3** is **Published — public**, verified on **2026-10-24** by the
+[read-only API check](https://github.com/kzahel/yepanywhere/actions/runs/40104219485).
+There is no pending submitted candidate. Distribution remains all regions. The item is
 `dgeameddpnggdeenoekpiaacfghdodch`; [identity.json](identity.json) holds its
 public key. Account links and reviewer credentials belong in the private
 `dotfiles/runbooks/yepanywhere-chrome-extension.md` inventory.
@@ -18,7 +18,7 @@ pnpm --filter @yep-anywhere/browser-extension acceptance
 
 The build includes the complete client, worker and panel. Assembly uses the
 extension package's own version, independent of server release tags. It creates
-`packages/browser-extension/release/yep-anywhere-chrome-0.1.3.zip`, a checksum
+`packages/browser-extension/release/yep-anywhere-chrome-0.1.4.zip`, a checksum
 and `build.json` containing the source revision, dirty-state flag, extension id
 and file count. The manifest is at the ZIP root. Source maps, inline/remote
 HTML scripts, missing entries, wrong icon sizes, an incorrect store key and
@@ -148,7 +148,7 @@ OUTPUT.png`. Extension icons under `packages/browser-extension/src/icons/`
 are rasterizations of `packages/client/public/icon.svg`; only the 128px store
 icon uses the required 16px transparent padding.
 
-## Verified CI candidate
+## Previously verified 0.1.3 candidate
 
 [Chrome Extension CI 38604832081](https://github.com/kzahel/yepanywhere/actions/runs/38604832081)
 passed its package and acceptance job for source
@@ -185,7 +185,9 @@ The maintainer authorized submission, and the console confirmed it on
 2026-10-13 with **Publish automatically after review** enabled. Version 0.1.1
 is now public. The exact 0.1.3 CI ZIP was uploaded and submitted on 2026-10-14
 after saving its `contextMenus` justification. The console confirmed submission
-and reports **Pending review**; automatic publication after approval is enabled.
+and initially reported **Pending review**, with automatic publication after
+approval enabled. Version 0.1.3 is now published; the October 24 read-only API
+check confirms its public state and no pending submission.
 For later updates, refresh the package, listing and disclosures, verify
 reviewer access, then submit the new extension version.
 

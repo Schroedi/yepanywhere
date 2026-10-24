@@ -78,7 +78,7 @@ reviews. Assistant invocation/context is a compelling optional direction, but
 remains research/docs only: no device investigation or implementation spike is
 authorized. This does not change the incubation order or companion release scope.
 
-Last updated: 2026-10-20.
+Last updated: 2026-10-24.
 
 This is Yep Anywhere's canonical product-priority overview. Keep initiative
 status, the next action, and major blockers here; keep implementation steps in
@@ -92,8 +92,8 @@ live, and real YA-pane acceptance over the public encrypted relay passes in
 desktop Chrome, Android Chrome on an Android 15 emulator and the attached
 Android 17 phone. Opus 5.5 high-effort review findings are addressed; physical
 native fresh pairing and static fallback pass. Desktop 0.4.1, Android
-internal build 65001 and website 1.12.0 now carry this work. Standalone npm
-processing, iOS delivery and WebKit qualification remain; custom artifact
+internal build 65001, website 1.12.0 and npm 0.10.2 now carry this work.
+iOS delivery and WebKit qualification remain; custom artifact
 deployments retain precedence.
 
 The maintainer accepted [Android packaged service-worker delivery and secure
@@ -129,13 +129,12 @@ October 20 publication delivered signed desktop 0.4.1 and Android internal
 12 runtime/SQLite jobs pass on `bd309cd6e`; one native-phone browser retry
 retains an unresolved [duplicate first character](../../gaps/native-phone-browser-duplicate-first-character.md).
 The [npm 0.10.2 workflow](https://github.com/kzahel/yepanywhere/actions/runs/39472217467)
-succeeded and npm accepted the provenance-backed upload, but the registry is
-still processing it and serves 0.9.2.
+succeeded; the registry serves 0.10.2 through its `latest` dist-tag
+(verified 2026-10-24).
 [Website 1.12.0](https://github.com/kzahel/yepanywhere/actions/runs/39478921330)
 is deployed; its browser protocol retains the approved 0.9.2 fallback,
-independently of the native-only connection window. The remaining publication
-blocker is npm's external processing step. iOS publication remains outside
-this release request.
+independently of the native-only connection window. iOS publication remains
+outside this release request.
 
 ## 1. Publish the desktop and mobile apps with continuous delivery
 
@@ -503,14 +502,15 @@ automatic publication after approval. On 2026-10-14 the store reports 0.1.1
 as **Published — public**. The 0.1.3 update passed
 [CI](https://github.com/kzahel/yepanywhere/actions/runs/38604832081) and was
 submitted with its new `contextMenus` justification on 2026-10-14. The store
-confirms **Pending review**, with automatic publication after approval.
+subsequently published 0.1.3; the October 24 read-only API check confirms
+**Published — public** and no pending submission.
 Future explicit extension tags now have exact-ZIP acceptance, keyless Google
 API submission and GitHub release receipts. A newer accepted release supersedes
 an older pending submission after confirming cancellation; older runs cannot
 cancel newer submissions. Listing/privacy edits and Google review remain
 outside CI. The release helper follows the existing tagged
-website release pattern. The [live read-only authentication check](https://github.com/kzahel/yepanywhere/actions/runs/38618552980)
-passed on 2026-10-14 and confirmed 0.1.3 remains pending review.
+website release pattern. The [live read-only authentication check](https://github.com/kzahel/yepanywhere/actions/runs/40104219485)
+passed on 2026-10-24 and confirmed 0.1.3 is published.
 Opt-in extension development now rebuilds to a separate `dist-dev`, with a
 side-panel update indicator and panel-preserving UI refresh; full worker
 reloads attempt to reopen the panel within Chrome's gesture restrictions
