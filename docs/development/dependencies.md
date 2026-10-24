@@ -234,63 +234,49 @@ were not updated or qualified by this repository change.
 
 ## Automated Dependency Updates
 
-The hosted Mend Renovate app proposes updates from `renovate.json`, using
-GitHub's Dependabot alerts and OSV as advisory sources. Dependabot security
-and version updates stay off so the same bump never arrives twice. Update
-PRs open weekly, at most five at a time, after a release is 3 days old;
-security fixes skip both waits. The Dependency Dashboard issue lists
-everything pending.
+GitHub Dependabot is the sole automated dependency PR source, with **security
+updates only**. Dependabot alerts and security updates are enabled in the
+repository's GitHub settings. There is no `.github/dependabot.yml` or
+`.github/dependabot.yaml`, so routine version updates are not configured.
+GitHub can [create security updates without that optional file](https://docs.github.com/en/code-security/concepts/supply-chain-security/about-the-dependabot-yml-file).
 
-- Routine runtime updates are grouped for manual review: stable npm
-  web/server dependencies (plus 0.x patches), Android libraries, stable Go
-  bridge modules, and Rust crate patches. Provider SDKs and Tauri retain
-  their separate audit/group boundaries. Android build tools and Go
-  language/toolchain directives stay outside the library groups.
-- Major upgrades and 0.x minor upgrades require dashboard approval before
-  creating a PR and never automerge. Request migrations individually;
-  approving the entire pending queue defeats that boundary.
-- Renovate automerges only non-major devDependency updates at 1.0 or later
-  and non-major GitHub Actions updates and digest pins. Everything else waits
-  for review.
-- `platformAutomerge` is off: `main` has no required status checks, so
-  GitHub's native automerge could merge a PR with failing checks. Renovate
-  merges only after every check on the branch passes.
-- Initial GitHub Action digest pins skip the release-age wait: they freeze
-  references that already float to those commits. Renovate ages pins against
-  the newest matching release, which can otherwise leave a frequently
-  releasing Action unpinned indefinitely. Version upgrades and subsequent
-  digest updates retain the 3-day wait. See
-  [Renovate's pinDigest guidance](https://docs.renovatebot.com/key-concepts/minimum-release-age/#pindigest-updates).
+`renovate.json` explicitly disables Renovate. Its former weekly minor/patch
+updates, automatic development-tool and Action updates, monthly lockfile
+maintenance and Dependency Dashboard queue are retired. Routine upgrades are
+manual work requested by a maintainer.
+
+A security fix may itself require a patch, minor or major version bump; the
+linked vulnerability determines whether it belongs in the automated queue.
+Security PRs still require review and passing CI. The independent CI audits
+remain enabled, including standalone npm manifests and the STT snapshot.
+Dependabot may be unable to generate a fix for some alerts; those require
+manual remediation or a documented applicability review.
+
+When reviewing a security PR or making a requested upgrade:
+
 - Workflow runtime inputs (`node-version`, `go-version`, `toolchain`,
-  `java-version`) are not updated; CI deliberately runs at the supported
-  Node floor.
-- Major updates to `pnpm-workspace.yaml` overrides are disabled; see the
-  exact `fast-uri` pin above.
-- `vite` updates bump the declared ranges instead of updating only the
-  lockfile. The client and desktop declare different vite majors, and a
-  lockfile-only group update passes both versions to one recursive
-  `pnpm update`, which forces a single version onto both importers and
-  fails `--frozen-lockfile`. Apply the same rule to any other package
-  declared at two majors in the workspace.
-- `@playwright/test` is held below 1.61. From 1.61 the runner loads test
-  files through `module.registerHooks`, and on Node 22.16 through 22.22 and
-  on 23.11 that fails to load CommonJS dependencies such as `sanitize-html`
-  with `request for './Parser.js' is not in cache`, so every e2e shard fails
-  at the supported Node floor. Node 22.23 and 24 load them. Lift the hold
-  when the supported floor moves past the fix. Playwright's
-  `PLAYWRIGHT_FORCE_ASYNC_LOADER` avoids the path but is undocumented.
-  The held release also refuses to install browsers on Ubuntu 26.04
-  (`Playwright does not support chromium on ubuntu26.04-x64`; 1.64 knows
-  that image), so every workflow job that runs `playwright install` pins
-  `ubuntu-24.04` instead of `ubuntu-latest`. Return those jobs to
-  `ubuntu-latest` together with lifting the hold.
-- `@anthropic-ai/claude-agent-sdk` and the pixi STT environment update
-  only when requested from the dashboard, because they follow the
-  [provider refresh](../../topics/provider-refresh.md) audit and the
-  known-good STT snapshot respectively.
+  `java-version`) are deliberate; CI runs at the supported Node floor.
+- Preserve the parent's supported range for security overrides. A major bump
+  to the exact `fast-uri` pin can escape ajv's 3.x range.
+- `vite` updates must preserve the client's and desktop's different majors.
+  Bump their declared ranges when necessary instead of forcing one target
+  version across both importers with a recursive lockfile-only update.
+- `@playwright/test` remains below 1.61 until the supported Node floor moves
+  past its loader fix. From 1.61, `module.registerHooks` fails to load CommonJS
+  dependencies on Node 22.16 through 22.22 and on 23.11 with
+  `request for './Parser.js' is not in cache`; Node 22.23 and 24 work.
+  `PLAYWRIGHT_FORCE_ASYNC_LOADER` avoids that path but is undocumented.
+  The held release also cannot install browsers on Ubuntu 26.04, so jobs that
+  run `playwright install` use `ubuntu-24.04`. Lift the runner hold and return
+  those jobs to `ubuntu-latest` together after qualifying the new Node floor.
+- Provider SDK changes follow the [provider refresh](../../topics/provider-refresh.md)
+  audit, including the Claude SDK version marker. The optional pixi STT
+  environment retains its known-good snapshot and separate inference
+  qualification; a passing package resolver is not a GPU runtime test.
 
-Renovate 44's validator requires Node.js `^24.11.0`; use that runtime for
-this tooling even when the application uses another supported Node version.
-Before changing `renovate.json`, run
-`npx --yes --package=renovate@44 -- renovate-config-validator --strict`.
-Revisit the validator major/runtime when the hosted app moves to a new major.
+Renovate 44's validator requires Node.js `^24.11.0`. Before changing the
+explicitly disabled `renovate.json`, validate it with that runtime:
+
+```bash
+npx --yes --package=renovate@44 -- renovate-config-validator --strict
+```
