@@ -127,6 +127,16 @@ token, which makes the warning-free client build fail. The executable
 annotation and runtime code remain intact. Drop this patch when an upstream
 release removes the misplaced annotation token.
 
+The same day's mobile security refresh pins `crypto-bigint` to 0.7.6 in
+the production Rust core and refreshes the isolated proof lockfile to match,
+including its `ctutils` 0.4.5 dependency. This addresses
+[RUSTSEC-2026-0387](https://rustsec.org/advisories/RUSTSEC-2026-0387.html),
+which identifies secret-dependent branches in operations intended to be
+constant-time. The existing SRP compatibility vectors and live connection
+checks own the unchanged-server boundary. This dependency patch does not
+establish whole-protocol constant-time behavior or a formal crypto audit;
+the accepted limits remain in [mobile SRP](../../topics/security.md#mobile-srp-implementation-decision).
+
 ### Install-script allowlist
 
 Dependency install scripts (preinstall/install/postinstall) are blocked by
