@@ -46,6 +46,17 @@ connections without copying raw router responses or filesystem paths to the UI.
 There is no background polling, automatic reconnect or account substitution.
 Status reads never retry cleanup or change pairing/revocation state.
 
+A healthy pairing shows the check time and whether it uses AAR's default
+socket (named, since that path is fixed) or a custom one. The status and
+recovery responses carry only a `customSocket` boolean, never the saved path;
+servers before 2026-10-24 omit it and the line is hidden. The socket field and
+Retry connection appear when the pairing is incomplete or unhealthy, or after
+**Change socket**. **Check status** also rereads Pools and usage, so a pool
+granted in AAR appears without a separate reload. Each account's **Refresh
+usage** locks only its own button, since a refresh starts the provider CLI and
+can take several seconds. A failed refresh shows AAR's reason, which AAR
+scrubs of secrets and paths.
+
 - **Pairing incomplete:** Retry connection reuses the saved pairing and socket
   unless the operator explicitly supplies another socket. Identity checks still
   forbid substituting another router.
