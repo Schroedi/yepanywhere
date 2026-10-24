@@ -10,7 +10,7 @@
     "wrangler": "^4.141.0"
   },
   "overrides": {
-    "miniflare": {
+    "miniflare@5.20261012.0-beta": {
       "undici": "7.30.1"
     }
   }

@@ -154,6 +154,10 @@ alert. The worker's Miniflare pins Undici exactly, so its
 scoped npm override raises only `miniflare -> undici` to 7.30.1 for
 [excessive content encodings](https://github.com/advisories/GHSA-xjj6-f33q-929c).
 Drop that override when the pinned Miniflare declares a patched Undici.
+The override names the exact Miniflare beta version: npm 10 does not apply the
+unversioned parent override to this prerelease and rejects the frozen install.
+CI verifies the worker's frozen install before auditing it so the deployment's
+npm 10 boundary stays covered.
 
 The STT recovery snapshot raises `filelock` to 4.2.1 for its SQLite reader/writer
 lock and Windows soft-lock advisories. Linux/Python 3.12 resolution for the

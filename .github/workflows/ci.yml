@@ -207,6 +207,9 @@ jobs:
       # dependencies: the sharing worker's Wrangler/Miniflare edge is dev-only.
       - run: npm audit --package-lock-only
         working-directory: site
+      - name: Verify sharing worker frozen install
+        run: npm ci --ignore-scripts --no-audit --no-fund
+        working-directory: sharing-worker
       - run: npm audit --package-lock-only
         working-directory: sharing-worker
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
