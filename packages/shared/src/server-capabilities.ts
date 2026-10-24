@@ -2228,6 +2228,26 @@ export const SERVER_CAPABILITIES = {
       reason: "Older servers do not report .rendez observer status.",
     },
   },
+  projectFolderState: {
+    id: CAPABILITY_ID_ALLOCATIONS.projectFolderState.id,
+    name: "project-folder-state",
+    kind: "permanent",
+    area: "sessions",
+    introducedIn: "0.10.3",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Reports whether a path New project would add is missing, an empty folder, a folder with content, or a file, within the paths the principal may add.",
+    clientFallback:
+      "Show the New project panel without knowing the folder: every starting point and the Git choice, with copy covering both a missing and an existing folder, and make no folder-state request.",
+    serverContract: {
+      routes: ["GET /api/projects/folder-state"],
+      responseFields: ["path", "state"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason: "Older servers cannot report what a typed project path holds.",
+    },
+  },
   patientTopicShift: {
     id: CAPABILITY_ID_ALLOCATIONS.patientTopicShift.id,
     name: "patient-topic-shift",
