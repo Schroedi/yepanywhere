@@ -85,7 +85,6 @@ const loadGlobalSessionsPageModule = cachedModule(
 const loadHostPickerPageModule = cachedModule(
   () => import("./pages/HostPickerPage"),
 );
-const loadHostsPageModule = cachedModule(() => import("./pages/HostsPage"));
 const loadInboxPageModule = cachedModule(() => import("./pages/InboxPage"));
 const loadIssuesPageModule = cachedModule(() => import("./pages/IssuesPage"));
 const loadLegacyRelayRouteRedirectModule = cachedModule(
@@ -199,11 +198,6 @@ const HostPickerPage = lazy(() =>
     default: HostPickerPage,
   })),
 );
-const HostsRoute = lazy(() =>
-  loadHostsPageModule().then(({ HostsRoute }) => ({
-    default: HostsRoute,
-  })),
-);
 const InboxPage = lazy(() =>
   loadInboxPageModule().then(({ InboxPage }) => ({
     default: InboxPage,
@@ -299,7 +293,6 @@ const initialRemoteModuleLoaders: Record<
   gitStatusPage: loadGitStatusPageModule,
   globalSessionsPage: loadGlobalSessionsPageModule,
   hostPickerPage: loadHostPickerPageModule,
-  hostsPage: loadHostsPageModule,
   inboxPage: loadInboxPageModule,
   issuesPage: loadIssuesPageModule,
   layouts: loadLayoutsModule,
@@ -405,7 +398,6 @@ const APP_ROUTES = (
       <Route path="agents" element={routeModule(<AgentsPage />)} />
       <Route path="inbox" element={routeModule(<InboxPage />)} />
       <Route path="issues" element={routeModule(<IssuesPage />)} />
-      <Route path="-/hosts" element={routeModule(<HostsRoute />)} />
       <Route path="git-status" element={routeModule(<GitStatusPage />)} />
       <Route path="bang-commands" element={routeModule(<BangCommandsPage />)} />
       <Route path="devices" element={routeModule(<EmulatorPage />)} />

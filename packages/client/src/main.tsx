@@ -98,11 +98,6 @@ const GlobalSessionsPage = lazy(() =>
     default: GlobalSessionsPage,
   })),
 );
-const HostsRoute = lazy(() =>
-  import("./pages/HostsPage").then(({ HostsRoute }) => ({
-    default: HostsRoute,
-  })),
-);
 const InboxPage = lazy(() =>
   import("./pages/InboxPage").then(({ InboxPage }) => ({
     default: InboxPage,
@@ -368,10 +363,6 @@ if (import.meta.env.DEV && window.location.port === String(__VITE_DEV_PORT__)) {
                       element={routeModule(<IssuesPage />)}
                     />
                     <Route path="/inbox" element={routeModule(<InboxPage />)} />
-                    <Route
-                      path="/-/hosts"
-                      element={routeModule(<HostsRoute />)}
-                    />
                     <Route
                       path="/settings"
                       element={routeModule(<SettingsLayout />)}

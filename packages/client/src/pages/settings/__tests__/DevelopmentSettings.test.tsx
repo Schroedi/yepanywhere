@@ -1,12 +1,6 @@
 // @vitest-environment jsdom
 
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  within,
-} from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -77,10 +71,6 @@ vi.mock("../../../i18n", () => ({
           developmentSectionTitle: "Development",
           developmentSchemaTitle: "Schema Validation",
           developmentSchemaDescription: "Validate tool results",
-          developmentCrossHostDelegationTitle: "YA Hosts Preview",
-          developmentCrossHostDelegationDescription:
-            "Expose the experimental host preview",
-          developmentHostsPreviewOpen: "Open YA Hosts",
           developmentRelayMonitorTitle: "Relay Monitor",
           developmentRelayMonitorDescription: "Open relay telemetry",
           developmentRelayMonitorOpen: "Open Relay Monitor",
@@ -158,7 +148,6 @@ describe("DevelopmentSettings", () => {
     renderSettings();
 
     expect(screen.getByText("Schema Validation")).toBeTruthy();
-    expect(screen.getByText("YA Hosts Preview")).toBeTruthy();
     expect(screen.queryByText("Relay Monitor")).toBeNull();
     expect(screen.getByText("Relay Debug Logging")).toBeTruthy();
     expect(screen.getByText("Browser Diagnostics")).toBeTruthy();
@@ -275,27 +264,5 @@ describe("DevelopmentSettings", () => {
       "https://relay.example.test/team/stats",
     );
     expect(link.getAttribute("target")).toBe("_blank");
-  });
-
-  it("reveals the server-scoped hosts route behind its toggle", () => {
-    renderSettings();
-
-    expect(screen.queryByRole("link", { name: "Open YA Hosts" })).toBeNull();
-
-    fireEvent.click(screen.getByRole("checkbox", { name: "YA Hosts Preview" }));
-
-    const previewRow = screen
-      .getByText("YA Hosts Preview")
-      .closest("[data-settings-item]");
-    expect(previewRow).not.toBeNull();
-    const link = within(previewRow as HTMLElement).getByRole("link", {
-      name: "Open YA Hosts",
-    });
-    expect(link.getAttribute("href")).toBe("/-/hosts");
-    expect(
-      JSON.parse(localStorage.getItem(UI_KEYS.developerMode) ?? "{}"),
-    ).toMatchObject({
-      crossHostDelegationEnabled: true,
-    });
   });
 });

@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import { useSchemaValidationContext } from "../../contexts/SchemaValidationContext";
 import { useOptionalRemoteConnection } from "../../contexts/RemoteConnectionContext";
 import { useDeveloperMode } from "../../hooks/useDeveloperMode";
 import { useReloadNotifications } from "../../hooks/useReloadNotifications";
-import { useRemoteBasePath } from "../../hooks/useRemoteBasePath";
 import { useSchemaValidation } from "../../hooks/useSchemaValidation";
 import { useServerSettings } from "../../hooks/useServerSettings";
 import { useSessionPerformanceSettings } from "../../hooks/useSessionPerformanceSettings";
@@ -51,7 +49,6 @@ const sessionScrollMemoryModeLabelKeys: Record<
 
 export function DevelopmentSettings() {
   const { t } = useI18n();
-  const basePath = useRemoteBasePath();
   const remoteConnection = useOptionalRemoteConnection();
   const currentRelayHost = remoteConnection?.connection
     ? remoteConnection.currentRelayUsername
@@ -78,8 +75,6 @@ export function DevelopmentSettings() {
   const { settings: validationSettings, setEnabled: setValidationEnabled } =
     useSchemaValidation();
   const {
-    crossHostDelegationEnabled,
-    setCrossHostDelegationEnabled,
     relayDebugEnabled,
     setRelayDebugEnabled,
     retainRejectedSrpSessions,
@@ -98,7 +93,6 @@ export function DevelopmentSettings() {
       serverSettings
         ? {
             validationEnabled: validationSettings.enabled,
-            crossHostDelegationEnabled,
             relayDebugEnabled,
             retainRejectedSrpSessions,
             remoteLogCollectionEnabled,
@@ -108,7 +102,6 @@ export function DevelopmentSettings() {
         : null,
     [
       validationSettings.enabled,
-      crossHostDelegationEnabled,
       relayDebugEnabled,
       retainRejectedSrpSessions,
       remoteLogCollectionEnabled,
@@ -119,7 +112,6 @@ export function DevelopmentSettings() {
   const restoreUndoState = useCallback(
     (snapshot: NonNullable<typeof undoState>) => {
       setValidationEnabled(snapshot.validationEnabled);
-      setCrossHostDelegationEnabled(snapshot.crossHostDelegationEnabled);
       setRelayDebugEnabled(snapshot.relayDebugEnabled);
       setRetainRejectedSrpSessions(snapshot.retainRejectedSrpSessions);
       setRemoteLogCollectionEnabled(snapshot.remoteLogCollectionEnabled);
@@ -131,7 +123,6 @@ export function DevelopmentSettings() {
     },
     [
       setValidationEnabled,
-      setCrossHostDelegationEnabled,
       setRelayDebugEnabled,
       setRetainRejectedSrpSessions,
       setRemoteLogCollectionEnabled,
@@ -215,33 +206,6 @@ export function DevelopmentSettings() {
             </button>
           </SettingsItem>
         )}
-        <SettingsItem
-          label={t("developmentCrossHostDelegationTitle")}
-          description={t("developmentCrossHostDelegationDescription")}
-          className="settings-item--wide-control"
-        >
-          <div className="settings-item-actions">
-            {crossHostDelegationEnabled && (
-              <Link
-                className="settings-button settings-button-secondary"
-                to={`${basePath}/-/hosts`}
-              >
-                {t("developmentHostsPreviewOpen")}
-              </Link>
-            )}
-            <label className="toggle-switch">
-              <input
-                type="checkbox"
-                aria-label={t("developmentCrossHostDelegationTitle")}
-                checked={crossHostDelegationEnabled}
-                onChange={(event) =>
-                  setCrossHostDelegationEnabled(event.target.checked)
-                }
-              />
-              <span className="toggle-slider" />
-            </label>
-          </div>
-        </SettingsItem>
         {relayMonitorUrl && (
           <SettingsItem
             label={t("developmentRelayMonitorTitle")}
