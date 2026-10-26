@@ -113,12 +113,25 @@ attachment in the session composer before becoming a user turn.
 ## Composer draft and countdown
 
 Session-addressed uploads join the existing shared session draft, preserving
-its text and attachments. With no text, each attachment gets a ten-second
-auto-send countdown, shown subtly beside its preview with a progress border.
+its text and attachments. With no text, incoming captures share a ten-second
+auto-send countdown. Each new capture resets the active countdown; only the
+latest attachment shows its countdown and progress border. Earlier attachments
+look like normal attachments. The countdown sends the waiting captures together
+in one message, rather than one turn per capture.
 Text already in the draft, or typing before the deadline, keeps the upload
 for normal Send. Erasing that text does not restart auto-send. Removing an
-attachment cancels its countdown. Send consumes the attachments through the
-ordinary browser upload path; untouched uploads use rendez delivery below.
+attachment cancels its countdown. A draft held for Send stays held when more
+captures arrive; a countdown never sends only part of the draft.
+Arrivals reconcile while typing instead of waiting for the normal quiet-save
+debounce. In enabled projects, or with captures already visible, Send reads the shared draft
+before collecting attachments, including captures received by the server whose
+previews have not arrived yet. It respects deliberate removals and records the
+expanded submission so successful Send clears those captures too. A concurrent
+draft conflict or failed read stops Send with recovery retained. A capture
+received after that collection belongs to the next draft. Existing servers
+without draft synchronization retain browser-local collection.
+Send consumes the attachments through the ordinary browser upload path;
+untouched uploads use rendez delivery below.
 
 The deadline belongs to the server and runs without an open browser. Text
 changes and removals sync immediately while a deadline is active. The server

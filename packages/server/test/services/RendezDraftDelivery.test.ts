@@ -20,6 +20,16 @@ it("stages uploads beside existing text, cancels on typing, and arbitrates manua
   const delivery = new RendezDraftDelivery(drafts, staging);
   const slot = { kind: "session", sessionId: "receiver" } as const;
   const read = () => drafts.read("", slot);
+  const clear = () => {
+    const current = read();
+    drafts.write("", {
+      slot,
+      operationId: randomUUID(),
+      ticket: current.ticket,
+      baseRevision: current.snapshot.revision,
+      payload: { fields: {}, attachments: [] },
+    });
+  };
   const edit = (text: string) => {
     const current = read();
     return drafts.write("", {
@@ -65,9 +75,18 @@ it("stages uploads beside existing text, cancels on typing, and arbitrates manua
     await vi.advanceTimersByTimeAsync(11_000);
     expect(send).not.toHaveBeenCalled();
 
-    edit("");
+    clear();
     const held = await upload();
     expect(held.rendezAutoSendAt).toBe(Date.now() + 10_000);
+    await vi.advanceTimersByTimeAsync(3000);
+    const second = await upload();
+    expect(
+      read()
+        .snapshot.payload.attachments.filter(
+          (a) => a.id === held.id || a.id === second.id,
+        )
+        .map((a) => a.rendezAutoSendAt),
+    ).toEqual([Date.now() + 10_000, Date.now() + 10_000]);
     await vi.advanceTimersByTimeAsync(9000);
     edit("new text");
     edit("");
@@ -78,25 +97,32 @@ it("stages uploads beside existing text, cancels on typing, and arbitrates manua
         ?.rendezAutoSendAt,
     ).toBeNull();
 
-    const manual = await upload();
+    clear();
+    await upload();
     await vi.advanceTimersByTimeAsync(9999);
-    delivery.claim([manual]);
+    delivery.claim(read().snapshot.payload.attachments);
+    clear();
     await vi.advanceTimersByTimeAsync(2);
     expect(send).not.toHaveBeenCalled();
 
     const automatic = await upload();
+    await vi.advanceTimersByTimeAsync(3000);
+    const automaticSecond = await upload();
     await vi.advanceTimersByTimeAsync(9999);
     expect(send).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1);
     expect(send).toHaveBeenCalledExactlyOnceWith(
       expect.any(String),
-      "upload text",
+      "upload text\n\nupload text",
       expect.objectContaining({ path }),
     );
     expect(
       read().snapshot.payload.attachments.some((a) => a.id === automatic.id),
     ).toBe(false);
     expect(() => delivery.claim([automatic])).toThrow("already auto-sent");
+    expect(() => delivery.claim([automaticSecond])).toThrow(
+      "already auto-sent",
+    );
     expect(
       await staging.validateDraftRefs(existing.batchId, [existing]),
     ).toHaveLength(1);
@@ -109,6 +135,33 @@ it("stages uploads beside existing text, cancels on typing, and arbitrates manua
         ?.rendezAutoSendAt,
     ).toBeNull();
 
+    clear();
+    const alongsideBrowserUpload = await upload();
+    const ordinary = { ...existing };
+    delete ordinary.rendezPath;
+    delete ordinary.rendezAutoSendAt;
+    const withBrowserUpload = read();
+    drafts.write("", {
+      slot,
+      operationId: randomUUID(),
+      ticket: withBrowserUpload.ticket,
+      baseRevision: withBrowserUpload.snapshot.revision,
+      payload: {
+        ...withBrowserUpload.snapshot.payload,
+        attachments: [
+          ...withBrowserUpload.snapshot.payload.attachments,
+          ordinary,
+        ],
+      },
+    });
+    await vi.advanceTimersByTimeAsync(11_000);
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(
+      read().snapshot.payload.attachments.find(
+        (ref) => ref.id === alongsideBrowserUpload.id,
+      )?.rendezAutoSendAt,
+    ).toBeNull();
+    clear();
     const closing = await upload();
     await delivery.close();
     await vi.advanceTimersByTimeAsync(11_000);

@@ -34,7 +34,9 @@ sync service is active. Keep that page open until storage works again.
 
 Background writes use a three-second quiet debounce and ten-second maximum
 wait during connected editing. A server change notice does not cut a pending
-debounce short: that save reads the server anyway. Preempting it turned each
+debounce short for ordinary drafts: that save reads the server anyway. A draft
+with rendez captures refreshes immediately so later captures appear during
+typing. Preempting ordinary draft saves turned each
 tab's save into the other tab's immediate save, so two tabs on one draft
 alternated writes on every keystroke (observed 2026-10-05: 682 accepted writes
 in an hour on one session draft). Reconnect, window focus and foregrounding refresh

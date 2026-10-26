@@ -18,7 +18,8 @@ import type {
 interface Pending {
   slot: DraftSlot;
   ref: StagedAttachmentRef;
-  send: () => Promise<RendezSendResult>;
+  text: string;
+  send: (text: string) => Promise<RendezSendResult>;
 }
 
 /** Stages session uploads in shared drafts; one next-deadline timer owns auto-send. */
@@ -107,12 +108,20 @@ export class RendezDraftDelivery {
       const hasText = Object.values(current.snapshot.payload.fields).some(
         (value) => value.length > 0,
       );
+      const heldAttachments = current.snapshot.payload.attachments.some(
+        (attachment) =>
+          typeof attachment.rendezAutoSendAt !== "number" ||
+          !this.pending.has(attachment.id),
+      );
       ref = {
         ...ref,
         rendezPath: record.path,
         rendezAutoSendAt:
-          hasText || this.pending.size >= 256 ? null : Date.now() + 10_000,
+          hasText || heldAttachments || this.pending.size >= 256
+            ? null
+            : Date.now() + 10_000,
       };
+      const deadline = ref.rendezAutoSendAt;
       const result = this.drafts.write("", {
         slot,
         operationId: `rendez-${id}`,
@@ -120,7 +129,14 @@ export class RendezDraftDelivery {
         baseRevision: current.snapshot.revision,
         payload: {
           ...current.snapshot.payload,
-          attachments: [...current.snapshot.payload.attachments, ref],
+          attachments: [
+            ...current.snapshot.payload.attachments.map((attachment) =>
+              typeof attachment.rendezAutoSendAt === "number"
+                ? { ...attachment, rendezAutoSendAt: deadline }
+                : attachment,
+            ),
+            ref,
+          ],
         },
       });
       retained = result.outcome === "accepted";
@@ -128,7 +144,8 @@ export class RendezDraftDelivery {
         this.pending.set(ref.id, {
           slot,
           ref,
-          send: () => send(id, text, record),
+          text,
+          send: (message) => send(id, message, record),
         });
         this.reconcile();
       }
@@ -179,11 +196,16 @@ export class RendezDraftDelivery {
       if (
         !ref ||
         ref.rendezAutoSendAt === null ||
+        payload.attachments.some(
+          (attachment) => attachment.rendezPath === undefined,
+        ) ||
         Object.values(payload.fields).some((value) => value.length > 0)
       ) {
         this.pending.delete(id);
         if (ref && ref.rendezAutoSendAt !== null)
           this.replace(item, { ...ref, rendezAutoSendAt: null });
+      } else {
+        item.ref = ref;
       }
     }
     this.schedule();
@@ -217,24 +239,39 @@ export class RendezDraftDelivery {
 
   private async deliver(): Promise<void> {
     this.reconcile();
-    for (const [id, item] of this.pending) {
-      if (this.closed || item.ref.rendezAutoSendAt! > Date.now()) continue;
-      this.pending.delete(id);
-      this.sent.add(id);
-      if (this.sent.size > 512)
-        this.sent.delete(this.sent.values().next().value!);
+    for (const item of [...this.pending.values()]) {
+      if (
+        this.closed ||
+        !this.pending.has(item.ref.id) ||
+        item.ref.rendezAutoSendAt! > Date.now()
+      )
+        continue;
+      const group = [...this.pending.values()].filter(
+        (candidate) => draftSlotKey(candidate.slot) === draftSlotKey(item.slot),
+      );
+      if (!group.length) continue;
       // Remove synchronously before yielding: manual send and auto-send cannot
       // both consume the same draft reference on the server event loop.
-      this.replace(item, undefined);
+      for (const member of group) {
+        this.pending.delete(member.ref.id);
+        this.sent.add(member.ref.id);
+        if (this.sent.size > 512)
+          this.sent.delete(this.sent.values().next().value!);
+        this.replace(member, undefined);
+      }
       try {
-        const result = await item.send();
+        const result = await group[group.length - 1]!.send(
+          group.map((member) => member.text).join("\n\n"),
+        );
         if (!result.accepted)
           throw new Error(
             result.diagnostics ?? "Rendez target refused auto-send",
           );
       } catch (error) {
-        this.sent.delete(id);
-        this.replace(item, { ...item.ref, rendezAutoSendAt: null });
+        for (const member of group) {
+          this.sent.delete(member.ref.id);
+          this.replace(member, { ...member.ref, rendezAutoSendAt: null });
+        }
         getLogger().warn(
           { error: String(error) },
           "Rendez upload retained in draft after auto-send failure",

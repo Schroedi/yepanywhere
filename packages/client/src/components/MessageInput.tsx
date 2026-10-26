@@ -3787,6 +3787,9 @@ export function MessageInput({
   };
   const showMobileKeyboardCompact = mobileKeyboardOpen && canSubmit;
 
+  const latestRendezAttachmentId = [...attachments]
+    .reverse()
+    .find((attachment) => attachment.rendezAutoSendAt !== undefined)?.id;
   const composer = (
     <div
       className={`message-input-wrapper${fullPane ? ` ${styles.fullPane}` : ""}`}
@@ -4370,10 +4373,10 @@ export function MessageInput({
                     }
                   />
                 );
-                return file.rendezAutoSendAt !== undefined ? (
+                return file.id === latestRendezAttachmentId ? (
                   <RendezAttachment
                     key={file.id}
-                    sendAt={file.rendezAutoSendAt}
+                    sendAt={file.rendezAutoSendAt ?? null}
                     hasText={text.length > 0}
                   >
                     {chip}

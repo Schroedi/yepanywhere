@@ -1,5 +1,8 @@
 import { RoutedSessionContext } from "../contexts/RoutedSessionContext";
-import { DRAFT_STORAGE_EVENT } from "../lib/draftSyncStorage";
+import {
+  DRAFT_STORAGE_EVENT,
+  collectSyncedSubmissionAttachments,
+} from "../lib/draftSyncStorage";
 import { SessionIssuesLink } from "../components/SessionIssuesLink";
 import { useNonHumanUserTurnNavigation } from "../hooks/useNonHumanUserTurnNavigation";
 import { useSessionMessageNavigation } from "../hooks/useSessionMessageNavigation";
@@ -2612,6 +2615,16 @@ function SessionPageContent({
 
   const collectComposerAttachmentsForSubmission = useCallback(
     async (options?: { pendingMessageId?: string }) => {
+      const collectRendez =
+        !mainComposerForAside &&
+        (attachmentsRef.current.some(
+          (attachment) =>
+            isComposerStagedAttachment(attachment) &&
+            attachment.rendezPath !== undefined,
+        ) ||
+          (serverSettings?.rendez?.projects[project?.path ?? ""] ??
+            serverSettings?.rendez?.enabled ??
+            false));
       return collectComposerAttachmentsForSubmissionHelper({
         currentAttachments: attachmentsRef.current,
         pendingUploads: [...pendingUploadsRef.current.values()],
@@ -2620,9 +2633,20 @@ function SessionPageContent({
         updatePendingMessage,
         uploadingStatus: t("sessionUploading"),
         uploadFailureMessage: t("composerAttachmentUploadFailed"),
+        collectSyncedAttachments: collectRendez
+          ? () => collectSyncedSubmissionAttachments(sessionDraftKey)
+          : undefined,
       });
     },
-    [setComposerAttachments, t, updatePendingMessage],
+    [
+      mainComposerForAside,
+      serverSettings?.rendez,
+      project?.path,
+      sessionDraftKey,
+      setComposerAttachments,
+      t,
+      updatePendingMessage,
+    ],
   );
 
   const handleSyntheticSessionBoundary = useCallback(
