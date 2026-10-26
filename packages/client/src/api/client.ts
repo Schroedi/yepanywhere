@@ -1780,22 +1780,6 @@ export const api = {
       retryable?: boolean;
     }>("/codex/updates/install", { method: "POST" }),
 
-  // Remote executors API
-  getRemoteExecutors: () =>
-    fetchJSON<{ executors: string[] }>("/settings/remote-executors"),
-
-  updateRemoteExecutors: (executors: string[]) =>
-    fetchJSON<{ executors: string[] }>("/settings/remote-executors", {
-      method: "PUT",
-      body: JSON.stringify({ executors }),
-    }),
-
-  testRemoteExecutor: (host: string) =>
-    fetchJSON<RemoteExecutorTestResult>(
-      `/settings/remote-executors/${encodeURIComponent(host)}/test`,
-      { method: "POST" },
-    ),
-
   // Sharing API
   getSharingStatus: () => fetchJSON<{ configured: boolean }>("/sharing/status"),
 
@@ -1957,20 +1941,6 @@ export const api = {
     }>("/devices/bridge/download", { method: "POST" }),
 };
 
-/** Result of testing an SSH connection to a remote executor */
-export interface RemoteExecutorTestResult {
-  success: boolean;
-  error?: string;
-  /** SSH host that was tested */
-  host?: string;
-  /** Remote home directory */
-  homeDir?: string;
-  /** Whether Claude CLI is available on remote */
-  claudeAvailable?: boolean;
-  /** Claude CLI version on remote (e.g. "1.0.12") */
-  claudeVersion?: string;
-}
-
 /**
  * Which local path prefixes the HTTP file doors (media + project-files routes)
  * may read. See docs/tactical/018-file-access-scoping.md.
@@ -2060,8 +2030,6 @@ export interface ServerSettings {
   hostAwakeBatteryFloorPercent?: number;
   /** @deprecated Use yaClientBaseUrl. */
   publicShareViewerBaseUrl?: string | null;
-  /** SSH host aliases for remote executors */
-  remoteExecutors?: string[];
   /** SSH host aliases for ChromeOS device bridge targets */
   chromeOsHosts?: string[];
   /** Allowed hostnames for host/origin validation. "*" = allow all, comma-separated = specific hosts. */

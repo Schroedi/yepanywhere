@@ -145,48 +145,6 @@ describe("Settings Routes", () => {
     expect(completed).toHaveBeenCalledTimes(1);
   });
 
-  describe("PUT /remote-executors", () => {
-    it("rejects invalid host aliases", async () => {
-      const routes = createSettingsRoutes({
-        serverSettingsService: mockServerSettingsService,
-      });
-
-      const response = await routes.request("/remote-executors", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          executors: ["devbox", "-oProxyCommand=touch_/tmp/pwned"],
-        }),
-      });
-
-      expect(response.status).toBe(400);
-      const json = await response.json();
-      expect(json.error).toContain("Invalid remote executor host alias");
-      expect(mockServerSettingsService.updateSettings).not.toHaveBeenCalled();
-    });
-
-    it("accepts and normalizes valid aliases", async () => {
-      const routes = createSettingsRoutes({
-        serverSettingsService: mockServerSettingsService,
-      });
-
-      const response = await routes.request("/remote-executors", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          executors: ["  devbox  ", "gpu-server", "", "  "],
-        }),
-      });
-
-      expect(response.status).toBe(200);
-      const json = await response.json();
-      expect(json.executors).toEqual(["devbox", "gpu-server"]);
-      expect(mockServerSettingsService.updateSettings).toHaveBeenCalledWith({
-        remoteExecutors: ["devbox", "gpu-server"],
-      });
-    });
-  });
-
   describe("PUT /", () => {
     it("saves or disables the readiness executable and notifies after saving", async () => {
       const changed = vi.fn(() =>
@@ -932,25 +890,6 @@ describe("Settings Routes", () => {
       expect(response.status).toBe(400);
       const json = await response.json();
       expect(json.error).toBe("Invalid agentContextHints setting");
-      expect(mockServerSettingsService.updateSettings).not.toHaveBeenCalled();
-    });
-
-    it("rejects invalid aliases in remoteExecutors setting", async () => {
-      const routes = createSettingsRoutes({
-        serverSettingsService: mockServerSettingsService,
-      });
-
-      const response = await routes.request("/", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          remoteExecutors: ["devbox", "-oProxyCommand=touch_/tmp/pwned"],
-        }),
-      });
-
-      expect(response.status).toBe(400);
-      const json = await response.json();
-      expect(json.error).toContain("Invalid remote executor host alias");
       expect(mockServerSettingsService.updateSettings).not.toHaveBeenCalled();
     });
 
@@ -2735,7 +2674,7 @@ describe("Settings Routes", () => {
       },
     );
 
-    it("keeps remote-executor persistence behind an in-flight share disable", async () => {
+    it("keeps unrelated setting persistence behind an in-flight share disable", async () => {
       const disableGate = deferred();
       const events: string[] = [];
       mockServerSettingsService.updateSettings = vi.fn(
@@ -2743,7 +2682,7 @@ describe("Settings Routes", () => {
           events.push(
             "publicSharesEnabled" in updates
               ? `persist:shares:${updates.publicSharesEnabled}`
-              : `persist:executors:${updates.remoteExecutors?.join(",")}`,
+              : `persist:instructions:${updates.globalInstructions}`,
           );
           settings = { ...settings, ...updates };
           return settings;
@@ -2770,22 +2709,24 @@ describe("Settings Routes", () => {
       await vi.waitFor(() => {
         expect(events).toEqual(["persist:shares:false", "disable:start"]);
       });
-      const updatingExecutors = routes.request("/remote-executors", {
+      const updatingInstructions = routes.request("/", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ executors: ["worker-one"] }),
+        body: JSON.stringify({ globalInstructions: "Review carefully" }),
       });
       await Promise.resolve();
       expect(events).toEqual(["persist:shares:false", "disable:start"]);
 
       disableGate.resolve();
       await expect(disabling).resolves.toMatchObject({ status: 200 });
-      await expect(updatingExecutors).resolves.toMatchObject({ status: 200 });
+      await expect(updatingInstructions).resolves.toMatchObject({
+        status: 200,
+      });
       expect(events).toEqual([
         "persist:shares:false",
         "disable:start",
         "disable:done",
-        "persist:executors:worker-one",
+        "persist:instructions:Review carefully",
       ]);
     });
 
@@ -3014,26 +2955,6 @@ describe("Settings Routes", () => {
     });
   });
 
-  describe("POST /remote-executors/:host/test", () => {
-    it("rejects invalid host path parameters", async () => {
-      const routes = createSettingsRoutes({
-        serverSettingsService: mockServerSettingsService,
-      });
-      const invalidHost = encodeURIComponent("-oProxyCommand=touch_/tmp/pwned");
-
-      const response = await routes.request(
-        `/remote-executors/${invalidHost}/test`,
-        {
-          method: "POST",
-        },
-      );
-
-      expect(response.status).toBe(400);
-      const json = await response.json();
-      expect(json.error).toBe("host must be a valid SSH host alias");
-    });
-  });
-
   describe("GET / by principal", () => {
     const limited: Principal = {
       kind: "limited",
@@ -3075,7 +2996,6 @@ describe("Settings Routes", () => {
         ...settings,
         lifecycleWebhookUrl: "https://hooks.example/yep",
         lifecycleWebhookToken: "bearer-secret",
-        remoteExecutors: ["devbox"],
         chromeOsHosts: ["chromeroot"],
         claudeGatewayStartCommand: "copilot-api start",
         globalInstructions: "private instructions",
@@ -3094,7 +3014,6 @@ describe("Settings Routes", () => {
       for (const withheld of [
         "lifecycleWebhookUrl",
         "lifecycleWebhookToken",
-        "remoteExecutors",
         "chromeOsHosts",
         "claudeGatewayStartCommand",
         "globalInstructions",
@@ -3109,7 +3028,6 @@ describe("Settings Routes", () => {
       const read = await readAs(SUPERUSER);
       expect(read).toMatchObject({
         lifecycleWebhookToken: "bearer-secret",
-        remoteExecutors: ["devbox"],
       });
       expect(read).toHaveProperty("gatewayServiceExportPaths");
     });

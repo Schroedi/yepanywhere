@@ -73,7 +73,6 @@ const {
   providersState,
   providerDescriptorsState,
   providerRowState,
-  remoteExecutorsState,
   serverSettingsState,
   versionState,
   remoteBasePathState,
@@ -186,9 +185,6 @@ const {
     fresh: true,
     refreshing: false,
     error: null as Error | null,
-  },
-  remoteExecutorsState: {
-    executors: [] as string[],
   },
   serverSettingsState: {
     error: null as string | null,
@@ -526,13 +522,6 @@ vi.mock("../../hooks/useProviders", () => ({
 
 vi.mock("../../hooks/useRemoteBasePath", () => ({
   useRemoteBasePath: () => remoteBasePathState.basePath,
-}));
-
-vi.mock("../../hooks/useRemoteExecutors", () => ({
-  useRemoteExecutors: () => ({
-    executors: remoteExecutorsState.executors,
-    loading: false,
-  }),
 }));
 
 vi.mock("../../hooks/useServerSettings", () => ({
@@ -883,7 +872,6 @@ describe("NewSessionForm", () => {
     providerRowState.fresh = true;
     providerRowState.refreshing = false;
     providerRowState.error = null;
-    remoteExecutorsState.executors = [];
     serverSettingsState.settings = null;
     serverSettingsState.error = null;
     serverSettingsState.refetch.mockClear();
@@ -1500,7 +1488,6 @@ describe("NewSessionForm", () => {
         preferredModel="opus"
         preferredThinking="on:xhigh"
         preferredPermissionMode="plan"
-        preferredExecutor="build-host"
         launch={{
           draftKey: "draft-handoff:session-1",
           initialMessage: "Prepared handoff",
@@ -1541,30 +1528,12 @@ describe("NewSessionForm", () => {
           model: "gpt-5.3-codex",
           thinking: "on:xhigh",
           provider: "codex",
-          executor: undefined,
         }),
         clientTimestamp: expect.any(Number),
       });
     });
     expect(mockStartSession).not.toHaveBeenCalled();
     expect((composer as HTMLTextAreaElement).value).toBe("");
-  });
-
-  it("offers configured SSH hosts only to supported providers", async () => {
-    remoteExecutorsState.executors = ["build-host"];
-    serverSettingsState.settings = {};
-    serverSettingsState.isLoading = false;
-
-    render(
-      <NewSessionForm
-        projectId="project-1"
-        selectedProject={chooserProjects[0]}
-      />,
-    );
-
-    expect(await screen.findByText("build-host")).toBeDefined();
-    fireEvent.click(screen.getByRole("button", { name: "Codex" }));
-    await waitFor(() => expect(screen.queryByText("build-host")).toBeNull());
   });
 
   it("groups previous models and keeps an unlisted saved default selected", async () => {

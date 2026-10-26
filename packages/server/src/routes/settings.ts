@@ -57,7 +57,6 @@ import {
 } from "../middleware/file-access.js";
 import type { SessionMetadataService } from "../metadata/index.js";
 import type { ProjectStoragePolicy } from "../projects/projectStoragePolicy.js";
-import { testSSHConnection } from "../sdk/remote-spawn.js";
 import { defaultGatewayServiceExportPaths } from "../sdk/providers/gatewayServiceExport.js";
 import { detectEndpointEffort } from "../services/GatewayEffortProbe.js";
 import type { PublicShareService } from "../services/PublicShareService.js";
@@ -74,10 +73,6 @@ import {
   MAX_SOURCE_REVIEW_RESPONSE_TURNS,
   MIN_SOURCE_REVIEW_RESPONSE_TURNS,
 } from "../services/ServerSettingsService.js";
-import {
-  isValidSshHostAlias,
-  normalizeSshHostAlias,
-} from "../utils/sshHostAlias.js";
 
 import {
   discoverOpenAiCompatibleModels,
@@ -660,18 +655,6 @@ export function createSettingsRoutes(deps: SettingsRoutesDeps) {
           );
         }
         updates.hostIdentity = parsedHostIdentity;
-      }
-
-      // Handle remoteExecutors array
-      if (Array.isArray(body.remoteExecutors)) {
-        const { hosts, invalidHost } = parseHostAliasList(body.remoteExecutors);
-        if (invalidHost) {
-          return c.json(
-            { error: `Invalid remote executor host alias: ${invalidHost}` },
-            400,
-          );
-        }
-        updates.remoteExecutors = hosts;
       }
 
       // Handle chromeOsHosts array
@@ -1411,15 +1394,6 @@ export function createSettingsRoutes(deps: SettingsRoutesDeps) {
   );
 
   /**
-   * GET /api/settings/remote-executors
-   * Get list of configured remote executors
-   */
-  app.get("/remote-executors", (c) => {
-    const settings = serverSettingsService.getSettings();
-    return c.json({ executors: settings.remoteExecutors ?? [] });
-  });
-
-  /**
    * POST /api/settings/helper-targets/models
    * Discover model ids exposed by an OpenAI-compatible helper endpoint.
    */
@@ -1482,54 +1456,6 @@ export function createSettingsRoutes(deps: SettingsRoutesDeps) {
       noThinking: detection.probe.noThinking,
       defaultLevel: detection.probe.defaultLevel,
     });
-  });
-
-  /**
-   * PUT /api/settings/remote-executors
-   * Update list of remote executors
-   */
-  app.put("/remote-executors", (c) =>
-    serializeSettingsUpdate(async () => {
-      const body = await c.req.json<{ executors: string[] }>();
-
-      if (!Array.isArray(body.executors)) {
-        return c.json({ error: "executors must be an array" }, 400);
-      }
-
-      const { hosts: validExecutors, invalidHost } = parseHostAliasList(
-        body.executors,
-      );
-      if (invalidHost) {
-        return c.json(
-          { error: `Invalid remote executor host alias: ${invalidHost}` },
-          400,
-        );
-      }
-
-      await serverSettingsService.updateSettings({
-        remoteExecutors: validExecutors,
-      });
-
-      return c.json({ executors: validExecutors });
-    }),
-  );
-
-  /**
-   * POST /api/settings/remote-executors/:host/test
-   * Test SSH connection to a remote executor
-   */
-  app.post("/remote-executors/:host/test", async (c) => {
-    const host = normalizeSshHostAlias(c.req.param("host"));
-
-    if (!host) {
-      return c.json({ error: "host is required" }, 400);
-    }
-    if (!isValidSshHostAlias(host)) {
-      return c.json({ error: "host must be a valid SSH host alias" }, 400);
-    }
-
-    const result = await testSSHConnection(host);
-    return c.json(result);
   });
 
   return app;

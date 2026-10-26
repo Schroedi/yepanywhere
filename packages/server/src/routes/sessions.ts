@@ -72,10 +72,8 @@ import {
 import { tryClaimProjectPathIndex } from "../projects/projectPathIndex.js";
 import type { ProjectScanner } from "../projects/scanner.js";
 import { resolveCanonicalProjectRedirect } from "./session-project-routing.js";
-import { ensureRemoteDirectory } from "../sdk/remote-spawn.js";
 import { parseSlashCommandSubmission } from "../sdk/slashCommandEmulation.js";
 import { dispatchProviderCommand } from "../supervisor/provider-command.js";
-import { getProjectDirFromCwd, syncSessions } from "../sdk/session-sync.js";
 import type { PermissionMode, SDKMessage, UserMessage } from "../sdk/types.js";
 import { appendApprovalAuditLog } from "../security/approvalAuditLog.js";
 import { getSessionSandboxSettingsError } from "../session-sandbox.js";
@@ -2133,6 +2131,25 @@ function extractContextUsageFromSDKMessages(
 
 export function createSessionsRoutes(deps: SessionsDeps): Hono {
   const routes = new Hono();
+  // Historical executor labels are read-only. Never turn a retired remote
+  // session into a local writer through resume, clone, fork or another action.
+  routes.use("/projects/:projectId/sessions/:sessionId/*", async (c, next) => {
+    if (c.req.method === "POST") {
+      const sessionId = c.req.param("sessionId");
+      const executor =
+        deps.sessionMetadataService?.getMetadata?.(sessionId)?.executor ??
+        deps.sessionMetadataService?.getExecutor?.(sessionId);
+      if (executor) {
+        return c.json(
+          {
+            error: "SSH executors have been removed; this session is read-only",
+          },
+          410,
+        );
+      }
+    }
+    await next();
+  });
   // Successors of a router-pinned session would launch without its pin and
   // run on the owner's direct provider login; refuse them up front.
   const isRoutedSession = (sessionId: string): boolean =>
@@ -2749,9 +2766,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       ? limitedDetachedProjectPath(username)
       : DETACHED_PROJECT_PATH;
     await mkdir(projectPath, { recursive: true, mode: 0o700 });
-    if (executor) {
-      await ensureRemoteDirectory(executor, projectPath);
-    }
+    if (executor) throw new Error("SSH executors have been removed");
     return projectPath;
   };
 
@@ -4892,34 +4907,11 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       return c.json({ error: launch.error }, 400);
     }
     const { settings: resumeSettings, projectPath: resumeProjectPath } = launch;
-    const executor = resumeSettings.executor;
     // A limited user resumes only a sandboxed session, on this host, inside
     // their lock (topics/limited-users.md § Delivery v1).
     const limitedResume = applyLimitedResumePolicy(c, resumeSettings, body);
     if (limitedResume.kind === "error") {
       return c.json({ error: limitedResume.error }, 403);
-    }
-
-    // For remote sessions, sync local files TO remote before resuming
-    // This ensures the remote has the latest session state
-    if (executor) {
-      const projectDir = getProjectDirFromCwd(resumeProjectPath);
-      const syncResult = await syncSessions({
-        host: executor,
-        projectDir,
-        direction: "to-remote",
-      });
-      if (!syncResult.success) {
-        console.warn(
-          `[resume] Failed to pre-sync session to ${executor}: ${syncResult.error}`,
-        );
-        // Continue anyway - remote may have the files from before
-      }
-
-      // Save executor to metadata if not already saved (e.g. client provided it)
-      if (deps.sessionMetadataService) {
-        await deps.sessionMetadataService.setExecutor(sessionId, executor);
-      }
     }
 
     let result: Awaited<ReturnType<Supervisor["resumeSession"]>>;

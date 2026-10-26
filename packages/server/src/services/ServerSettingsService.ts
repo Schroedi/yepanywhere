@@ -169,8 +169,6 @@ export interface ServerSettings {
   hostAwakeBatteryFloorPercent: number;
   /** @deprecated Use yaClientBaseUrl. Kept to migrate older settings files. */
   publicShareViewerBaseUrl?: string;
-  /** SSH host aliases for remote executors (from ~/.ssh/config) */
-  remoteExecutors?: string[];
   /** SSH host aliases for ChromeOS device-bridge targets */
   chromeOsHosts?: string[];
   /** Allowed hostnames for host/origin validation. "*" = allow all, comma-separated = specific hosts. */

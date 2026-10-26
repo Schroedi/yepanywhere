@@ -1026,6 +1026,11 @@ export class Supervisor {
     modelSettings: ModelSettings | undefined,
   ): { projectPath: string; modelSettings: ModelSettings | undefined } {
     const settled = this.sessionMetadataService?.getMetadata(sessionId);
+    if (settled?.executor || modelSettings?.executor) {
+      throw new Error(
+        "SSH executors have been removed; this session cannot run locally",
+      );
+    }
     if (settled?.sandboxLevel !== "project-write") {
       return { projectPath, modelSettings };
     }
@@ -1052,11 +1057,10 @@ export class Supervisor {
   }
 
   private resolveProvider(modelSettings?: ModelSettings): AgentProvider | null {
-    const providerName = modelSettings?.providerName
-      ? modelSettings.providerName
-      : modelSettings?.executor
-        ? "claude"
-        : undefined;
+    if (modelSettings?.executor) {
+      throw new Error("SSH executors have been removed");
+    }
+    const providerName = modelSettings?.providerName;
 
     if (!providerName) {
       return this.provider;

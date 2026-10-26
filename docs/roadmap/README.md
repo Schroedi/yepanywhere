@@ -483,7 +483,11 @@ selection, scanner grouping and launch plumbing are removed; existing
 checkouts remain untouched. [Plan 160](../tactical/160-remove-managed-checkout-lanes.md)
 records the verification.
 
-**Next action:** remove released SSH (2), managed SSH (3), the Hosts
+Row **2** removes released SSH/rsync execution and its settings/selector.
+Historical executor records are read-only and cannot fall back to local
+execution; [plan 161](../tactical/161-remove-ssh-executors.md) records evidence.
+
+**Next action:** remove managed SSH (3), the Hosts
 placeholder (11) and Gemini ACP (12), committing and pushing each cut. Other Kyle-led candidates remain follow-ups;
 graehl-led work is outside this pass. This is an active
 maintenance focus, not permission to resume the archived refactor or complete
