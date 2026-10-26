@@ -695,7 +695,15 @@ export class DraftSyncClient {
       this.beginSubmit(e);
       return;
     }
-    this.schedule(e, raw === null ? 0 : 3000);
+    // A rendez deadline must observe typing/removal without the normal draft
+    // debounce. Only these short-lived attachment drafts take the urgent path.
+    const rendezDraft = [payload(e.address, raw), e.saved.base?.payload].some(
+      (draft) =>
+        draft?.attachments.some(
+          (ref) => typeof ref.rendezAutoSendAt === "number",
+        ),
+    );
+    this.schedule(e, raw === null || rendezDraft ? 0 : 3000);
     if (e.remote) status();
   }
   private schedule(e: Entry, delay: number): void {

@@ -4772,8 +4772,15 @@ function SessionPageContent({
     const changed = (event: Event) => {
       if (
         (event as CustomEvent<{ key: string }>).detail.key === sessionDraftKey
-      )
+      ) {
+        const current =
+          draftControlsRef.current?.getAttachmentState()?.refs ?? [];
+        const shown = attachmentsRef.current
+          .filter(isComposerStagedAttachment)
+          .map(toPersistedStagedAttachmentRef);
+        if (JSON.stringify(current) === JSON.stringify(shown)) return;
         void hydrateDraftAttachments();
+      }
     };
     window.addEventListener(DRAFT_STORAGE_EVENT, changed);
     return () => window.removeEventListener(DRAFT_STORAGE_EVENT, changed);

@@ -15,6 +15,7 @@ import {
   type RendezSessions,
 } from "./RendezObserver.js";
 import type { RendezTarget } from "./rendez-protocol.mjs";
+import type { RendezDraftDelivery } from "./RendezDraftDelivery.js";
 
 const PROVIDER_HOST_SEND_MS = 30_000;
 
@@ -29,6 +30,7 @@ export function createRendezSessions(
     project: string,
     target: RendezDraftTarget,
   ) => RendezDeliveryRoute,
+  drafts?: RendezDraftDelivery,
 ): RendezSessions {
   return {
     async route(project, target): Promise<RendezDeliveryRoute> {
@@ -41,16 +43,16 @@ export function createRendezSessions(
         (candidate) => candidate.sessionId === target.yaSessionId,
       );
       if (owned) {
-        return {
+        const live = () =>
+          owned.projectPath === project &&
+          owned.execution.kind === "local" &&
+          owned.isProcessAlive === true;
+        const route: RendezDeliveryRoute = {
           transport: "ya",
           profile: getProviderImageSizing(owned.provider, owned.resolvedModel)
             .profiles.sd,
           async send(id, text) {
-            if (
-              owned.projectPath !== project ||
-              owned.execution.kind !== "local" ||
-              owned.isProcessAlive !== true
-            ) {
+            if (!live()) {
               return {
                 accepted: false,
                 diagnostics: "The target session is not live in this project",
@@ -83,6 +85,15 @@ export function createRendezSessions(
             return { accepted: result.success, diagnostics: result.error };
           },
         };
+        if (!drafts || !target.yaSessionId) return route;
+        const sessionId = target.yaSessionId;
+        return {
+          ...route,
+          send: (id, text, record) =>
+            live()
+              ? drafts.stage(sessionId, id, text, record, route.send)
+              : route.send(id, text, record),
+        };
       }
       if (!isProviderRuntimeHostAvailable()) {
         return {
@@ -102,10 +113,25 @@ export function createRendezSessions(
           row.harness === target.harness &&
           row.providerSessionId === target.providerSessionId,
       );
-      return {
+      const route: RendezDeliveryRoute = {
         transport: "provider-host",
         profile: runtime?.imagePreparationProfile ?? RENDEZ_DEFAULT_PROFILE,
         send: (id, text) => sendThroughProviderHost(target, id, text),
+      };
+      if (
+        !drafts ||
+        !target.yaSessionId ||
+        !runtime ||
+        runtime.projectPath !== project ||
+        !runtime.acceptsSessionTurns ||
+        runtime.state === "closing"
+      )
+        return route;
+      const sessionId = target.yaSessionId;
+      return {
+        ...route,
+        send: (id, text, record) =>
+          drafts.stage(sessionId, id, text, record, route.send),
       };
     },
     turnStatus: (submissionId) =>

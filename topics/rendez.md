@@ -107,12 +107,44 @@ scp screenshot.png user@host:/work/project/.rendez/latest-session/
 Replace `user@host` and `/work/project` with your SSH destination and project
 path. This also works from Windows OpenSSH or a WSL shell. The receiving
 machine watches the directory; your desktop does not need to invoke
-`agentctl` or know the session id. Each completed upload becomes a user turn
-with an attachment.
+`agentctl` or know the session id. Each completed upload appears as an
+attachment in the session composer before becoming a user turn.
+
+## Composer draft and countdown
+
+Session-addressed uploads join the existing shared session draft, preserving
+its text and attachments. With no text, each attachment gets a ten-second
+auto-send countdown, shown subtly beside its preview with a progress border.
+Text already in the draft, or typing before the deadline, keeps the upload
+for normal Send. Erasing that text does not restart auto-send. Removing an
+attachment cancels its countdown. Send consumes the attachments through the
+ordinary browser upload path; untouched uploads use rendez delivery below.
+
+The deadline belongs to the server and runs without an open browser. Text
+changes and removals sync immediately while a deadline is active. The server
+arbitrates manual materialization against auto-send to prevent a duplicate
+at the deadline. If auto-send is refused, the attachment returns to the draft
+for manual Send. Server restart retains staged attachments for manual Send;
+it never replays an old countdown. Upload receipts acknowledge draft staging,
+not provider acceptance or completion.
+
+One shared next-deadline timer owns at most 256 pending uploads. Additional
+uploads stay in their drafts without automatic delivery, subject to the
+100-attachment draft limit and existing watcher burst limits. The client
+countdown stops ticking while its tab is hidden and refreshes on return.
+
+Compatibility review (2026-10-26): stable `v0.10.0`, `v0.10.1`, `v0.10.2`
+and `v0.11.0` have staged attachment references without `rendezAutoSendAt`
+or `rendezPath`. These optional draft response annotations add no endpoint
+or capability requirement: absence renders the ordinary attachment chip and
+keeps the server's existing immediate delivery. Clients may cancel a current
+deadline with null; servers canonicalize its path and numeric deadline.
+Existing clients can edit and send the shared draft; server-side text
+observation also cancels the countdown when a client omits the annotations.
 
 ## Uploads during a running turn
 
-An upload that arrives while the agent is working takes the path and
+After the composer countdown, an untouched upload takes the path and
 presentation of a typed send, chosen by **Uploads during a running turn** in
 the rendez card (`rendez.delivery`):
 
@@ -129,7 +161,7 @@ the rendez card (`rendez.delivery`):
 With steering disabled, as before this setting, every upload during a long
 turn waited for its end and arrived merged with the others, after the
 user's steered commentary about them, while each showed as already sent.
-An idle session receives an upload at once in every mode.
+An idle session receives an upload when its countdown ends in every mode.
 
 Delivery reaches only a live session. `latest-session` points at the session
 you last messaged in the project, and nothing arrives while that session is not
@@ -174,10 +206,10 @@ without delivering it and restores the pointer.
 
 ## Accidental bulk transfers
 
-Uploads start immediately. By default, each route admits at most ten uploads
+Upload preparation starts immediately. By default, each route admits at most ten uploads
 per rolling 1,000 ms, with at most ten uploads awaiting queue acceptance across
 the project. `windowMs` and `maxPerWindow` configure those limits. Acceptance
-can mean queued for the session; it does not wait for model completion.
+can mean staged in the draft; it does not wait for model completion.
 
 Excess arrivals are **held**, never automatically sent later. After overload,
 new arrivals remain held until four quiet windows pass (four seconds by
@@ -266,7 +298,7 @@ Disabling monitoring stops delivery without deleting the files.
 
 ## Files and attachment history
 
-Any file type can be uploaded. A session-addressed upload becomes one user turn whose
+Any file type can be uploaded. An automatically sent upload becomes one user turn whose
 `User uploaded files:` section is the same one browser attachments use, so YA
 shows it as an attachment. The incoming file remains the original. Delivery
 stores a separate snapshot under `.rendez/delivered/<route>/<delivery-id>/`.

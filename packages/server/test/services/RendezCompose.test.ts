@@ -16,6 +16,7 @@ import { openSqliteOrThrow } from "../../src/storage/sqlite.js";
 import { migrateDiscoveryDatabase } from "../../src/storage/discovery-sqlite.js";
 import { AttachmentStagingService } from "../../src/uploads/AttachmentStagingService.js";
 import { RendezCompose } from "../../src/services/RendezCompose.js";
+import { RendezDraftDelivery } from "../../src/services/RendezDraftDelivery.js";
 import { RendezWatchService } from "../../src/services/RendezWatchService.js";
 import { ServerSettingsService } from "../../src/services/ServerSettingsService.js";
 import { createRendezComposeRoutes } from "../../src/routes/rendez-compose.js";
@@ -36,6 +37,7 @@ it.skipIf(process.platform === "win32")(
     const drafts = new DraftStore(db);
     const staging = new AttachmentStagingService({ dataDir: directory });
     staging.setDraftProtection((owner, id) => drafts.protects(owner ?? "", id));
+    const sessionDelivery = new RendezDraftDelivery(drafts, staging);
     const settings = new ServerSettingsService({ dataDir: directory });
     await settings.initialize();
     await settings.updateSettings({ rendez: { enabled: true, projects: {} } });
@@ -64,6 +66,7 @@ it.skipIf(process.platform === "win32")(
         () => [process],
         () => "steer",
         (path, target) => compose.route(path, target),
+        sessionDelivery,
       ),
       () => () => {},
     );
@@ -125,10 +128,31 @@ it.skipIf(process.platform === "win32")(
       );
       expect(sent).not.toHaveBeenCalled();
       expect(await readlink(join(root, "latest-session"))).toBe(latest);
-      await writeFile(join(root, "session-a", "explicit.txt"), "session bytes");
-      await vi.waitFor(() => expect(sent).toHaveBeenCalledTimes(1), {
-        timeout: 8000,
+      const sessionSlot = { kind: "session", sessionId: "session-a" } as const;
+      const sessionDraft = drafts.read("", sessionSlot);
+      drafts.write("", {
+        slot: sessionSlot,
+        ticket: sessionDraft.ticket,
+        baseRevision: sessionDraft.snapshot.revision,
+        operationId: "session-text",
+        payload: {
+          fields: { text: "An existing session draft" },
+          attachments: [],
+        },
       });
+      await writeFile(join(root, "session-a", "explicit.txt"), "session bytes");
+      await vi.waitFor(
+        () =>
+          expect(
+            drafts.read("", sessionSlot).snapshot.payload.attachments,
+          ).toHaveLength(1),
+        { timeout: 8000 },
+      );
+      expect(drafts.read("", sessionSlot).snapshot.payload).toMatchObject({
+        fields: { text: "An existing session draft" },
+        attachments: [{ rendezAutoSendAt: null }],
+      });
+      expect(sent).not.toHaveBeenCalled();
       expect(await claim("second", "project", true)).toBe(true);
       expect(await claim("first", "project", false)).toBe(false);
       expect(await claim("first", null, false)).toBe(false);
@@ -173,6 +197,7 @@ it.skipIf(process.platform === "win32")(
       expect(record.state).toBe("accepted");
       expect(record.transport).toBe("draft");
     } finally {
+      await sessionDelivery.close();
       await compose.close();
       await watch.close();
       drafts.close();

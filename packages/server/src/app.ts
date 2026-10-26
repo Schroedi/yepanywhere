@@ -350,6 +350,7 @@ import type { ServerSettingsService } from "./services/ServerSettingsService.js"
 import { RendezWatchService } from "./services/RendezWatchService.js";
 import { createRendezSessions } from "./services/rendezSessions.js";
 import { RendezCompose } from "./services/RendezCompose.js";
+import { RendezDraftDelivery } from "./services/RendezDraftDelivery.js";
 import { createRendezComposeRoutes } from "./routes/rendez-compose.js";
 import { onRendezUserTurn } from "./services/rendezActivity.js";
 import { getLogger } from "./logging/logger.js";
@@ -1505,6 +1506,10 @@ export function createApp(options: AppOptions): AppResult {
           () => rendezWatch,
         )
       : undefined;
+  const rendezDraftDelivery =
+    rendezCompose && draftStore
+      ? new RendezDraftDelivery(draftStore, attachmentStagingService)
+      : undefined;
   const rendezWatch: RendezWatchService | undefined =
     options.serverSettingsService
       ? new RendezWatchService(
@@ -1538,6 +1543,7 @@ export function createApp(options: AppOptions): AppResult {
             rendezCompose
               ? (project, target) => rendezCompose.route(project, target)
               : undefined,
+            rendezDraftDelivery,
           ),
           onRendezUserTurn,
         )
@@ -1548,6 +1554,7 @@ export function createApp(options: AppOptions): AppResult {
     sessionReadersDisposal ??= (async () => {
       await supervisor.stopBackgroundTasks();
       await rendezCompose?.close();
+      await rendezDraftDelivery?.close();
       await rendezWatch?.close();
       await projectServices.close();
       await projectAppStore.close();
@@ -3888,6 +3895,7 @@ export function createApp(options: AppOptions): AppResult {
         upgradeWebSocket: options.upgradeWebSocket,
         maxUploadSizeBytes: options.maxUploadSizeBytes,
         attachmentStagingService,
+        rendezDraftDelivery,
         storagePolicy: projectStoragePolicy,
       }),
     );

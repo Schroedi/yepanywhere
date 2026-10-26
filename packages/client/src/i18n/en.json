@@ -1,4 +1,7 @@
 {
+  "rendezSendsIn": "Sends in {seconds}s",
+  "rendezReadyWithMessage": "Ready with your message",
+  "rendezTypeToKeepDraft": "Type to keep in draft",
   "projectFileLinkCopy": "Copy public app link",
   "projectFileLinkAccess": "This existing project app link grants access to the app, not just this file.",
   "vhostOauthProvider": "Hosted sign-in provider (OAuth)",
