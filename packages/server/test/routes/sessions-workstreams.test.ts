@@ -230,6 +230,33 @@ describe("Session workstream routing", () => {
     });
   });
 
+  it("infers provenance from UI headers, and api without them", async () => {
+    const { routes, sessionMetadataService } = createDeps();
+    const start = (headers: Record<string, string>) =>
+      routes.request(`/projects/${projectId}/sessions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...headers },
+        body: JSON.stringify({ message: "start here" }),
+      });
+
+    expect((await start({})).status).toBe(200);
+    expect(
+      (
+        await start({
+          "X-Yep-Client-Version": "0.10.3-test",
+          "X-Yep-Client-Surface": "desktop",
+        })
+      ).status,
+    ).toBe(200);
+
+    expect(
+      vi.mocked(sessionMetadataService.recordCreationProvenance).mock.calls,
+    ).toEqual([
+      ["session-started", { surface: "api" }],
+      ["session-started", { surface: "desktop", clientVersion: "0.10.3-test" }],
+    ]);
+  });
+
   it("retains UI provenance when two-phase creation waits for a worker", async () => {
     const { routes, supervisor, sessionMetadataService } = createDeps();
     vi.mocked(supervisor.createSession).mockResolvedValueOnce({

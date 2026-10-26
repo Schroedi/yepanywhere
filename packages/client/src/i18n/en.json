@@ -4513,6 +4513,7 @@
   "sessionSearchCreatedFromPlaceholder": "Any source",
   "sessionSearchCreatedWeb": "Web UI",
   "sessionSearchCreatedDesktop": "Desktop app",
+  "sessionSearchCreatedApi": "API or agent",
   "sessionSearchCreatedUnspecified": "Unspecified",
   "sessionSearchOutsideStatus": "Does not match {status}",
   "sessionSearchOutsideTime": "Outside session time range",

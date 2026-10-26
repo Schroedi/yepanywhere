@@ -50,7 +50,7 @@ import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { hostname } from "node:os";
 import { performance } from "node:perf_hooks";
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
 import type { ISessionIndexService } from "../indexes/types.js";
 import { getLogger } from "../logging/logger.js";
 import type { ToolResultMediaStore } from "../media/ToolResultMediaStore.js";
@@ -521,7 +521,11 @@ function parseCreationProvenance(
     return undefined;
   }
   const input = value as Record<string, unknown>;
-  if (input.surface !== "web" && input.surface !== "desktop") {
+  if (
+    input.surface !== "web" &&
+    input.surface !== "desktop" &&
+    input.surface !== "api"
+  ) {
     return undefined;
   }
   const boundedString = (field: unknown): string | undefined => {
@@ -553,6 +557,31 @@ function parseCreationProvenance(
       ? { clientCommit: boundedString(input.clientCommit) }
       : {}),
   };
+}
+
+/**
+ * Provenance of a session this HTTP request creates: what the body declares,
+ * else the UI its headers identify, else `api`. Every YA UI request carries
+ * `X-Yep-Client-Version` (the relay adds it from the connection), so a
+ * request without one came from an agent or script.
+ */
+function requestCreationProvenance(
+  c: Context,
+  declared: unknown,
+): SessionCreationProvenance {
+  const parsed = parseCreationProvenance(declared);
+  if (parsed) return parsed;
+  const surface = c.req.header("X-Yep-Client-Surface");
+  const clientVersion = c.req.header("X-Yep-Client-Version");
+  if (!clientVersion && surface !== "web" && surface !== "desktop") {
+    return { surface: "api" };
+  }
+  return (
+    parseCreationProvenance({
+      surface: surface === "desktop" ? "desktop" : "web",
+      clientVersion,
+    }) ?? { surface: "web" }
+  );
 }
 
 interface InputResponseBody {
@@ -2122,7 +2151,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
   ): Promise<void> => {
     const provenance = parseCreationProvenance(value);
     if (!provenance || !deps.sessionMetadataService) return;
-    await deps.sessionMetadataService.recordCreationProvenance(
+    await deps.sessionMetadataService.recordCreationProvenance?.(
       sessionId,
       provenance,
     );
@@ -4187,7 +4216,10 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         onStarted: (_sessionId, process) =>
           recordNewSessionLaunch(process, {
             heartbeatProjectId: project.id,
-            creationProvenance: body.creationProvenance,
+            creationProvenance: requestCreationProvenance(
+              c,
+              body.creationProvenance,
+            ),
             createdByUser:
               limitedLaunch.kind === "applied"
                 ? limitedLaunch.username
@@ -4356,7 +4388,10 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         onStarted: (_sessionId, process) =>
           recordNewSessionLaunch(process, {
             heartbeatProjectId: project.id,
-            creationProvenance: body.creationProvenance,
+            creationProvenance: requestCreationProvenance(
+              c,
+              body.creationProvenance,
+            ),
             createdByUser:
               limitedLaunch.kind === "applied"
                 ? limitedLaunch.username
@@ -4514,7 +4549,10 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       {
         onStarted: (_sessionId, process) =>
           recordNewSessionLaunch(process, {
-            creationProvenance: body.creationProvenance,
+            creationProvenance: requestCreationProvenance(
+              c,
+              body.creationProvenance,
+            ),
             createdByUser: actingUsername(c),
             provider: body.provider,
             executor,
@@ -4648,7 +4686,10 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       {
         onStarted: (_sessionId, process) =>
           recordNewSessionLaunch(process, {
-            creationProvenance: body.creationProvenance,
+            creationProvenance: requestCreationProvenance(
+              c,
+              body.creationProvenance,
+            ),
             createdByUser: actingUsername(c),
             provider: body.provider,
             executor,
@@ -5892,7 +5933,10 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       }
 
       void deps.userUsageService?.recordSession(actingUsername(c));
-      await recordCreationProvenance(result.sessionId, body.creationProvenance);
+      await recordCreationProvenance(
+        result.sessionId,
+        requestCreationProvenance(c, body.creationProvenance),
+      );
       await persistLaunchMetadata(
         result.sessionId,
         sourceProvider,
@@ -6034,7 +6078,10 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     }
 
     void deps.userUsageService?.recordSession(actingUsername(c));
-    await recordCreationProvenance(result.sessionId, body.creationProvenance);
+    await recordCreationProvenance(
+      result.sessionId,
+      requestCreationProvenance(c, body.creationProvenance),
+    );
     await persistLaunchMetadata(
       result.sessionId,
       providerName,
@@ -6264,7 +6311,10 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
           onStarted: (_sessionId, process) =>
             recordNewSessionLaunch(process, {
               heartbeatProjectId: project.id,
-              creationProvenance: body.creationProvenance,
+              creationProvenance: requestCreationProvenance(
+                c,
+                body.creationProvenance,
+              ),
               createdByUser: limited ? limitedLaunch.username : undefined,
               provider: providerName,
               executor,
@@ -7351,7 +7401,10 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
           originalMetadata?.workingProjectId ?? (projectId as UrlProjectId),
       },
     );
-    await recordCreationProvenance(fork.sessionId, body.creationProvenance);
+    await recordCreationProvenance(
+      fork.sessionId,
+      requestCreationProvenance(c, body.creationProvenance),
+    );
     const forkCreator = actingUsername(c);
     if (forkCreator) {
       // A limited user's fork is theirs, like a session they start
@@ -9096,6 +9149,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       title?: string;
       provider?: ProviderName;
       parentSessionId?: string | null;
+      creationProvenance?: unknown;
     } = {};
     try {
       body = await c.req.json();
@@ -9275,6 +9329,10 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         );
       }
       void deps.userUsageService?.recordSession(cloneCreator);
+      await recordCreationProvenance(
+        result.newSessionId,
+        requestCreationProvenance(c, body.creationProvenance),
+      );
       // Set clone metadata. /btw asides pass parentSessionId so the child
       // can jump back into the parent viewport.
       if (deps.sessionMetadataService) {
