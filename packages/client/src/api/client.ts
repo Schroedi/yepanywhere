@@ -27,8 +27,6 @@ import type {
   CreatePublicFileShareRequest,
   ContextBreakdown,
   CreatePublicFileShareResponse,
-  CreateProjectWorkstreamRequest,
-  CreateProjectWorkstreamResponse,
   CreateProjectQueueItemRequest,
   CreatePublicSessionShareRequest,
   CreatePublicSessionShareResponse,
@@ -50,11 +48,9 @@ import type {
   ProjectQueueResponse,
   ProjectQueueReadinessCommand,
   ProjectSessionDefaultsResponse,
-  ProjectWorkstreamsResponse,
   PublicFileShareListResponse,
   PublicShareManagementListResponse,
   PublicShareStorageState,
-  WorkstreamCheckoutPreviewResponse,
   PromptSuggestionMode,
   PromptCacheKeepaliveSettings,
   PostCompactReplaySettings,
@@ -89,7 +85,6 @@ import type {
   UrlProjectId,
   UserQuestionAnswers,
   UserMessageMetadata,
-  WorkstreamId,
 } from "@yep-anywhere/shared";
 import { PUBLIC_SHARE_MANAGEMENT_FREEZE_CONFIRMATION } from "@yep-anywhere/shared";
 import type {
@@ -325,8 +320,6 @@ export interface SessionOptions {
   helperSideModel?: string;
   /** Existing-session resume strategy. */
   resumeMode?: "full" | "compact-first";
-  /** Experimental project workstream lane for new project sessions. */
-  workstreamId?: WorkstreamId;
 }
 
 export type { UploadedFile } from "@yep-anywhere/shared";
@@ -720,28 +713,6 @@ export const api = {
   getProjectQueue: (projectId: string) =>
     fetchJSON<ProjectQueueResponse>(`/projects/${projectId}/queue`),
 
-  getProjectWorkstreams: (projectId: string) =>
-    fetchJSON<ProjectWorkstreamsResponse>(`/projects/${projectId}/workstreams`),
-
-  getProjectWorkstreamCheckoutPreview: (projectId: string, label: string) => {
-    const params = new URLSearchParams({ label });
-    return fetchJSON<WorkstreamCheckoutPreviewResponse>(
-      `/projects/${projectId}/workstreams/checkout-preview?${params}`,
-    );
-  },
-
-  createProjectWorkstream: (
-    projectId: string,
-    request: CreateProjectWorkstreamRequest,
-  ) =>
-    fetchJSON<CreateProjectWorkstreamResponse>(
-      `/projects/${projectId}/workstreams`,
-      {
-        method: "POST",
-        body: JSON.stringify(request),
-      },
-    ),
-
   getProjectQueueItems: () =>
     fetchJSON<ProjectQueueListResponse>("/project-queue"),
 
@@ -879,7 +850,6 @@ export const api = {
         recapAfterSeconds: options?.recapAfterSeconds,
         promptSuggestionMode: options?.promptSuggestionMode,
         helperSideModel: options?.helperSideModel,
-        workstreamId: options?.workstreamId,
         attachments,
         clientTimestamp,
         messageMetadata,
@@ -923,7 +893,6 @@ export const api = {
         recapAfterSeconds: options?.recapAfterSeconds,
         promptSuggestionMode: options?.promptSuggestionMode,
         helperSideModel: options?.helperSideModel,
-        workstreamId: options?.workstreamId,
         creationProvenance: options?.creationProvenance,
       }),
     }),
@@ -2073,8 +2042,6 @@ export interface ServerSettings {
   /** Whether limited users exist beside the superuser (topics/limited-users.md) */
   limitedUsersEnabled?: boolean;
   limitedUserInstructions?: import("@yep-anywhere/shared").LimitedUserInstructions;
-  /** Whether experimental workstream surfaces and APIs are enabled */
-  workstreamsEnabled?: boolean;
   /** Whether experimental live Source Control filesystem monitoring is enabled. */
   liveWorktreeMonitoringEnabled?: boolean;
   /** Whether captured source-review submissions and outcomes are enabled */

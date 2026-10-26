@@ -234,14 +234,6 @@ describe("ServerSettingsService", () => {
     expect(service.getSetting("subagentMaxDepth")).toBe(1);
   });
 
-  it("keeps experimental workstreams disabled by default", async () => {
-    const service = new ServerSettingsService({ dataDir: testDir });
-
-    await service.initialize();
-
-    expect(service.getSetting("workstreamsEnabled")).toBe(false);
-  });
-
   it("defaults live worktree monitoring on only on Linux", () => {
     expect(defaultLiveWorktreeMonitoringEnabled("darwin")).toBe(false);
     expect(defaultLiveWorktreeMonitoringEnabled("linux")).toBe(true);

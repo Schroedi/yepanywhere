@@ -20,7 +20,6 @@ import type {
   RecentsChangedEvent,
   TranscriptDisplayObject,
   UrlProjectId,
-  WorkstreamsChangedEvent,
 } from "@yep-anywhere/shared";
 import type { SessionStatus, SessionSummary } from "../types";
 import {
@@ -268,7 +267,6 @@ export interface ActivityEventMap {
   "project-code-names-changed": ProjectCodeNameChangedEvent;
   "project-captions-changed": ProjectCaptionsChangedEvent;
   "projects-changed": ProjectsChangedEvent;
-  "workstreams-changed": WorkstreamsChangedEvent;
   "session-queue-persistence-changed": SessionQueuePersistenceChangedEvent;
   "session-metadata-changed": SessionMetadataChangedEvent;
   // Connection events
@@ -683,7 +681,6 @@ class ActivityBus {
       "project-code-names-changed",
       "project-captions-changed",
       "projects-changed",
-      "workstreams-changed",
       "session-queue-persistence-changed",
       "session-metadata-changed",
       "browser-tab-connected",

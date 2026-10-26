@@ -22,11 +22,39 @@ its settings, metadata, services and branches remain in those shared paths.
 House cleaning is a product-scope reduction, not another general core rewrite.
 
 The maintainer reports no remaining personal use for SSH executors and wants
-YA-managed parallel checkout lanes removed. The maintainer also questions the
-current use of synthetic heartbeat automation. Contributor and third-party use
-have not been verified. Recommendations below rest on product value and
-maintenance obligations, not on an unsupported claim that nobody uses a
-feature.
+YA-managed parallel checkout lanes removed. The Hosts placeholder and Gemini
+ACP are also selected; the alternate Conversation API/preview is deferred. The current pass focuses on Kyle/kzahel-led features. Work led by
+`graehl@gmail.com`, including synthetic heartbeat automation, is deferred.
+This supersedes the initial ordering that prioritized heartbeat removal.
+Recommendations below do not claim that nobody uses a feature.
+
+## Current pass and contributor attribution
+
+The authorized implementation set is **rows 1, 2, 3, 11 and 12**: managed
+checkout lanes, released SSH executors, managed SSH executors, the YA Hosts
+placeholder, and Gemini ACP. Row 10 (Conversation API/preview) remains deferred
+from implementation in this pass. Other Kyle-led surfaces remain follow-up candidates; finding
+another candidate does not automatically enlarge these first deletions.
+
+The table uses these contributor labels:
+
+- **Kyle**: Kyle Graehl / kzahel, `kgraehl@gmail.com`, the requesting maintainer.
+- **graehl**: the separate Git author identity `graehl@gmail.com`.
+- **Mixed**: a row combines features introduced by both identities; its
+  contributor cell identifies the individual parts.
+
+Lead attribution is inferred from the introducing implementation or design
+commits linked in each row, checked against the current Git history. It is
+feature provenance, not exclusive authorship, current ownership, a line-count
+ranking or evidence of present usage. In particular, shared files and later
+repairs often include both contributors. Removing a Kyle-led feature does not
+mean reverting another contributor's shared safety fixes. Mixed rows must be
+split by actual consumer boundaries rather than deleted wholesale.
+
+The row numbers are stable discussion handles, not implementation-order codes.
+Keep them when recommendations change. The earlier technical recommendations
+for deferred rows remain recorded so they can be revisited separately; they
+are not part of this pass's deletion scope.
 
 ## Baseline and preserved experiment
 
@@ -54,35 +82,42 @@ working features whose value may no longer justify their complexity. A
 recommendation to remove a feature is not a claim that its implementation is
 broken. Open usage decisions should be resolved before the corresponding
 implementation slice, without blocking unrelated selected removals.
+The last column describes the potential cut if selected; it does not override
+an explicit deferred recommendation for the current pass.
 
-| Surface | Current state and evidence | Recommendation | Scope and expected benefit |
-| --- | --- | --- | --- |
-| YA-managed workstreams, lanes and parallel checkout creation | [Workstreams](workstreams.md) and [plan 054](../docs/tactical/054-workstreams.md) record metadata, session association, UI and ordinary-clone creation. Queue targeting, lane scheduling, sync, repair and landing remain unfinished. Maintainers were not dogfooding the intended workflow. | **Remove; selected direction.** Retire the unfinished lane workflow rather than completing it. | Remove lane service/routes/types, creation and `.worktreeinclude` seeding, gate/settings, UI and launch metadata plumbing, plus dedicated tests. Preserve existing user checkouts and files. |
-| Released Claude SSH/rsync executors | [Remote executors](../docs/project/remote-executors.md) are a real user-facing execution path with remote metadata, settings and transcript sync. The maintainer no longer uses it. | **Remove; selected direction.** Do not retain a frozen compatibility executor. | Remove SSH launch/resume, executor selection and dedicated sync/recovery code. Historical sessions must never silently resume in a local checkout. |
-| Operator-only managed SSH executors | [Managed remote executors](managed-remote-executors.md) and [plan 119](../docs/tactical/119-managed-ssh-executor-baseline.md) own an injected runner, target/workspace preparation, auth projection and transcript mirroring. They never became a complete ordinary product flow. | **Remove; selected direction.** | Delete the dedicated runner/target/workspace/auth/mirror/diagnostic stack, probes and build commands. Retain generic worker or stdio code only where a retained consumer needs it. |
-| OpenAI-compatible helper targets | [Helper sessions](openai-compatible-helper-sessions.md) documents configuration, model discovery and a hidden editor without working target execution. | **Remove dormant implementation.** | Remove unused registry/editor/discovery/selector plumbing. Preserve provider-local model selection used by retained features; do not build the missing runtime to justify the configuration. |
-| Synthetic heartbeat turns, forced nudges and heartbeat auto-resume | [Heartbeat](heartbeat.md) owns configured injected user turns, quiet-period scheduling, project/session overrides, doubtful-liveness steering and unowned-session resurrection. This is implemented automation, not just a status ping. | **Recommend removal with high priority.** | Remove synthetic turn generation and its settings, candidate indexing, resume and scheduling branches where exclusively owned by this feature. Reduce unsolicited work and session-resurrection paths. Preserve transport and liveness duties below. |
-| Event-driven session wake turns | [Session wake](session-wake.md) is an implemented token-authenticated path for external job completion to queue input or resume an absent process. It is distinct from timed heartbeat nudges. | **Recommend removal unless a concrete current consumer warrants retention.** | Inspect `agentctl` and other external consumers before choosing the cut. If retained, require a bounded explicit API consumer; do not keep the whole heartbeat system as its prerequisite. Retire wake routes, token/env injection and auto-resume branches together if removed. |
-| Post-compaction continuation and prose replay | [Post-compact replay](post-compact-replay.md) injects a hidden continuation turn, optionally quoting recent conversation. The topic itself calls the policy tentative and potentially redundant. | **Recommend removal.** | Remove YA-generated replay/continuation, related settings and replay-only buffers. Keep provider-native compaction and ordinary user-queued messages. |
-| YA-generated away recaps, including forked/tailed helpers | [Recaps](recaps.md) and [fork recap](fork-recap.md) include helper generation, return timers, cold resume, deferred work, cancellation and durable overlays. | **Recommend removing generation unless actively used.** | Remove the extra provider work and recap-only lifecycle paths. Preserve readable historical recap rows and cheap rendering of provider-native events. Viewing an old recap must not launch new work. |
-| Prompt-cache keepalive | [Prompt-cache keepalive](prompt-cache-keepalive.md) owns viewer leases, provider operations and cadence/cost policy. Its no-context refresh contract differs from synthetic heartbeat turns. | **Review separately; freeze expansion. Remove if no demonstrated current benefit.** | Identify actual provider implementations and measured value before deciding. Do not call it a heartbeat or remove shared subscription/liveness leases by name. Ordinary provider-owned caching remains available without YA scheduling refreshes. |
-| Alternate Conversation preview and experimental API | [Simple Client API](simple-client-api.md) and [plan 130](../docs/tactical/130-simple-client-api-and-three-client-demo.md) include `/-/preview`, a separate client state machine, schemas and server subscriptions. The original native Compose presentation was retired in favor of the full bundled web UI. | **Strong removal candidate; confirm current preview use.** | Remove the unused alternate client/API, dedicated code generation and tests together. Inventory remaining native/shared consumers first. Keep the normal web transcript compiler and transport code they actually use. |
-| YA Hosts delegation preview | [Cross-host delegation](cross-host-delegation.md) describes `/-/hosts` as a nonfunctional preview with unavailable relationship sections. | **Remove the placeholder page and developer toggle.** | Small direct core savings, but removes a misleading unfinished surface. Preserve the target-owned relay/API delegation direction and actual host identity/pairing used elsewhere. |
-| Duplicate Gemini ACP adapter | [`gemini-acp.ts`](../packages/server/src/sdk/providers/gemini-acp.ts) is a second Gemini supervision path; its resume catch currently falls back to a fresh session. | **Recommend retiring this alternative if unused.** | Decide the supported Gemini path explicitly. Do not silently substitute a different provider/session for old records. No need to finish an unused protocol adapter as a core prerequisite. |
-| Legacy Claude + Ollama and other overlapping provider variants | The [provider registry](../packages/server/src/sdk/providers/index.ts) retains distinct `claude-ollama`, `claude-gateway` and `codex-oss` paths with separate launch and configuration behavior. They are not interchangeable or all proven incomplete. | **Inventory actual use and remove redundant unused variants individually.** | Prefer fewer maintained execution paths. Preserve a used gateway/API integration rather than treating every non-default provider as abandoned. |
-| `/btw` asides and Quick Question cards | [Asides](provider-agnostic-btw-asides.md) have implemented forked flows, source-bound cleanup and context-saving behavior. They also create extra child-session and browser-owned lifecycle paths. | **Usage decision: remove the feature family if unused; freeze extensions meanwhile.** | Keep ordinary deliberate session cloning/forking independent. Do not confuse the existence of partial extensions with proof that the whole feature is nonfunctional. |
-| Unfinished `/done` report-back behavior | The [aside contract](provider-agnostic-btw-asides.md) records that `/done <text>` closes with a report-back-not-implemented notice rather than drafting the promised return. | **Remove unfinished affordances rather than finish them during cleanup.** | If basic asides remain, expose only their implemented close/return behavior. Do not introduce new report-back helper turns or cross-session authority. |
-| YA-specific automatic compact/handoff policies | [Compact-and-handoff](compact-and-handoff.md) and [resume compaction](resume-compaction.md) mix targeted mitigations, settings and manual/native functionality. | **Freeze expansion; inventory and remove unused automatic policies separately.** | Separate automatic threshold/continuation/handoff decisions from manual Compact, deliberate Restart and provider-native behavior. Do not delete ordinary resume or manual compaction as collateral. |
-| Other providers: OpenCode, Pi, Grok, ordinary Gemini | Current provider topics/code contain substantial landed support; older [deferred backlog](deferred-roadmap.md) summaries are not a reliable maturity audit by themselves. | **Retain pending a separate product/usage decision.** | Fewer providers may be desirable, but do not label them all half-built or silently narrow supported providers inside shared cleanup. |
-| Boss mode, yacron, broad cross-session orchestration, federated migration and general embeddable core | [Boss mode](boss-mode.md), [yacron](yacron.md), [agent access](agent-session-access.md), [federation](federated-super-sessions.md) and [core API](core-service-api.md) are predominantly proposals. | **Keep deferred; remove them from core acceptance prerequisites.** | Deferring a document does not delete running code. No scheduler, universal grant system, migration engine or package extraction is required to finish house cleaning. |
-| Target-owned delegation over direct API or encrypted relay | [Plan 144](../docs/tactical/144-relay-peer-session-coordination.md) proposes separate sessions owned by independently installed target YA hosts. | **Retain the direction; defer implementation.** | Future callers submit to the target owner using explicit grants. Do not reintroduce SSH injection, workspace mirroring or same-conversation migration through this plan. |
+| # | Surface | Lead contributor (Git evidence) | Current state and evidence | Recommendation for this pass | Potential deletion scope and retained boundary |
+| --- | --- | --- | --- | --- | --- |
+| 1 | YA-managed workstreams, lanes and parallel checkout creation | **Kyle** ([45c32b0f7](https://github.com/kzahel/yepanywhere/commit/45c32b0f7)). | [Workstreams retirement](workstreams.md): lane owners, UI, scanner grouping and launch plumbing are removed; explicit stale-client lane targets receive HTTP 410 before launch. | **Removed, 2026-10-26.** See [plan 160](../docs/tactical/160-remove-managed-checkout-lanes.md) for verification. | Remove lane service/routes/types, creation and `.worktreeinclude` seeding, gate/settings, UI and launch metadata plumbing, plus dedicated tests. Preserve existing user checkouts and files. |
+| 2 | Released Claude SSH/rsync executors | **Kyle** ([eb97a951b](https://github.com/kzahel/yepanywhere/commit/eb97a951b)). | [Remote executors](../docs/project/remote-executors.md) are a real user-facing execution path with remote metadata, settings and transcript sync. The maintainer no longer uses it. | **Initial pass: remove.** Do not retain a frozen compatibility executor. | Remove SSH launch/resume, executor selection and dedicated sync/recovery code. Historical sessions must never silently resume in a local checkout. |
+| 3 | Operator-only managed SSH executors | **Kyle** ([2da0bb622](https://github.com/kzahel/yepanywhere/commit/2da0bb622)). | [Managed remote executors](managed-remote-executors.md) and [plan 119](../docs/tactical/119-managed-ssh-executor-baseline.md) own an injected runner, target/workspace preparation, auth projection and transcript mirroring. They never became a complete ordinary product flow. | **Initial pass: remove.** | Delete the dedicated runner/target/workspace/auth/mirror/diagnostic stack, probes and build commands. Retain generic worker or stdio code only where a retained consumer needs it. |
+| 4 | OpenAI-compatible helper targets | **graehl** ([9ffa55aa4](https://github.com/kzahel/yepanywhere/commit/9ffa55aa4)). | [Helper sessions](openai-compatible-helper-sessions.md) documents configuration, model discovery and a hidden editor without working target execution. | **Deferred: graehl-led.** Earlier recommendation: remove the dormant implementation. | Remove unused registry/editor/discovery/selector plumbing. Preserve provider-local model selection used by retained features; do not build the missing runtime to justify the configuration. |
+| 5 | Synthetic heartbeat turns, forced nudges and heartbeat auto-resume | **graehl** ([58e9f85ec](https://github.com/kzahel/yepanywhere/commit/58e9f85ec)). | [Heartbeat](heartbeat.md) owns configured injected user turns, quiet-period scheduling, project/session overrides, doubtful-liveness steering and unowned-session resurrection. This is implemented automation, not just a status ping. | **Deferred: graehl-led.** Earlier recommendation: remove synthetic turns and resurrection; no removal in this pass. | Remove synthetic turn generation and its settings, candidate indexing, resume and scheduling branches where exclusively owned by this feature. Reduce unsolicited work and session-resurrection paths. Preserve transport and liveness duties below. |
+| 6 | Event-driven session wake turns | **graehl** ([ff029de3a](https://github.com/kzahel/yepanywhere/commit/ff029de3a)). | [Session wake](session-wake.md) is an implemented token-authenticated path for external job completion to queue input or resume an absent process. It is distinct from timed heartbeat nudges. | **Deferred: graehl-led.** Earlier recommendation: remove unless a concrete current consumer warrants retention. | Inspect `agentctl` and other external consumers before choosing the cut. If retained, require a bounded explicit API consumer; do not keep the whole heartbeat system as its prerequisite. Retire wake routes, token/env injection and auto-resume branches together if removed. |
+| 7 | Post-compaction continuation and prose replay | **graehl** ([30a2c0178](https://github.com/kzahel/yepanywhere/commit/30a2c0178)). | [Post-compact replay](post-compact-replay.md) injects a hidden continuation turn, optionally quoting recent conversation. The topic itself calls the policy tentative and potentially redundant. | **Deferred: graehl-led.** Earlier recommendation: remove YA-generated continuation/replay. | Remove YA-generated replay/continuation, related settings and replay-only buffers. Keep provider-native compaction and ordinary user-queued messages. |
+| 8 | YA-generated away recaps, including forked/tailed helpers | **graehl** ([af6bce7fa](https://github.com/kzahel/yepanywhere/commit/af6bce7fa), [9682c7687](https://github.com/kzahel/yepanywhere/commit/9682c7687)). | [Recaps](recaps.md) and [fork recap](fork-recap.md) include helper generation, return timers, cold resume, deferred work, cancellation and durable overlays. | **Deferred: graehl-led.** Earlier recommendation: remove generation unless actively used. | Remove the extra provider work and recap-only lifecycle paths. Preserve readable historical recap rows and cheap rendering of provider-native events. Viewing an old recap must not launch new work. |
+| 9 | Prompt-cache keepalive | **graehl** ([5404e0dab](https://github.com/kzahel/yepanywhere/commit/5404e0dab)). | [Prompt-cache keepalive](prompt-cache-keepalive.md) owns viewer leases, provider operations and cadence/cost policy. Its no-context refresh contract differs from synthetic heartbeat turns. | **Deferred: graehl-led.** Earlier recommendation: assess measured benefit separately; no removal in this pass. | Identify actual provider implementations and measured value before deciding. Do not call it a heartbeat or remove shared subscription/liveness leases by name. Ordinary provider-owned caching remains available without YA scheduling refreshes. |
+| 10 | Alternate Conversation preview and experimental API | **Kyle** ([0a8af0963](https://github.com/kzahel/yepanywhere/commit/0a8af0963), [89356dbb9](https://github.com/kzahel/yepanywhere/commit/89356dbb9)). | [Simple Client API](simple-client-api.md) and [plan 130](../docs/tactical/130-simple-client-api-and-three-client-demo.md) include `/-/preview`, a separate client state machine, schemas and server subscriptions. The original native Compose presentation was retired in favor of the full bundled web UI. | **Deferred from this implementation pass.** Earlier removal recommendation remains for later consideration. | Remove the unused alternate client/API, dedicated code generation and tests together. Inventory remaining native/shared consumers first. Keep the normal web transcript compiler and transport code they actually use. |
+| 11 | YA Hosts delegation preview | **Kyle** ([77fc0fa1b](https://github.com/kzahel/yepanywhere/commit/77fc0fa1b)). | [Cross-host delegation](cross-host-delegation.md) describes `/-/hosts` as a nonfunctional preview with unavailable relationship sections. | **Authorized this pass: remove.** Preserve actual host switching and delegation design. | Small direct core savings, but removes a misleading unfinished surface. Preserve the target-owned relay/API delegation direction and actual host identity/pairing used elsewhere. |
+| 12 | Duplicate Gemini ACP adapter | **Kyle** ([3f58e0172](https://github.com/kzahel/yepanywhere/commit/3f58e0172)). | [`gemini-acp.ts`](../packages/server/src/sdk/providers/gemini-acp.ts) is a second Gemini supervision path; its resume catch currently falls back to a fresh session. | **Authorized this pass: remove.** Refuse retired Gemini ACP explicitly; retain ordinary Gemini and other ACP consumers. | Decide the supported Gemini path explicitly. Do not silently substitute a different provider/session for old records. No need to finish an unused protocol adapter as a core prerequisite. |
+| 13 | Legacy Claude + Ollama and other overlapping provider variants | **Mixed:** Kyle — Claude + Ollama ([fa5124fba](https://github.com/kzahel/yepanywhere/commit/fa5124fba)), Codex OSS ([7e3f6225c](https://github.com/kzahel/yepanywhere/commit/7e3f6225c)); graehl — Claude Gateway ([2d570447c](https://github.com/kzahel/yepanywhere/commit/2d570447c)). | The [provider registry](../packages/server/src/sdk/providers/index.ts) retains distinct `claude-ollama`, `claude-gateway` and `codex-oss` paths with separate launch and configuration behavior. They are not interchangeable or all proven incomplete. | **Review Kyle-led variants only; defer Claude Gateway.** Inventory actual use before removing Claude + Ollama or Codex OSS. | Prefer fewer maintained execution paths. Preserve a used gateway/API integration rather than treating every non-default provider as abandoned. |
+| 14 | `/btw` asides and Quick Question cards | **graehl** ([22580999d](https://github.com/kzahel/yepanywhere/commit/22580999d), [d9e24be17](https://github.com/kzahel/yepanywhere/commit/d9e24be17)). | [Asides](provider-agnostic-btw-asides.md) have implemented forked flows, source-bound cleanup and context-saving behavior. They also create extra child-session and browser-owned lifecycle paths. | **Deferred: graehl-led.** Earlier recommendation: remove the feature family if unused; no removal in this pass. | Keep ordinary deliberate session cloning/forking independent. Do not confuse the existence of partial extensions with proof that the whole feature is nonfunctional. |
+| 15 | Unfinished `/done` report-back behavior | **graehl** ([e5e139224](https://github.com/kzahel/yepanywhere/commit/e5e139224)). | The [aside contract](provider-agnostic-btw-asides.md) records that `/done <text>` closes with a report-back-not-implemented notice rather than drafting the promised return. | **Deferred: graehl-led.** Earlier recommendation: remove unfinished report-back affordances rather than finish them. | If basic asides remain, expose only their implemented close/return behavior. Do not introduce new report-back helper turns or cross-session authority. |
+| 16 | YA-specific automatic compact/handoff policies | **graehl** ([70bac4a4d](https://github.com/kzahel/yepanywhere/commit/70bac4a4d), [6c7d14212](https://github.com/kzahel/yepanywhere/commit/6c7d14212)). | [Compact-and-handoff](compact-and-handoff.md) and [resume compaction](resume-compaction.md) mix targeted mitigations, settings and manual/native functionality. | **Deferred: graehl-led compact policies.** Preserve current manual/native and automatic behavior during this pass. | Separate automatic threshold/continuation/handoff decisions from manual Compact, deliberate Restart and provider-native behavior. Do not delete ordinary resume or manual compaction as collateral. |
+| 17 | Other providers: OpenCode, Pi, Grok, ordinary Gemini | **Mixed:** Kyle — OpenCode ([bc3214afe](https://github.com/kzahel/yepanywhere/commit/bc3214afe)), ordinary Gemini ([6b956331d](https://github.com/kzahel/yepanywhere/commit/6b956331d)); graehl — Pi ([0dbe625e3](https://github.com/kzahel/yepanywhere/commit/0dbe625e3)), Grok ([9ecd2a53f](https://github.com/kzahel/yepanywhere/commit/9ecd2a53f)). | Current provider topics/code contain substantial landed support; older [deferred backlog](deferred-roadmap.md) summaries are not a reliable maturity audit by themselves. | **Retain.** Kyle-led providers are not selected for removal; Pi/Grok review is deferred with graehl-led work. | Fewer providers may be desirable, but do not label them all half-built or silently narrow supported providers inside shared cleanup. |
+| 18 | Boss mode, yacron, broad cross-session orchestration, federated migration and general embeddable core | **Mixed:** graehl — boss ([be9a7a4cc](https://github.com/kzahel/yepanywhere/commit/be9a7a4cc)), yacron ([e25c25489](https://github.com/kzahel/yepanywhere/commit/e25c25489)), agent access ([f8f30a616](https://github.com/kzahel/yepanywhere/commit/f8f30a616)), core API ([f4337a4ed](https://github.com/kzahel/yepanywhere/commit/f4337a4ed)); Kyle — federation ([33d51a825](https://github.com/kzahel/yepanywhere/commit/33d51a825)). | [Boss mode](boss-mode.md), [yacron](yacron.md), [agent access](agent-session-access.md), [federation](federated-super-sessions.md) and [core API](core-service-api.md) are predominantly proposals. | **Keep deferred.** Do not implement or delete graehl-led proposals in this pass. Kyle-led federation remains deferred, outside core acceptance. | Deferring a document does not delete running code. No scheduler, universal grant system, migration engine or package extraction is required to finish house cleaning. |
+| 19 | Target-owned delegation over direct API or encrypted relay | **Kyle** ([14a135a90](https://github.com/kzahel/yepanywhere/commit/14a135a90)). | [Plan 144](../docs/tactical/144-relay-peer-session-coordination.md) proposes separate sessions owned by independently installed target YA hosts. | **Retain the direction; defer implementation.** | Future callers submit to the target owner using explicit grants. Do not reintroduce SSH injection, workspace mirroring or same-conversation migration through this plan. |
 
-## Heartbeat removal boundary
+## Deferred heartbeat review boundary
 
-The removal target is autonomous provider work: synthetic heartbeat messages,
-forced nudges and heartbeat-driven resurrection of sessions without a live
-owner. A configurable idle timer must not survive under another feature name
-as an implicit replacement.
+**Rows 5–9 are deferred for this pass because they are graehl-led.** Existing
+heartbeat, wake, recap, replay and keepalive behavior remains in place. The
+following boundary preserves the earlier technical analysis for a later
+review; it is not an instruction to remove these features now.
+
+If heartbeat removal is selected later, its target would be autonomous
+provider work: synthetic messages, forced nudges and heartbeat-driven
+resurrection of sessions without a live owner. It must not reappear under
+another feature name as an implicit replacement.
 
 Keep these independently required mechanisms:
 
@@ -148,20 +183,25 @@ consumers. Completion means no active launch or recovery path still selects a
 YA lane or SSH executor, and historical records cannot execute locally by
 accident. This step does not complete lane scheduling or remote recovery first.
 
-### 3 — remove synthetic heartbeat automation and approved related policies
+### 3 — remove the Hosts placeholder and Gemini ACP
 
-Start with synthetic heartbeat turns and resurrection, then handle wake,
-post-compact replay, generated recaps and keepalive according to their separate
-decisions. Prove absence of unsolicited provider work, preserve shared queue
-scheduling and liveness, and remove obsolete knobs and exclusive state owners.
-An inert collection of feature flags is not a completed deletion.
+Complete rows 11 and 12 independently, committing and pushing each removal.
+Remove the nonfunctional Hosts page/developer toggle while preserving actual
+saved-host selection, identity and relay/API delegation design. Retire the
+Gemini ACP adapter without replacing it with ordinary Gemini on a stale
+request or historical resume. Keep other ACP consumers and ordinary Gemini.
+Row 10's Conversation API/preview remains unchanged in this implementation pass.
 
-### 4 — retire dormant alternatives and partial affordances
+### 4 — review remaining Kyle-led candidates separately
 
-Remove dormant helper targets, the delegation placeholder and any approved
-Conversation preview/API, provider alternatives or aside features. Inspect
-transitive consumers before deleting shared schemas, compiler code or transport
-facilities. Do not replace each removed surface with a new framework.
+After rows 1, 2, 3, 11 and 12 work, consider the remaining Kyle-led variants in row
+13. Preserve the graehl-led portions of mixed rows, including Claude Gateway.
+Rows 4–9 and 14–16 remain deferred, as do the graehl-led proposals and providers
+identified in rows 17–18. Do not remove dormant helper targets, heartbeat
+policies, recaps or aside affordances under the old broader sequence.
+
+Inspect transitive consumers before deleting shared schemas, compiler code or
+transport facilities. Do not replace each removed surface with a new framework.
 
 ### 5 — verify the smaller product and close each cut
 

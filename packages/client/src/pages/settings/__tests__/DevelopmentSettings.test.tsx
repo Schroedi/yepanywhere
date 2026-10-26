@@ -64,7 +64,7 @@ vi.mock("../../../hooks/useSchemaValidation", () => ({
 
 vi.mock("../../../hooks/useServerSettings", () => ({
   useServerSettings: () => ({
-    settings: { serviceWorkerEnabled: true, workstreamsEnabled: false },
+    settings: { serviceWorkerEnabled: true },
     updateSetting: vi.fn(),
   }),
 }));
@@ -90,9 +90,6 @@ vi.mock("../../../i18n", () => ({
           developmentDiagnosticsDescription: "Capture browser logs",
           developmentServiceWorkerTitle: "Service Worker",
           developmentServiceWorkerDescription: "Enable service worker",
-          developmentWorkstreamsTitle: "Workstreams",
-          developmentWorkstreamsDescription:
-            "Enable experimental workstream surfaces and APIs",
           developmentSessionScrollMemoryTitle: "Session Scroll Memory",
           developmentSessionScrollMemoryControlTitle: "Restore mode",
           developmentSessionScrollMemoryDescription: "Debug restore mode",
@@ -166,7 +163,6 @@ describe("DevelopmentSettings", () => {
     expect(screen.getByText("Relay Debug Logging")).toBeTruthy();
     expect(screen.getByText("Browser Diagnostics")).toBeTruthy();
     expect(screen.getByText("Service Worker")).toBeTruthy();
-    expect(screen.getByText("Workstreams")).toBeTruthy();
     expect(screen.getByText("Session Scroll Memory")).toBeTruthy();
     expect(screen.queryByText("Store-Backed Session Detail")).toBeNull();
   });

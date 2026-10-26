@@ -35,7 +35,6 @@ import type {
   NonHumanUserTurn,
   UserMessageMetadata,
 } from "./user-message-metadata.js";
-import type { WorkstreamId } from "./workstreams.js";
 
 // =============================================================================
 // App Message Extensions
@@ -739,8 +738,6 @@ export interface AppSessionSummary {
   workingProjectId?: UrlProjectId;
   /** Provider transcript project when it differs from the effective project. */
   transcriptProjectId?: UrlProjectId;
-  /** YA workstream lane for this session. Missing means the implicit main lane. */
-  workstreamId?: WorkstreamId;
   /** Provider-launched child work nested under this parent. Absent on older servers. */
   providerChildren?: ProviderChildSessionSummary[];
 }
@@ -797,8 +794,6 @@ export interface SessionMetadataPayload
   workingProjectId?: UrlProjectId;
   /** Provider transcript project when it differs from the effective project. */
   transcriptProjectId?: UrlProjectId;
-  /** YA workstream lane for this session. Missing means the implicit main lane. */
-  workstreamId?: WorkstreamId;
 }
 
 export type SessionQueuedYaCommand = "done" | "clearloop";
@@ -1339,7 +1334,6 @@ export function isAppSession(value: unknown): value is AppSession {
     "cliVersion",
     "source",
     "approvalPolicy",
-    "workstreamId",
   ]) {
     if (!isOptionalString(value, key)) return false;
   }

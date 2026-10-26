@@ -118,7 +118,6 @@ import {
   loadOrCreateSessionWakeSecret,
   SessionQueuePersistenceService,
   SharingService,
-  WorkstreamService,
 } from "./services/index.js";
 import { providerInstallationCoordinator } from "./services/ProviderInstallationCoordinator.js";
 import { NativePushService } from "./push/NativePushService.js";
@@ -729,10 +728,6 @@ const limitedUserBrowserDefaultsService = new BrowserSettingsBackupService({
   dataDir: config.dataDir,
   fileName: "limited-user-browser-defaults.json",
 });
-const workstreamService = new WorkstreamService({
-  dataDir: config.dataDir,
-  eventBus,
-});
 const sharingService = new SharingService({
   dataDir: config.dataDir,
 });
@@ -880,8 +875,6 @@ async function startServer() {
   markStartup("browserSettingsBackupService initialized");
   await limitedUserBrowserDefaultsService.initialize();
   markStartup("limitedUserBrowserDefaultsService initialized");
-  await workstreamService.initialize();
-  markStartup("workstreamService initialized");
   await sharingService.initialize();
   markStartup("sharingService initialized");
   // Loading persisted public shares is not required to bind the listening
@@ -1225,7 +1218,6 @@ async function startServer() {
     },
     projectStoragePolicy,
     hostAwakeService,
-    workstreamService,
     sharingService,
     publicShareService,
     deviceBridgeService,

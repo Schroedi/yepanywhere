@@ -22,15 +22,12 @@ import {
   type UserQuestionAnswers,
   type UserMessageMetadata,
   type UrlProjectId,
-  type WorkstreamId,
   SESSION_UNREAD_TIMESTAMP,
   agentHarness,
   buildEffectiveAgentContext,
   getModelContextWindow,
   isThinkingOption,
   isUrlProjectId,
-  isWorkstreamId,
-  mainWorkstreamId,
   truncateSessionTitle,
   readQueuedYaCommand,
   withKnownGoal,
@@ -87,7 +84,6 @@ import type { ProjectQueueScheduler } from "../services/ProjectQueueScheduler.js
 import { describeQueuedYaCommandProblem } from "../services/ProjectQueueService.js";
 import type { ServerSettingsService } from "../services/ServerSettingsService.js";
 import type { SessionQueuePersistenceService } from "../services/SessionQueuePersistenceService.js";
-import type { WorkstreamService } from "../services/WorkstreamService.js";
 import { initializeSessionHeartbeatDefaults } from "../services/sessionHeartbeatDefaults.js";
 import { CodexSessionReader } from "../sessions/codex-reader.js";
 import { cloneClaudeSession } from "../sessions/fork.js";
@@ -329,8 +325,6 @@ export interface SessionsDeps {
   piReaderFactory?: (projectPath: string) => PiSessionReader;
   /** ServerSettingsService for reading global instructions */
   serverSettingsService?: ServerSettingsService;
-  /** WorkstreamService for resolving experimental checkout lanes */
-  workstreamService?: WorkstreamService;
   /** ModelInfoService for context window lookups */
   modelInfoService?: ModelInfoService;
   /** Durable store for recovered patient queued messages */
@@ -468,8 +462,8 @@ interface StartSessionBody {
   helperSideModel?: string;
   /** Resume strategy for existing sessions. */
   resumeMode?: ResumeMode;
-  /** Experimental workstream lane target for new project sessions. */
-  workstreamId?: string;
+  /** Removed lane target: explicit stale-client requests are refused. */
+  workstreamId?: unknown;
 }
 
 function hasSessionMessageContent(body: StartSessionBody): boolean {
@@ -510,8 +504,8 @@ interface CreateSessionBody {
   promptSuggestionMode?: PromptSuggestionMode;
   /** Session-level helper side model for simulated helper features. */
   helperSideModel?: string;
-  /** Experimental workstream lane target for new project sessions. */
-  workstreamId?: string;
+  /** Removed lane target: explicit stale-client requests are refused. */
+  workstreamId?: unknown;
 }
 
 function parseCreationProvenance(
@@ -2432,46 +2426,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       serverSettingsService: deps.serverSettingsService,
     });
 
-  const resolveLaunchWorkstreamTarget = (
-    project: Project,
-    rawWorkstreamId: string | undefined,
-  ):
-    | { projectPath: string; workstreamId?: WorkstreamId }
-    | { error: string; status: 400 | 404 | 409 | 503 } => {
-    if (rawWorkstreamId === undefined) {
-      return { projectPath: project.path };
-    }
-    if (!isWorkstreamId(rawWorkstreamId)) {
-      return { error: "Invalid workstream ID format", status: 400 };
-    }
-    if (deps.serverSettingsService?.getSetting("workstreamsEnabled") !== true) {
-      return { error: "Workstreams are disabled", status: 404 };
-    }
-    if (!deps.workstreamService) {
-      return { error: "Workstreams unavailable", status: 503 };
-    }
-
-    const workstreamId = rawWorkstreamId;
-    if (workstreamId === mainWorkstreamId(project.id)) {
-      return { projectPath: project.path };
-    }
-    if (!deps.sessionMetadataService) {
-      return { error: "Session metadata unavailable", status: 503 };
-    }
-
-    const workstream = deps.workstreamService.getWorkstream(
-      project.id,
-      workstreamId,
-    );
-    if (workstream?.kind !== "checkout") {
-      return { error: "Workstream not found", status: 404 };
-    }
-    if (workstream.status !== "active") {
-      return { error: "Workstream is not active", status: 409 };
-    }
-    return { projectPath: workstream.path, workstreamId };
-  };
-
   const persistLaunchMetadata = async (
     sessionId: string,
     provider: ProviderName | undefined,
@@ -2480,7 +2434,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     requestedModel?: string,
     promptSuggestionMode?: PromptSuggestionMode,
     recapAfterSeconds?: number,
-    workstreamId?: WorkstreamId,
     sandbox?: {
       level: SessionSandboxLevel;
       networkFirewall?: boolean;
@@ -2526,9 +2479,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         recapAfterSeconds,
       });
     }
-    if (workstreamId !== undefined) {
-      await deps.sessionMetadataService.setWorkstream(sessionId, workstreamId);
-    }
     if (sandbox) {
       await deps.sessionMetadataService.setSessionSandbox?.(sessionId, sandbox);
     }
@@ -2553,7 +2503,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       initialPrompt?: string;
       requestedModel?: string;
       recapAfterSeconds?: number;
-      workstreamId?: WorkstreamId;
       sandbox: { level: SessionSandboxLevel; networkFirewall: boolean };
     },
   ): Promise<void> => {
@@ -2581,7 +2530,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       launch.requestedModel,
       process.promptSuggestionMode,
       launch.recapAfterSeconds,
-      launch.workstreamId,
       {
         level: launch.sandbox.level,
         networkFirewall: launch.sandbox.networkFirewall,
@@ -3098,7 +3046,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         recapAfterSeconds: metadata?.recapAfterSeconds,
         workingProjectId: metadata?.workingProjectId,
         transcriptProjectId: metadata?.transcriptProjectId,
-        workstreamId: metadata?.workstreamId,
         transcriptDisplayObjects: metadata?.transcriptDisplayObjects,
         lastSeenAt,
         hasUnread,
@@ -3609,7 +3556,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
             recapAfterSeconds: metadata?.recapAfterSeconds,
             workingProjectId: metadata?.workingProjectId,
             transcriptProjectId: metadata?.transcriptProjectId,
-            workstreamId: metadata?.workstreamId,
             transcriptDisplayObjects: metadata?.transcriptDisplayObjects,
             lastSeenAt: lastSeenEntry?.timestamp,
             hasUnread,
@@ -4041,7 +3987,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         recapAfterSeconds: metadata?.recapAfterSeconds,
         workingProjectId: metadata?.workingProjectId,
         transcriptProjectId: metadata?.transcriptProjectId,
-        workstreamId: metadata?.workstreamId,
         transcriptDisplayObjects: metadata?.transcriptDisplayObjects,
         // Model comes from the session reader (extracted from JSONL)
         model: session.model,
@@ -4137,12 +4082,8 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     if (sandboxSettingsError) {
       return c.json({ error: sandboxSettingsError }, 400);
     }
-    const workstreamTarget = resolveLaunchWorkstreamTarget(
-      project,
-      body.workstreamId,
-    );
-    if ("error" in workstreamTarget) {
-      return c.json({ error: workstreamTarget.error }, workstreamTarget.status);
+    if (body.workstreamId !== undefined) {
+      return c.json({ error: "Managed checkout lanes have been removed" }, 410);
     }
 
     const serverTimestamp = Date.now();
@@ -4177,7 +4118,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     });
 
     const result = await deps.supervisor.startSession(
-      workstreamTarget.projectPath,
+      project.path,
       userMessage,
       body.mode,
       {
@@ -4212,7 +4153,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       },
       {
         projectId: project.id,
-        workstreamId: workstreamTarget.workstreamId,
         onStarted: (_sessionId, process) =>
           recordNewSessionLaunch(process, {
             heartbeatProjectId: project.id,
@@ -4229,7 +4169,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
             initialPrompt: body.message,
             requestedModel: body.model,
             recapAfterSeconds: helperSettings.recapAfterSeconds,
-            workstreamId: workstreamTarget.workstreamId,
             sandbox: {
               level: sandboxSelection.sandboxLevel,
               networkFirewall: sandboxSelection.sandboxNetworkFirewall,
@@ -4334,12 +4273,8 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     if (sandboxSettingsError) {
       return c.json({ error: sandboxSettingsError }, 400);
     }
-    const workstreamTarget = resolveLaunchWorkstreamTarget(
-      project,
-      body.workstreamId,
-    );
-    if ("error" in workstreamTarget) {
-      return c.json({ error: workstreamTarget.error }, workstreamTarget.status);
+    if (body.workstreamId !== undefined) {
+      return c.json({ error: "Managed checkout lanes have been removed" }, 410);
     }
 
     const { thinking, effort } = buildThinkingOptions(body);
@@ -4350,7 +4285,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     const serviceTier = normalizeOptionalServiceTier(body.serviceTier);
 
     const result = await deps.supervisor.createSession(
-      workstreamTarget.projectPath,
+      project.path,
       body.mode,
       {
         model,
@@ -4384,7 +4319,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       },
       {
         projectId: project.id,
-        workstreamId: workstreamTarget.workstreamId,
         onStarted: (_sessionId, process) =>
           recordNewSessionLaunch(process, {
             heartbeatProjectId: project.id,
@@ -4400,7 +4334,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
             executor,
             requestedModel: body.model,
             recapAfterSeconds: helperSettings.recapAfterSeconds,
-            workstreamId: workstreamTarget.workstreamId,
             sandbox: {
               level: sandboxSelection.sandboxLevel,
               networkFirewall: sandboxSelection.sandboxNetworkFirewall,
@@ -5945,7 +5878,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         requestedModel ?? undefined,
         result.promptSuggestionMode,
         result.recapAfterSeconds,
-        originalMetadata?.workstreamId,
         {
           level: restartSandboxLevel,
           networkFirewall: restartSandboxNetworkFirewall,
@@ -6090,7 +6022,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       requestedModel ?? undefined,
       result.promptSuggestionMode,
       result.recapAfterSeconds,
-      undefined,
       {
         level: restartSandboxLevel,
         networkFirewall: restartSandboxNetworkFirewall,
@@ -7391,7 +7322,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       inheritedModel,
       originalMetadata?.promptSuggestionMode,
       originalMetadata?.recapAfterSeconds,
-      originalMetadata?.workstreamId,
       {
         level: originalMetadata?.sandboxLevel ?? "none",
         networkFirewall: persistedSandboxNetworkFirewall(originalMetadata),
@@ -7611,7 +7541,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         requestedModel,
         promptSuggestionMode,
         recapAfterSeconds,
-        sourceMetadata?.workstreamId,
         {
           level: sourceMetadata?.sandboxLevel ?? "none",
           networkFirewall: persistedSandboxNetworkFirewall(sourceMetadata),
@@ -7864,7 +7793,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
             requestedModel,
             originalMetadata?.promptSuggestionMode,
             originalMetadata?.recapAfterSeconds,
-            originalMetadata?.workstreamId,
             {
               level: originalMetadata?.sandboxLevel ?? "none",
               networkFirewall:
@@ -7935,7 +7863,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
             requestedModel,
             originalMetadata?.promptSuggestionMode,
             originalMetadata?.recapAfterSeconds,
-            originalMetadata?.workstreamId,
             {
               level: originalMetadata?.sandboxLevel ?? "none",
               networkFirewall:
@@ -7998,7 +7925,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
             requestedModel,
             result.promptSuggestionMode,
             result.recapAfterSeconds,
-            originalMetadata?.workstreamId,
             {
               level: originalMetadata?.sandboxLevel ?? "none",
               networkFirewall:

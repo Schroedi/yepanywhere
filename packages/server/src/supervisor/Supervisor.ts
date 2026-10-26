@@ -19,7 +19,6 @@ import {
   type SessionSandboxLevel,
   type SyntheticSessionBoundaryCommand,
   type UrlProjectId,
-  type WorkstreamId,
   type PostCompactReplaySettings,
   type PostCompactReplayTurn,
   buildPostCompactReplayPrompt,
@@ -483,8 +482,6 @@ export class RetryableSessionLaunchError extends Error {
 export interface SessionLaunchOptions {
   /** Canonical YA project id when the provider cwd is a checkout lane. */
   projectId?: UrlProjectId;
-  /** YA workstream lane to persist once a queued launch starts. */
-  workstreamId?: WorkstreamId;
   /**
    * One-shot callback once an immediate or queued launch has a canonical YA
    * id, from `startSession` and `createSession` alike. The single place a
@@ -1156,7 +1153,6 @@ export class Supervisor {
           type: "new-session",
           projectPath,
           projectId,
-          workstreamId: launchOptions?.workstreamId,
           message,
           permissionMode,
           modelSettings,
@@ -1269,7 +1265,6 @@ export class Supervisor {
           type: "new-session",
           projectPath,
           projectId,
-          workstreamId: launchOptions?.workstreamId,
           message: { text: "" }, // Placeholder, will be replaced when first message sent
           permissionMode,
           modelSettings,
@@ -6974,13 +6969,6 @@ export class Supervisor {
             false,
           );
           process = result;
-        }
-
-        if (request.workstreamId) {
-          await this.sessionMetadataService?.setWorkstream(
-            process.sessionId,
-            request.workstreamId,
-          );
         }
 
         // Emit queue removed event

@@ -306,7 +306,6 @@ import {
   type VersionRouteOptions,
 } from "./routes/version.js";
 import { createProviderHostRoutes } from "./routes/provider-host.js";
-import { createWorkstreamRoutes } from "./routes/workstreams.js";
 import { WS_INTERNAL_AUTHENTICATED } from "./middleware/internal-auth.js";
 import {
   configureProviderRuntime,
@@ -361,7 +360,6 @@ import {
   type SessionWakeLogger,
 } from "./services/SessionWakeService.js";
 import type { SecurityClientService } from "./services/SecurityClientService.js";
-import type { WorkstreamService } from "./services/WorkstreamService.js";
 import type {
   PersistedSessionQueuedMessage,
   SessionQueuePersistenceService,
@@ -568,8 +566,6 @@ export interface AppOptions {
   projectStoragePolicy?: ProjectStoragePolicy;
   /** Process-global operating-system sleep assertion policy. */
   hostAwakeService?: HostAwakeService;
-  /** WorkstreamService for experimental per-project checkout lanes */
-  workstreamService?: WorkstreamService;
   /** ModelInfoService for cached model metadata (context windows, etc.) */
   modelInfoService?: ModelInfoService;
   /** SharingService for session sharing */
@@ -1196,7 +1192,6 @@ export function createApp(options: AppOptions): AppResult {
     geminiSessionsDir,
     projectScanCachePath,
     projectMetadataService: options.projectMetadataService,
-    workstreamService: options.workstreamService,
     eventBus: options.eventBus,
     cacheTtlMs: options.projectScanCacheTtlMs,
   });
@@ -2780,7 +2775,6 @@ export function createApp(options: AppOptions): AppResult {
       piSessionsDir,
       piReaderFactory,
       serverSettingsService: options.serverSettingsService,
-      workstreamService: options.workstreamService,
       modelInfoService: options.modelInfoService,
       sessionQueuePersistenceService: options.sessionQueuePersistenceService,
       toolResultMediaStore,
@@ -3405,17 +3399,6 @@ export function createApp(options: AppOptions): AppResult {
       isEnabled: sourceReviewSubmissionsEnabled,
     }),
   );
-
-  if (options.serverSettingsService && options.workstreamService) {
-    app.route(
-      "/api/projects",
-      createWorkstreamRoutes({
-        scanner,
-        serverSettingsService: options.serverSettingsService,
-        workstreamService: options.workstreamService,
-      }),
-    );
-  }
 
   // Recents routes (recently visited sessions)
   if (options.recentsService) {

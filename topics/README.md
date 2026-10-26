@@ -1,6 +1,7 @@
 - [Core house cleaning](core-house-cleaning.md) (active cleanup proposal:
-  remove YA-managed lanes and SSH executors; review synthetic heartbeat,
-  wake, recap and replay automation, dormant helpers and alternate previews)
+  numbered feature/contributor ledger; initially remove Kyle-led lanes, SSH
+  executors, Hosts placeholder and Gemini ACP; defer Conversation API/preview
+  and graehl-led automation/helpers)
 - [On-device Android host](android-host.md) (experimental Alpine/PRoot host,
   optional ADB direction, distribution research, assistant entry-point research
   and pinned Buddy/Shizuku/Termux references; assistant device spikes deferred)
@@ -109,8 +110,8 @@
   payloads behind authenticated server media IDs)
 - Session exit navigation latency (large transcript should not delay first
   paint of Settings/other lightweight routes)
-- Workstreams (lane-aware Project Queue; each lane is a real checkout of the
-  repository syncing through the shared upstream)
+- [Workstreams retirement](workstreams.md) (YA-managed checkout lanes removed;
+  ordinary user-created checkouts/worktrees remain independent projects)
 - Module boundary refactor discipline (move-only slices, naming and
   coordination rules, tripwire matrix, and verification tiers for the
   large-file extraction campaign)

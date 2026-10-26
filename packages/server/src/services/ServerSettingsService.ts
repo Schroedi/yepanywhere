@@ -151,8 +151,6 @@ export interface ServerSettings {
    */
   limitedUsersEnabled?: boolean;
   limitedUserInstructions?: import("@yep-anywhere/shared").LimitedUserInstructions;
-  /** Whether experimental workstream surfaces and APIs are enabled */
-  workstreamsEnabled?: boolean;
   /** Whether experimental live Source Control filesystem monitoring is enabled. */
   liveWorktreeMonitoringEnabled: boolean;
   /** Whether captured source-review submissions and outcomes are enabled. */
@@ -375,7 +373,6 @@ export const DEFAULT_SERVER_SETTINGS: ServerSettings = {
   publicSharesEnabled: false,
   limitedUsersEnabled: false,
   limitedUserInstructions: defaultLimitedUserInstructions(),
-  workstreamsEnabled: false,
   liveWorktreeMonitoringEnabled: defaultLiveWorktreeMonitoringEnabled(),
   sourceReviewSubmissionsEnabled: true,
   sourceReviewResponseTurns: DEFAULT_SOURCE_REVIEW_RESPONSE_TURNS,

@@ -23,7 +23,6 @@ import type {
   RecentsChangedEvent,
   TranscriptDisplayObject,
   UrlProjectId,
-  WorkstreamsChangedEvent,
 } from "@yep-anywhere/shared";
 import type { SessionOwnership, SessionSummary } from "../supervisor/types.js";
 
@@ -394,8 +393,7 @@ export type BusEvent =
   | NetworkBindingChangedEvent
   | BrowserTabConnectedEvent
   | BrowserTabDisconnectedEvent
-  | CacheMissBillingEvent
-  | WorkstreamsChangedEvent;
+  | CacheMissBillingEvent;
 
 export type EventHandler<T = BusEvent> = (event: T) => void;
 

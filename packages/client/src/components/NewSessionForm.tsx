@@ -49,8 +49,6 @@ import {
   type SessionSandboxLevel,
   type ThinkingMode,
   type ThinkingOption,
-  type Workstream,
-  type WorkstreamId,
   normalizeRecapAfterSeconds,
   resolveModel,
 } from "@yep-anywhere/shared";
@@ -293,12 +291,6 @@ const ROUTER_MODEL_UNAVAILABLE = {
   conflict: "routerModelConflict",
   missing: "routerModelMissing",
 } as const satisfies Record<RouterModelUnavailable, MessageKey>;
-
-interface WorkstreamsLoadState {
-  status: "idle" | "loading" | "ready" | "error";
-  projectId: string | null;
-  workstreams: Workstream[];
-}
 
 interface PendingSpeechFinal {
   timer: ReturnType<typeof setTimeout>;
@@ -613,14 +605,6 @@ export function NewSessionForm({
   const [, setSpeechPreviewRevision] = useState(0);
   const [isProjectChooserExpanded, setIsProjectChooserExpanded] =
     useState(false);
-  const [selectedWorkstreamId, setSelectedWorkstreamId] =
-    useState<WorkstreamId | null>(null);
-  const [workstreamsState, setWorkstreamsState] =
-    useState<WorkstreamsLoadState>({
-      status: "idle",
-      projectId: null,
-      workstreams: [],
-    });
   const requestedProjectPath = useMemo(() => {
     if (!projectId || !isUrlProjectId(projectId)) return "";
     try {
@@ -1788,83 +1772,6 @@ export function NewSessionForm({
     newProjectPanelShown || currentProjectSelection
       ? shortenPath(projectSummaryMeta)
       : projectSummaryMeta;
-  const workstreamSelectionProjectId =
-    !newProjectPanelShown && normalizedProjectInput && currentProjectSelection
-      ? currentProjectSelection.id
-      : null;
-  const workstreamSelectionEnabled = settings?.workstreamsEnabled === true;
-
-  useEffect(() => {
-    setSelectedWorkstreamId(null);
-    if (!workstreamSelectionEnabled || !workstreamSelectionProjectId) {
-      setWorkstreamsState({
-        status: "idle",
-        projectId: null,
-        workstreams: [],
-      });
-      return;
-    }
-
-    let cancelled = false;
-    setWorkstreamsState({
-      status: "loading",
-      projectId: workstreamSelectionProjectId,
-      workstreams: [],
-    });
-
-    api
-      .getProjectWorkstreams(workstreamSelectionProjectId)
-      .then((response) => {
-        if (cancelled) return;
-        setWorkstreamsState({
-          status: "ready",
-          projectId: workstreamSelectionProjectId,
-          workstreams: response.workstreams,
-        });
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setWorkstreamsState({
-          status: "error",
-          projectId: workstreamSelectionProjectId,
-          workstreams: [],
-        });
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [workstreamSelectionEnabled, workstreamSelectionProjectId]);
-
-  const workstreamOptions =
-    workstreamsState.status === "ready" &&
-    workstreamsState.projectId === workstreamSelectionProjectId
-      ? workstreamsState.workstreams.filter(
-          (workstream) =>
-            workstream.kind === "main" || workstream.status === "active",
-        )
-      : [];
-  const showWorkstreamChooser =
-    workstreamSelectionEnabled &&
-    workstreamSelectionProjectId !== null &&
-    workstreamOptions.length > 1;
-  const selectedWorkstream =
-    workstreamOptions.find(
-      (workstream) => workstream.id === selectedWorkstreamId,
-    ) ??
-    workstreamOptions.find((workstream) => workstream.kind === "main") ??
-    null;
-  const selectedCheckoutWorkstreamId =
-    selectedWorkstream?.kind === "checkout" ? selectedWorkstream.id : undefined;
-
-  const handleWorkstreamSelect = useCallback(
-    (event: ChangeEvent<HTMLSelectElement>) => {
-      const nextValue = event.currentTarget.value;
-      setSelectedWorkstreamId(nextValue ? (nextValue as WorkstreamId) : null);
-    },
-    [],
-  );
-
   const handleProjectOptionSelect = useCallback(
     (project: Project) => {
       setProjectInput(project.path);
@@ -3114,7 +3021,6 @@ export function NewSessionForm({
           recapAfterSeconds,
           promptSuggestionMode: effectivePromptSuggestionMode,
           helperSideModel,
-          workstreamId: selectedCheckoutWorkstreamId,
           // Last word, so a submit that raced the acting-principal request
           // still launches inside the lock instead of being refused.
           ...launchLockOverrides(launchLock),
@@ -3406,7 +3312,6 @@ export function NewSessionForm({
       effectiveSandboxNetworkFirewall,
       resolvePendingAttachmentsForSession,
       resolveProjectIdForSubmission,
-      selectedCheckoutWorkstreamId,
       selectedModel,
       selectedPromptSuggestionMode,
       selectedProvider,
@@ -4730,39 +4635,6 @@ export function NewSessionForm({
       )}
     </section>
   ) : null;
-  const workstreamChooser =
-    showWorkstreamChooser && selectedWorkstream ? (
-      <label className="new-session-workstream-field">
-        <span className="new-session-workstream-label">
-          {t("newSessionWorkstreamLabel")}
-        </span>
-        <select
-          className="new-session-workstream-select"
-          value={selectedCheckoutWorkstreamId ?? ""}
-          onChange={handleWorkstreamSelect}
-          disabled={isStarting}
-          aria-label={t("newSessionWorkstreamLabel")}
-        >
-          {workstreamOptions.map((workstream) => (
-            <option
-              key={workstream.id}
-              value={workstream.kind === "main" ? "" : workstream.id}
-            >
-              {workstream.kind === "main"
-                ? t("newSessionWorkstreamMain")
-                : workstream.label}
-            </option>
-          ))}
-        </select>
-        <span
-          className="new-session-workstream-path"
-          title={selectedWorkstream.path}
-        >
-          {shortenPath(selectedWorkstream.path)}
-        </span>
-      </label>
-    ) : null;
-
   const optionPlaceholder = (
     className: string,
     title: string,
@@ -5566,7 +5438,6 @@ export function NewSessionForm({
                 }
               />
             )}
-            {workstreamChooser}
           </aside>
         )}
         {newProjectSection}

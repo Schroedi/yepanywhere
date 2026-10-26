@@ -125,9 +125,6 @@ const loadProviderChildSessionPageModule = cachedModule(
   () => import("./pages/ProviderChildSessionPage"),
 );
 const loadSettingsModule = cachedModule(() => import("./pages/settings"));
-const loadWorkstreamsPageModule = cachedModule(
-  () => import("./pages/WorkstreamsPage"),
-);
 
 const ConnectionGate = preloadableComponent(async () => ({
   default: (await loadRemoteAppModule()).ConnectionGate,
@@ -281,11 +278,6 @@ const ProviderSignInPage = lazy(() =>
     default: m.ProviderSignInPage,
   })),
 );
-const WorkstreamsPage = lazy(() =>
-  loadWorkstreamsPageModule().then(({ WorkstreamsPage }) => ({
-    default: WorkstreamsPage,
-  })),
-);
 
 // Only the Chrome extension's app tab mirrors saved hosts and takes
 // navigation from the side panel (docs/tactical/151).
@@ -324,7 +316,6 @@ const initialRemoteModuleLoaders: Record<
   sessionCore: loadSessionCoreModules,
   sessionPage: loadSessionPageModule,
   settings: loadSettingsModule,
-  workstreamsPage: loadWorkstreamsPageModule,
 };
 
 const initialRouteModuleKeys = getInitialRemoteRouteModuleKeys(
@@ -405,10 +396,6 @@ const APP_ROUTES = (
       <Route
         path="projects/:projectId/app"
         element={routeModule(<ProjectAppPage />)}
-      />
-      <Route
-        path="projects/:projectId/workstreams"
-        element={routeModule(<WorkstreamsPage />)}
       />
       <Route
         path="projects/:projectId"

@@ -26,7 +26,6 @@ import {
   type SlashCommand,
   type TranscriptDisplayObject,
   type UrlProjectId,
-  type WorkstreamId,
   findGoalCommand,
   normalizeRecapAfterSeconds,
   readGoalDetails,
@@ -179,8 +178,6 @@ export interface SessionMetadata {
   workingProjectId?: UrlProjectId;
   /** Provider transcript project when it differs from the effective project. */
   transcriptProjectId?: UrlProjectId;
-  /** YA workstream lane for this session. Missing means the implicit main lane. */
-  workstreamId?: WorkstreamId;
 }
 
 export interface SessionMetadataState {
@@ -1008,22 +1005,6 @@ export class SessionMetadataService {
   }
 
   /**
-   * Set YA's workstream lane for a session without modifying provider state.
-   *
-   * Undefined means the implicit main workstream for the effective project.
-   */
-  async setWorkstream(
-    sessionId: string,
-    workstreamId: WorkstreamId | undefined,
-  ): Promise<void> {
-    this.updateSessionMetadata(sessionId, (metadata) => ({
-      ...metadata,
-      workstreamId,
-    }));
-    await this.save();
-  }
-
-  /**
    * Set the durable YA host sandbox selection and private provider-state root.
    */
   async setSessionSandbox(
@@ -1480,9 +1461,6 @@ export class SessionMetadataService {
     }
     if (updated.transcriptProjectId) {
       cleaned.transcriptProjectId = updated.transcriptProjectId;
-    }
-    if (updated.workstreamId) {
-      cleaned.workstreamId = updated.workstreamId;
     }
 
     if (Object.keys(cleaned).length === 0) {

@@ -24,7 +24,6 @@ import type {
   UrlProjectId,
   SessionLivenessSnapshot,
   ToolResultMedia,
-  WorkstreamId,
 } from "@yep-anywhere/shared";
 import type { PermissionMode, SDKMessage } from "../sdk/types.js";
 import type { SessionExecution } from "../sdk/providers/types.js";
@@ -164,8 +163,6 @@ export interface SessionSummary {
   approvalPolicy?: string;
   /** Sandbox policy from turn_context */
   sandboxPolicy?: SessionSandboxPolicy;
-  /** YA workstream lane for this session. Missing means the implicit main lane. */
-  workstreamId?: WorkstreamId;
   /** Provider-launched child work nested under this parent. Absent on older servers. */
   providerChildren?: ProviderChildSessionSummary[];
 }

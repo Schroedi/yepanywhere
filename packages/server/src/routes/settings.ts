@@ -162,7 +162,6 @@ const LIMITED_USER_SETTINGS_FIELDS = [
   "serviceWorkerEnabled",
   "limitedUsersEnabled",
   "publicSharesEnabled",
-  "workstreamsEnabled",
   "sourceReviewSubmissionsEnabled",
   "hostProcessObservabilityEnabled",
   "hostIdentity",
@@ -394,9 +393,6 @@ export function createSettingsRoutes(deps: SettingsRoutesDeps) {
       }
       if (typeof body.publicSharesEnabled === "boolean") {
         updates.publicSharesEnabled = body.publicSharesEnabled;
-      }
-      if (typeof body.workstreamsEnabled === "boolean") {
-        updates.workstreamsEnabled = body.workstreamsEnabled;
       }
       if (typeof body.limitedUsersEnabled === "boolean") {
         updates.limitedUsersEnabled = body.limitedUsersEnabled;

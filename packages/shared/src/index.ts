@@ -989,21 +989,6 @@ export {
 } from "./browser-settings-backup.js";
 
 export type {
-  CreateProjectWorkstreamRequest,
-  CreateProjectWorkstreamResponse,
-  ProjectWorkstreamsResponse,
-  StoredWorkstream,
-  Workstream,
-  WorkstreamCheckoutPreviewResponse,
-  WorkstreamId,
-  WorkstreamKind,
-  WorkstreamStatus,
-  WorkstreamsChangedEvent,
-  WorkstreamsChangedReason,
-} from "./workstreams.js";
-export { isWorkstreamId, mainWorkstreamId } from "./workstreams.js";
-
-export type {
   StagedAttachmentRef,
   UploadedFile,
   UploadStartMessage,

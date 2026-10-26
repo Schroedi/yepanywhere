@@ -48,7 +48,6 @@ describe("Settings Routes", () => {
       approvalAuditLogEnabled: false,
       speechAudioRetention: DEFAULT_SERVER_SETTINGS.speechAudioRetention,
       publicSharesEnabled: false,
-      workstreamsEnabled: false,
       hostProcessObservabilityEnabled: true,
       hostAwakeMode: "off",
       hostAwakeBatteryFloorPercent: 10,
@@ -1055,25 +1054,6 @@ describe("Settings Routes", () => {
       expect(response.status).toBe(200);
       expect(mockServerSettingsService.updateSettings).toHaveBeenCalledWith({
         approvalAuditLogEnabled: true,
-      });
-    });
-
-    it("accepts the experimental workstreams gate", async () => {
-      const routes = createSettingsRoutes({
-        serverSettingsService: mockServerSettingsService,
-      });
-
-      const response = await routes.request("/", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          workstreamsEnabled: true,
-        }),
-      });
-
-      expect(response.status).toBe(200);
-      expect(mockServerSettingsService.updateSettings).toHaveBeenCalledWith({
-        workstreamsEnabled: true,
       });
     });
 

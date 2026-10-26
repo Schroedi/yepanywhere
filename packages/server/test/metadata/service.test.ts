@@ -6,7 +6,6 @@ import type {
   CacheMissBillingRecord,
   DurableLocalCommandMessage,
   SlashCommand,
-  WorkstreamId,
 } from "@yep-anywhere/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SessionMetadataService } from "../../src/metadata/SessionMetadataService.js";
@@ -1284,34 +1283,6 @@ describe("SessionMetadataService", () => {
       await service.clearSession("nonexistent-session");
 
       expect(service.getMetadata("nonexistent-session")).toBeUndefined();
-    });
-  });
-
-  describe("setWorkstream", () => {
-    it("sets and clears workstream identity", async () => {
-      await service.initialize();
-
-      await service.setWorkstream("session-1", "ws-feature" as WorkstreamId);
-
-      expect(service.getMetadata("session-1")).toEqual({
-        workstreamId: "ws-feature",
-      });
-
-      await service.setWorkstream("session-1", undefined);
-
-      expect(service.getMetadata("session-1")).toBeUndefined();
-    });
-
-    it("preserves other metadata when updating workstream identity", async () => {
-      await service.initialize();
-      await service.setTitle("session-1", "My Title");
-
-      await service.setWorkstream("session-1", "ws-feature" as WorkstreamId);
-
-      expect(service.getMetadata("session-1")).toEqual({
-        customTitle: "My Title",
-        workstreamId: "ws-feature",
-      });
     });
   });
 
