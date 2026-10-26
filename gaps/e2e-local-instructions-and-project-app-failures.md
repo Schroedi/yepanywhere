@@ -85,3 +85,12 @@ Run alone, the inventory case then passed three times in a row. Both commits
 touched only provider markers and a unit test, so these are still
 intermittent failures that the full run triggers. The cause is unproved.
 Contributing-model: claude-opus-5-5.
+
+## Narrowed 2026-10-26
+
+The latest publish again exceeded the five-second `/app/start` response wait.
+That endpoint waits for process readiness before responding. The Live preview
+case now allows 20 seconds, four times the observed limit, and preserves its
+real reload assertions. This addresses the response budget only; the other
+instruction, sandbox, inventory and geometry findings remain separate.
+Contributing-model: 6.1-Sol.
