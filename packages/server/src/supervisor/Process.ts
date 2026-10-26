@@ -69,7 +69,6 @@ import {
 import type {
   AgentProvider,
   PromptCacheRefreshResult,
-  SessionExecution,
 } from "../sdk/providers/types.js";
 import { coalesceStreamingSnapshots } from "../sdk/providers/streaming-snapshot-coalescing.js";
 import { expandSlashCommandEmulation } from "../sdk/slashCommandEmulation.js";
@@ -1043,8 +1042,6 @@ export class Process {
   private _serviceTier: string | undefined;
   /** SSH host for remote execution (undefined = local) */
   readonly executor: string | undefined;
-  /** Internal placement coordinate, kept out of browser-facing ProcessInfo. */
-  readonly execution: SessionExecution;
   readonly sandboxEnforcement: SessionSandboxEnforcement | undefined;
   readonly sandboxStateKey: string | undefined;
   readonly sandboxProjectPath: string | undefined;
@@ -1354,11 +1351,6 @@ export class Process {
     this.gatewayServiceId = options.gatewayServiceId;
     this._serviceTier = options.serviceTier;
     this.executor = options.executor;
-    this.execution =
-      options.execution ??
-      (options.executor
-        ? { kind: "legacy-ssh", executor: options.executor }
-        : { kind: "local" });
     this.sandboxEnforcement = options.sandboxEnforcement;
     this.sandboxStateKey = options.sandboxStateKey;
     this.sandboxProjectPath = options.sandboxProjectPath;
@@ -3850,7 +3842,6 @@ export class Process {
       const receivedAtMs = Date.parse(message.metadata.serverReceivedAt);
       if (
         message.metadata.origin === "user" &&
-        this.execution.kind === "local" &&
         (isClaudeProviderName(this.provider) ||
           this.provider === "codex" ||
           this.provider === "codex-oss")

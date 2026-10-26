@@ -235,9 +235,9 @@ export interface StartSessionOptions {
   /** Claude-only policy for making matching foreground Bash calls resumable. */
   claudeSteerBackgroundBash?: ClaudeSteerBackgroundBashSettings;
   onToolApproval?: CanUseTool;
-  /** SSH host for remote execution (undefined = local) */
+  /** Retired executor hint, retained so launch boundaries can refuse it. */
   executor?: string;
-  /** Environment variables to set on remote (for testing: CLAUDE_SESSIONS_DIR) */
+  /** Legacy launch environment overrides, also consumed by local Pi. */
   remoteEnv?: Record<string, string>;
   /** Session-scoped environment resolved for the canonical id and executor. */
   getSessionChildEnv?: (

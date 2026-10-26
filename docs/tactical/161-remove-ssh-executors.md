@@ -1,6 +1,6 @@
 # Remove SSH executors
 
-Status: **in progress**, 2026-10-26. Implements house-cleaning rows 2 and 3
+Status: **rows 2 and 3 implemented and locally verified**, 2026-10-26. Implements house-cleaning rows 2 and 3
 as separate verified commits, pushing each before proceeding.
 
 ## Released executor removal (row 2)
@@ -67,4 +67,24 @@ graehl-led feature deletions.
 
 ### Managed prototype evidence
 
-Pending row 3.
+- Managed session/target/workspace/diagnostic adapters, injected entrypoint,
+  dedicated stdio protocol, credential projection/transcript mirror and all
+  build/probe commands are removed. No active source imports these facilities.
+- Internal local/remote placement types and branches are removed; same-host
+  host/socket workers and their deterministic fixture remain.
+- The pinned `rust-v0.164.0` source was inspected before deleting only the
+  prototype's external-token login/refresh integration. Ordinary Codex auth,
+  router transport and experimental API/MCP capabilities remain. Local
+  `codexHome` configuration remains: a retained regression caught its use by
+  ordinary local config discovery, so it was preserved.
+- Six focused host/settings/supervisor/Codex/rendez suites pass: 322 tests,
+  two existing skips. No UI behavior changes in this cut, so the retained
+  creation/settings browser evidence from row 2 remains applicable.
+- Final lint (zero warnings; one unrelated informational suggestion), format,
+  typecheck and `pnpm test` pass. Server: 6,578 tests in 117.63 s; client:
+  7,063 in 132.33 s; shared/relay/push-broker also pass. Focused retained
+  consumers: 322 pass, two skips, 23.27 s. Existing intentional root fault
+  logging/SQLite notices remain; no credentials or remote workspaces touched.
+- Source audit finds no active managed-runner/SSH placement or external-auth
+  imports. Historical plan links point to the pre-removal source where needed.
+  Local verification is macOS; Linux/Windows remain CI checks.

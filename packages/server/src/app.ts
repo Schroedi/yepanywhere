@@ -1513,11 +1513,7 @@ export function createApp(options: AppOptions): AppResult {
             const paths = new Set(
               supervisor
                 .getAllProcesses()
-                .filter(
-                  (process) =>
-                    process.execution.kind === "local" &&
-                    process.isProcessAlive === true,
-                )
+                .filter((process) => process.isProcessAlive === true)
                 .map((process) => process.projectPath),
             );
             try {

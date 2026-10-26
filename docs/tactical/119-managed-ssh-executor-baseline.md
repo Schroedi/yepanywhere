@@ -1,5 +1,10 @@
 # Managed SSH Executor Baseline
 
+**Historical / withdrawn, 2026-10-26:** the managed SSH runtime and its
+workspace/auth/mirroring stack have been removed. The proposal below does not
+authorize continuation or depend on completing the old SSH gates. See the
+[current retirement contract](../../topics/managed-remote-executors.md).
+
 Topic: managed-remote-executors
 
 Status: Gates A, B, and C and Gate D's isolated-transcript proof completed and
@@ -462,7 +467,7 @@ projection, and retries the failed request. It does not need or accept the
 subscription refresh token in that mode. See the
 [official app-server authentication contract](https://learn.chatgpt.com/docs/app-server#auth-endpoints).
 
-[`scripts/probe-codex-external-auth.mjs`](../../scripts/probe-codex-external-auth.mjs)
+[`scripts/probe-codex-external-auth.mjs`](https://github.com/kzahel/yepanywhere/blob/9e31f8ff0/scripts/probe-codex-external-auth.mjs)
 exercised that contract with two isolated roles:
 
 - a controller-local, managed-auth Codex app-server remained the sole owner of

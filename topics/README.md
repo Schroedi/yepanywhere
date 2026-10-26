@@ -94,12 +94,9 @@
 - [Working Across Machines](multi-machine-architecture.md) (discussion entry
   point comparing remote tools, runners, independent hosts, grants, central
   daemons, multiplayer and migration; links Machine Control and prior art)
-- Managed remote executors (default-off manual SSH baseline with injected
-  provider-neutral runners, YA-managed Git workspaces, Codex-first validation,
-  and controller-fetched incoming heads)
-- Managed runner execution targets (default-off controller-owned sessions on
-  injected subordinate machines or disposable VMs, extending the managed SSH
-  baseline with Machine Control discovery and lifecycle)
+- [Managed executor retirement](managed-remote-executors.md) (injected SSH
+  runners, remote workspace/auth/mirror infrastructure removed; old managed
+  target proposals withdrawn; same-host provider workers retained)
 - Cross-host delegation (directed grants let one YA server create and supervise
   a separate native worker session on another YA host)
 - Claude cross-session messaging compared with YA delegation (live Claude

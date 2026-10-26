@@ -23,6 +23,6 @@ is not claimed fixed by retiring execution.
 Use independently installed YA servers over direct access or the encrypted
 relay for remote session ownership. Same-host provider workers and ordinary
 local Claude/Gateway/Ollama execution remain. The operator-only managed SSH
-prototype is removed in a separate cut under
-[plan 161](../tactical/161-remove-ssh-executors.md), row 3; its remaining SSH
-quoting utilities are not a released executor.
+prototype is also removed in a separate cut under
+[plan 161](../tactical/161-remove-ssh-executors.md), row 3. Shared SSH alias validation remains only for unrelated retained
+consumers, not as an execution path.

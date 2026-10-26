@@ -487,8 +487,13 @@ Row **2** removes released SSH/rsync execution and its settings/selector.
 Historical executor records are read-only and cannot fall back to local
 execution; [plan 161](../tactical/161-remove-ssh-executors.md) records evidence.
 
-**Next action:** remove managed SSH (3), the Hosts
-placeholder (11) and Gemini ACP (12), committing and pushing each cut. Other Kyle-led candidates remain follow-ups;
+Row **3** removes the managed SSH runner, remote workspace/auth/mirroring
+stack and placement protocol. Same-host workers remain; plan 161 records
+verification.
+
+**Next action:** remove the Hosts placeholder (11), then resolve row 12's
+Gemini scope choice: both `gemini` and `gemini-acp` currently select ACP, so
+retiring it also affects ordinary Gemini. Commit and push each completed cut. Other Kyle-led candidates remain follow-ups;
 graehl-led work is outside this pass. This is an active
 maintenance focus, not permission to resume the archived refactor or complete
 unfinished features before deleting them.

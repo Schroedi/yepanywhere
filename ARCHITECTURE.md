@@ -145,16 +145,10 @@ that request's data until they close. Details and the owner table are in
   servers can own their API transport, activity stream, summary stores, and
   session-detail services without hidden current-source globals.
 - [`topics/managed-remote-executors.md`](topics/managed-remote-executors.md)
-  — default-off manual-SSH baseline for controller-owned remote sessions:
-  injected provider-neutral runners, controller-prepared Git workspaces,
-  Codex-first validation, and fetched incoming heads without target upstream
-  credentials; staged implementation is tracked in
-  [`docs/tactical/119-managed-ssh-executor-baseline.md`](docs/tactical/119-managed-ssh-executor-baseline.md).
-- [`topics/managed-runner-execution-targets.md`](topics/managed-runner-execution-targets.md)
-  — broader target-provider proposal extending managed remote execution with
-  Machine Control discovery, claims, VM lifecycle, and location-correct project
-  UI boundaries; its implementation tactical is deferred until the manual-SSH
-  baseline works.
+  — retirement contract for the removed managed SSH runner, target/workspace,
+  credential-projection and transcript-mirroring prototype. Released SSH/rsync
+  executors are also retired. Same-host provider ownership remains supported;
+  future remote work uses the separate target-owned relay/API direction.
 - [`topics/federated-super-sessions.md`](topics/federated-super-sessions.md)
   — proposal for one canonical, single-writer YA session that can transfer a
   provider-specific portable bundle and active ownership between trusted YA
