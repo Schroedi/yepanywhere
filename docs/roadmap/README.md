@@ -78,7 +78,7 @@ reviews. Assistant invocation/context is a compelling optional direction, but
 remains research/docs only: no device investigation or implementation spike is
 authorized. This does not change the incubation order or companion release scope.
 
-Last updated: 2026-10-24.
+Last updated: 2026-10-26.
 
 This is Yep Anywhere's canonical product-priority overview. Keep initiative
 status, the next action, and major blockers here; keep implementation steps in
@@ -462,6 +462,26 @@ the iOS embedded-viewer/download adapters before claiming full UI parity; a new
 SwiftUI transcript/composer design is not required. Desktop release and
 continuous-delivery work continue independently.
 
+## Active maintenance focus: core house cleaning
+
+On 2026-10-26 the maintainer selected substantial
+[core house cleaning](../../topics/core-house-cleaning.md) before further
+session-core expansion. Local `main` was restored to upstream; the expanded
+core experiment remains archived rather than serving as the next baseline.
+Selected removal direction: YA-managed workstream/parallel checkout lanes and
+both released and managed SSH executor stacks. The proposal also recommends
+removing dormant helper targets and synthetic heartbeat turns/resurrection,
+and records separate decisions for wake turns, generated recaps, post-compact
+replay, prompt-cache keepalive, alternate previews and provider variants.
+
+**Next action:** settle the table's conditional feature decisions and inventory
+retained consumers, then carry out bounded deletions. This is an active
+maintenance focus, not permission to resume the archived refactor or complete
+unfinished features before deleting them. No feature removal has landed yet.
+Release-delivery work remains independently required; local sessions,
+same-host provider ownership, ordinary queues, direct/relay access and native
+client transport remain retained foundations.
+
 ## Later directions
 
 The [clone and fork settings repair](../tactical/140-clone-session-settings-inheritance.md)
@@ -578,12 +598,12 @@ displace release delivery.
 
 | Direction | Existing context / decision still needed |
 | --- | --- |
-| Multi-machine experience across the full web and desktop clients | The simple-client demo above now owns the first grouping experiment; broader adoption follows evidence from that work and [source runtimes](../../topics/client-source-runtime-topology.md). |
+| Multi-machine experience across the full web and desktop clients | Preserve independent host access and [source runtimes](../../topics/client-source-runtime-topology.md). The alternate simple-client preview/API is a removal candidate under [core house cleaning](../../topics/core-house-cleaning.md); freeze expansion while its remaining consumers and actual use are reviewed. |
 | Agent coordination across installed machines | Direction selected 2026-10-03: persistent, target-owned YA sessions over the public relay, with explicit directional peer grants. The [bounded first-slice plan](../tactical/144-relay-peer-session-coordination.md) proposes the same local/remote worker API for Claude and Codex, existing target projects, and durable reconnect. Runtime implementation and peer protocol review remain pending. Hosted identity issuance, SSH provisioning, and same-conversation migration are not prerequisites; this does not displace release delivery. |
 | Authentication and delegated access | [Limited users](../../topics/limited-users.md) delivers local accounts and project grants. [Principals and grants](../../topics/principals-and-grants.md) coordinates the broader proposed invitation/account and issuer boundaries; it does not approve a universal grant protocol. [Session notes and discussion](../../topics/session-notes-and-discussion.md) and [participatory Live Share](../../topics/relay-origin-and-share-gating.sketches.md#participatory-live-share) propose human-only notes/chat, owner-reviewed suggestions, and later explicit session-input grants. These remain later directions, not a newly ranked implementation queue. |
 | Related work across repositories | [Issues & PRs](../../topics/issue-session-associations.md) now has experimental, default-off automatic ticket/URL discovery from viewed sessions and a configurable recent-session window, durable evidence, search and correction controls. Conservative URL/known-prefix matching, durable Jira project learning, and session-grouped browsing are implemented and locally validated. SQLite migrations and compatibility gating are implemented. Multi-server issue grouping enters the simple-client demo above. GitHub items show their last-read open/draft/merged/closed state, with independent read-only checks, configurable gh/account use, durable merge facts and an expandable extension Merged PRs section ([plan 153](../tactical/153-durable-github-status-and-extension-groups.md)). Refresh remains demand-driven. Workstream/branch inference, Jira status and tracker synchronization remain deferred. |
-| Parallel work within one repository | Follow the [workstreams proposal](../../topics/workstreams.md), which uses ordinary lane clones; do not revive the old automatic-worktree sketch as an approved design. |
-| Scheduling | Follow [yacron](../../topics/yacron.md) and its [open gap](../../gaps/sketches/yacron-scheduler.md); the first management UI remains a design prerequisite. |
+| Parallel work within one repository | YA-managed workstreams/lane checkout creation is selected for removal under [core house cleaning](../../topics/core-house-cleaning.md). Do not continue its unfinished scheduler, sync or landing plan. Ordinary user-created Git worktrees and Source Control are distinct retained concerns. |
+| Scheduling | [Yacron](../../topics/yacron.md) and its [open gap](../../gaps/sketches/yacron-scheduler.md) remain deferred proposals, not prerequisites for house cleaning or the local core. Synthetic heartbeat and related automatic-input policies are separately reviewed for removal in the [cleanup table](../../topics/core-house-cleaning.md). |
 | Agent command runtime | Opt-in [`ya-agent self`](../../topics/agent-self.md) implements ownership and model/effort evidence reporting. Use operator-managed global instructions initially; defer automatic advertisement, private input, broader session access, and scheduling integration. |
 | Node 22 and built-in SQLite | Follow the approved [runtime cutover plan](../tactical/123-node-22-builtin-sqlite-cutover.md): raise the server runtime floor now, retain older-server hosted frontend support with advisory runtime warnings, and gate new SQLite-backed features by their exact capabilities before considering any separate frontend cutoff. Since 2026-10-11 SQLite is required: session metadata lives there and a server that cannot open it does not start ([plan 150](../tactical/150-ya-owned-session-ids.md) stage 1). New Claude sessions keep YA's id from creation, and clones of router-pinned sessions keep their account; the rest of the YA-owned session id work is deferred. |
 | Source workflow depth and traceability | Build on [Source Control](../../topics/source-control.md), [review handoff](../../topics/source-review-to-session.md), and [commit/session attribution](../../gaps/sketches/committed-change-session-attribution.md). Additional Git or terminal controls need a concrete user workflow. |

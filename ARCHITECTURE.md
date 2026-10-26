@@ -8,6 +8,11 @@ This file is intentionally short — each link below is the load-bearing
 detailed doc. Update this file when the high-level picture changes; update the
 linked docs when the details change.
 
+The current [core house-cleaning proposal](topics/core-house-cleaning.md)
+selects feature reduction before another session-core refactor. Read its
+removal and retained-consumer boundaries before extending execution placement,
+automatic session input/resume, lane checkouts or alternate core clients.
+
 For work spanning machines, start with
 [Working Across Machines](topics/multi-machine-architecture.md): a discussion
 map of ownership, deployment, grants, transport and machine lifecycle, linking

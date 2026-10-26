@@ -1,3 +1,6 @@
+- [Core house cleaning](core-house-cleaning.md) (active cleanup proposal:
+  remove YA-managed lanes and SSH executors; review synthetic heartbeat,
+  wake, recap and replay automation, dormant helpers and alternate previews)
 - [On-device Android host](android-host.md) (experimental Alpine/PRoot host,
   optional ADB direction, distribution research, assistant entry-point research
   and pinned Buddy/Shizuku/Termux references; assistant device spikes deferred)
