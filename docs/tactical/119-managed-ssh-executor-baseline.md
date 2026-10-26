@@ -66,9 +66,8 @@ to [tactical 118](118-managed-runner-mvp.md) until this baseline works.
   released Claude-family SSH/rsync executor. Its `executor` field, path mapping,
   capability, session synchronization, and resume semantics are not widened by
   this plan.
-- [`gaps/sketches/provider-neutral-remote-executors.md`](../../gaps/sketches/provider-neutral-remote-executors.md)
-  records why provider support requires real adapter coverage rather than a
-  client-maintained provider-name set.
+- [SSH executor retirement](../project/remote-executors.md) withdraws the
+  earlier provider-neutral SSH expansion sketch.
 - [`gaps/remote-session-project-views-use-local-files.md`](../../gaps/remote-session-project-views-use-local-files.md)
   and [`gaps/session-worktree-file-links.md`](../../gaps/session-worktree-file-links.md)
   require every session-entered project action to retain an exact workspace

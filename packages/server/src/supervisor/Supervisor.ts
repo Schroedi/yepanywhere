@@ -480,7 +480,7 @@ export class RetryableSessionLaunchError extends Error {
 }
 
 export interface SessionLaunchOptions {
-  /** Canonical YA project id when the provider cwd is a checkout lane. */
+  /** Canonical YA project id when it differs from the provider cwd. */
   projectId?: UrlProjectId;
   /**
    * One-shot callback once an immediate or queued launch has a canonical YA
@@ -3625,6 +3625,11 @@ export class Supervisor {
     sessionSandbox?: Awaited<ReturnType<typeof prepareSessionSandbox>>;
     launchSettings: EffectiveSessionLaunchSettingsValue;
   }> {
+    if (this.sessionMetadataService?.getMetadata(options.sessionId)?.executor) {
+      throw new Error(
+        "SSH executors have been removed; this session cannot be forked locally",
+      );
+    }
     const provider = this.resolveProvider(
       options.providerName ? { providerName: options.providerName } : undefined,
     );
@@ -5229,6 +5234,12 @@ export class Supervisor {
     now: number,
     log: ReturnType<typeof getLogger>,
   ): Promise<number | null> {
+    if (
+      candidate.executor ||
+      this.sessionMetadataService?.getMetadata(candidate.sessionId)?.executor
+    ) {
+      return null;
+    }
     if (this.getProcessForSession(candidate.sessionId)) {
       return null;
     }

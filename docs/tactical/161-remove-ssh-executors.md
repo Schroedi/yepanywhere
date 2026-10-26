@@ -88,3 +88,59 @@ graehl-led feature deletions.
 - Source audit finds no active managed-runner/SSH placement or external-auth
   imports. Historical plan links point to the pre-removal source where needed.
   Local verification is macOS; Linux/Windows remain CI checks.
+
+## Follow-up review: retired-session execution boundaries
+
+The maintainer requested an independent Opus 5.5 high-effort review of the
+four removal commits (`9e31f8ff0..0f259a96b`), using the existing local YA
+work pool. The follow-up audit found two non-HTTP boundary gaps:
+
+- Direct `Supervisor.forkSession` could fork a retired remote transcript,
+  including when passed a frozen launch-settings snapshot. The child had no
+  remote placement fact and could become a local writer. Refuse the source
+  before provider lookup, sandbox work or transcript creation. Two real
+  metadata-backed regression cases failed before the guard and pass after it.
+- A retired heartbeat candidate could reach the resume refusal and throw
+  before later local candidates ran. Exclude retired sessions before registry
+  discovery/tail reads and deadline tracking; also refuse such candidates
+  without throwing at the supervisor sweep boundary. The existing local
+  unowned-heartbeat test now puts a retired candidate first and verifies that
+  the local session still resumes. Local heartbeat automation remains retained.
+
+Remove the obsolete provider-neutral SSH expansion sketch and its triage row:
+retiring SSH closes that extension request rather than leaving it actionable.
+The historical source-identity defect remains open.
+
+Focused retained-consumer checks pass: 176 tests in 4.33 s, without runtime
+warnings.
+
+The independent report also identified an overbroad HTTP guard: the transcript
+hover excerpt's read-only `refresh-preview` POST was blocked along with
+execution. Permit that read path while retaining launch refusals. Its new
+real-Hono regression failed with 410 before the correction and passes with
+200 and no supervisor launch afterward. The three focused route/registry/fork
+suites pass 46 tests in 1.80 s.
+
+Repair the report's remaining actionable documentation findings: closed-gap
+links and the historical landing anchor, deleted-code entries in open gaps,
+current provider-host/public-share/federation statements, and incoming links
+to the withdrawn SSH sketch. Remove the last dead Hosts preload hint. Record
+the maintainer's explicit Gemini deferral; its registry and execution do not
+change. The reviewer rechecked these corrections and reported **PASS: no
+remaining actionable defect in the reviewed corrections**. Optional executor
+plumbing simplification remains separate; readable metadata and its refusal
+boundary must survive any later reduction.
+
+Only the preload selection and comments changed on the client side; the
+retained settings/creation browser evidence from plan 162 remains applicable.
+The complete client suite was rerun after removing that hint (7,058 pass in
+132.79 s). No provider-host or user service was restarted for this review.
+
+Final verification: lint has zero warnings (one unrelated informational
+suggestion), formatting and typecheck pass, and the full workspace suite
+passes. Server: 6,582 tests in 121.50 s; client: 7,058 in 138.73 s; shared,
+relay and push-broker also pass. Console scan and touched-CSS check pass.
+Local evidence is macOS; no Linux/Windows execution is claimed. A relative
+link audit also found a pre-existing triage row for the conversation
+update-depth gap, already closed by `3e082cfa0`; remove that stale row without
+changing its retained stream-coalescing implementation.

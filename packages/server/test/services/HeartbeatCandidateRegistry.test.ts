@@ -92,6 +92,22 @@ function harness(
 }
 
 describe("HeartbeatCandidateRegistry", () => {
+  it("excludes retired SSH sessions before transcript work and deadlines", async () => {
+    const eligible: Array<[string, HeartbeatCandidateMetadata]> = [
+      ["s1", {}],
+      ["remote", { executor: "retired-host" }],
+    ];
+    const h = harness({ eligible });
+    expect(
+      (await h.registry.getCandidates()).map((row) => row.sessionId),
+    ).toEqual(["s1"]);
+    const reads = { ...h.counts };
+    eligible.splice(0, 1);
+    expect(await h.registry.getCandidates()).toEqual([]);
+    expect(h.registry.getWaitingSessionIds()).toEqual([]);
+    expect(h.counts).toEqual(reads);
+  });
+
   it("lists no projects when every eligible session is owned", async () => {
     const test = harness();
     test.owned.add("s1");

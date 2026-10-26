@@ -154,6 +154,8 @@ export class HeartbeatCandidateRegistry<
     const waiting: string[] = [];
     this.waiting = waiting;
     for (const [sessionId, metadata] of this.deps.listEligible()) {
+      // Retired SSH sessions are read-only, including background automation.
+      if (metadata.executor) continue;
       this.eligible += 1;
       eligibleNow.add(sessionId);
       // Ownership decides before any storage work, so a fully owned fleet

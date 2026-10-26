@@ -23,6 +23,7 @@ function fixture(executor?: string) {
   const startSession = vi.fn();
   const createSession = vi.fn();
   const resumeSession = vi.fn();
+  const readerFactory = vi.fn();
   const routes = createSessionsRoutes({
     scanner: {
       getOrCreateProject: vi.fn(async () => project),
@@ -35,10 +36,18 @@ function fixture(executor?: string) {
     } as unknown as Supervisor,
     sessionMetadataService: {
       getMetadata: vi.fn(() => ({ executor })),
+      getProvider: vi.fn(() => "claude"),
     } as unknown as SessionMetadataService,
-    readerFactory: vi.fn(),
+    readerFactory,
   });
-  return { routes, project, startSession, createSession, resumeSession };
+  return {
+    routes,
+    project,
+    startSession,
+    createSession,
+    resumeSession,
+    readerFactory,
+  };
 }
 
 function post(body: unknown) {
@@ -50,6 +59,26 @@ function post(body: unknown) {
 }
 
 describe("Removed execution targets", () => {
+  it("keeps a retired remote transcript's preview readable without launching", async () => {
+    const f = fixture("old-host");
+    const getLastAgentExcerpt = vi.fn(
+      async () => "Historical assistant output",
+    );
+    f.readerFactory.mockReturnValue({ getLastAgentExcerpt });
+    const response = await f.routes.request(
+      `/projects/${f.project.id}/sessions/historical/refresh-preview`,
+      post({}),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      lastAgentText: "Historical assistant output",
+    });
+    expect(getLastAgentExcerpt).toHaveBeenCalledWith("historical");
+    expect(f.startSession).not.toHaveBeenCalled();
+    expect(f.createSession).not.toHaveBeenCalled();
+    expect(f.resumeSession).not.toHaveBeenCalled();
+  });
+
   it.each(["sessions", "sessions/create"])(
     "refuses an explicit lane target on %s before launching locally",
     async (endpoint) => {

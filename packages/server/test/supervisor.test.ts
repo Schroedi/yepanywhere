@@ -6968,6 +6968,15 @@ describe("Supervisor", () => {
           }),
           getHeartbeatTurnCandidates: () => [
             {
+              sessionId: "retired-remote-session",
+              projectId: encodeProjectId("/tmp/test"),
+              projectPath: "/tmp/test",
+              provider: "codex",
+              executor: "retired-host",
+              updatedAt: "2026-05-06T00:00:00.000Z",
+              hasPendingToolCall: true,
+            },
+            {
               sessionId: "heartbeat-unowned-session",
               projectId: encodeProjectId("/tmp/test"),
               projectPath: "/tmp/test",

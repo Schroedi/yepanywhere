@@ -2134,7 +2134,8 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
   // Historical executor labels are read-only. Never turn a retired remote
   // session into a local writer through resume, clone, fork or another action.
   routes.use("/projects/:projectId/sessions/:sessionId/*", async (c, next) => {
-    if (c.req.method === "POST") {
+    // Preview refresh only reads the retained transcript; execution stays blocked.
+    if (c.req.method === "POST" && !c.req.path.endsWith("/refresh-preview")) {
       const sessionId = c.req.param("sessionId");
       const executor =
         deps.sessionMetadataService?.getMetadata?.(sessionId)?.executor ??

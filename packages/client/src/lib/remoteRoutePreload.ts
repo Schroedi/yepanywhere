@@ -112,7 +112,6 @@ export function getInitialRemoteRouteModuleKeys(
   const firstSegment = pathname.split("/")[1];
   if (
     pathname === "/" ||
-    pathname === "/-/hosts" ||
     (firstSegment && isDirectAppRouteSegment(firstSegment))
   ) {
     return ["remoteApp", ...selectedAppPageModules(pathname)];

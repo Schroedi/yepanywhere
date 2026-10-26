@@ -40,8 +40,9 @@ it would enlarge this deletion without removing preview-specific code.
 The registry maps both `gemini` and `gemini-acp` to the ACP implementation;
 the stream-JSON adapter is deprecated. Retiring ACP is therefore a choice
 between changing ordinary Gemini's execution path, removing Gemini execution,
-or deferring the cut. A maintainer scope question is pending. This preview
-removal does not change that provider mapping or the retained Grok ACP client.
+or deferring the cut. The maintainer explicitly deferred row 12 on
+2026-10-26. This preview removal does not change that provider mapping or the
+retained Grok ACP client.
 
 ## Verification results
 

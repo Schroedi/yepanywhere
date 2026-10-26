@@ -468,7 +468,7 @@ On 2026-10-26 the maintainer selected substantial
 [core house cleaning](../../topics/core-house-cleaning.md) before further
 session-core expansion. Local `main` was restored to upstream; the expanded
 core experiment remains archived rather than serving as the next baseline.
-The initial removal set is rows **1, 2, 3, 11 and 12** of the numbered proposal:
+The initial selection was rows **1, 2, 3, 11 and 12** of the numbered proposal:
 YA-managed workstream/parallel checkout lanes, both released and managed SSH
 executor stacks, the YA Hosts placeholder and Gemini ACP. The Conversation
 API/preview is deferred from this implementation pass. This pass focuses
@@ -495,12 +495,14 @@ The nonfunctional YA Hosts placeholder (11), both routes, preload entry and
 Developer setting are removed; actual host switching and identity remain.
 [Plan 162](../tactical/162-remove-hosts-preview.md) records verification.
 
-**Next action:** resolve row 12's Gemini scope choice: both `gemini` and
-`gemini-acp` currently select ACP, so retiring it also affects ordinary Gemini.
-Commit and push each completed cut. Other Kyle-led candidates remain
-follow-ups; graehl-led work is outside this pass. This is an active maintenance
-focus, not permission to resume the archived refactor or complete
-unfinished features before deleting them.
+**Row 12 is deferred by the maintainer, 2026-10-26.** Both `gemini` and
+`gemini-acp` currently select ACP, so Gemini execution and its mapping stay
+unchanged. Rows 1, 2, 3 and 11 are the completed removal set. The independent
+review follow-up closes direct-fork and background-candidate SSH boundaries;
+plan 161 records the verification. Other Kyle-led candidates remain
+follow-ups; graehl-led work is outside this pass. This maintenance focus does
+not authorize resuming the archived refactor or completing unfinished
+features before deleting them.
 Release-delivery work remains independently required; local sessions,
 same-host provider ownership, ordinary queues, direct/relay access and native
 client transport remain retained foundations.
@@ -625,7 +627,7 @@ displace release delivery.
 | Agent coordination across installed machines | Direction selected 2026-10-03: persistent, target-owned YA sessions over the public relay, with explicit directional peer grants. The [bounded first-slice plan](../tactical/144-relay-peer-session-coordination.md) proposes the same local/remote worker API for Claude and Codex, existing target projects, and durable reconnect. Runtime implementation and peer protocol review remain pending. Hosted identity issuance, SSH provisioning, and same-conversation migration are not prerequisites; this does not displace release delivery. |
 | Authentication and delegated access | [Limited users](../../topics/limited-users.md) delivers local accounts and project grants. [Principals and grants](../../topics/principals-and-grants.md) coordinates the broader proposed invitation/account and issuer boundaries; it does not approve a universal grant protocol. [Session notes and discussion](../../topics/session-notes-and-discussion.md) and [participatory Live Share](../../topics/relay-origin-and-share-gating.sketches.md#participatory-live-share) propose human-only notes/chat, owner-reviewed suggestions, and later explicit session-input grants. These remain later directions, not a newly ranked implementation queue. |
 | Related work across repositories | [Issues & PRs](../../topics/issue-session-associations.md) now has experimental, default-off automatic ticket/URL discovery from viewed sessions and a configurable recent-session window, durable evidence, search and correction controls. Conservative URL/known-prefix matching, durable Jira project learning, and session-grouped browsing are implemented and locally validated. SQLite migrations and compatibility gating are implemented. Multi-server issue grouping enters the simple-client demo above. GitHub items show their last-read open/draft/merged/closed state, with independent read-only checks, configurable gh/account use, durable merge facts and an expandable extension Merged PRs section ([plan 153](../tactical/153-durable-github-status-and-extension-groups.md)). Refresh remains demand-driven. Workstream/branch inference, Jira status and tracker synchronization remain deferred. |
-| Parallel work within one repository | YA-managed workstreams/lane checkout creation is selected for removal under [core house cleaning](../../topics/core-house-cleaning.md). Do not continue its unfinished scheduler, sync or landing plan. Ordinary user-created Git worktrees and Source Control are distinct retained concerns. |
+| Parallel work within one repository | YA-managed workstreams/lane checkout creation is removed under [core house cleaning](../../topics/core-house-cleaning.md). Do not continue its unfinished scheduler, sync or landing plan. Ordinary user-created Git worktrees and Source Control are distinct retained concerns. |
 | Scheduling | [Yacron](../../topics/yacron.md) and its [open gap](../../gaps/sketches/yacron-scheduler.md) remain deferred proposals, not prerequisites for house cleaning or the local core. Synthetic heartbeat and related graehl-led automatic-input policies are explicitly deferred for this pass in the [cleanup table](../../topics/core-house-cleaning.md); preserve their current behavior. |
 | Agent command runtime | Opt-in [`ya-agent self`](../../topics/agent-self.md) implements ownership and model/effort evidence reporting. Use operator-managed global instructions initially; defer automatic advertisement, private input, broader session access, and scheduling integration. |
 | Node 22 and built-in SQLite | Follow the approved [runtime cutover plan](../tactical/123-node-22-builtin-sqlite-cutover.md): raise the server runtime floor now, retain older-server hosted frontend support with advisory runtime warnings, and gate new SQLite-backed features by their exact capabilities before considering any separate frontend cutoff. Since 2026-10-11 SQLite is required: session metadata lives there and a server that cannot open it does not start ([plan 150](../tactical/150-ya-owned-session-ids.md) stage 1). New Claude sessions keep YA's id from creation, and clones of router-pinned sessions keep their account; the rest of the YA-owned session id work is deferred. |
