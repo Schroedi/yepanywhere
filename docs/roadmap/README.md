@@ -540,7 +540,10 @@ The side panel now offers per-site access above its content even when the
 current address is hidden or no host is connected; Chrome 133+ handles the
 unknown-site request without broader tab permissions. Older Chrome retains
 toolbar guidance ([site access contract](../../topics/trusted-client-packaging.md#chrome-extension-client)).
-This experiment does not displace release delivery.
+Website 1.13.0 adds a public Chrome extension guide at
+`/docs/chrome-extension`, with the store install link, related-session workflows,
+setup and current limits, linked from the homepage, download page, catalogs,
+docs and footer. This experiment does not displace release delivery.
 
 These remain candidates behind publishing and continuous delivery, not a
 ranked or approved implementation queue. Recheck current code and owning
