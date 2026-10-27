@@ -30,7 +30,6 @@ import {
   LONG_CONTEXT_EFFORT_WARNING_SLIDER_MAX_TOKENS,
   LONG_CONTEXT_EFFORT_WARNING_SLIDER_STEP_TOKENS,
   MAX_IDLE_REAP_HOURS,
-  MAX_POST_COMPACT_REPLAY_TURNS,
   MAX_SUBAGENT_MAX_DEPTH,
   MIN_SUBAGENT_MAX_DEPTH,
   NEVER_IDLE_REAP_HOURS,
@@ -49,7 +48,6 @@ import {
   type HelperTargetConfig,
   type LongContextEffortWarningSettings,
   type ModelInfo,
-  type PostCompactReplaySettings,
   type ProviderInfo,
   type ProviderName,
   serverHasCapability,
@@ -1484,102 +1482,6 @@ function ClaudeAdditionalModelsSettings({
   );
 }
 
-function PostCompactReplayControl({
-  value,
-  providers,
-  updateSetting,
-}: {
-  value: PostCompactReplaySettings;
-  providers: readonly { id: string; displayName: string }[];
-  updateSetting: UpdateServerSetting;
-}) {
-  const { t } = useI18n();
-  const { showToast } = useToastContext();
-  const replayTurnCount = value.replayTurnCount ?? 0;
-
-  const save = useCallback(
-    async (next: PostCompactReplaySettings) => {
-      try {
-        await updateSetting("postCompactReplay", next);
-        showToast(t("providersPostCompactReplaySaved"), "success");
-      } catch (error) {
-        showToast(
-          error instanceof Error
-            ? error.message
-            : t("providersPostCompactReplaySaveError"),
-          "error",
-        );
-      }
-    },
-    [showToast, t, updateSetting],
-  );
-
-  return (
-    <SettingsItem
-      id="providers-post-compact-replay"
-      label={t("providersPostCompactReplayTitle")}
-      description={t("providersPostCompactReplayDescription")}
-      keywords={[
-        "compact",
-        "compaction",
-        "continue",
-        "replay",
-        "handoff",
-        "post-compact",
-      ]}
-      className="settings-item--wide-control"
-      valueText={
-        replayTurnCount === 0
-          ? t("providersPostCompactReplayNone")
-          : t("providersPostCompactReplayCountValue", {
-              count: String(replayTurnCount),
-            })
-      }
-    >
-      <div className={styles.limitControls}>
-        <CommittedRangeNumberInput
-          id="providers-post-compact-replay-count"
-          min={0}
-          max={MAX_POST_COMPACT_REPLAY_TURNS}
-          step={1}
-          value={replayTurnCount}
-          ariaLabel={t("providersPostCompactReplayCountAria")}
-          onCommit={(count) => {
-            void save({ ...value, replayTurnCount: count });
-          }}
-        />
-        <p className="settings-hint">
-          {t("providersPostCompactReplayCountHint")}
-        </p>
-        <div className={styles.providerToggles}>
-          {providers.map((provider) => {
-            const providerId = provider.id as ProviderName;
-            const enabled = value.providers?.[providerId] === true;
-            return (
-              <label key={provider.id} className={styles.providerToggle}>
-                <input
-                  type="checkbox"
-                  checked={enabled}
-                  onChange={(event) => {
-                    const providersMap = { ...value.providers };
-                    if (event.target.checked) {
-                      providersMap[providerId] = true;
-                    } else {
-                      delete providersMap[providerId];
-                    }
-                    void save({ ...value, providers: providersMap });
-                  }}
-                />
-                <span>{provider.displayName}</span>
-              </label>
-            );
-          })}
-        </div>
-      </div>
-    </SettingsItem>
-  );
-}
-
 /**
  * Long-context effort-change warning: threshold slider plus per-provider
  * checkboxes. Contract: topics/mid-session-effort-change.md.
@@ -1936,13 +1838,6 @@ export function ProvidersSettings() {
               <p className="settings-hint">{t("providersIdleReapNeverHint")}</p>
             </div>
           </SettingsItem>
-        )}
-        {settings?.postCompactReplay !== undefined && (
-          <PostCompactReplayControl
-            value={settings.postCompactReplay}
-            providers={providerDisplayList}
-            updateSetting={updateSetting}
-          />
         )}
         {settings?.instructionRestoration !== undefined && (
           <InstructionRestorationControl

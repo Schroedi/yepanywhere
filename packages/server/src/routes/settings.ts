@@ -40,7 +40,6 @@ import {
   parseClaudeAdditionalModelSelections,
   parseClaudeSteerBackgroundBashSettings,
   parseLongContextEffortWarningSettings,
-  parsePostCompactReplaySettings,
   parseInstructionRestorationSettings,
   parseSpeechVoiceBackends,
 } from "@yep-anywhere/shared";
@@ -1026,22 +1025,6 @@ export function createSettingsRoutes(deps: SettingsRoutesDeps) {
           return c.json({ error: "Invalid helperTargets setting" }, 400);
         }
         updates.helperTargets = parsedTargets;
-      }
-
-      if ("postCompactReplay" in body) {
-        const parsedReplay = parsePostCompactReplaySettings(
-          body.postCompactReplay,
-        );
-        if (parsedReplay === null) {
-          return c.json(
-            {
-              error:
-                "postCompactReplay must use known provider checkboxes and an integer replayTurnCount from 0 to 20",
-            },
-            400,
-          );
-        }
-        updates.postCompactReplay = parsedReplay;
       }
 
       if ("instructionRestoration" in body) {

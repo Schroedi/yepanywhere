@@ -53,7 +53,6 @@ import type {
   PublicShareStorageState,
   PromptSuggestionMode,
   PromptCacheKeepaliveSettings,
-  PostCompactReplaySettings,
   LongContextEffortWarningSettings,
   ProviderInfo,
   ProviderLoginFlow,
@@ -2097,7 +2096,6 @@ export interface ServerSettings {
    * After compaction, optionally inject a hidden continuation turn.
    * Absent on older servers; default off.
    */
-  postCompactReplay?: PostCompactReplaySettings;
   instructionRestoration?: import("@yep-anywhere/shared").InstructionRestorationSettings;
   /**
    * Warn before a mid-session effort change on a long-context session and

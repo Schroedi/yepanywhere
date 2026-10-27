@@ -62,24 +62,8 @@ export {
   type ConversationContextReceipt,
 } from "./conversation-context.js";
 export {
-  DEFAULT_POST_COMPACT_REPLAY_SETTINGS,
-  DEFAULT_POST_COMPACT_REPLAY_TURNS,
-  MAX_POST_COMPACT_REPLAY_TURNS,
-  MAX_POST_COMPACT_REPLAY_TURN_CHARS,
-  POST_COMPACT_REPLAY_CONTINUE,
   POST_COMPACT_REPLAY_PREAMBLE,
-  buildPostCompactReplayPrompt,
-  buildPostCompactReplayText,
-  capTurnText,
-  formatPostCompactReplayPrompt,
-  clampPostCompactReplayTurnCount,
-  isPostCompactReplayEnabledForProvider,
   isPostCompactReplayText,
-  parsePostCompactReplaySettings,
-  selectPostCompactReplayTurns,
-  type PostCompactReplaySettings,
-  type PostCompactReplayPrompt,
-  type PostCompactReplayTurn,
 } from "./postCompactReplay.js";
 export {
   DEFAULT_LONG_CONTEXT_EFFORT_WARNING_SETTINGS,

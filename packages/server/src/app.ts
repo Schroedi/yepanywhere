@@ -2227,8 +2227,6 @@ export function createApp(options: AppOptions): AppResult {
         inactivityMinutes,
       };
     },
-    getPostCompactReplaySettings: () =>
-      options.serverSettingsService?.getSetting("postCompactReplay"),
     getInstructionRestorationSettings: () =>
       options.serverSettingsService?.getSetting("instructionRestoration"),
     readInstructionHistory: async (sessionId, projectId, provider) => {

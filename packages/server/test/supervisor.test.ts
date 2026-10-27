@@ -1,6 +1,5 @@
 import {
   DEFAULT_RECAP_AFTER_SECONDS,
-  POST_COMPACT_REPLAY_CONTINUE,
   POST_COMPACT_REPLAY_PREAMBLE,
 } from "@yep-anywhere/shared";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -1587,7 +1586,7 @@ describe("Supervisor", () => {
       await supervisorWithProvider.abortProcess(started.id);
     });
 
-    it("injects a hidden post-compact continuation when enabled", async () => {
+    it("dispatches an explicit runtime action once after compact settles", async () => {
       const delivered: string[] = [];
       let compactEmitted = false;
       const startSession = vi.fn(
@@ -1658,9 +1657,9 @@ describe("Supervisor", () => {
       const supervisorWithProvider = new Supervisor({
         provider,
         idleTimeoutMs: 100,
-        getPostCompactReplaySettings: () => ({
-          providers: { claude: true },
-          replayTurnCount: 2,
+        postCompactAction: () => ({
+          text: "runtime compact action",
+          metadata: { hidden: true },
         }),
       });
 
@@ -1674,26 +1673,13 @@ describe("Supervisor", () => {
       }
 
       await vi.waitFor(() => {
-        expect(delivered[0]).toBe("fix the parser");
-        const replay = delivered.find((text) =>
-          text.startsWith(POST_COMPACT_REPLAY_PREAMBLE),
-        );
-        expect(replay).toBeDefined();
-        expect(delivered).toHaveLength(2);
-        expect(replay).toContain("> user: fix the parser");
-        expect(replay).toContain("> assistant: reply to fix the parser");
-        expect(replay).toContain(
-          "quotation records before-compaction activity, not a new request",
-        );
-        expect(replay?.trim().endsWith(POST_COMPACT_REPLAY_CONTINUE)).toBe(
-          true,
-        );
+        expect(delivered).toEqual(["fix the parser", "runtime compact action"]);
       });
 
       await supervisorWithProvider.abortProcess(started.id);
     });
 
-    it("skips post-compact continuation when the provider is not enabled", async () => {
+    it("does not generate a continuation after compaction by default", async () => {
       const delivered: string[] = [];
       const startSession = vi.fn(
         async (options: Parameters<AgentProvider["startSession"]>[0]) => {
@@ -1760,10 +1746,6 @@ describe("Supervisor", () => {
       const supervisorWithProvider = new Supervisor({
         provider,
         idleTimeoutMs: 100,
-        getPostCompactReplaySettings: () => ({
-          providers: { codex: true },
-          replayTurnCount: 4,
-        }),
       });
 
       const started = await supervisorWithProvider.resumeSession(

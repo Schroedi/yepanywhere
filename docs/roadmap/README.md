@@ -498,7 +498,8 @@ of its specific quoted-history/`continue.` message, using explicit `/goal` for
 sustained-task intent. Preserve post-compact hooks/dispatch, their safety gates,
 general hidden injected-message support and historical replay recognition.
 The [replay disposition](../../topics/post-compact-replay.md#selected-disposition)
-records this boundary; implementation remains pending.
+records the implemented removal and retained opt-in runtime action hook;
+[plan 164](../tactical/164-remove-retired-session-automation.md) records verification.
 
 Rows **8–9** are retained. Recaps keep their implementation, with a pending
 concise, expandable configuration UI and warnings about current fork economics.

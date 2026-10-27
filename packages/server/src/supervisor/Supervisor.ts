@@ -19,12 +19,6 @@ import {
   type SessionSandboxLevel,
   type SyntheticSessionBoundaryCommand,
   type UrlProjectId,
-  type PostCompactReplaySettings,
-  type PostCompactReplayTurn,
-  buildPostCompactReplayPrompt,
-  formatPostCompactReplayPrompt,
-  isPostCompactReplayEnabledForProvider,
-  selectPostCompactReplayTurns,
   readGoalDetails,
   truncateSessionTitle,
 } from "@yep-anywhere/shared";
@@ -626,8 +620,8 @@ export interface SupervisorOptions {
   getPromptCacheKeepaliveSettings?: (
     provider: ProviderName,
   ) => PromptCacheKeepaliveSettings | undefined;
-  /** Callback to read the post-compact continuation setting. */
-  getPostCompactReplaySettings?: () => PostCompactReplaySettings | undefined;
+  /** Optional runtime-owned message action after compaction settles safely. */
+  postCompactAction?: (process: Process) => UserMessage | undefined;
   getInstructionRestorationSettings?: () =>
     | import("@yep-anywhere/shared").InstructionRestorationSettings
     | undefined;
@@ -799,9 +793,7 @@ export class Supervisor {
   private getPromptCacheKeepaliveSettings?: (
     provider: ProviderName,
   ) => PromptCacheKeepaliveSettings | undefined;
-  private getPostCompactReplaySettings?: () =>
-    | PostCompactReplaySettings
-    | undefined;
+  private postCompactAction?: (process: Process) => UserMessage | undefined;
   private getClaudeSteerBackgroundBashSettings?: () =>
     | ClaudeSteerBackgroundBashSettings
     | undefined;
@@ -840,13 +832,12 @@ export class Supervisor {
    */
   private thresholdCompactionInFlight = new Set<string>();
   /**
-   * Compact-boundary snapshots waiting for idle so a configured continuation
-   * turn can be injected without interrupting in-flight compact work.
+   * Compact boundaries waiting for idle so a runtime-owned action can run
+   * without interrupting in-flight compact work. No default action is installed.
    */
-  private pendingPostCompactReplay = new Map<
+  private pendingPostCompactAction = new Map<
     string,
     {
-      turns: PostCompactReplayTurn[];
       inputIntentVersion: number;
     }
   >();
@@ -897,7 +888,7 @@ export class Supervisor {
     this.getHeartbeatWaitingSessionIds = options.getHeartbeatWaitingSessionIds;
     this.getPromptCacheKeepaliveSettings =
       options.getPromptCacheKeepaliveSettings;
-    this.getPostCompactReplaySettings = options.getPostCompactReplaySettings;
+    this.postCompactAction = options.postCompactAction;
     this.getClaudeSteerBackgroundBashSettings =
       options.getClaudeSteerBackgroundBashSettings;
     this.cacheMissBillingMonitor = new CacheMissBillingMonitor({
@@ -2183,38 +2174,31 @@ export class Supervisor {
     return true;
   }
 
-  private notePostCompactReplay(process: Process): void {
-    const settings = this.getPostCompactReplaySettings?.();
-    if (!isPostCompactReplayEnabledForProvider(settings, process.provider)) {
-      this.pendingPostCompactReplay.delete(process.id);
+  private notePostCompactAction(process: Process): void {
+    if (!this.postCompactAction) {
+      this.pendingPostCompactAction.delete(process.id);
       return;
     }
-    const replayTurnCount = settings?.replayTurnCount ?? 0;
-    this.pendingPostCompactReplay.set(process.id, {
-      turns: selectPostCompactReplayTurns(
-        process.getRecentProseTurns(),
-        replayTurnCount,
-      ),
+    this.pendingPostCompactAction.set(process.id, {
       inputIntentVersion: process.inputIntentVersion,
     });
   }
 
-  private async maybePostCompactReplay(process: Process): Promise<void> {
-    const pending = this.pendingPostCompactReplay.get(process.id);
+  private async maybePostCompactAction(process: Process): Promise<void> {
+    const pending = this.pendingPostCompactAction.get(process.id);
     if (!pending) return;
     if (this.isAutomationPausedUntilUserTurn(process.sessionId)) {
-      this.pendingPostCompactReplay.delete(process.id);
+      this.pendingPostCompactAction.delete(process.id);
       return;
     }
-    const settings = this.getPostCompactReplaySettings?.();
-    if (!isPostCompactReplayEnabledForProvider(settings, process.provider)) {
-      this.pendingPostCompactReplay.delete(process.id);
+    if (!this.postCompactAction) {
+      this.pendingPostCompactAction.delete(process.id);
       return;
     }
     if (process.state.type !== "idle") return;
     if (process.isRetainingProviderWork()) return;
     if (process.isTerminated) {
-      this.pendingPostCompactReplay.delete(process.id);
+      this.pendingPostCompactAction.delete(process.id);
       return;
     }
     if (
@@ -2222,39 +2206,30 @@ export class Supervisor {
       process.hasPatientDeferredMessages() ||
       process.hasVolatileDeferredMessages()
     ) {
-      this.pendingPostCompactReplay.delete(process.id);
+      this.pendingPostCompactAction.delete(process.id);
       return;
     }
     if (process.inputIntentVersion !== pending.inputIntentVersion) {
-      this.pendingPostCompactReplay.delete(process.id);
+      this.pendingPostCompactAction.delete(process.id);
       return;
     }
 
-    this.pendingPostCompactReplay.delete(process.id);
-    const prompt = buildPostCompactReplayPrompt({
-      provider: process.provider,
-      sessionId: process.sessionId,
-      turns: pending.turns,
+    this.pendingPostCompactAction.delete(process.id);
+    const message = this.postCompactAction(process);
+    if (!message) return;
+    const queued = await this.queueProcessMessage(process, message, {
+      allowSteer: false,
     });
-    const queued = await this.queueProcessMessage(
-      process,
-      {
-        text: formatPostCompactReplayPrompt(prompt),
-        automaticSource: "post-compact-replay",
-        metadata: { hidden: true },
-      },
-      { allowSteer: false },
-    );
     if (!queued.success) {
       getLogger().info(
         {
-          event: "post_compact_replay_skipped",
+          event: "post_compact_action_skipped",
           sessionId: process.sessionId,
           processId: process.id,
           provider: process.provider,
           error: queued.error,
         },
-        "Post-compact continuation was not accepted",
+        "Post-compact action was not accepted",
       );
     }
   }
@@ -6023,9 +5998,9 @@ export class Supervisor {
             process.id,
             process.assistantActivityVersion,
           );
-          this.notePostCompactReplay(process);
+          this.notePostCompactAction(process);
           if (process.state.type === "idle") {
-            void this.maybePostCompactReplay(process);
+            void this.maybePostCompactAction(process);
           }
         }
         if (event.message.type === "user") {
@@ -6204,7 +6179,7 @@ export class Supervisor {
           // before speculative threshold compaction does.
           void this.maybeRunPatientCompactionGate(process);
           void this.maybeCompactAfterIdle(process);
-          void this.maybePostCompactReplay(process);
+          void this.maybePostCompactAction(process);
         }
         // Parent started a new turn: cancel any in-flight/deferred forked recap
         // so a returning user's live turn is not shadowed by a stale recap.
@@ -6416,7 +6391,7 @@ export class Supervisor {
     this.compactThresholdCheckedAssistantVersion.delete(process.id);
     this.compactionSettledAtAssistantVersion.delete(process.id);
     this.thresholdCompactionInFlight.delete(process.id);
-    this.pendingPostCompactReplay.delete(process.id);
+    this.pendingPostCompactAction.delete(process.id);
     this.cacheMissBillingMonitor.forgetProcess(process.id);
     this.tokenUsageRecorder.forgetProcess(process);
     this.activationCoordinator.discardProcess(process);
@@ -6740,7 +6715,7 @@ export class Supervisor {
       if (!process.isRetainingProviderWork()) {
         void this.finalizePendingDone(process);
         void this.maybeCompactAfterIdle(process);
-        void this.maybePostCompactReplay(process);
+        void this.maybePostCompactAction(process);
       }
     }
   }

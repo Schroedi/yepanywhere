@@ -75,6 +75,31 @@ describe("ServerSettingsService", () => {
     });
   });
 
+  it("makes saved replay enablement inert without changing other settings", async () => {
+    await fs.writeFile(
+      path.join(testDir, "server-settings.json"),
+      JSON.stringify({
+        version: 1,
+        settings: {
+          serviceWorkerEnabled: false,
+          postCompactReplay: {
+            providers: { claude: true },
+            replayTurnCount: 20,
+          },
+        },
+      }),
+    );
+    const service = new ServerSettingsService({ dataDir: testDir });
+    await service.initialize();
+    expect(service.getSettings()).not.toHaveProperty("postCompactReplay");
+    expect(service.getSetting("serviceWorkerEnabled")).toBe(false);
+    await service.updateSettings({ serviceWorkerEnabled: true });
+    const reloaded = new ServerSettingsService({ dataDir: testDir });
+    await reloaded.initialize();
+    expect(reloaded.getSettings()).not.toHaveProperty("postCompactReplay");
+    expect(reloaded.getSetting("serviceWorkerEnabled")).toBe(true);
+  });
+
   it("uses continue as the default heartbeat turn text", async () => {
     const service = new ServerSettingsService({ dataDir: testDir });
 

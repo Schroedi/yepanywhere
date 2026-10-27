@@ -31,7 +31,6 @@ import type {
   HostAwakeMode,
   LongContextEffortWarningSettings,
   NewSessionDefaults,
-  PostCompactReplaySettings,
   PromptCacheKeepaliveSettings,
   ProjectQueueReadinessCommand,
   SessionToolbarPresenceClientDefaults,
@@ -66,10 +65,8 @@ import {
   parseClaudeSteerBackgroundBashSettings,
   parseGatewayServices,
   parseLongContextEffortWarningSettings,
-  parsePostCompactReplaySettings,
   parseSpeechVoiceBackends,
   DEFAULT_LONG_CONTEXT_EFFORT_WARNING_SETTINGS,
-  DEFAULT_POST_COMPACT_REPLAY_SETTINGS,
 } from "@yep-anywhere/shared";
 import { reconcileGatewaySettings } from "./gatewayServiceSettings.js";
 import type { FileAccessSettings } from "../middleware/file-access.js";
@@ -268,7 +265,6 @@ export interface ServerSettings {
    * Default off. Per-provider because some harnesses already continue from
    * their own compact summary.
    */
-  postCompactReplay?: PostCompactReplaySettings;
   instructionRestoration?: InstructionRestorationSettings;
   /**
    * Warn before a mid-session effort change on a long-context session and
@@ -401,7 +397,6 @@ export const DEFAULT_SERVER_SETTINGS: ServerSettings = {
   cacheMissBilling: DEFAULT_CACHE_MISS_BILLING_SETTINGS,
   projectQueueQuietSeconds: DEFAULT_PROJECT_QUEUE_QUIET_SECONDS,
   clearloopInactivitySeconds: DEFAULT_CLEARLOOP_INACTIVITY_SECONDS,
-  postCompactReplay: DEFAULT_POST_COMPACT_REPLAY_SETTINGS,
   instructionRestoration: DEFAULT_INSTRUCTION_RESTORATION,
   longContextEffortWarning: DEFAULT_LONG_CONTEXT_EFFORT_WARNING_SETTINGS,
 };
@@ -679,9 +674,8 @@ function normalizeLoadedSettings(settings: ServerSettings): ServerSettings {
     typeof settings.wakeTurnsEnabled === "boolean"
       ? settings.wakeTurnsEnabled
       : DEFAULT_SERVER_SETTINGS.wakeTurnsEnabled;
-  normalized.postCompactReplay =
-    parsePostCompactReplaySettings(settings.postCompactReplay) ??
-    DEFAULT_POST_COMPACT_REPLAY_SETTINGS;
+  // Retired policy: omit saved enablement from responses and future writes.
+  delete (normalized as unknown as Record<string, unknown>).postCompactReplay;
   normalized.instructionRestoration =
     parseInstructionRestorationSettings(settings.instructionRestoration) ??
     DEFAULT_INSTRUCTION_RESTORATION;
