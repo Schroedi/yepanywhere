@@ -509,13 +509,20 @@ and [keepalive contract](../../topics/prompt-cache-keepalive.md#refresh-budget-a
 record the decisions; UI changes, accounting, limits and the default change
 remain implementation work.
 
-Rows **14–15** remove YA-owned `/btw` and unfinished aside report-back while
-retaining Quick Question, fork-from-turn, and the built-in `/done` and
-`/archive` commands. The card's Continue /btw action goes with its destination;
-Save Q+A and shared fork/context-delivery facilities remain. A general split
-session browser for forks is a future option, not required by this cut. The
+Row **14** now defers `/btw` removal because Quick Question's Continue /btw
+action supplies a useful continuing conversation. Preserve that transition,
+its destination and aside UI/lifecycle, alongside Quick Question and
+fork-from-turn. Row **15** still removes unfinished aside report-back while
+preserving close/return behavior and the built-in `/done` and `/archive`
+commands. A general split-session browser for forks remains a future option. The
 [aside disposition](../../topics/provider-agnostic-btw-asides.md#selected-disposition)
 records the boundary; implementation remains pending.
+
+Row **16** retires the obsolete Spark-only plan, not the current broader
+compaction implementation; removal of YA idle-threshold policy remains
+undecided. Row **17** retains Pi and Grok based on actual use and adequate
+functionality. Pi's possible future replacement of the Claude Gateway Copilot
+workflow remains a separate evaluation, not a migration decision.
 
 Row **1** is implemented and locally verified: managed lane creation,
 selection, scanner grouping and launch plumbing are removed; existing

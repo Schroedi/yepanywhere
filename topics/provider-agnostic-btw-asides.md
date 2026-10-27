@@ -10,35 +10,35 @@ silent helper queries and lightweight fallback side-query envelopes.
 
 ## Selected disposition
 
-**Resolved, 2026-10-27: remove YA-owned `/btw` and unfinished report-back;
-retain Quick Question and fork-from-turn.** Implementation is pending under
+**Revised, 2026-10-27: defer `/btw` removal; remove unfinished report-back.**
+This supersedes the earlier same-day `/btw` removal selection in
 [core house cleaning](core-house-cleaning.md), rows 14–15.
 
-Quick Question and [fork-from-turn](fork-from-turn.md) cover the needed side
-question and deliberate branching workflows. Remove `/btw` launch/routing,
-focused-aside controls, dedicated split-pane UI and aside-only lifecycle
-plumbing. Remove the card's **Continue /btw** transition along with that
-destination; keep question generation, Save Q+A, Discard, failure recovery and
-their shared clone/resume/context-delivery machinery. Audit retained consumers
+Quick Question's **Continue /btw** action gives the answered child a continuing
+conversation without another fork. Preserve that transition, its destination,
+aside routing/UI/lifecycle and the existing question-card behavior while
+removal is deferred. Quick Question, Save Q+A and
+[fork-from-turn](fork-from-turn.md) remain retained. Audit shared consumers
 before deleting helpers merely because their names mention asides.
 
 Remove the unfinished aside `/done` report-back affordances and proposed
 summary/file report modes rather than implementing them. Preserve the built-in
 `/done` and `/archive` commands and their shared done lane under
 [emulated slash commands](emulated-slash-commands.md). Quick Question's explicit
-Save Q+A is a separate retained operation, not unfinished report-back.
+Save Q+A is a separate retained operation, not unfinished report-back. Keep
+the implemented close/return behavior needed to exit a retained aside.
 
 The current `/btw` split session view has not been tightly tuned. A general
 split-session browser option for ordinary forks may be useful later; it is a
-future UI direction, not a reason to retain `/btw` or a prerequisite for this
-removal. Existing child sessions and transcripts must remain accessible as
+future UI direction, not a selected replacement for Continue /btw. Existing
+child sessions and transcripts must remain accessible as
 ordinary sessions, with useful fork provenance preserved.
 
 This decision concerns YA-owned `/btw` behavior, not removal of an independent
 provider-native command. The contracts below describe the current
-implementation pending the cut; `/btw`-specific extension plans are superseded
-by this disposition. No runtime or UI behavior changes in this documentation
-decision.
+implementation. Deferral authorizes neither removal nor new `/btw` extension
+work. The unfinished report-back removal remains pending; no runtime or UI
+behavior changes in this documentation decision.
 
 ## One-shot question cards
 
