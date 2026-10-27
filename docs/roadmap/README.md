@@ -523,7 +523,7 @@ fork-from-turn. Row **15** still removes unfinished aside report-back while
 preserving close/return behavior and the built-in `/done` and `/archive`
 commands. A general split-session browser for forks remains a future option. The
 [aside disposition](../../topics/provider-agnostic-btw-asides.md#selected-disposition)
-records the boundary; implementation remains pending.
+records the boundary; the unfinished report-back placeholder is removed under plan 164.
 
 Row **16** retires the obsolete Spark-only plan, not the current broader
 compaction implementation; removal of YA idle-threshold policy remains

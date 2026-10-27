@@ -7,7 +7,7 @@
  * start path. Provider transcripts remain untouched so history stays readable
  * and the user can deliberately continue the session.
  *
- * See topics/session-liveness.md and topics/heartbeat.md ("Unowned resume
+ * See topics/session-liveness.md and topics/heartbeat.md ("Automatic resume
  * exemptions").
  */
 

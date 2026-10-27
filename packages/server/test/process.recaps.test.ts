@@ -275,12 +275,6 @@ describe("Process", () => {
       });
 
       process.queueMessage({
-        text: "automatic heartbeat",
-        automaticSource: "heartbeat",
-      });
-      expect(process.isRecapPausedUntilUserTurn).toBe(true);
-
-      process.queueMessage({
         text: "automatic project queue",
         automaticSource: "project-queue",
       });

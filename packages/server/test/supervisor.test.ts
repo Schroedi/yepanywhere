@@ -1586,98 +1586,130 @@ describe("Supervisor", () => {
       await supervisorWithProvider.abortProcess(started.id);
     });
 
-    it("dispatches an explicit runtime action once after compact settles", async () => {
-      const delivered: string[] = [];
-      let compactEmitted = false;
-      const startSession = vi.fn(
-        async (options: Parameters<AgentProvider["startSession"]>[0]) => {
-          const queue = new MessageQueue();
-          let aborted = false;
+    it.each([false, true])(
+      "settles a runtime compact action once and accepts later input (hook throws: %s)",
+      async (hookThrows) => {
+        const actionLog = vi
+          .spyOn(getLogger(), "info")
+          .mockImplementation(() => undefined);
+        const action = vi.fn(() => {
+          if (hookThrows) throw new Error("runtime hook failed");
+          return { text: "runtime compact action", metadata: { hidden: true } };
+        });
+        const delivered: string[] = [];
+        let compactEmitted = false;
+        const startSession = vi.fn(
+          async (options: Parameters<AgentProvider["startSession"]>[0]) => {
+            const queue = new MessageQueue();
+            let aborted = false;
 
-          async function* iterator() {
-            yield {
-              type: "system" as const,
-              subtype: "init" as const,
-              session_id: options.resumeSessionId ?? "post-compact-session",
-            };
-            for await (const sdkMessage of queue) {
-              if (aborted) return;
-              const content = sdkMessage.message.content;
-              const text =
-                typeof content === "string"
-                  ? content
-                  : ((content[0] as { text?: string } | undefined)?.text ?? "");
-              delivered.push(text);
+            async function* iterator() {
               yield {
-                type: "assistant" as const,
-                message: { content: `reply to ${text}` },
+                type: "system" as const,
+                subtype: "init" as const,
+                session_id: options.resumeSessionId ?? "post-compact-session",
               };
-              if (!compactEmitted) {
-                compactEmitted = true;
+              for await (const sdkMessage of queue) {
+                if (aborted) return;
+                const content = sdkMessage.message.content;
+                const text =
+                  typeof content === "string"
+                    ? content
+                    : ((content[0] as { text?: string } | undefined)?.text ??
+                      "");
+                delivered.push(text);
                 yield {
-                  type: "system" as const,
-                  subtype: "compact_boundary" as const,
+                  type: "assistant" as const,
+                  message: { content: `reply to ${text}` },
+                };
+                if (!compactEmitted) {
+                  compactEmitted = true;
+                  yield {
+                    type: "system" as const,
+                    subtype: "compact_boundary" as const,
+                    session_id:
+                      options.resumeSessionId ?? "post-compact-session",
+                  };
+                }
+                yield {
+                  type: "result" as const,
                   session_id: options.resumeSessionId ?? "post-compact-session",
                 };
               }
-              yield {
-                type: "result" as const,
-                session_id: options.resumeSessionId ?? "post-compact-session",
-              };
             }
-          }
 
-          return {
-            iterator: iterator(),
-            queue,
-            abort: () => {
-              aborted = true;
-              queue.push({ text: "__abort__" });
-            },
-          };
-        },
-      );
-      const provider: AgentProvider = {
-        name: "claude",
-        displayName: "Claude",
-        supportsPermissionMode: true,
-        supportsThinkingToggle: true,
-        supportsSlashCommands: true,
-        supportsSteering: true,
-        isInstalled: async () => true,
-        isAuthenticated: async () => true,
-        getAuthStatus: async () => ({
-          installed: true,
-          authenticated: true,
-          enabled: true,
-        }),
-        getAvailableModels: async () => [],
-        startSession,
-      };
-      const supervisorWithProvider = new Supervisor({
-        provider,
-        idleTimeoutMs: 100,
-        postCompactAction: () => ({
-          text: "runtime compact action",
-          metadata: { hidden: true },
-        }),
-      });
+            return {
+              iterator: iterator(),
+              queue,
+              abort: () => {
+                aborted = true;
+                queue.push({ text: "__abort__" });
+              },
+            };
+          },
+        );
+        const provider: AgentProvider = {
+          name: "claude",
+          displayName: "Claude",
+          supportsPermissionMode: true,
+          supportsThinkingToggle: true,
+          supportsSlashCommands: true,
+          supportsSteering: true,
+          isInstalled: async () => true,
+          isAuthenticated: async () => true,
+          getAuthStatus: async () => ({
+            installed: true,
+            authenticated: true,
+            enabled: true,
+          }),
+          getAvailableModels: async () => [],
+          startSession,
+        };
+        const supervisorWithProvider = new Supervisor({
+          provider,
+          idleTimeoutMs: 100,
+          postCompactAction: action,
+        });
 
-      const started = await supervisorWithProvider.resumeSession(
-        "post-compact-session",
-        "/tmp/test",
-        { text: "fix the parser" },
-      );
-      if (!("id" in started)) {
-        throw new Error("expected process");
-      }
+        const started = await supervisorWithProvider.resumeSession(
+          "post-compact-session",
+          "/tmp/test",
+          { text: "fix the parser" },
+        );
+        if (!("id" in started)) {
+          throw new Error("expected process");
+        }
 
-      await vi.waitFor(() => {
-        expect(delivered).toEqual(["fix the parser", "runtime compact action"]);
-      });
-
-      await supervisorWithProvider.abortProcess(started.id);
-    });
+        try {
+          const expected = hookThrows
+            ? ["fix the parser"]
+            : ["fix the parser", "runtime compact action"];
+          await vi.waitFor(() => {
+            expect(delivered).toEqual(expected);
+            expect(action).toHaveBeenCalledTimes(1);
+            expect(started.state.type).toBe("idle");
+            if (hookThrows) {
+              expect(actionLog).toHaveBeenCalledWith(
+                expect.objectContaining({
+                  event: "post_compact_action_failed",
+                  error: "runtime hook failed",
+                }),
+                "Post-compact action failed",
+              );
+            }
+          });
+          await supervisorWithProvider.queueProcessMessage(started, {
+            text: "user follow-up",
+          });
+          await vi.waitFor(() =>
+            expect(delivered).toEqual([...expected, "user follow-up"]),
+          );
+          expect(action).toHaveBeenCalledTimes(1);
+        } finally {
+          await supervisorWithProvider.abortProcess(started.id);
+        }
+      },
+    );
 
     it("does not generate a continuation after compaction by default", async () => {
       const delivered: string[] = [];
@@ -6210,12 +6242,12 @@ describe("Supervisor", () => {
               yield {
                 type: "system",
                 subtype: "init",
-                session_id: "patient-deferred-heartbeat-session",
+                session_id: "patient-deferred-maintenance-session",
               };
               await queue[Symbol.asyncIterator]().next();
               yield {
                 type: "result",
-                session_id: "patient-deferred-heartbeat-session",
+                session_id: "patient-deferred-maintenance-session",
               };
 
               while (!aborted) {
@@ -6234,12 +6266,12 @@ describe("Supervisor", () => {
           },
         };
 
-        const supervisorWithHeartbeat = new Supervisor({
+        const supervisorWithPatientQueue = new Supervisor({
           realSdk,
           idleTimeoutMs: 100,
         });
 
-        const started = await supervisorWithHeartbeat.startSession(
+        const started = await supervisorWithPatientQueue.startSession(
           "/tmp/test",
           {
             text: "start",
@@ -6281,7 +6313,9 @@ describe("Supervisor", () => {
         expect(started.queueDepth).toBe(1);
         expect(started.getDeferredQueueSummary()).toEqual([]);
 
-        const abortPromise = supervisorWithHeartbeat.abortProcess(started.id);
+        const abortPromise = supervisorWithPatientQueue.abortProcess(
+          started.id,
+        );
         await vi.advanceTimersByTimeAsync(5000);
         await expect(abortPromise).resolves.toBe(true);
       } finally {

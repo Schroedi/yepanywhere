@@ -25,7 +25,9 @@ automation pause. Newer user input cancels the pending action. Consume the
 pending action before dispatch so an idle notification cannot send it twice.
 Unregistering a process releases its pending action. An action uses the same
 ordinary input admission path with steering disabled; it does not gain a
-second provider owner or elevated message role.
+second provider owner or elevated message role. Hook and dispatch exceptions
+are logged and consumed without an automatic retry or an unhandled rejection;
+ordinary user input remains available.
 
 Native compaction, threshold policy, ordinary queued input and general hidden
 injected-message support are retained independently. Compaction completion is

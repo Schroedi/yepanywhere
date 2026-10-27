@@ -98,3 +98,8 @@ evidence of a potential fixture port collision, not proof of its cause. All
 27 launcher cases passed isolated in 518 ms. Gateway resolution and this
 fixture are unchanged by the removals; repair the fixture's address-family
 isolation separately rather than weakening the endpoint assertion.
+
+The final removal-series workspace run passed in 139.06 s (6,536 server /
+7,046 client); neither the capture CLI timeout nor the loopback-family
+assertion recurred. This is verification of the removal series, not a
+diagnosis or closure of either intermittent fixture failure.

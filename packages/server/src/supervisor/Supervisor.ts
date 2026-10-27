@@ -2087,21 +2087,34 @@ export class Supervisor {
     }
 
     this.pendingPostCompactAction.delete(process.id);
-    const message = this.postCompactAction(process);
-    if (!message) return;
-    const queued = await this.queueProcessMessage(process, message, {
-      allowSteer: false,
-    });
-    if (!queued.success) {
+    try {
+      const message = this.postCompactAction(process);
+      if (!message) return;
+      const queued = await this.queueProcessMessage(process, message, {
+        allowSteer: false,
+      });
+      if (!queued.success) {
+        getLogger().info(
+          {
+            event: "post_compact_action_skipped",
+            sessionId: process.sessionId,
+            processId: process.id,
+            provider: process.provider,
+            error: queued.error,
+          },
+          "Post-compact action was not accepted",
+        );
+      }
+    } catch (error) {
       getLogger().info(
         {
-          event: "post_compact_action_skipped",
+          event: "post_compact_action_failed",
           sessionId: process.sessionId,
           processId: process.id,
           provider: process.provider,
-          error: queued.error,
+          error: error instanceof Error ? error.message : String(error),
         },
-        "Post-compact action was not accepted",
+        "Post-compact action failed",
       );
     }
   }
@@ -4618,7 +4631,7 @@ export class Supervisor {
   /**
    * Re-plan patient deadlines after a state or liveness change. The
    * request never asks for a sweep sooner than the fallback recheck, so event
-   * churn cannot make heartbeats cost more than the fixed tick they replaced.
+   * churn cannot increase patient-check frequency beyond that bound.
    */
   private requestMaintenanceSweep(): void {
     if (this.backgroundTasksStopped) return;
@@ -5615,8 +5628,7 @@ export class Supervisor {
         // Emit worker activity on any state change (affects hasActiveWork)
         this.emitWorkerActivity();
         // A fresh idle boundary starts the patient-queue quiet clock; arm a
-        // prompt re-check so seconds-scale patience does not wait for the
-        // 30s heartbeat tick.
+        // prompt re-check rather than waiting for the fallback deadline.
         if (
           event.state.type === "idle" &&
           process.hasPatientDeferredMessages()
@@ -6081,7 +6093,7 @@ export class Supervisor {
     pendingInputType?: PendingInputType,
   ): void {
     // A session settling into idle, draining its queue, or releasing provider
-    // retention can pull its heartbeat deadline earlier than the armed one.
+    // retention can move a patient-maintenance deadline earlier.
     this.requestMaintenanceSweep();
     if (!this.eventBus) return;
 

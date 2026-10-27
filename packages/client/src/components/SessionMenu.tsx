@@ -608,7 +608,6 @@ export function SessionMenu({
           {t("sessionMenuProjectSettings")}
         </button>
       )}
-
       {onConfigureRecaps && (
         <button type="button" onClick={() => handleAction(onConfigureRecaps)}>
           <svg

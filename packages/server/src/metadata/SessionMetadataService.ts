@@ -48,11 +48,6 @@ export interface ForkOrdinalClaim {
 }
 
 export interface SessionMetadata {
-  /** Retired settings, readable only for historical metadata/redaction. */
-  heartbeatTurnsEnabled?: boolean;
-  heartbeatTurnsAfterMinutes?: number;
-  heartbeatTurnText?: string;
-  heartbeatForceAfterMinutes?: number | null;
   routerBinding?: {
     poolId?: string;
     poolName?: string;

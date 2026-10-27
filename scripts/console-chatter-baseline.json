@@ -2,7 +2,7 @@
   "limits": {
     "warnings": 108,
     "method.warn": 60,
-    "method.error": 91
+    "method.error": 90
   },
   "observed": {
     "warnings": 108,

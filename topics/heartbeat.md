@@ -24,7 +24,9 @@ keepalive follow their independent contracts.
 ## Retained maintenance and patient delivery
 
 `SessionMaintenanceScheduler` retains one bounded process-wide deadline owner
-for patient-queue checks and done-action announcements. Patient messages keep
+for patient-queue checks, including re-planning after done/pause changes.
+Done-action finalization runs on idle state changes outside the scheduler.
+Patient messages keep
 their verified-idle and quiet-period semantics. Exact one-shot patient deadlines,
 stale-process and liveness checks remain. With no pending patient maintenance,
 the scheduler arms no deadline merely because a historical session exists.
@@ -36,8 +38,9 @@ aborting live provider owners; disposed maintenance cannot rearm.
 Explicit Kill/Terminate still persists `autoResumeDisabled`; wake and cold recap
 paths retain their shared automatic-resume gate. Archive and automation-pause
 protections remain. Ordinary Stop/Interrupt and internal rotation are distinct
-from an explicit automatic-resume exemption. Historical heartbeat metadata may
-remain readable/redacted, but no longer clears or grants automatic resume.
+from an explicit automatic-resume exemption. Legacy heartbeat fields in raw
+stored metadata are inert and redacted from public shares; they no longer
+clear or grant automatic resume.
 The legacy `heartbeatDisabled` result field remains false for response
 compatibility. No transcripts or workspaces are renamed or deleted.
 

@@ -12,8 +12,8 @@ retained; its current YA-server implementation is not the desired owner.
 
 Related topic: [provider host API](provider-host-api.md) — provider-owned
 addressed turns, queueing and receipts independent of Hono.
-Related topic: [heartbeat ownership and timers](heartbeat.md) — a separate
-periodic automation policy, not a prerequisite for wake delivery.
+Related topic: [heartbeat retirement and retained maintenance](heartbeat.md) —
+synthetic periodic turns are removed; transport health and patient work remain.
 Related topic: [session liveness and queue intent](session-liveness.md).
 Related topic: [session ownership](session-ownership.md) — why a second
 writer on a provider transcript is never acceptable.
@@ -91,8 +91,7 @@ required by this decision.
 The following describes the existing implementation, pending redesign. Its
 server-owned delivery ladder is not the target architecture above.
 
-- A wake turn is an ordinary queued user turn (the same server-side
-  enqueue path heartbeat turns use), not a new message kind. It obeys
+- A wake turn uses the ordinary server-owned message enqueue path. It obeys
   the normal queue/steer delivery semantics, resets the same liveness
   anchors, and is visible in the transcript like any user message.
 - Endpoint: a session-scoped wake route accepting
@@ -116,13 +115,12 @@ server-owned delivery ladder is not the target architecture above.
   credentials receive 401 without consulting or revealing the feature gate.
 - Delivery ladder, server-owned:
   - live registered process → queue the turn;
-  - no live process → resume-then-deliver through the same
-    automatic-resume gate as unowned heartbeat candidates — never for
-    archived or `autoResumeDisabled` sessions. Unlike the heartbeat
-    candidate path, a transcript ending in a pending tool call is not
-    required: the wake text is itself the reason to resume.
-  - Explicit Kill semantics are unchanged: `autoResumeDisabled` blocks
-    wake resume exactly as it blocks heartbeat resume.
+  - no live process → resume-then-deliver through the retained automatic-resume
+    gate, never for archived or `autoResumeDisabled` sessions. A transcript
+    ending in a pending tool call is not required: the wake text supplies the
+    reason to resume. Automation-pause protections also remain.
+  - Explicit Kill semantics are unchanged: `autoResumeDisabled` blocks wake
+    resume and other automatic process starts, including cold recaps.
 - Env injection: provider children of a supervised session receive
   `YEP_SESSION_WAKE_URL` and `YEP_SESSION_WAKE_TOKEN` through the same
   channels that carry `AGENTCTL_SESSION_ID` today — spawn env for

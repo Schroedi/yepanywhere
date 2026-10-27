@@ -82,13 +82,11 @@ Preserve the fork option with that warning rather than deleting its machinery.
   cancels a recap deferred behind the active turn, aborts an in-flight forked
   recap, and durably rejects later time-based recap requests until YA accepts a
   fresh user-authored turn for that session. The pause survives provider
-  process replacement and server restart; hidden/internal and automatic
-  heartbeat turns do not clear it. This recap pause is separate from heartbeat
-  policy: Interrupt leaves
-  heartbeat eligibility unchanged, while Terminate's existing resume exemption
-  disables heartbeat turns and automatic resume. A fresh user turn clears the
-  recap pause after either action; it does not implicitly re-enable heartbeat
-  turns disabled by Terminate. See [heartbeat.md](heartbeat.md).
+  process replacement and server restart; hidden/internal and automatic turns
+  do not clear it. Interrupt leaves the automatic-resume exemption unchanged;
+  Terminate durably blocks automatic resume for wake and cold recaps. A fresh
+  user turn clears the recap pause independently of that exemption. See
+  [heartbeat.md](heartbeat.md#automatic-resume-exemptions).
 - Recap configuration is durable. `recapAfterSeconds` and `recapMode` are
   persisted in session metadata, so a session's recap preference survives a
   process death, a reactivation, and a resume whose request names no recap
@@ -298,9 +296,9 @@ Remaining probes:
 - Stop/Interrupt and Terminate drop a recap deferred behind the active turn and
   reject later away-timer requests until a fresh visible user turn is accepted,
   including after process replacement or server restart. Hidden control and
-  automatic heartbeat turns do not clear the pause.
-- Interrupt does not change heartbeat eligibility. Terminate clears heartbeat
-  opt-in and blocks automatic resume through its separate durable exemption.
+  automatic turns do not clear the pause.
+- Interrupt leaves the automatic-resume exemption unchanged. Terminate blocks
+  automatic resume through its separate durable exemption.
 - Two persisted overlay recaps with no provider content between them
   render as one row (the newest); with provider content between them,
   both render, the older inline at the point it covered.

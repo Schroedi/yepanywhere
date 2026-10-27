@@ -2677,25 +2677,13 @@ function SessionPageContent({
     [actualSessionId, fetchNewMessages, setDeferredMessages, showToast, t],
   );
 
-  const closeFocusedBtwAside = useCallback(
-    (argument = "") => {
-      if (!focusedBtwAside) {
-        return false;
-      }
-      hideBtwAside(focusedBtwAside.id);
-      if (argument.trim()) {
-        // Report-back drafting (/done <text>, /done summary, /done file ...)
-        // is described in topics/provider-agnostic-btw-asides.md but is not
-        // wired yet; close-only for now.
-        showToast(
-          "Aside closed. (Report-back drafting not yet implemented.)",
-          "info",
-        );
-      }
-      return true;
-    },
-    [focusedBtwAside, hideBtwAside, showToast],
-  );
+  const closeFocusedBtwAside = useCallback(() => {
+    if (!focusedBtwAside) {
+      return false;
+    }
+    hideBtwAside(focusedBtwAside.id);
+    return true;
+  }, [focusedBtwAside, hideBtwAside]);
 
   const handleDoneAction = useCallback(() => {
     const target = resolveComposerDoneTarget({
@@ -4556,10 +4544,7 @@ function SessionPageContent({
         syntheticTerminateSupported: supportsSyntheticTerminate,
         hasAttachments: false,
       });
-      if (
-        sessionOperation.kind === "focused-aside" &&
-        closeFocusedBtwAside(sessionOperation.argument)
-      ) {
+      if (sessionOperation.kind === "focused-aside" && closeFocusedBtwAside()) {
         return;
       }
       if (sessionOperation.kind === "blocked") {
@@ -4846,7 +4831,7 @@ function SessionPageContent({
         return startBtwAside(argument);
       }
       if (command === "done") {
-        if (closeFocusedBtwAside(argument)) {
+        if (closeFocusedBtwAside()) {
           return true;
         }
         // Menu and toolbar selection reach here without the composer's
@@ -7007,7 +6992,7 @@ function SessionPageContent({
               onDraftChange={setAsideDraft}
               onSendFollowup={(text) => handleFocusedBtwSend(text, "pane")}
               onHide={() => setBtwSidePaneCollapsed(true)}
-              onDone={(argument) => handleCustomCommand("done", argument)}
+              onDone={() => handleCustomCommand("done", "")}
               onStop={() => void handleStopBtwAside(focusedBtwAside.id)}
               onTransferToComposer={transferBtwTurnToMotherComposer}
             />
