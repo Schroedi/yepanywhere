@@ -9,7 +9,6 @@ import {
   type LimitedUserInstructions,
   CODEX_PLAN_TOOL_MODES,
   CODEX_CYBER_ACCESS_PROGRAMS,
-  MAX_HEARTBEAT_TURN_TEXT_LENGTH,
   DEFAULT_CLEARLOOP_INACTIVITY_SECONDS,
   MAX_CLEARLOOP_INACTIVITY_SECONDS,
   MIN_CLEARLOOP_INACTIVITY_SECONDS,
@@ -120,8 +119,6 @@ export interface SettingsRoutesDeps {
   }) => Promise<void> | void;
   /** Callback to apply Ollama URL changes at runtime */
   onOllamaUrlChanged?: (url: string | undefined) => void;
-  /** Callback to re-plan heartbeat deadlines when the global quiet period moves. */
-  onHeartbeatSettingsChanged?: () => void;
   onProjectQueueReadinessChanged?: () => void;
   /** Callback to apply Ollama system prompt changes at runtime */
   onOllamaSystemPromptChanged?: (prompt: string | undefined) => void;
@@ -159,8 +156,6 @@ const LIMITED_USER_SETTINGS_FIELDS = [
   "sourceReviewSubmissionsEnabled",
   "hostProcessObservabilityEnabled",
   "hostIdentity",
-  "heartbeatTurnsAfterMinutes",
-  "heartbeatTurnText",
   "longContextEffortWarning",
   "deferredJoinWindowSeconds",
   "composeAnchorsEnabled",
@@ -204,7 +199,6 @@ export function createSettingsRoutes(deps: SettingsRoutesDeps) {
     onRemoteSessionPersistenceChanged,
     onClaudeGatewaySettingsChanged,
     onOllamaUrlChanged,
-    onHeartbeatSettingsChanged,
     onOllamaSystemPromptChanged,
     onOllamaUseFullSystemPromptChanged,
     onGrokBuildUseXaiApiKeyChanged,
@@ -721,46 +715,6 @@ export function createSettingsRoutes(deps: SettingsRoutesDeps) {
           return c.json({ error: "Invalid agentContextHints setting" }, 400);
         }
         updates.agentContextHints = parsedHints;
-      }
-
-      if ("heartbeatTurnsAfterMinutes" in body) {
-        if (
-          body.heartbeatTurnsAfterMinutes === undefined ||
-          body.heartbeatTurnsAfterMinutes === null
-        ) {
-          updates.heartbeatTurnsAfterMinutes =
-            DEFAULT_SERVER_SETTINGS.heartbeatTurnsAfterMinutes;
-        } else if (
-          typeof body.heartbeatTurnsAfterMinutes === "number" &&
-          Number.isInteger(body.heartbeatTurnsAfterMinutes) &&
-          body.heartbeatTurnsAfterMinutes >= 1 &&
-          body.heartbeatTurnsAfterMinutes <= 1440
-        ) {
-          updates.heartbeatTurnsAfterMinutes = body.heartbeatTurnsAfterMinutes;
-        } else {
-          return c.json(
-            {
-              error:
-                "heartbeatTurnsAfterMinutes must be an integer between 1 and 1440",
-            },
-            400,
-          );
-        }
-      }
-
-      if ("heartbeatTurnText" in body) {
-        if (
-          body.heartbeatTurnText === undefined ||
-          body.heartbeatTurnText === null ||
-          body.heartbeatTurnText === ""
-        ) {
-          updates.heartbeatTurnText = DEFAULT_SERVER_SETTINGS.heartbeatTurnText;
-        } else if (typeof body.heartbeatTurnText === "string") {
-          updates.heartbeatTurnText = body.heartbeatTurnText.slice(
-            0,
-            MAX_HEARTBEAT_TURN_TEXT_LENGTH,
-          );
-        }
       }
 
       if ("wakeTurnsEnabled" in body) {
@@ -1310,14 +1264,6 @@ export function createSettingsRoutes(deps: SettingsRoutesDeps) {
       }
       if ("ollamaUrl" in updates && onOllamaUrlChanged) {
         onOllamaUrlChanged(settings.ollamaUrl);
-      }
-      if (
-        "heartbeatTurnsAfterMinutes" in updates &&
-        onHeartbeatSettingsChanged
-      ) {
-        // A shorter global quiet period can make an already-quiet session due
-        // right now, which a scheduled deadline would otherwise not learn.
-        onHeartbeatSettingsChanged();
       }
       if (
         ("claudeGatewayUrl" in updates ||

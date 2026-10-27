@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  HeartbeatSweepScheduler,
+  SessionMaintenanceScheduler,
   earliestDueAt,
-} from "../../src/supervisor/heartbeatSchedule.js";
+} from "../../src/supervisor/sessionMaintenanceSchedule.js";
 
 /**
  * A virtual clock with one pending-timer list, so a test can assert exactly
@@ -60,10 +60,10 @@ describe("earliestDueAt", () => {
   });
 });
 
-describe("HeartbeatSweepScheduler", () => {
+describe("SessionMaintenanceScheduler", () => {
   it("arms nothing once every source reports no deadline", async () => {
     const time = clock();
-    const scheduler = new HeartbeatSweepScheduler({
+    const scheduler = new SessionMaintenanceScheduler({
       sweep: async () => null,
       now: time.now,
       arm: time.arm,
@@ -81,7 +81,7 @@ describe("HeartbeatSweepScheduler", () => {
   it("wakes at the reported deadline rather than on an interval", async () => {
     const time = clock();
     const deadlines = [time.now() + 300_000, null];
-    const scheduler = new HeartbeatSweepScheduler({
+    const scheduler = new SessionMaintenanceScheduler({
       sweep: async () => deadlines.shift() ?? null,
       now: time.now,
       arm: time.arm,
@@ -97,7 +97,7 @@ describe("HeartbeatSweepScheduler", () => {
 
   it("keeps the sooner of an armed timer and a new request", async () => {
     const time = clock();
-    const scheduler = new HeartbeatSweepScheduler({
+    const scheduler = new SessionMaintenanceScheduler({
       sweep: async () => null,
       now: time.now,
       arm: time.arm,
@@ -121,7 +121,7 @@ describe("HeartbeatSweepScheduler", () => {
     const inSweep = new Promise<void>((resolve) => {
       held.release = resolve;
     });
-    const scheduler = new HeartbeatSweepScheduler({
+    const scheduler = new SessionMaintenanceScheduler({
       sweep: async () => {
         await inSweep;
         return time.now() + 300_000;
@@ -147,9 +147,9 @@ describe("HeartbeatSweepScheduler", () => {
     expect(time.nextAtMs()).toBe(time.now() + 30_000);
   });
 
-  it("rearms after a sweep throws so one failure cannot disarm heartbeats", async () => {
+  it("rearms after a sweep throws so one failure cannot disarm maintenances", async () => {
     const time = clock();
-    const scheduler = new HeartbeatSweepScheduler({
+    const scheduler = new SessionMaintenanceScheduler({
       sweep: async () => {
         throw new Error("candidate lookup failed");
       },
@@ -167,7 +167,7 @@ describe("HeartbeatSweepScheduler", () => {
 
   it("holds a due-now deadline to the minimum delay instead of spinning", async () => {
     const time = clock();
-    const scheduler = new HeartbeatSweepScheduler({
+    const scheduler = new SessionMaintenanceScheduler({
       sweep: async () => time.now() - 5_000,
       now: time.now,
       arm: time.arm,
@@ -181,7 +181,7 @@ describe("HeartbeatSweepScheduler", () => {
 
   it("stops arming once stopped", async () => {
     const time = clock();
-    const scheduler = new HeartbeatSweepScheduler({
+    const scheduler = new SessionMaintenanceScheduler({
       sweep: async () => time.now() + 1_000,
       now: time.now,
       arm: time.arm,
@@ -204,11 +204,11 @@ describe("HeartbeatSweepScheduler", () => {
  * moves it either way, and a deadline reconstructed from a stored anchor after
  * restart can name an instant this clock disagrees with.
  */
-describe("HeartbeatSweepScheduler under clock and sleep faults", () => {
+describe("SessionMaintenanceScheduler under clock and sleep faults", () => {
   it("sweeps once after the host sleeps past several deadlines", async () => {
     const time = clock();
     let sweeps = 0;
-    const scheduler = new HeartbeatSweepScheduler({
+    const scheduler = new SessionMaintenanceScheduler({
       sweep: async () => {
         sweeps += 1;
         return time.now() + 60_000;
@@ -229,7 +229,7 @@ describe("HeartbeatSweepScheduler under clock and sleep faults", () => {
 
   it("bounds a deadline the clock puts absurdly far away", async () => {
     const time = clock();
-    const scheduler = new HeartbeatSweepScheduler({
+    const scheduler = new SessionMaintenanceScheduler({
       sweep: async () => null,
       now: time.now,
       arm: time.arm,
@@ -248,7 +248,7 @@ describe("HeartbeatSweepScheduler under clock and sleep faults", () => {
   it("coalesces onto a timer the clock has already moved past", async () => {
     const time = clock();
     let sweeps = 0;
-    const scheduler = new HeartbeatSweepScheduler({
+    const scheduler = new SessionMaintenanceScheduler({
       sweep: async () => {
         sweeps += 1;
         return null;
@@ -276,7 +276,7 @@ describe("HeartbeatSweepScheduler under clock and sleep faults", () => {
   it("does not rearm when stopped during a sweep", async () => {
     const time = clock();
     let release: (() => void) | null = null;
-    const scheduler = new HeartbeatSweepScheduler({
+    const scheduler = new SessionMaintenanceScheduler({
       sweep: async () => {
         await new Promise<void>((resolve) => {
           release = resolve;
@@ -304,7 +304,7 @@ describe("HeartbeatSweepScheduler under clock and sleep faults", () => {
   it("does not rearm when stopped while a sweep is failing", async () => {
     const time = clock();
     let release: ((error: Error) => void) | null = null;
-    const scheduler = new HeartbeatSweepScheduler({
+    const scheduler = new SessionMaintenanceScheduler({
       sweep: () =>
         new Promise<number | null>((_resolve, reject) => {
           release = reject;
@@ -326,14 +326,14 @@ describe("HeartbeatSweepScheduler under clock and sleep faults", () => {
   });
 });
 
-describe("HeartbeatSweepScheduler owner disposal", () => {
+describe("SessionMaintenanceScheduler owner disposal", () => {
   it("joins an in-flight storage read before disposal completes", async () => {
     const time = clock();
     let release!: () => void;
     const held = new Promise<void>((resolve) => {
       release = resolve;
     });
-    const scheduler = new HeartbeatSweepScheduler({
+    const scheduler = new SessionMaintenanceScheduler({
       sweep: async () => {
         await held;
         return time.now() + 1000;

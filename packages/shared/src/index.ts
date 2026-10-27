@@ -775,15 +775,6 @@ export {
   parseTurnIndexArgument,
 } from "./session-rewind.js";
 export {
-  DEFAULT_HEARTBEAT_TURN_TEXT,
-  DEFAULT_HEARTBEAT_TURNS_AFTER_MINUTES,
-  MAX_HEARTBEAT_TURN_TEXT_LENGTH,
-  MAX_PROJECT_HEARTBEAT_RECENT_TEXTS,
-  type ProjectSessionDefaultOverrides,
-  type ProjectSessionDefaultsResponse,
-  type UpdateProjectSessionDefaultsRequest,
-} from "./heartbeat.js";
-export {
   MAX_PROJECT_CODE_NAME_LENGTH,
   allocateProjectCodeName,
   normalizeProjectCodeName,

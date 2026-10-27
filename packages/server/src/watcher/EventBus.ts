@@ -222,14 +222,6 @@ export interface SessionMetadataChangedEvent {
    * rows it grouped are live again and viewers reload the transcript.
    */
   rewindRecordRemoved?: string;
-  /** Updated heartbeat opt-in flag (if changed) */
-  heartbeatTurnsEnabled?: boolean;
-  /** Updated per-session heartbeat interval override (if changed) */
-  heartbeatTurnsAfterMinutes?: number | null;
-  /** Updated per-session heartbeat text override (if changed) */
-  heartbeatTurnText?: string | null;
-  /** Updated per-session heartbeat force timeout (if changed) */
-  heartbeatForceAfterMinutes?: number | null;
   /** Updated per-session prompt-suggestion preference (if changed) */
   promptSuggestionMode?: PromptSuggestionMode;
   /** Updated per-session recap timing override (if changed) */

@@ -16,3 +16,11 @@ upload contract rather than masking it with a larger timeout.
 
 Found 2026-10-26 while verifying the unrelated managed-checkout lane removal
 in [plan 160](../docs/tactical/160-remove-managed-checkout-lanes.md).
+
+
+2026-10-27: a full Node 22.23.3 workspace run during synthetic-heartbeat
+removal missed the second delivery at line 364, after restarting the nested
+observer and changing an already-observed file. The watcher source and test
+were unchanged. An immediate isolated rerun passed all four runnable cases
+in 5.97 s. This extends the evidence beyond Node 26; runtime alone does not
+explain the restart/event-registration race. No timeout or assertion changed.

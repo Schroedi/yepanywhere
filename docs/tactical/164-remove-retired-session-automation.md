@@ -81,4 +81,28 @@ Desktop/phone provider settings and session captures were inspected under
 Unrelated full-suite fault-path diagnostics remain recorded in the existing
 `gaps/full-suite-timing-and-diagnostics.md`; focused tests were warning-free.
 
-Remaining cuts and independent review pending.
+### Synthetic heartbeat removal
+
+Removed periodic/forced turns, unowned candidate registry, project/session/global
+configuration and UI, startup seeding, dedicated probes/benchmarks and retired
+feature tests. Preserved project app/sharing controls in the project modal.
+Transport/lease heartbeats, provider liveness, patient delivery, done actions,
+automatic-resume exemptions and Project Queue initialization remain. The shared
+deadline scheduler is now `SessionMaintenanceScheduler`; its disposal and
+coalescing tests remain. The no-work integration test requires zero sweeps.
+Old metadata writes receive 410; obsolete global settings are omitted, and
+project-default capability withdrawal covers negotiated and legacy responses.
+An assembled-app reader regression verifies the withdrawal.
+
+Focused server checks: 713 cases passed in 24.32 s (including intentional
+ProjectQueueScheduler failure-path diagnostics already recorded in the diagnostics
+gap). Five client suites: 249 cases passed in 6.83 s. Version/storage fixture
+checks: 40 passed in 4.28 s. Four browser cases passed in 45.6 s, including
+900-message real typing. The retained project app/settings browser case passed
+in 40.4 s including setup; desktop/phone settings captures were inspected.
+Lint/format/typecheck/console/CSS contracts pass; deleted selectors lowered both
+legacy CSS ceilings. Full workspace passed in 130.44 s: 6,539 server / 7,047 client. The known
+Rendez nested-watch case recurred once and passed isolated and full reruns;
+the existing gap records evidence. No watcher source or timeout changed.
+
+Remaining helper-target/report-back cuts and independent review pending.

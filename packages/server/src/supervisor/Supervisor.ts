@@ -126,7 +126,10 @@ import {
   canApplyThinkingConfigDynamically,
   thinkingConfigsEqual,
 } from "./SessionActivationCoordinator.js";
-import { HeartbeatSweepScheduler, earliestDueAt } from "./heartbeatSchedule.js";
+import {
+  SessionMaintenanceScheduler,
+  earliestDueAt,
+} from "./sessionMaintenanceSchedule.js";
 import { persistedSandboxFromProcess } from "./sessionSandboxMetadata.js";
 import {
   inheritSuccessorLaunchSettings,
@@ -177,27 +180,17 @@ const DEFAULT_STALE_IN_TURN_THRESHOLD_MS = 5 * 60 * 1000;
 /** Codex sessions can be silent for long periods during backend retries/reconnects. */
 const CODEX_STALE_IN_TURN_THRESHOLD_MS = 60 * 60 * 1000;
 /**
- * Fallback cadence for a heartbeat source that cannot prove a later deadline —
- * an opted-in session blocked by queue depth, an unverified liveness status, or
- * a patient entry waiting on a state change. It is the interval the deadline
+ * Fallback cadence for patient work that cannot prove a later deadline —
+ * an unverified liveness status or an entry waiting on a state change. It is the interval the deadline
  * scheduler replaced, so no situation sweeps more often than it used to.
  */
-const HEARTBEAT_RECHECK_MS = 30 * 1000;
+const MAINTENANCE_RECHECK_MS = 30 * 1000;
 const LIVENESS_PROBE_CHECK_INTERVAL_MS = 30 * 1000;
 const LIVENESS_PROBE_REFRESH_MS = 60 * 1000;
-const DEFAULT_HEARTBEAT_TURN_TEXT = "continue";
-const DEFAULT_HEARTBEAT_TURNS_AFTER_MINUTES = 5;
 
 const DEFAULT_INTERRUPT_TIMEOUT_MS = 2000;
-const FORCED_HEARTBEAT_INTERRUPT_PREAMBLE =
-  "interrupted for heartbeat; resume interrupted command after responding:";
-const HEARTBEAT_RESET_PROBE_STATUSES: ReadonlySet<SessionLivenessProbeStatus> =
+const QUIET_RESET_PROBE_STATUSES: ReadonlySet<SessionLivenessProbeStatus> =
   new Set(["active", "idle", "waiting-input"]);
-const ACTIVE_HEARTBEAT_DOUBT_STATUSES = new Set([
-  "verified-progressing",
-  "recently-active-unverified",
-  "long-silent-unverified",
-]);
 const RESUME_COMPACT_WAIT_MS = 3 * 60 * 1000;
 
 export type ResumeMode = "full" | "compact-first";
@@ -370,7 +363,7 @@ function parseFiniteIsoMs(value: string | null | undefined): number | null {
   return Number.isFinite(ms) ? ms : null;
 }
 
-function getHeartbeatResetAtMs(
+function getQuietResetAtMs(
   liveness: SessionLivenessSnapshot,
   fallbackMs: number,
 ): number {
@@ -380,7 +373,7 @@ function getHeartbeatResetAtMs(
     parseFiniteIsoMs(liveness.lastProviderMessageAt),
     parseFiniteIsoMs(liveness.lastRawProviderEventAt),
     liveness.lastLivenessProbeStatus &&
-    HEARTBEAT_RESET_PROBE_STATUSES.has(liveness.lastLivenessProbeStatus)
+    QUIET_RESET_PROBE_STATUSES.has(liveness.lastLivenessProbeStatus)
       ? parseFiniteIsoMs(liveness.lastLivenessProbeAt)
       : null,
   ].filter((ms): ms is number => ms !== null);
@@ -388,76 +381,6 @@ function getHeartbeatResetAtMs(
   return candidateTimes.length > 0
     ? Math.max(...candidateTimes, fallbackMs)
     : fallbackMs;
-}
-
-function parseCandidateUpdatedAtMs(value: string | Date): number | null {
-  const ms = value instanceof Date ? value.getTime() : Date.parse(value);
-  return Number.isFinite(ms) ? ms : null;
-}
-
-/** The configured quiet period, clamped to the supported 1..1440 minutes. */
-function clampHeartbeatAfterMinutes(value: number | undefined): number {
-  if (value === undefined || !Number.isFinite(value)) {
-    return DEFAULT_HEARTBEAT_TURNS_AFTER_MINUTES;
-  }
-  return Math.max(1, Math.min(value, 1440));
-}
-
-function normalizeHeartbeatForceAfterMinutes(
-  value: number | null | undefined,
-): number | null {
-  if (value === null || value === undefined) {
-    return null;
-  }
-  if (!Number.isFinite(value)) {
-    return null;
-  }
-  return Math.max(0, Math.min(value, 1440));
-}
-
-type HeartbeatAction =
-  | { type: "wait" }
-  | { type: "queue" }
-  | { type: "interrupt"; forceAfterMinutes: number; forceIdleMs: number };
-
-function getActiveHeartbeatAction(params: {
-  isVerifiedIdle: boolean;
-  isActiveDoubt: boolean;
-  process: Process;
-  settings: HeartbeatTurnSettings;
-  heartbeatResetAtMs: number;
-  idleMs: number;
-  now: number;
-}): HeartbeatAction {
-  const { isVerifiedIdle, process, settings, idleMs } = params;
-
-  if (isVerifiedIdle) {
-    return { type: "queue" };
-  }
-
-  // isActiveDoubt: in-turn session that may be hung
-  const afterMinutes = clampHeartbeatAfterMinutes(settings.afterMinutes);
-  const forceAfterMinutes = normalizeHeartbeatForceAfterMinutes(
-    settings.forceAfterMinutes,
-  );
-
-  if (forceAfterMinutes !== null) {
-    const forceThresholdMs = (afterMinutes + forceAfterMinutes) * 60 * 1000;
-    if (idleMs >= forceThresholdMs) {
-      return {
-        type: "interrupt",
-        forceAfterMinutes,
-        forceIdleMs: idleMs - afterMinutes * 60 * 1000,
-      };
-    }
-  }
-
-  // Only queue a steering message if the session supports steering;
-  // for non-steerable sessions we have no useful action until force threshold.
-  if (!process.canSteer) {
-    return { type: "wait" };
-  }
-  return { type: "queue" };
 }
 
 export class SessionMessageRejectedError extends Error {}
@@ -497,24 +420,6 @@ export interface SessionLaunchOptions {
 export interface QueueFullResponse {
   error: "queue_full";
   maxQueueSize: number;
-}
-
-export interface HeartbeatTurnSettings {
-  enabled: boolean;
-  afterMinutes: number;
-  text: string;
-  forceAfterMinutes?: number | null;
-}
-
-export interface HeartbeatTurnCandidate {
-  sessionId: string;
-  projectId: UrlProjectId;
-  projectPath: string;
-  provider: ProviderName;
-  model?: string;
-  executor?: string;
-  updatedAt: string | Date;
-  hasPendingToolCall: boolean;
 }
 
 export interface PromptCacheKeepaliveSettings {
@@ -602,20 +507,6 @@ export interface SupervisorOptions {
   onSessionSummary?: OnSessionSummaryCallback;
   /** Best-effort transcript recovery for sessions without a launch snapshot. */
   recoverSessionLaunchSettings?: RecoverSessionLaunchSettingsCallback;
-  /** Callback to read the current heartbeat-turn settings for a session */
-  getHeartbeatTurnSettings?: (
-    sessionId: string,
-  ) => HeartbeatTurnSettings | undefined;
-  /** Callback to find heartbeat-enabled sessions with no owned process. */
-  getHeartbeatTurnCandidates?: () =>
-    | Promise<HeartbeatTurnCandidate[]>
-    | HeartbeatTurnCandidate[];
-  /**
-   * Eligible unowned sessions that the last candidate lookup found nothing due
-   * for. The scheduler owes them a later look; without this it would treat a
-   * settled transcript as permanently settled.
-   */
-  getHeartbeatWaitingSessionIds?: () => readonly string[];
   /** Callback to read the current provider-scoped prompt-cache keepalive setting. */
   getPromptCacheKeepaliveSettings?: (
     provider: ProviderName,
@@ -781,15 +672,7 @@ export class Supervisor {
   private recoverSessionLaunchSettings?: RecoverSessionLaunchSettingsCallback;
   private backgroundTasksStopped = false;
   private backgroundStop: Promise<void> | undefined;
-  private heartbeatInterruptTasks = new Set<Promise<void>>();
   private staleCheckTimer: ReturnType<typeof setInterval>;
-  private getHeartbeatTurnSettings?: (
-    sessionId: string,
-  ) => HeartbeatTurnSettings | undefined;
-  private getHeartbeatTurnCandidates?: () =>
-    | Promise<HeartbeatTurnCandidate[]>
-    | HeartbeatTurnCandidate[];
-  private getHeartbeatWaitingSessionIds?: () => readonly string[];
   private getPromptCacheKeepaliveSettings?: (
     provider: ProviderName,
   ) => PromptCacheKeepaliveSettings | undefined;
@@ -799,13 +682,7 @@ export class Supervisor {
     | undefined;
   private cacheMissBillingMonitor: CacheMissBillingMonitor;
   private tokenUsageRecorder: SessionTokenUsageRecorder;
-  private heartbeatScheduler: HeartbeatSweepScheduler;
-  /**
-   * Instant the unowned-candidate half of the sweep is next due, or null once
-   * only an event can create candidate work. A process deadline firing must not
-   * drag the (storage-touching) candidate lookup along with it.
-   */
-  private heartbeatCandidateDueAtMs: number | null = 0;
+  private maintenanceScheduler: SessionMaintenanceScheduler;
   private livenessProbeTimer: ReturnType<typeof setInterval>;
   /**
    * One-shot patient-queue re-checks keyed by process id. Bounded: armed only
@@ -883,9 +760,6 @@ export class Supervisor {
     this.onContextWindowObserved = options.onContextWindowObserved;
     this.onSessionSummary = options.onSessionSummary;
     this.recoverSessionLaunchSettings = options.recoverSessionLaunchSettings;
-    this.getHeartbeatTurnSettings = options.getHeartbeatTurnSettings;
-    this.getHeartbeatTurnCandidates = options.getHeartbeatTurnCandidates;
-    this.getHeartbeatWaitingSessionIds = options.getHeartbeatWaitingSessionIds;
     this.getPromptCacheKeepaliveSettings =
       options.getPromptCacheKeepaliveSettings;
     this.postCompactAction = options.postCompactAction;
@@ -940,19 +814,18 @@ export class Supervisor {
       STALE_CHECK_INTERVAL_MS,
     );
     this.staleCheckTimer.unref(); // Don't keep process alive for cleanup
-    this.heartbeatScheduler = new HeartbeatSweepScheduler({
-      sweep: (now) => this.runHeartbeatSweep(now),
-      errorRetryMs: HEARTBEAT_RECHECK_MS,
+    this.maintenanceScheduler = new SessionMaintenanceScheduler({
+      sweep: (now) => this.runMaintenanceSweep(now),
+      errorRetryMs: MAINTENANCE_RECHECK_MS,
     });
-    this.heartbeatScheduler.requestSweepWithin(HEARTBEAT_RECHECK_MS);
     this.sessionDone = new SessionDoneCoordinator({
       sessionMetadataService: this.sessionMetadataService,
       notificationService: this.notificationService,
       getProcessForSession: (sessionId) => this.getProcessForSession(sessionId),
       cancelInFlightForkedRecap: (process) =>
         this.cancelInFlightForkedRecap(process),
-      requestHeartbeatSweep: () =>
-        this.heartbeatScheduler.requestSweepWithin(HEARTBEAT_RECHECK_MS),
+      requestMaintenanceSweep: () =>
+        this.maintenanceScheduler.requestSweepWithin(MAINTENANCE_RECHECK_MS),
     });
     this.livenessProbeTimer = setInterval(
       () => this.probeLongSilentProcesses(),
@@ -970,8 +843,7 @@ export class Supervisor {
     for (const timer of this.patientCheckTimers.values()) clearTimeout(timer);
     this.patientCheckTimers.clear();
     this.backgroundStop = (async () => {
-      await this.heartbeatScheduler.stopAndDrain();
-      await Promise.allSettled(this.heartbeatInterruptTasks);
+      await this.maintenanceScheduler.stopAndDrain();
     })();
     return this.backgroundStop;
   }
@@ -1007,7 +879,7 @@ export class Supervisor {
    * An existing session's launch with its settled sandbox applied. A
    * persisted project-write sandbox binds every later process for the
    * session (topics/session-sandboxing.md § Session Lifetime), so wake,
-   * heartbeat, deferred-message and restart relaunches keep it whether or
+   * wake, deferred-message and restart relaunches keep it whether or
    * not their caller restated it. A request to weaken it is refused; only a
    * new session may choose a weaker boundary.
    */
@@ -4266,14 +4138,11 @@ export class Supervisor {
     if (!metadata) {
       throw new Error("Session metadata service is unavailable");
     }
-    const heartbeatWasEnabled =
-      metadata.getMetadata(sessionId)?.heartbeatTurnsEnabled === true;
     await metadata.updateMetadata(sessionId, {
-      heartbeatTurnsEnabled: false,
       autoResumeDisabled: true,
     });
     return {
-      heartbeatDisabled: heartbeatWasEnabled,
+      heartbeatDisabled: false,
       autoResumeDisabled: true,
     };
   }
@@ -4720,12 +4589,12 @@ export class Supervisor {
   }
 
   /**
-   * One heartbeat generation. Every source reports the earliest instant it
+   * One patient-maintenance generation. Every source reports the earliest instant it
    * could next need attention; the scheduler arms one timer for the earliest
    * of them. Returns null only when nothing on this server can become due
    * without an event, in which case no timer is armed at all.
    */
-  private async runHeartbeatSweep(now: number): Promise<number | null> {
+  private async runMaintenanceSweep(now: number): Promise<number | null> {
     if (this.backgroundTasksStopped) return null;
     const log = getLogger();
     let dueAtMs: number | null = null;
@@ -4741,107 +4610,34 @@ export class Supervisor {
         log,
       );
       dueAtMs = earliestDueAt(dueAtMs, patient.dueAtMs);
-      if (patient.promoted) {
-        continue;
-      }
-      dueAtMs = earliestDueAt(
-        dueAtMs,
-        await this.queueHeartbeatTurnForProcess(process, now, log),
-      );
     }
 
-    // The candidate half reaches storage, so it keeps its own deadline rather
-    // than riding along with whichever process deadline fired.
-    const candidateDueAtMs = this.getCandidateSweepDueAtMs();
-    if (candidateDueAtMs !== null && now >= candidateDueAtMs) {
-      this.heartbeatCandidateDueAtMs = await this.sweepHeartbeatCandidates(
-        now,
-        log,
-      );
-    }
-    return earliestDueAt(dueAtMs, this.getCandidateSweepDueAtMs());
-  }
-
-  /** Null when no candidate source is configured, or none can become due. */
-  private getCandidateSweepDueAtMs(): number | null {
-    if (!this.getHeartbeatTurnCandidates) return null;
-    return this.heartbeatCandidateDueAtMs;
-  }
-
-  private async sweepHeartbeatCandidates(
-    now: number,
-    log: ReturnType<typeof getLogger>,
-  ): Promise<number | null> {
-    let dueAtMs: number | null = null;
-    const candidates = (await this.getHeartbeatTurnCandidates?.()) ?? [];
-    for (const candidate of candidates) {
-      if (this.backgroundTasksStopped) return null;
-      dueAtMs = earliestDueAt(
-        dueAtMs,
-        await this.queueHeartbeatTurnForCandidate(candidate, now, log),
-      );
-    }
-    // A candidate whose transcript has settled can still gain a pending tool
-    // call from an external process. It could not be actioned before one idle
-    // threshold from now, so that is exactly how long the next look can wait.
-    for (const sessionId of this.getHeartbeatWaitingSessionIds?.() ?? []) {
-      dueAtMs = earliestDueAt(
-        dueAtMs,
-        now + this.getHeartbeatIdleThresholdMs(sessionId),
-      );
-    }
     return dueAtMs;
   }
 
-  private getHeartbeatIdleThresholdMs(sessionId: string): number {
-    return (
-      clampHeartbeatAfterMinutes(
-        this.getHeartbeatTurnSettings?.(sessionId)?.afterMinutes,
-      ) *
-      60 *
-      1000
-    );
-  }
-
   /**
-   * Re-plan heartbeat deadlines after an event that could pull one earlier —
-   * a state change, a process appearing or leaving, an opt-in edit. The
+   * Re-plan patient deadlines after a state or liveness change. The
    * request never asks for a sweep sooner than the fallback recheck, so event
    * churn cannot make heartbeats cost more than the fixed tick they replaced.
    */
-  private requestHeartbeatSweep(): void {
+  private requestMaintenanceSweep(): void {
     if (this.backgroundTasksStopped) return;
-    if (this.heartbeatScheduler.isArmedWithin(HEARTBEAT_RECHECK_MS)) return;
-    if (!this.hasHeartbeatWork()) return;
-    this.heartbeatScheduler.requestSweepWithin(HEARTBEAT_RECHECK_MS);
+    if (this.maintenanceScheduler.isArmedWithin(MAINTENANCE_RECHECK_MS)) return;
+    if (!this.hasPatientMaintenanceWork()) return;
+    this.maintenanceScheduler.requestSweepWithin(MAINTENANCE_RECHECK_MS);
   }
 
-  /**
-   * Heartbeat settings changed outside the supervisor. A fresh opt-in can make
-   * an already-quiet session due, and the candidate half must look again even
-   * if it had settled.
-   */
-  notifyHeartbeatScheduleChanged(): void {
-    if (this.backgroundTasksStopped) return;
-    this.heartbeatCandidateDueAtMs = 0;
-    this.heartbeatScheduler.requestSweepWithin(HEARTBEAT_RECHECK_MS);
-  }
-
-  private hasHeartbeatWork(): boolean {
-    if (this.getCandidateSweepDueAtMs() !== null) return true;
+  private hasPatientMaintenanceWork(): boolean {
     for (const process of this.processes.values()) {
       if (process.hasPatientDeferredMessages()) return true;
-      if (this.getHeartbeatTurnSettings?.(process.sessionId)?.enabled) {
-        return true;
-      }
     }
     return false;
   }
 
-  getHeartbeatScheduleMetrics(): ReturnType<
-    HeartbeatSweepScheduler["getMetrics"]
+  getMaintenanceScheduleMetrics(): ReturnType<
+    SessionMaintenanceScheduler["getMetrics"]
   > {
-    return this.heartbeatScheduler.getMetrics();
+    return this.maintenanceScheduler.getMetrics();
   }
 
   private shouldRetainIdleProcess(sessionId: string): boolean {
@@ -4849,10 +4645,7 @@ export class Supervisor {
       return false;
     }
     const process = this.getProcessForSession(sessionId);
-    return (
-      process?.hasPatientDeferredMessages() === true ||
-      this.getHeartbeatTurnSettings?.(sessionId)?.enabled === true
-    );
+    return process?.hasPatientDeferredMessages() === true;
   }
 
   private queuePatientDeferredMessagesForProcess(
@@ -4869,7 +4662,7 @@ export class Supervisor {
     // Patient entries exist but the process is not in a shape that can accept
     // them. Only a state change resolves that, so keep the fallback cadence
     // rather than inventing a deadline for it.
-    const blocked = { promoted: false, dueAtMs: now + HEARTBEAT_RECHECK_MS };
+    const blocked = { promoted: false, dueAtMs: now + MAINTENANCE_RECHECK_MS };
     if (
       process.isTerminated ||
       process.state.type !== "idle" ||
@@ -4885,7 +4678,7 @@ export class Supervisor {
     }
 
     const fallbackMs = process.state.since.getTime();
-    const quietSinceMs = getHeartbeatResetAtMs(liveness, fallbackMs);
+    const quietSinceMs = getQuietResetAtMs(liveness, fallbackMs);
     if (!Number.isFinite(quietSinceMs)) {
       return blocked;
     }
@@ -4954,346 +4747,6 @@ export class Supervisor {
     }, delay);
     timer.unref();
     this.patientCheckTimers.set(process.id, timer);
-  }
-
-  /**
-   * Returns the earliest instant this process could need a heartbeat, or null
-   * when only an event can create work for it (heartbeat off, or terminated).
-   */
-  private async queueHeartbeatTurnForProcess(
-    process: Process,
-    now: number,
-    log: ReturnType<typeof getLogger>,
-  ): Promise<number | null> {
-    if (this.isAutomationPausedUntilUserTurn(process.sessionId)) {
-      return null;
-    }
-    const settings = this.getHeartbeatTurnSettings?.(process.sessionId);
-    if (!settings?.enabled) {
-      return null;
-    }
-    if (process.isTerminated) {
-      return null;
-    }
-    // Opted in but blocked by state a deadline cannot predict: queued work
-    // draining, a dead process, or liveness YA has not verified. These resolve
-    // on events, so hold the fallback cadence.
-    const blockedAtMs = now + HEARTBEAT_RECHECK_MS;
-    if (process.queueDepth > 0 || process.isProcessAlive === false) {
-      return blockedAtMs;
-    }
-
-    const liveness = process.getLivenessSnapshot(new Date(now));
-    const isVerifiedIdle =
-      process.state.type === "idle" &&
-      liveness.derivedStatus === "verified-idle";
-    const isActiveDoubt =
-      process.state.type === "in-turn" &&
-      ACTIVE_HEARTBEAT_DOUBT_STATUSES.has(liveness.derivedStatus);
-    if (!isVerifiedIdle && !isActiveDoubt) {
-      return blockedAtMs;
-    }
-
-    const afterMinutes = clampHeartbeatAfterMinutes(settings.afterMinutes);
-    const idleThresholdMs = afterMinutes * 60 * 1000;
-    const text = settings.text.trim() || DEFAULT_HEARTBEAT_TURN_TEXT;
-
-    const fallbackMs =
-      process.state.type === "idle"
-        ? process.state.since.getTime()
-        : (parseFiniteIsoMs(liveness.lastStateChangeAt) ?? now);
-    const heartbeatResetAtMs = getHeartbeatResetAtMs(liveness, fallbackMs);
-    if (!Number.isFinite(heartbeatResetAtMs)) {
-      return blockedAtMs;
-    }
-    const idleMs = Math.max(0, now - heartbeatResetAtMs);
-    if (idleMs < idleThresholdMs) {
-      // The exact deadline. Every input that could move it — a provider
-      // message, a probe, a state change — only pushes it later, and the
-      // sweep at this instant re-derives it from the anchor it finds then.
-      return heartbeatResetAtMs + idleThresholdMs;
-    }
-    const heartbeatResetAt = new Date(heartbeatResetAtMs).toISOString();
-    const action = getActiveHeartbeatAction({
-      isVerifiedIdle,
-      isActiveDoubt,
-      process,
-      settings,
-      heartbeatResetAtMs,
-      idleMs,
-      now,
-    });
-    if (action.type === "wait") {
-      // A non-steerable session in doubt waits for its force threshold, and
-      // for nothing at all when no force timeout is configured.
-      const forceAfterMinutes = normalizeHeartbeatForceAfterMinutes(
-        settings.forceAfterMinutes,
-      );
-      return forceAfterMinutes === null
-        ? null
-        : heartbeatResetAtMs + (afterMinutes + forceAfterMinutes) * 60 * 1000;
-    }
-
-    if (action.type === "interrupt") {
-      const interrupt = this.interruptHeartbeatTurnForProcess(process, {
-        now,
-        log,
-        text,
-        idleMs,
-        heartbeatResetAt,
-        afterMinutes,
-        forceAfterMinutes: action.forceAfterMinutes,
-        forceIdleMs: action.forceIdleMs,
-        livenessStatus: liveness.derivedStatus,
-      });
-      this.heartbeatInterruptTasks.add(interrupt);
-      void interrupt.then(
-        () => this.heartbeatInterruptTasks.delete(interrupt),
-        (error) => {
-          this.heartbeatInterruptTasks.delete(interrupt);
-          log.error(
-            {
-              event: "heartbeat_interrupt_failed",
-              sessionId: process.sessionId,
-              error,
-            },
-            "Heartbeat interrupt failed",
-          );
-        },
-      );
-      return blockedAtMs;
-    }
-
-    const result = await this.queueProcessMessage(process, {
-      text,
-      automaticSource: "heartbeat",
-    });
-    if (result.success) {
-      log.info(
-        {
-          event: "heartbeat_turn_queued",
-          sessionId: process.sessionId,
-          processId: process.id,
-          projectId: process.projectId,
-          idleMs,
-          heartbeatResetAt,
-          afterMinutes,
-          text,
-          heartbeatReason: isVerifiedIdle ? "verified-idle" : "active-doubt",
-          livenessStatus: liveness.derivedStatus,
-        },
-        `Queued heartbeat turn for session: ${process.sessionId}`,
-      );
-    } else {
-      log.warn(
-        {
-          event: "heartbeat_turn_failed",
-          sessionId: process.sessionId,
-          processId: process.id,
-          projectId: process.projectId,
-          idleMs,
-          heartbeatResetAt,
-          afterMinutes,
-          error: result.error,
-          heartbeatReason: isVerifiedIdle ? "verified-idle" : "active-doubt",
-          livenessStatus: liveness.derivedStatus,
-        },
-        `Failed to queue heartbeat turn for session: ${process.sessionId}`,
-      );
-    }
-    return blockedAtMs;
-  }
-
-  private async interruptHeartbeatTurnForProcess(
-    process: Process,
-    details: {
-      now: number;
-      log: ReturnType<typeof getLogger>;
-      text: string;
-      idleMs: number;
-      heartbeatResetAt: string;
-      afterMinutes: number;
-      forceAfterMinutes: number;
-      forceIdleMs: number;
-      livenessStatus: SessionLivenessSnapshot["derivedStatus"];
-    },
-  ): Promise<void> {
-    const { log } = details;
-    if (this.isAutomationPausedUntilUserTurn(process.sessionId)) {
-      return;
-    }
-    const { interrupted, timedOut } = await this.interruptProcessWithTimeout(
-      process,
-      {
-        extraMessages: [{ text: details.text }],
-        preamble: FORCED_HEARTBEAT_INTERRUPT_PREAMBLE,
-      },
-    );
-
-    if (this.backgroundTasksStopped) return;
-
-    if (interrupted) {
-      log.warn(
-        {
-          event: "heartbeat_turn_interrupted",
-          sessionId: process.sessionId,
-          processId: process.id,
-          projectId: process.projectId,
-          idleMs: details.idleMs,
-          heartbeatResetAt: details.heartbeatResetAt,
-          afterMinutes: details.afterMinutes,
-          forceAfterMinutes: details.forceAfterMinutes,
-          forceIdleMs: details.forceIdleMs,
-          text: details.text,
-          heartbeatReason: "force-after-active-doubt",
-          livenessStatus: details.livenessStatus,
-        },
-        `Interrupted active turn for heartbeat: ${process.sessionId}`,
-      );
-      return;
-    }
-
-    if (timedOut) {
-      log.warn(
-        {
-          event: "heartbeat_interrupt_timeout",
-          sessionId: process.sessionId,
-          processId: process.id,
-          projectId: process.projectId,
-          timeoutMs: this.interruptTimeoutMs,
-          forceAfterMinutes: details.forceAfterMinutes,
-          forceIdleMs: details.forceIdleMs,
-          livenessStatus: details.livenessStatus,
-        },
-        `Heartbeat interrupt timed out: ${process.sessionId}`,
-      );
-    }
-
-    if (this.isAutomationPausedUntilUserTurn(process.sessionId)) {
-      return;
-    }
-    const result = await this.queueProcessMessage(process, {
-      text: `${FORCED_HEARTBEAT_INTERRUPT_PREAMBLE}\n\n${details.text}`,
-      automaticSource: "heartbeat",
-    });
-    log.warn(
-      {
-        event: result.success
-          ? "heartbeat_interrupt_fallback_queued"
-          : "heartbeat_interrupt_fallback_failed",
-        sessionId: process.sessionId,
-        processId: process.id,
-        projectId: process.projectId,
-        idleMs: details.idleMs,
-        heartbeatResetAt: details.heartbeatResetAt,
-        afterMinutes: details.afterMinutes,
-        forceAfterMinutes: details.forceAfterMinutes,
-        forceIdleMs: details.forceIdleMs,
-        error: result.error,
-        heartbeatReason: "force-after-active-doubt",
-        livenessStatus: details.livenessStatus,
-      },
-      result.success
-        ? `Queued heartbeat after failed interrupt: ${process.sessionId}`
-        : `Failed heartbeat interrupt fallback: ${process.sessionId}`,
-    );
-  }
-
-  /**
-   * Returns the earliest instant this unowned candidate could be resumed, or
-   * null when nothing but an event (ownership, opt-in, provider support) can
-   * make it due.
-   */
-  private async queueHeartbeatTurnForCandidate(
-    candidate: HeartbeatTurnCandidate,
-    now: number,
-    log: ReturnType<typeof getLogger>,
-  ): Promise<number | null> {
-    if (
-      candidate.executor ||
-      this.sessionMetadataService?.getMetadata(candidate.sessionId)?.executor
-    ) {
-      return null;
-    }
-    if (this.getProcessForSession(candidate.sessionId)) {
-      return null;
-    }
-    if (!candidate.hasPendingToolCall) {
-      return null;
-    }
-    const provider = this.resolveProvider({ providerName: candidate.provider });
-    if (!provider?.supportsSteering) {
-      return null;
-    }
-    const settings = this.getHeartbeatTurnSettings?.(candidate.sessionId);
-    if (!settings?.enabled) {
-      return null;
-    }
-
-    const heartbeatResetAtMs = parseCandidateUpdatedAtMs(candidate.updatedAt);
-    if (heartbeatResetAtMs === null) {
-      return null;
-    }
-    const afterMinutes = clampHeartbeatAfterMinutes(settings.afterMinutes);
-    const idleThresholdMs = afterMinutes * 60 * 1000;
-    const idleMs = Math.max(0, now - heartbeatResetAtMs);
-    if (idleMs < idleThresholdMs) {
-      return heartbeatResetAtMs + idleThresholdMs;
-    }
-
-    const text = settings.text.trim() || DEFAULT_HEARTBEAT_TURN_TEXT;
-    const heartbeatResetAt = new Date(heartbeatResetAtMs).toISOString();
-    const result = await this.resumeSession(
-      candidate.sessionId,
-      candidate.projectPath,
-      { text, automaticSource: "heartbeat" },
-      undefined,
-      {
-        providerName: candidate.provider,
-        model: candidate.model,
-        executor: candidate.executor,
-      },
-    );
-
-    if ("error" in result) {
-      log.warn(
-        {
-          event: "heartbeat_turn_failed",
-          sessionId: candidate.sessionId,
-          projectId: candidate.projectId,
-          idleMs,
-          heartbeatResetAt,
-          afterMinutes,
-          error: result.error,
-          heartbeatReason: "unowned-pending-tool",
-          livenessStatus: "pending-tool-unowned",
-        },
-        `Failed to resume heartbeat turn for session: ${candidate.sessionId}`,
-      );
-      // A failed resume leaves the candidate exactly as due as it was, so
-      // retry on the fallback cadence rather than immediately.
-      return now + HEARTBEAT_RECHECK_MS;
-    }
-
-    log.info(
-      {
-        event: "heartbeat_turn_queued",
-        sessionId: candidate.sessionId,
-        projectId: candidate.projectId,
-        idleMs,
-        heartbeatResetAt,
-        afterMinutes,
-        text,
-        heartbeatReason: "unowned-pending-tool",
-        livenessStatus: "pending-tool-unowned",
-        queued: "queued" in result ? result.queued : false,
-        processId: "id" in result ? result.id : undefined,
-      },
-      `Resumed heartbeat turn for session: ${candidate.sessionId}`,
-    );
-    // The session is owned now; the process half of the sweep takes it from
-    // here, announced by the ownership change that just fired.
-    return null;
   }
 
   private probeLongSilentProcesses(): void {
@@ -6442,12 +5895,6 @@ export class Supervisor {
       }
     }
 
-    if (this.getHeartbeatTurnSettings?.(process.sessionId)?.enabled) {
-      // An opted-in session losing its process is exactly how it joins the
-      // unowned-candidate half, which may have settled to "nothing due".
-      this.heartbeatCandidateDueAtMs = 0;
-    }
-
     // Emit ownership change event (back to none)
     this.emitOwnershipChange(
       process.sessionId,
@@ -6635,7 +6082,7 @@ export class Supervisor {
   ): void {
     // A session settling into idle, draining its queue, or releasing provider
     // retention can pull its heartbeat deadline earlier than the armed one.
-    this.requestHeartbeatSweep();
+    this.requestMaintenanceSweep();
     if (!this.eventBus) return;
 
     const event: ProcessStateEvent = {
@@ -6746,7 +6193,7 @@ export class Supervisor {
   private emitWorkerActivity(): void {
     // Processes appearing and leaving move sessions between the owned and
     // unowned halves of the sweep.
-    this.requestHeartbeatSweep();
+    this.requestMaintenanceSweep();
     if (!this.eventBus) return;
 
     const interruptibleSessionCount = Array.from(

@@ -24,7 +24,6 @@ import type {
 import {
   CODEX_STREAM_DURABLE_ID_ALIGNMENT_CAPABILITY,
   SESSION_CONVERSATION_CONTEXT_CAPABILITY,
-  PROJECT_SESSION_DEFAULTS_CAPABILITY,
   PROJECT_CODE_NAMES_CAPABILITY,
   PUBLIC_SHARE_MANAGEMENT_CAPABILITY,
   SIDEBAR_SESSION_RESUME_CAPABILITY,
@@ -122,7 +121,6 @@ import { QuestionAnswerPanel } from "../components/QuestionAnswerPanel";
 import { RecentSessionsDropdown } from "../components/RecentSessionsDropdown";
 import { RestartSessionModal } from "../components/RestartSessionModal";
 import { routerBindingChip } from "../components/RouterPoolSelector";
-import { SessionHeartbeatModal } from "../components/SessionHeartbeatModal";
 import { SessionMenu } from "../components/SessionMenu";
 import {
   SessionPublicShareControls,
@@ -590,10 +588,9 @@ function SessionPageContent({
     SYNTHETIC_TERMINATE_COMMAND_CAPABILITY,
   );
   const supportsProjectQueue = serverSupportsProjectQueue(versionInfo);
-  const supportsProjectSessionDefaults = serverHasCapability(
-    versionInfo,
-    PROJECT_SESSION_DEFAULTS_CAPABILITY,
-  );
+  const supportsProjectSettings =
+    serverHasCapability(versionInfo, SERVER_CAPABILITIES.projectService) ||
+    serverHasCapability(versionInfo, SERVER_CAPABILITIES.projectAccessSharing);
   const supportsProjectCodeNames = serverHasCapability(
     versionInfo,
     PROJECT_CODE_NAMES_CAPABILITY,
@@ -2188,16 +2185,6 @@ function SessionPageContent({
   const [localIsStarred, setLocalIsStarred] = useState<boolean | undefined>(
     undefined,
   );
-  const [localHeartbeatTurnsEnabled, setLocalHeartbeatTurnsEnabled] = useState<
-    boolean | undefined
-  >(undefined);
-  const [localHeartbeatTurnsAfterMinutes, setLocalHeartbeatTurnsAfterMinutes] =
-    useState<number | undefined>(undefined);
-  const [localHeartbeatTurnText, setLocalHeartbeatTurnText] = useState<
-    string | undefined
-  >(undefined);
-  const [localHeartbeatForceAfterMinutes, setLocalHeartbeatForceAfterMinutes] =
-    useState<number | undefined>(undefined);
   const [localPromptSuggestionMode, setLocalPromptSuggestionMode] = useState<
     PromptSuggestionMode | undefined
   >(undefined);
@@ -2213,10 +2200,6 @@ function SessionPageContent({
     setLocalCustomTitle(undefined);
     setLocalIsArchived(undefined);
     setLocalIsStarred(undefined);
-    setLocalHeartbeatTurnsEnabled(undefined);
-    setLocalHeartbeatTurnsAfterMinutes(undefined);
-    setLocalHeartbeatTurnText(undefined);
-    setLocalHeartbeatForceAfterMinutes(undefined);
     setLocalPromptSuggestionMode(undefined);
   }, [sessionId]);
 
@@ -2551,8 +2534,6 @@ function SessionPageContent({
 
   // Approval panel collapsed state (separate from message input collapse)
   const [approvalCollapsed, setApprovalCollapsed] = useState(false);
-
-  const [showHeartbeatModal, setShowHeartbeatModal] = useState(false);
   const [showProjectSettingsModal, setShowProjectSettingsModal] =
     useState(false);
   const [showRecapModal, setShowRecapModal] = useState(false);
@@ -5331,14 +5312,6 @@ function SessionPageContent({
   });
   const isArchived = localIsArchived ?? session?.isArchived ?? false;
   const isStarred = localIsStarred ?? session?.isStarred ?? false;
-  const heartbeatTurnsEnabled =
-    localHeartbeatTurnsEnabled ?? session?.heartbeatTurnsEnabled ?? false;
-  const heartbeatTurnsAfterMinutes =
-    localHeartbeatTurnsAfterMinutes ?? session?.heartbeatTurnsAfterMinutes;
-  const heartbeatTurnText =
-    localHeartbeatTurnText ?? session?.heartbeatTurnText;
-  const heartbeatForceAfterMinutes =
-    localHeartbeatForceAfterMinutes ?? session?.heartbeatForceAfterMinutes;
   // Effective per-session suggestion mode: optimistic local toggle wins, then
   // the live process config, then the persisted session metadata, else off.
   const promptSuggestionMode =
@@ -5905,23 +5878,6 @@ function SessionPageContent({
     },
     [handleShareIndicatorClick, publicShareManagementAvailable],
   );
-
-  const handleToggleHeartbeat = useCallback(async () => {
-    const previousEnabled = heartbeatTurnsEnabled;
-    const nextEnabled = !previousEnabled;
-    setLocalHeartbeatTurnsEnabled(nextEnabled);
-    try {
-      await api.updateSessionMetadata(actualSessionId, {
-        heartbeatTurnsEnabled: nextEnabled,
-      });
-    } catch (err) {
-      console.error("Failed to update heartbeat status:", err);
-      setLocalHeartbeatTurnsEnabled(previousEnabled);
-      const errorMsg =
-        err instanceof Error ? err.message : t("sessionHeartbeatSaveFailed");
-      showToast(errorMsg, "error");
-    }
-  }, [actualSessionId, heartbeatTurnsEnabled, showToast, t]);
 
   if (error) {
     const errorStatus =
@@ -6569,11 +6525,10 @@ function SessionPageContent({
                   cloneUnavailableMessage={forkUnavailableMessage}
                   cloneDisabled={forkAfterDisabled}
                   onConfigureProjectSettings={
-                    supportsProjectSessionDefaults
+                    supportsProjectSettings
                       ? () => setShowProjectSettingsModal(true)
                       : undefined
                   }
-                  onConfigureHeartbeat={() => setShowHeartbeatModal(true)}
                   onConfigureRecaps={
                     status.owner === "self"
                       ? () => setShowRecapModal(true)
@@ -6655,29 +6610,7 @@ function SessionPageContent({
           </div>
         </header>
 
-        {showHeartbeatModal && (
-          <SessionHeartbeatModal
-            sessionId={actualSessionId}
-            enabled={heartbeatTurnsEnabled}
-            heartbeatTurnsAfterMinutes={heartbeatTurnsAfterMinutes}
-            heartbeatTurnText={heartbeatTurnText}
-            heartbeatForceAfterMinutes={heartbeatForceAfterMinutes}
-            onClose={() => setShowHeartbeatModal(false)}
-            onSaved={(next) => {
-              setLocalHeartbeatTurnsEnabled(next.enabled);
-              setLocalHeartbeatTurnsAfterMinutes(
-                next.heartbeatTurnsAfterMinutes,
-              );
-              setLocalHeartbeatTurnText(next.heartbeatTurnText);
-              setLocalHeartbeatForceAfterMinutes(
-                next.heartbeatForceAfterMinutes,
-              );
-              showToast(t("sessionHeartbeatSaved"), "success");
-            }}
-          />
-        )}
-
-        {showProjectSettingsModal && supportsProjectSessionDefaults && (
+        {showProjectSettingsModal && supportsProjectSettings && (
           <ProjectSessionDefaultsModal
             projectId={projectId}
             projectName={project?.name}
@@ -7163,9 +7096,6 @@ function SessionPageContent({
                       contextRequestedModel={
                         effectiveModelConfig?.requestedModel
                       }
-                      heartbeatEnabled={heartbeatTurnsEnabled}
-                      onToggleHeartbeat={handleToggleHeartbeat}
-                      onConfigureHeartbeat={() => setShowHeartbeatModal(true)}
                       contextUsage={session?.contextUsage}
                       lastActivityAt={activityAt}
                       positionTimestampStore={transcriptPositionStore}
@@ -7390,9 +7320,6 @@ function SessionPageContent({
                       : undefined
                   }
                   contextRequestedModel={effectiveModelConfig?.requestedModel}
-                  heartbeatEnabled={heartbeatTurnsEnabled}
-                  onToggleHeartbeat={handleToggleHeartbeat}
-                  onConfigureHeartbeat={() => setShowHeartbeatModal(true)}
                   promptSuggestion={
                     mainComposerForAside
                       ? undefined

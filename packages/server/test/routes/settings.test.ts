@@ -2952,7 +2952,6 @@ describe("Settings Routes", () => {
         chromeOsHosts: ["chromeroot"],
         claudeGatewayStartCommand: "copilot-api start",
         globalInstructions: "private instructions",
-        heartbeatTurnText: "keep going",
         clientDefaults: { steerNowDefault: true },
       };
     });
@@ -2960,7 +2959,6 @@ describe("Settings Routes", () => {
     it("serves a limited user only the fields their client uses", async () => {
       const read = await readAs(limited);
       expect(read).toMatchObject({
-        heartbeatTurnText: "keep going",
         clientDefaults: { steerNowDefault: true },
         serviceWorkerEnabled: true,
       });

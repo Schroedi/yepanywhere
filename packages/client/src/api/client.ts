@@ -47,7 +47,6 @@ import type {
   ProjectQueuePromoteNowResponse,
   ProjectQueueResponse,
   ProjectQueueReadinessCommand,
-  ProjectSessionDefaultsResponse,
   PublicFileShareListResponse,
   PublicShareManagementListResponse,
   PublicShareStorageState,
@@ -76,7 +75,6 @@ import type {
   TranscriptDisplayObject,
   UpdateClearloopRequest,
   UpdateProjectQueueItemRequest,
-  UpdateProjectSessionDefaultsRequest,
   EffortLevel,
   GatewayService,
   GatewayServiceExportPaths,
@@ -656,23 +654,6 @@ export const api = {
       {
         method: "PATCH",
         body: JSON.stringify({ caption }),
-      },
-    ),
-
-  getProjectSessionDefaults: (projectId: string) =>
-    fetchJSON<ProjectSessionDefaultsResponse>(
-      `/projects/${projectId}/session-defaults`,
-    ),
-
-  updateProjectSessionDefaults: (
-    projectId: string,
-    updates: UpdateProjectSessionDefaultsRequest,
-  ) =>
-    fetchJSON<ProjectSessionDefaultsResponse>(
-      `/projects/${projectId}/session-defaults`,
-      {
-        method: "PATCH",
-        body: JSON.stringify(updates),
       },
     ),
 
@@ -2039,10 +2020,6 @@ export interface ServerSettings {
   globalInstructions?: string;
   /** Optional additive context hints composed with global instructions */
   agentContextHints?: AgentContextHints;
-  /** Default idle minutes before an opted-in session queues a heartbeat turn */
-  heartbeatTurnsAfterMinutes?: number;
-  /** Default text queued as the synthetic heartbeat user turn */
-  heartbeatTurnText?: string;
   /**
    * Configured model-serving endpoints. The default entry is mirrored by the
    * single-gateway settings below, which older clients still read and write.

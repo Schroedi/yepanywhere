@@ -44,12 +44,10 @@ import {
   upgradeUntouchedLimitedUserInstructions,
   DEFAULT_CLAUDE_STEER_BACKGROUND_BASH,
   DEFAULT_CODEX_REASONING_SUMMARY,
-  DEFAULT_HEARTBEAT_TURN_TEXT,
   DEFAULT_HOST_AWAKE_BATTERY_FLOOR_PERCENT,
   DEFAULT_CLEARLOOP_INACTIVITY_SECONDS,
   DEFAULT_PROJECT_QUEUE_QUIET_SECONDS,
   DEFAULT_SUBAGENT_MAX_DEPTH,
-  MAX_HEARTBEAT_TURN_TEXT_LENGTH,
   clampClearloopInactivitySeconds,
   clampProjectQueueQuietSeconds,
   isIdleReapHours,
@@ -85,10 +83,6 @@ export const DEFAULT_SOURCE_REVIEW_RESPONSE_TURNS = 8;
 export const MIN_SOURCE_REVIEW_RESPONSE_TURNS = 1;
 export const MAX_SOURCE_REVIEW_RESPONSE_TURNS = 32;
 export const MAX_CLAUDE_GATEWAY_START_COMMAND_LENGTH = 10_000;
-const LEGACY_DEFAULT_HEARTBEAT_TURN_TEXTS = new Set([
-  "heartbeat",
-  "yepanywhere heartbeat",
-]);
 const DEFAULT_CLIENT_DEFAULTS: ClientDefaults = {};
 
 export interface SpeechAudioRetentionSettings {
@@ -181,10 +175,6 @@ export interface ServerSettings {
   globalInstructions?: string;
   /** Optional client-context hints composed additively with global instructions */
   agentContextHints?: AgentContextHints;
-  /** Default idle minutes before an opted-in session queues a heartbeat turn */
-  heartbeatTurnsAfterMinutes?: number;
-  /** Default text queued as the synthetic heartbeat user turn */
-  heartbeatTurnText?: string;
   /** Whether authenticated external session-wake turns are enabled by default. */
   wakeTurnsEnabled?: boolean;
   /**
@@ -373,8 +363,6 @@ export const DEFAULT_SERVER_SETTINGS: ServerSettings = {
   hostProcessObservabilityEnabled: true,
   hostAwakeMode: "off",
   hostAwakeBatteryFloorPercent: DEFAULT_HOST_AWAKE_BATTERY_FLOOR_PERCENT,
-  heartbeatTurnsAfterMinutes: 15,
-  heartbeatTurnText: DEFAULT_HEARTBEAT_TURN_TEXT,
   wakeTurnsEnabled: false,
   speechAudioRetention: {
     enabled: true,
@@ -620,17 +608,6 @@ function normalizeLoadedSettings(settings: ServerSettings): ServerSettings {
   normalized.subagentMaxDepth = isSubagentMaxDepth(settings.subagentMaxDepth)
     ? settings.subagentMaxDepth
     : DEFAULT_SUBAGENT_MAX_DEPTH;
-  const loadedHeartbeatText = settings.heartbeatTurnText?.trim();
-  if (!loadedHeartbeatText) {
-    normalized.heartbeatTurnText = DEFAULT_SERVER_SETTINGS.heartbeatTurnText;
-  } else if (LEGACY_DEFAULT_HEARTBEAT_TURN_TEXTS.has(loadedHeartbeatText)) {
-    normalized.heartbeatTurnText = DEFAULT_SERVER_SETTINGS.heartbeatTurnText;
-  } else {
-    normalized.heartbeatTurnText = loadedHeartbeatText.slice(
-      0,
-      MAX_HEARTBEAT_TURN_TEXT_LENGTH,
-    );
-  }
   if (!normalized.yaClientBaseUrl && normalized.publicShareViewerBaseUrl) {
     try {
       normalized.yaClientBaseUrl = normalizeYaClientBaseUrlFromShareViewerUrl(
@@ -674,6 +651,9 @@ function normalizeLoadedSettings(settings: ServerSettings): ServerSettings {
     typeof settings.wakeTurnsEnabled === "boolean"
       ? settings.wakeTurnsEnabled
       : DEFAULT_SERVER_SETTINGS.wakeTurnsEnabled;
+  delete (normalized as unknown as Record<string, unknown>)
+    .heartbeatTurnsAfterMinutes;
+  delete (normalized as unknown as Record<string, unknown>).heartbeatTurnText;
   // Retired policy: omit saved enablement from responses and future writes.
   delete (normalized as unknown as Record<string, unknown>).postCompactReplay;
   normalized.instructionRestoration =

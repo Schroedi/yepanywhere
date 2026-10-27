@@ -28,30 +28,9 @@ export function isAutomaticSessionResumeAllowed(
   );
 }
 
-/**
- * Whether an unowned session may be auto-resumed by the heartbeat candidate
- * scan. Archived sessions are exempt: archiving says the user is done with
- * the session, so resurrecting it contradicts the gesture.
- */
-export function isUnownedHeartbeatResumeEligible(
-  metadata: Pick<
-    SessionMetadata,
-    | "heartbeatTurnsEnabled"
-    | "isArchived"
-    | "autoResumeDisabled"
-    | "automationPausedUntilUserTurn"
-  >,
-): boolean {
-  return (
-    metadata.heartbeatTurnsEnabled === true &&
-    metadata.isArchived !== true &&
-    isAutomaticSessionResumeAllowed(metadata)
-  );
-}
-
 /** Outcome of blocking auto-resume for an explicitly killed session. */
 export interface ResumeExemptionResult {
-  /** True when the session had heartbeat turns enabled and they were cleared. */
+  /** Legacy response field; false after synthetic heartbeat retirement. */
   heartbeatDisabled: boolean;
   /** Whether YA's durable automatic-resume gate is blocked. */
   autoResumeDisabled: boolean;

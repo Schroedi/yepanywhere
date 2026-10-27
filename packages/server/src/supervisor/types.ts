@@ -120,12 +120,6 @@ export interface SessionSummary {
   creationProvenance?: import("@yep-anywhere/shared").SessionCreationProvenance;
   /** Initial prompt text accepted by YA for new-session recovery/copy. */
   initialPrompt?: string;
-  /** Whether this session is opted in to heartbeat turns */
-  heartbeatTurnsEnabled?: boolean;
-  /** Optional per-session idle threshold override in minutes */
-  heartbeatTurnsAfterMinutes?: number;
-  /** Optional per-session heartbeat text override */
-  heartbeatTurnText?: string;
   /** Context usage from the last assistant message */
   contextUsage?: ContextUsage;
   /** AI provider used for this session */

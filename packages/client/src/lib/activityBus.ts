@@ -134,10 +134,6 @@ export interface SessionMetadataChangedEvent {
   rewindRecord?: SessionRewindRecord;
   /** A rewind record the provider refused; the open session reloads. */
   rewindRecordRemoved?: string;
-  heartbeatTurnsEnabled?: boolean;
-  heartbeatTurnsAfterMinutes?: number | null;
-  heartbeatTurnText?: string | null;
-  heartbeatForceAfterMinutes?: number | null;
   promptSuggestionMode?: PromptSuggestionMode;
   recapAfterSeconds?: number;
   transcriptDisplayObjects?: TranscriptDisplayObject[];

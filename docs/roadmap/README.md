@@ -484,6 +484,12 @@ upon first need; building it is not a cleanup prerequisite. The
 [helper-session disposition](../../topics/openai-compatible-helper-sessions.md#disposition)
 records the boundary.
 
+Row **5** synthetic heartbeat automation is removed: configured turns,
+forced nudges and candidate-driven resurrection are gone. Patient/done-action
+maintenance, transport health, provider liveness and shared resume exemptions
+remain. [Plan 164](../tactical/164-remove-retired-session-automation.md) tracks
+this removal pass and its verification.
+
 Row **6** is resolved as **keep or redesign; do not remove**. Addressed event
 delivery and authorized recipient resumption are valuable for multi-session
 coordination independently of harness background-job limitations. The ability

@@ -1,10 +1,10 @@
 /**
- * One process-wide timer for every heartbeat deadline.
+ * One process-wide timer for every maintenance deadline.
  *
- * Each heartbeat source — a live process, an unowned candidate — answers
+ * Each retained maintenance source answers
  * "the earliest instant I could need attention" instead of being polled. The
  * scheduler arms a single timer for the earliest of those instants, so a
- * server with nothing opted in arms nothing at all, and an opted-in session
+ * server without pending maintenance arms nothing at all, and a session with queued work
  * that is minutes away from its threshold is visited once, at the threshold.
  *
  * A source that cannot prove a later instant asks for the fallback recheck,
@@ -18,27 +18,27 @@ const DEFAULT_MIN_DELAY_MS = 250;
 const DEFAULT_MAX_DELAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_ERROR_RETRY_MS = 30 * 1000;
 
-export interface HeartbeatTimerHandle {
+export interface SessionMaintenanceTimerHandle {
   cancel(): void;
 }
 
-export interface HeartbeatSweepSchedulerOptions {
+export interface SessionMaintenanceSchedulerOptions {
   /**
    * Runs one sweep and returns the earliest instant any source could next need
-   * attention, or null when only an event can create heartbeat work.
+   * attention, or null when only an event can create maintenance work.
    */
   sweep: (nowMs: number) => Promise<number | null>;
   now?: () => number;
   /** Timer seam for tests and benchmarks; defaults to an unref'd setTimeout. */
-  arm?: (fire: () => void, delayMs: number) => HeartbeatTimerHandle;
+  arm?: (fire: () => void, delayMs: number) => SessionMaintenanceTimerHandle;
   /** Never arm shorter than this, so a due-now source cannot spin. */
   minDelayMs?: number;
   maxDelayMs?: number;
-  /** Rearm delay when a sweep throws, so one failure cannot disarm heartbeats. */
+  /** Rearm delay when a sweep throws, so one failure cannot disarm maintenances. */
   errorRetryMs?: number;
 }
 
-export interface HeartbeatSweepSchedulerMetrics {
+export interface SessionMaintenanceSchedulerMetrics {
   sweeps: number;
   arms: number;
   /** Requests satisfied by an already-armed, no-later timer. */
@@ -58,23 +58,26 @@ export function earliestDueAt(
   return Math.min(a, b);
 }
 
-function defaultArm(fire: () => void, delayMs: number): HeartbeatTimerHandle {
+function defaultArm(
+  fire: () => void,
+  delayMs: number,
+): SessionMaintenanceTimerHandle {
   const timer = setTimeout(fire, delayMs);
   timer.unref?.();
   return { cancel: () => clearTimeout(timer) };
 }
 
-export class HeartbeatSweepScheduler {
+export class SessionMaintenanceScheduler {
   private readonly sweep: (nowMs: number) => Promise<number | null>;
   private readonly now: () => number;
   private readonly armTimer: (
     fire: () => void,
     delayMs: number,
-  ) => HeartbeatTimerHandle;
+  ) => SessionMaintenanceTimerHandle;
   private readonly minDelayMs: number;
   private readonly maxDelayMs: number;
   private readonly errorRetryMs: number;
-  private handle: HeartbeatTimerHandle | null = null;
+  private handle: SessionMaintenanceTimerHandle | null = null;
   private armedAtMs: number | null = null;
   private pendingArmAtMs: number | null = null;
   private running = false;
@@ -85,7 +88,7 @@ export class HeartbeatSweepScheduler {
   private coalescedRequests = 0;
   private sweepErrors = 0;
 
-  constructor(options: HeartbeatSweepSchedulerOptions) {
+  constructor(options: SessionMaintenanceSchedulerOptions) {
     this.sweep = options.sweep;
     this.now = options.now ?? Date.now;
     this.armTimer = options.arm ?? defaultArm;
@@ -126,7 +129,7 @@ export class HeartbeatSweepScheduler {
     await this.runningSweep;
   }
 
-  getMetrics(): HeartbeatSweepSchedulerMetrics {
+  getMetrics(): SessionMaintenanceSchedulerMetrics {
     return {
       sweeps: this.sweeps,
       arms: this.arms,

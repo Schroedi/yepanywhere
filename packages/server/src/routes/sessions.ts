@@ -83,7 +83,6 @@ import type { ProjectQueueScheduler } from "../services/ProjectQueueScheduler.js
 import { describeQueuedYaCommandProblem } from "../services/ProjectQueueService.js";
 import type { ServerSettingsService } from "../services/ServerSettingsService.js";
 import type { SessionQueuePersistenceService } from "../services/SessionQueuePersistenceService.js";
-import { initializeSessionHeartbeatDefaults } from "../services/sessionHeartbeatDefaults.js";
 import { CodexSessionReader } from "../sessions/codex-reader.js";
 import { cloneClaudeSession } from "../sessions/fork.js";
 import type { GeminiSessionReader } from "../sessions/gemini-reader.js";
@@ -2338,18 +2337,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     };
   };
 
-  const initializeProjectHeartbeatDefaults = async (
-    sessionId: string,
-    projectId: UrlProjectId,
-  ): Promise<void> =>
-    initializeSessionHeartbeatDefaults({
-      sessionId,
-      projectId,
-      sessionMetadataService: deps.sessionMetadataService,
-      projectMetadataService: deps.projectMetadataService,
-      serverSettingsService: deps.serverSettingsService,
-    });
-
   const persistLaunchMetadata = async (
     sessionId: string,
     provider: ProviderName | undefined,
@@ -2409,8 +2396,8 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
   };
 
   /**
-   * Everything a new session's launch records once it has an id: heartbeat
-   * defaults for a project session, client provenance, the limited user who
+   * Everything a new session's launch records once it has an id: client
+   * provenance, the limited user who
    * started it, and the launch metadata, sandbox included. The session-create
    * routes run it as their `onStarted`, so a start that waited for a free
    * worker records exactly what one that started at once does.
@@ -2418,7 +2405,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
   const recordNewSessionLaunch = async (
     process: Process,
     launch: {
-      heartbeatProjectId?: UrlProjectId;
       creationProvenance: unknown;
       /** The limited user who started it; absent for the superuser. */
       createdByUser?: string;
@@ -2431,12 +2417,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     },
   ): Promise<void> => {
     const { sessionId } = process;
-    if (launch.heartbeatProjectId) {
-      await initializeProjectHeartbeatDefaults(
-        sessionId,
-        launch.heartbeatProjectId,
-      );
-    }
     await recordCreationProvenance(sessionId, launch.creationProvenance);
     if (launch.createdByUser) {
       // Ownership survives a later grant change: a limited user can always
@@ -2958,12 +2938,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         routerBinding: metadata?.routerBinding,
         initialPrompt:
           metadata?.initialPrompt ?? sessionSummary?.fullTitle ?? undefined,
-        heartbeatTurnsEnabled: metadata?.heartbeatTurnsEnabled,
         wakeTurnsEnabled: metadata?.wakeTurnsEnabled,
-        heartbeatTurnsAfterMinutes: metadata?.heartbeatTurnsAfterMinutes,
-        heartbeatTurnText: metadata?.heartbeatTurnText,
-        heartbeatForceAfterMinutes:
-          metadata?.heartbeatForceAfterMinutes ?? undefined,
         promptSuggestionMode: metadata?.promptSuggestionMode,
         recapAfterSeconds: metadata?.recapAfterSeconds,
         workingProjectId: metadata?.workingProjectId,
@@ -3469,11 +3444,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
             creationProvenance: metadata?.creationProvenance,
             routerBinding: metadata?.routerBinding,
             initialPrompt: metadata?.initialPrompt,
-            heartbeatTurnsEnabled: metadata?.heartbeatTurnsEnabled,
             wakeTurnsEnabled: metadata?.wakeTurnsEnabled,
-            heartbeatTurnsAfterMinutes: metadata?.heartbeatTurnsAfterMinutes,
-            heartbeatTurnText: metadata?.heartbeatTurnText,
-            heartbeatForceAfterMinutes: metadata?.heartbeatForceAfterMinutes,
             promptSuggestionMode: metadata?.promptSuggestionMode,
             recapAfterSeconds: metadata?.recapAfterSeconds,
             workingProjectId: metadata?.workingProjectId,
@@ -3900,11 +3871,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         creationProvenance: metadata?.creationProvenance,
         routerBinding: metadata?.routerBinding,
         initialPrompt: metadata?.initialPrompt ?? session.fullTitle,
-        heartbeatTurnsEnabled: metadata?.heartbeatTurnsEnabled,
         wakeTurnsEnabled: metadata?.wakeTurnsEnabled,
-        heartbeatTurnsAfterMinutes: metadata?.heartbeatTurnsAfterMinutes,
-        heartbeatTurnText: metadata?.heartbeatTurnText,
-        heartbeatForceAfterMinutes: metadata?.heartbeatForceAfterMinutes,
         promptSuggestionMode: metadata?.promptSuggestionMode,
         recapAfterSeconds: metadata?.recapAfterSeconds,
         workingProjectId: metadata?.workingProjectId,
@@ -4077,7 +4044,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         projectId: project.id,
         onStarted: (_sessionId, process) =>
           recordNewSessionLaunch(process, {
-            heartbeatProjectId: project.id,
             creationProvenance: requestCreationProvenance(
               c,
               body.creationProvenance,
@@ -4243,7 +4209,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         projectId: project.id,
         onStarted: (_sessionId, process) =>
           recordNewSessionLaunch(process, {
-            heartbeatProjectId: project.id,
             creationProvenance: requestCreationProvenance(
               c,
               body.creationProvenance,
@@ -6140,7 +6105,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
           projectId: project.id,
           onStarted: (_sessionId, process) =>
             recordNewSessionLaunch(process, {
-              heartbeatProjectId: project.id,
               creationProvenance: requestCreationProvenance(
                 c,
                 body.creationProvenance,
@@ -8894,29 +8858,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       await deps.supervisor.abortSessionWithVerification(sessionId);
     }
 
-    if (patch.heartbeatTurnText) {
-      const savedProjectId =
-        deps.sessionMetadataService.getMetadata(sessionId)?.workingProjectId ??
-        deps.supervisor.getProcessForSession(sessionId)?.projectId;
-      if (savedProjectId) {
-        await deps.projectMetadataService?.recordRecentHeartbeatTurnText(
-          savedProjectId,
-          patch.heartbeatTurnText,
-        );
-      }
-    }
-
-    if (
-      patch.heartbeatTurnsEnabled !== undefined ||
-      patch.heartbeatTurnsAfterMinutes !== undefined ||
-      patch.heartbeatForceAfterMinutes !== undefined
-    ) {
-      // Heartbeat deadlines are scheduled, not polled, so a fresh opt-in has
-      // to announce itself; otherwise an already-quiet session would wait for
-      // some unrelated event to re-plan the timer.
-      deps.supervisor.notifyHeartbeatScheduleChanged();
-    }
-
     // Emit SSE event so sidebar and other clients can update
     if (deps.eventBus) {
       deps.eventBus.emit({
@@ -8933,10 +8874,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
             : patch.parentSessionId
               ? "btw-aside"
               : null,
-        heartbeatTurnsEnabled: patch.heartbeatTurnsEnabled,
-        heartbeatTurnsAfterMinutes: patch.heartbeatTurnsAfterMinutes,
-        heartbeatTurnText: patch.heartbeatTurnText,
-        heartbeatForceAfterMinutes: patch.heartbeatForceAfterMinutes,
         promptSuggestionMode: patch.promptSuggestionMode ?? undefined,
         recapAfterSeconds: patch.recapAfterSeconds ?? undefined,
         timestamp: new Date().toISOString(),

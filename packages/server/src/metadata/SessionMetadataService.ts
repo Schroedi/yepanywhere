@@ -48,6 +48,11 @@ export interface ForkOrdinalClaim {
 }
 
 export interface SessionMetadata {
+  /** Retired settings, readable only for historical metadata/redaction. */
+  heartbeatTurnsEnabled?: boolean;
+  heartbeatTurnsAfterMinutes?: number;
+  heartbeatTurnText?: string;
+  heartbeatForceAfterMinutes?: number | null;
   routerBinding?: {
     poolId?: string;
     poolName?: string;
@@ -139,18 +144,10 @@ export interface SessionMetadata {
   executor?: string;
   /** Initial prompt text accepted by YA for new-session recovery/copy. */
   initialPrompt?: string;
-  /** Whether this session is opted in to heartbeat turns */
-  heartbeatTurnsEnabled?: boolean;
   /** Per-session session-wake override; absent inherits the server default. */
   wakeTurnsEnabled?: boolean;
   /** Explicit Kill blocks YA-owned automatic resume without hiding history. */
   autoResumeDisabled?: boolean;
-  /** Optional per-session idle threshold override in minutes */
-  heartbeatTurnsAfterMinutes?: number;
-  /** Optional per-session heartbeat text override */
-  heartbeatTurnText?: string;
-  /** Per-session grace minutes before forcing output; null = off */
-  heartbeatForceAfterMinutes?: number | null;
   /** Per-session prompt-suggestion preference (off | native) */
   promptSuggestionMode?: PromptSuggestionMode;
   /** Browser-away duration before YA asks the live process for a recap. */
@@ -1197,12 +1194,8 @@ export class SessionMetadataService {
       parentSessionKind?: "btw-aside" | null;
       forkedFromSessionId?: string | null;
       forkLineageRootId?: string | null;
-      heartbeatTurnsEnabled?: boolean;
       wakeTurnsEnabled?: boolean | null;
       autoResumeDisabled?: boolean;
-      heartbeatTurnsAfterMinutes?: number | null;
-      heartbeatTurnText?: string | null;
-      heartbeatForceAfterMinutes?: number | null;
       promptSuggestionMode?: PromptSuggestionMode | null;
       recapAfterSeconds?: number | null;
       recapMode?: RecapMode | null;
@@ -1260,34 +1253,12 @@ export class SessionMetadataService {
           lineageRootId === sessionId ? undefined : lineageRootId;
       }
 
-      if (updates.heartbeatTurnsEnabled !== undefined) {
-        result.heartbeatTurnsEnabled =
-          updates.heartbeatTurnsEnabled || undefined;
-        if (updates.heartbeatTurnsEnabled) {
-          result.autoResumeDisabled = undefined;
-        }
-      }
-
       if (updates.wakeTurnsEnabled !== undefined) {
         result.wakeTurnsEnabled = updates.wakeTurnsEnabled ?? undefined;
       }
 
       if (updates.autoResumeDisabled !== undefined) {
         result.autoResumeDisabled = updates.autoResumeDisabled || undefined;
-      }
-
-      if (updates.heartbeatTurnsAfterMinutes !== undefined) {
-        result.heartbeatTurnsAfterMinutes =
-          updates.heartbeatTurnsAfterMinutes ?? undefined;
-      }
-
-      if (updates.heartbeatTurnText !== undefined) {
-        result.heartbeatTurnText =
-          updates.heartbeatTurnText?.trim() || undefined;
-      }
-
-      if (updates.heartbeatForceAfterMinutes !== undefined) {
-        result.heartbeatForceAfterMinutes = updates.heartbeatForceAfterMinutes;
       }
 
       // null clears the preference (revert to default); "off"/"native" store
@@ -1410,23 +1381,11 @@ export class SessionMetadataService {
     if (updated.routerBinding) cleaned.routerBinding = updated.routerBinding;
     if (updated.executor) cleaned.executor = updated.executor;
     if (updated.initialPrompt) cleaned.initialPrompt = updated.initialPrompt;
-    if (updated.heartbeatTurnsEnabled) {
-      cleaned.heartbeatTurnsEnabled = updated.heartbeatTurnsEnabled;
-    }
     if (updated.wakeTurnsEnabled !== undefined) {
       cleaned.wakeTurnsEnabled = updated.wakeTurnsEnabled;
     }
     if (updated.autoResumeDisabled) {
       cleaned.autoResumeDisabled = updated.autoResumeDisabled;
-    }
-    if (updated.heartbeatTurnsAfterMinutes !== undefined) {
-      cleaned.heartbeatTurnsAfterMinutes = updated.heartbeatTurnsAfterMinutes;
-    }
-    if (updated.heartbeatTurnText) {
-      cleaned.heartbeatTurnText = updated.heartbeatTurnText;
-    }
-    if (updated.heartbeatForceAfterMinutes !== undefined) {
-      cleaned.heartbeatForceAfterMinutes = updated.heartbeatForceAfterMinutes;
     }
     if (updated.promptSuggestionMode) {
       cleaned.promptSuggestionMode = updated.promptSuggestionMode;
