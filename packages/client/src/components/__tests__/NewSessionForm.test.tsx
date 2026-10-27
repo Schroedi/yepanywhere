@@ -220,13 +220,6 @@ const {
           >
         >;
       };
-      helperTargets?: Array<{
-        id: string;
-        name: string;
-        kind: "openai-compatible";
-        baseUrl: string;
-        model?: string;
-      }>;
     } | null,
     isLoading: true,
   },
@@ -4950,55 +4943,6 @@ describe("NewSessionForm", () => {
           provider: "codex",
           recapMode: "side-session",
           promptSuggestionMode: "off",
-        }),
-        undefined,
-        expect.any(Number),
-        undefined,
-      );
-    });
-  });
-
-  it("hides configured helper targets until runtime support exists", async () => {
-    serverSettingsState.settings = {
-      helperTargets: [
-        {
-          id: "local-vllm",
-          name: "Local vLLM",
-          kind: "openai-compatible",
-          baseUrl: "http://localhost:8001/v1",
-          model: "Qwen/Qwen3.6-27B",
-        },
-      ],
-    };
-    serverSettingsState.isLoading = false;
-
-    render(
-      <NewSessionForm
-        projectId="project-1"
-        selectedProject={chooserProjects[0]}
-        projects={[...chooserProjects]}
-      />,
-    );
-
-    openAdvancedOptions();
-    fireEvent.click(
-      dropdownOption("newSessionRecapTitle", "recapModeSideSession"),
-    );
-    expect(screen.queryByRole("button", { name: "Local vLLM" })).toBeNull();
-    fireEvent.change(screen.getByPlaceholderText("newSessionPlaceholder"), {
-      target: { value: "hello" },
-    });
-    fireEvent.click(
-      screen.getByRole("button", { name: "newSessionStartAction" }),
-    );
-
-    await waitFor(() => {
-      expect(mockStartSession).toHaveBeenCalledWith(
-        "project-1",
-        "hello",
-        expect.objectContaining({
-          recapMode: "side-session",
-          helperSideModel: "cheapest",
         }),
         undefined,
         expect.any(Number),

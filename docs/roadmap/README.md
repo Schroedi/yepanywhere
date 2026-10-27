@@ -478,7 +478,7 @@ heartbeat automation, wake turns, recaps and post-compact replay. Mixed rows
 identify each contributor's feature separately; shared repairs are not undone
 based on authorship. Subsequent row-specific decisions supersede that initial
 deferral: on 2026-10-27, row **4**'s dormant helper-target plumbing was authorized
-for removal, with implementation pending. Consider a provider-server-managed,
+for removal; that cut is now implemented under plan 164. Consider a provider-server-managed,
 no-tool in-house provider for prompted UI-helper/text-processing-only access
 upon first need; building it is not a cleanup prerequisite. The
 [helper-session disposition](../../topics/openai-compatible-helper-sessions.md#disposition)

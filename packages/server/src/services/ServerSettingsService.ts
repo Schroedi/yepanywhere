@@ -26,7 +26,6 @@ import type {
   CodexReasoningSummary,
   GatewayService,
   GatewayServiceExportPaths,
-  HelperTargetConfig,
   HostIdentity,
   HostAwakeMode,
   LongContextEffortWarningSettings,
@@ -246,8 +245,6 @@ export interface ServerSettings {
   speechVoiceBackends: string[];
   /** Explicit Whisper device choice; absent preserves WHISPER_DEVICE. */
   speechWhisperGpu?: boolean;
-  /** OpenAI-compatible helper endpoints for side-session helper work */
-  helperTargets?: HelperTargetConfig[];
   /** Per-provider prompt-cache keepalive policy and cadence. */
   promptCacheKeepalive?: PromptCacheKeepaliveSettings;
   /**
@@ -654,6 +651,7 @@ function normalizeLoadedSettings(settings: ServerSettings): ServerSettings {
   delete (normalized as unknown as Record<string, unknown>)
     .heartbeatTurnsAfterMinutes;
   delete (normalized as unknown as Record<string, unknown>).heartbeatTurnText;
+  delete (normalized as unknown as Record<string, unknown>).helperTargets;
   // Retired policy: omit saved enablement from responses and future writes.
   delete (normalized as unknown as Record<string, unknown>).postCompactReplay;
   normalized.instructionRestoration =

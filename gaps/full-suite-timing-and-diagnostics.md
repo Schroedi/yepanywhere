@@ -79,3 +79,22 @@ The 130 focused restart/metadata cases and 80 SDK cases were warning-free.
 Auditing those diagnostics crosses independent scheduler, provider and
 highlight-worker test contracts; it cannot safely be folded into the move or
 its narrow resource-lifetime fix. No logs were suppressed in this work.
+
+2026-10-27: the helper-target removal's full workspace run passed all 6,536
+server cases but timed out the client capture CLI case `discovers delivery
+through the inherited URL without --ya-url` at its unchanged 30 s limit
+(`packages/client/scripts/capture-artifact.test.ts:81`). The capture command
+uses bundled headless Chromium, a temporary directory and an isolated local
+fixture server. All 13 cases passed immediately in isolation in 3.61 s; the
+full run had 7,045 other passing client cases. No capture, browser or timeout
+code is changed by this cut. The exact full-run stall remains undiagnosed;
+keep the budget and assertions intact rather than assuming load is its cause.
+
+The immediate full rerun instead failed the Gateway loopback-family fixture:
+`pins localhost to the address family that answers` expected its IPv6 listener
+but received the same port on IPv4 (`56438`). Its helper binds only `::1`,
+leaving the IPv4 port available to unrelated concurrent listeners. This is
+evidence of a potential fixture port collision, not proof of its cause. All
+27 launcher cases passed isolated in 518 ms. Gateway resolution and this
+fixture are unchanged by the removals; repair the fixture's address-family
+isolation separately rather than weakening the endpoint assertion.

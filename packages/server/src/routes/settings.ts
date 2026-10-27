@@ -73,17 +73,14 @@ import {
 } from "../services/ServerSettingsService.js";
 
 import {
-  discoverOpenAiCompatibleModels,
   mergeClientDefaults,
   normalizeClaudeGatewayUrl,
-  normalizeOpenAiCompatibleBaseUrl,
   parseAgentContextHints,
   parseCacheMissBilling,
   parseClaudeAutoCompactPercentOverride,
   parseClaudeGatewayStartCommand,
   parseClientDefaults,
   parseFileAccess,
-  parseHelperTargets,
   parseHostIdentity,
   parseHostAliasList,
   parseNewSessionDefaults,
@@ -973,14 +970,6 @@ export function createSettingsRoutes(deps: SettingsRoutesDeps) {
         updates.speechVoiceBackends = parsedBackends;
       }
 
-      if ("helperTargets" in body) {
-        const parsedTargets = parseHelperTargets(body.helperTargets);
-        if (parsedTargets === null) {
-          return c.json({ error: "Invalid helperTargets setting" }, 400);
-        }
-        updates.helperTargets = parsedTargets;
-      }
-
       if ("instructionRestoration" in body) {
         const parsed = parseInstructionRestorationSettings(
           body.instructionRestoration,
@@ -1321,25 +1310,6 @@ export function createSettingsRoutes(deps: SettingsRoutesDeps) {
       });
     }),
   );
-
-  /**
-   * POST /api/settings/helper-targets/models
-   * Discover model ids exposed by an OpenAI-compatible helper endpoint.
-   */
-  app.post("/helper-targets/models", async (c) => {
-    const body = await c.req.json<{ baseUrl?: unknown }>();
-    const baseUrl = normalizeOpenAiCompatibleBaseUrl(body.baseUrl);
-    if (!baseUrl) {
-      return c.json({ error: "baseUrl must be an http(s) URL" }, 400);
-    }
-
-    const models = await discoverOpenAiCompatibleModels(baseUrl);
-    if (!models) {
-      return c.json({ error: "Failed to load helper target models" }, 502);
-    }
-
-    return c.json({ baseUrl, models });
-  });
 
   /**
    * POST /api/settings/gateway-services/effort

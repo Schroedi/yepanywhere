@@ -3497,6 +3497,15 @@ export class Process {
       };
     }
 
+    if (this._helperSideModel.startsWith("helper-target:")) {
+      return {
+        supported: true,
+        emitted: false,
+        reason:
+          "Helper targets were removed; select a provider-local recap model",
+      };
+    }
+
     this.recapInFlight = true;
     try {
       const text = (

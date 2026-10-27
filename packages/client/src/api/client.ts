@@ -34,7 +34,6 @@ import type {
   DurableSyntheticDoneMessage,
   FreezePublicSharesResponse,
   FreezePublicSessionLiveSharesResponse,
-  HelperTargetConfig,
   HostAwakeMode,
   HostAwakeStatus,
   HostIdentity,
@@ -1736,15 +1735,6 @@ export const api = {
       body: JSON.stringify({ url }),
     }),
 
-  discoverHelperTargetModels: (baseUrl: string) =>
-    fetchJSON<{ baseUrl: string; models: ModelInfo[] }>(
-      "/settings/helper-targets/models",
-      {
-        method: "POST",
-        body: JSON.stringify({ baseUrl }),
-      },
-    ),
-
   // Codex CLI update checker
   getCodexUpdateStatus: (force?: boolean) =>
     fetchJSON<{ status: CodexUpdateStatus }>(
@@ -2091,8 +2081,6 @@ export interface ServerSettings {
   };
   /** Local STT backends enabled from Speech settings; unioned with env. */
   speechVoiceBackends?: string[];
-  /** OpenAI-compatible helper endpoints for side-session helper work */
-  helperTargets?: HelperTargetConfig[];
   /** Whether lifecycle webhook delivery is enabled */
   lifecycleWebhooksEnabled?: boolean;
   /** External webhook URL that receives lifecycle events */

@@ -82,6 +82,7 @@ describe("ServerSettingsService", () => {
         version: 1,
         settings: {
           serviceWorkerEnabled: false,
+          helperTargets: [{ id: "old", baseUrl: "https://example.test/v1" }],
           heartbeatTurnText: "continue old work",
           heartbeatTurnsAfterMinutes: 1,
           postCompactReplay: {
@@ -94,6 +95,7 @@ describe("ServerSettingsService", () => {
     const service = new ServerSettingsService({ dataDir: testDir });
     await service.initialize();
     expect(service.getSettings()).not.toHaveProperty("postCompactReplay");
+    expect(service.getSettings()).not.toHaveProperty("helperTargets");
     expect(service.getSettings()).not.toHaveProperty("heartbeatTurnText");
     expect(service.getSettings()).not.toHaveProperty(
       "heartbeatTurnsAfterMinutes",

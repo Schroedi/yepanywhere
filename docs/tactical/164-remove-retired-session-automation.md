@@ -105,4 +105,21 @@ legacy CSS ceilings. Full workspace passed in 130.44 s: 6,539 server / 7,047 cli
 Rendez nested-watch case recurred once and passed isolated and full reruns;
 the existing gap records evidence. No watcher source or timeout changed.
 
-Remaining helper-target/report-back cuts and independent review pending.
+### Dormant helper-target removal
+
+Removed the target registry, hidden editor, model discovery route and selector
+plumbing. Saved targets are omitted by settings normalization; stale writes are
+ignored. Provider-local recap models remain available. A regression verifies
+that a saved retired target is refused before the provider summarizer is called,
+without a silent fallback. Removed tests covered retired configuration/discovery.
+
+Focused server checks: 220 passed in 1.26 s. Desktop/phone provider-settings
+browser cases passed in 53 s including setup. Lint, format and typecheck passed.
+The full server suite passed all 6,536 cases. Workspace runs encountered two
+unrelated fixture failures: capture-CLI timeout and Gateway loopback-family
+selection. Both isolated files passed (13 and 27 cases respectively); the
+existing full-suite gap records evidence. Final workspace validation and
+independent review follow after the remaining cut. Deleted helper-only CSS
+also lowered the legacy stylesheet ceiling.
+
+Aside report-back cut and independent review pending.
