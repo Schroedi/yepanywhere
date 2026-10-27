@@ -172,6 +172,11 @@ installs; existing speech environments need a separate update and inference
 qualification. Linux/Python 3.12 resolution passes for both consumers,
 preserving the pinned Torch and Transformers builds. No audit exclusion is added.
 
+The 2026-10-27 CI repair refreshes the MCP SDK's Express and body-parser
+`qs` edges to 6.17.0 within their declared ranges, above the 6.16.1 patch
+floor for [comma-array serialization denial of service](https://github.com/advisories/GHSA-6pq8-jhm2-2vcw).
+No new override or audit exclusion is added.
+
 ### Install-script allowlist
 
 Dependency install scripts (preinstall/install/postinstall) are blocked by

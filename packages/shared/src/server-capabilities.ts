@@ -3917,7 +3917,7 @@ export const SERVER_CAPABILITIES = {
         "GET /api/projects/:projectId/session-defaults",
         "PATCH /api/projects/:projectId/session-defaults",
       ],
-      routeModules: ["packages/server/src/routes/project-session-defaults.ts"],
+      // Historical contract only: the retired route module no longer exists.
       requestFields: [
         "projectSessionDefaults.heartbeatTurnsAfterMinutes",
         "projectSessionDefaults.heartbeatTurnText",
