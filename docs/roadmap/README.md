@@ -495,14 +495,22 @@ The nonfunctional YA Hosts placeholder (11), both routes, preload entry and
 Developer setting are removed; actual host switching and identity remain.
 [Plan 162](../tactical/162-remove-hosts-preview.md) records verification.
 
-**Row 12 is deferred by the maintainer, 2026-10-26.** Both `gemini` and
-`gemini-acp` currently select ACP, so Gemini execution and its mapping stay
-unchanged. Rows 1, 2, 3 and 11 are the completed removal set. The independent
-review follow-up closes direct-fork and background-candidate SSH boundaries;
-plan 161 records the verification. Other Kyle-led candidates remain
-follow-ups; graehl-led work is outside this pass. This maintenance focus does
-not authorize resuming the archived refactor or completing unfinished
-features before deleting them.
+**Updated direction, 2026-10-27:** freeze legacy Gemini (row 12) and move
+future Google agent support toward Antigravity (`agy`), preferably through its
+official ACP runtime. Gemini's current mapping remains unchanged for now.
+Retention is conditional: reconsider removing Gemini if it slows the core
+refactor, unless it provides useful evidence that the provider boundary works
+across genuinely different implementations. Useful controlled regressions may
+survive without the legacy runtime. See the
+[freeze and retention criteria](../../topics/core-house-cleaning.md#frozen-gemini-and-future-antigravity-support).
+
+Rows 1, 2, 3 and 11 are the completed removal set. The independent review
+closed direct-fork and background-candidate SSH boundaries; plan 161 records
+the verification. The purpose is a smaller local core that can reliably run
+queued `/compact` followed by message delivery. Choose a reduced plan for
+that outcome; the archived refactor remains paused. Neither Gemini upkeep nor
+shipping AGY is a prerequisite, and API delegation is separate work. Other
+Kyle-led candidates remain follow-ups; graehl-led work is outside this pass.
 Release-delivery work remains independently required; local sessions,
 same-host provider ownership, ordinary queues, direct/relay access and native
 client transport remain retained foundations.

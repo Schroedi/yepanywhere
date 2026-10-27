@@ -9,9 +9,12 @@ detailed doc. Update this file when the high-level picture changes; update the
 linked docs when the details change.
 
 The current [core house-cleaning proposal](topics/core-house-cleaning.md)
-selects feature reduction before another session-core refactor. Read its
-removal and retained-consumer boundaries before extending execution placement,
-automatic session input/resume, lane checkouts or alternate core clients.
+selects feature reduction to support a smaller core for reliable queued
+`/compact` and following message delivery. Legacy Gemini is frozen and may be
+removed if it impedes that work; future Antigravity support is a separate
+provider decision. Read the proposal's removal and retained-consumer boundaries
+before extending execution placement, automatic session input/resume, lane
+checkouts or alternate core clients.
 
 For work spanning machines, start with
 [Working Across Machines](topics/multi-machine-architecture.md): a discussion
