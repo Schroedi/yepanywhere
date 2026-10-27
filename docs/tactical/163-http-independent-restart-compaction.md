@@ -1,8 +1,8 @@
 # HTTP-independent restart compaction
 
-Status: accepted, 2026-10-27. The maintainer authorized the two implementation
-commits, individual pushes and an independent implementation review after the
-plan review. Source baseline: `1aba656fb`; saved plan: `29caa5ba5`.
+Status: complete, 2026-10-27; both implementation steps validated and
+independently reviewed. The maintainer authorized both commits, individual
+pushes and a second review. Source baseline: `1aba656fb`; saved plan: `29caa5ba5`.
 
 ## Purpose and boundary
 
@@ -28,7 +28,7 @@ Other deferred route extractions stay deferred. The
 [module-boundary discipline](../../topics/typescript-module-boundary-refactor.md)
 governs the move; the cleanup is a separate behavior-fix commit.
 
-## Current source, not the archived assembly
+## Source at baseline `1aba656fb`, not the archived assembly
 
 `packages/server/src/routes/sessions.ts` owns `RestartCompactAttempt`,
 `RESTART_COMPACT_WAIT_MS`, `waitForRestartCompactBoundary`, and
@@ -96,8 +96,8 @@ instead of duplicating those assertions. Avoid trivial early-return matrices
 or the archive's large test suite. Do not encode retained observer resources
 after refusal as desirable behavior.
 
-The known observer and Codex dispatch defects are captured in the linked
-gaps below, so the move can stand alone if the cleanup is not selected.
+The observer and Codex dispatch defects were captured in separate gaps
+when the plan was saved, allowing the move to stand on its own.
 
 ### 2 — Release the observer on every dispatch exit
 
@@ -142,9 +142,9 @@ or Antigravity implementation is a prerequisite. No new feature deletion.
 The [Codex literal-text dispatch gap](../../gaps/restart-compaction-codex-literal-text.md)
 is a separate provider-dispatch diagnosis, not permission to change the move.
 The misleading existing test name mentioning native compaction is not
-evidence that native dispatch occurs here. The
-[observer-retention gap](../../gaps/restart-compaction-observer-retained-after-refusal.md)
-is selected only for the proposed second commit.
+evidence that native dispatch occurs here. The observer-retention gap was
+fixed and removed in the second commit,
+following the gaps lifecycle. Its original report remains in `29caa5ba5`.
 
 Source also suggests two concurrency follow-ups: a new turn can begin during
 command discovery without an idle re-check, and concurrent preview/restart
@@ -218,10 +218,9 @@ preserves his features; the second commit would fix shared resource cleanup,
 not remove an automation policy. The maintainer authorized this shared repair
 after reviewing the plan.
 
-
 ## Implementation record
 
-### Existing restart attempt extracted — 2026-10-27
+### Existing restart attempt extracted — 2026-10-27, `06cff21d6`
 
 Both production callers use `supervisor/restart-compaction.ts`. Four symbols
 moved, the route predicate remains for transcript handling, and the moved
@@ -242,3 +241,43 @@ exercise the HTTP boundaries. Focused and SDK checks are warning-free.
 Unrelated negative-path diagnostics in the workspace suite are recorded in
 `gaps/full-suite-timing-and-diagnostics.md`; changing those fixtures would
 cross unrelated queue, provider, highlight-worker and gateway boundaries.
+
+### Dispatch observer cleanup — 2026-10-27
+
+Added refusal/throw cases to the existing terminal-path table. Both failed
+against the extracted implementation with one retained listener. The fix uses
+one idempotent finish path and `finally` around dispatch/wait; failures retain
+their previous result/exception meanings. Subscription setup happens outside
+the promise executor and before timer creation/dispatch. No target-interface
+narrowing was needed. The contract lives in `topics/restart-handoff-template.md`;
+the fixed observer gap is deleted. Resume, providers and automation are untouched.
+
+Validation (macOS, Node 22.23.3): focused 130 tests passed in 2.42 s wall /
+0.481 s test work; SDK 80 passed / 4 environment-gated skipped in 20.49 s wall;
+lint 14.37 s; format 1.36 s; root typecheck 47.16 s and strict direct-test
+compilation passed. Workspace tests passed in 134.67 s wall (6,589 server /
+7,058 client). Focused and SDK output was warning-free; unrelated suite
+diagnostics remain recorded in the existing diagnostics gap.
+
+Independent implementation review: Opus 5.5 High, Work-claude / Weekly pace,
+confirmed by launch metadata. Session `efdcb451-a346-4b39-8c1f-ed981059dfb8`;
+local report `tasks/house-cleaning/opus-restart-compaction-implementation-review.md`
+(gitignored). No blockers. The reviewer independently passed the seven direct
+cases and verified both callers, resource ownership, setup ordering and
+exception/result preservation.
+
+Addressed its relevant findings: finalized plan/roadmap status and validation,
+linked the new test from the owning topic, clarified baseline source wording,
+rewrapped prose, and removed a tautological settled-promise assertion. The
+resource assertions still verify teardown and late-event inertness. No code
+policy changes were requested. A replaying subscription's possible stale
+boundary remains a hypothetical correlation concern for the separate proposal;
+the production subscription does not replay.
+
+The reviewer rechecked the updates and closed all findings, with no remaining
+blockers or concrete correctness issues. Final focused rerun: 130 passed in
+2.67 s wall; final lint/format/typecheck also passed. Final workspace rerun
+passed in 133.57 s wall with the same 6,589 server / 7,058 client counts.
+
+This completes the selected scope. Resume extraction, queued compact delivery,
+Codex native dispatch and concurrency decisions remain separate work.

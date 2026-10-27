@@ -15,34 +15,39 @@ function isCompactBoundaryMessage(message: SDKMessage | Message): boolean {
   return message.type === "system" && message.subtype === "compact_boundary";
 }
 
-async function waitForRestartCompactBoundary(
+function observeRestartCompactBoundary(
   process: Process,
   timeoutMs: number,
-): Promise<boolean> {
-  return new Promise((resolve) => {
-    let finished = false;
-    let unsubscribe: (() => void) | undefined;
-    const finish = (completed: boolean) => {
-      if (finished) {
-        return;
-      }
-      finished = true;
-      clearTimeout(timeout);
-      unsubscribe?.();
-      resolve(completed);
-    };
-    const timeout = setTimeout(() => finish(false), timeoutMs);
-
-    unsubscribe = process.subscribe((event) => {
-      if (event.type === "message" && isCompactBoundaryMessage(event.message)) {
-        finish(true);
-        return;
-      }
-      if (event.type === "terminated" || event.type === "error") {
-        finish(false);
-      }
-    });
+): { promise: Promise<boolean>; cancel: () => void } {
+  let resolve!: (completed: boolean) => void;
+  const promise = new Promise<boolean>((innerResolve) => {
+    resolve = innerResolve;
   });
+  let finished = false;
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  let unsubscribe: (() => void) | undefined;
+  const finish = (completed: boolean) => {
+    if (finished) return;
+    finished = true;
+    if (timeout !== undefined) clearTimeout(timeout);
+    unsubscribe?.();
+    resolve(completed);
+  };
+
+  // Setup failures propagate before dispatch, without an orphan wait rejection.
+  unsubscribe = process.subscribe((event) => {
+    if (event.type === "message" && isCompactBoundaryMessage(event.message)) {
+      finish(true);
+      return;
+    }
+    if (event.type === "terminated" || event.type === "error") {
+      finish(false);
+    }
+  });
+  if (finished) unsubscribe();
+  else timeout = setTimeout(() => finish(false), timeoutMs);
+
+  return { promise, cancel: () => finish(false) };
 }
 
 export async function tryRestartCompact(
@@ -84,20 +89,24 @@ export async function tryRestartCompact(
     };
   }
 
-  const waitForCompact = waitForRestartCompactBoundary(
+  const observer = observeRestartCompactBoundary(
     process,
     RESTART_COMPACT_WAIT_MS,
   );
-  const queued = process.queueMessage({ text: `/${command}` });
-  if (!queued.success) {
-    return {
-      status: "failed",
-      command,
-      reason: queued.error ?? "compact command was not accepted",
-    };
-  }
+  try {
+    const queued = process.queueMessage({ text: `/${command}` });
+    if (!queued.success) {
+      return {
+        status: "failed",
+        command,
+        reason: queued.error ?? "compact command was not accepted",
+      };
+    }
 
-  return (await waitForCompact)
-    ? { status: "completed", command }
-    : { status: "timed-out", command };
+    return (await observer.promise)
+      ? { status: "completed", command }
+      : { status: "timed-out", command };
+  } finally {
+    observer.cancel();
+  }
 }

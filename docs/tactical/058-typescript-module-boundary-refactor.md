@@ -8,7 +8,7 @@ route-registrar extractions are deferred.
 Accepted 2026-10-27: [plan 163](163-http-independent-restart-compaction.md)
 and doc 053 SRR-012 describe one HTTP-independent restart-compaction
 extraction, followed by a separate observer-lifetime fix. The maintainer
-authorized both after independent plan review; SRR-012 is landed in this commit.
+authorized both after independent plan review; SRR-012 landed as `06cff21d6`.
 This does not reactivate the other deferred route extractions.
 
 ## Contract

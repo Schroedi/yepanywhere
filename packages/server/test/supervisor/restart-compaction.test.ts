@@ -58,38 +58,75 @@ describe("restart compaction", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it.each(["boundary", "error", "terminated", "deadline"] as const)(
-    "waits for a boundary rather than an ordinary completion: %s",
+  it.each([
+    "refusal",
+    "throw",
+    "boundary",
+    "error",
+    "terminated",
+    "deadline",
+  ] as const)(
+    "cleans up after %s and preserves boundary-only outcomes",
     async (ending) => {
-      const { process, emit, listeners } = controlledProcess();
-      const attempt = tryRestartCompact(process);
+      const { target, process, emit, listeners } = controlledProcess();
+      const dispatchError = new Error("dispatch threw");
+      if (ending === "refusal")
+        target.queueMessage.mockReturnValue({
+          success: false,
+          error: "refused",
+        });
+      if (ending === "throw")
+        target.queueMessage.mockImplementation(() => {
+          throw dispatchError;
+        });
+      // Attach rejection handling before advancing discovery/dispatch microtasks.
+      const attempt = tryRestartCompact(process).catch(
+        (error: unknown) => error,
+      );
       let settled = false;
       void attempt.then(() => {
         settled = true;
       });
       await vi.advanceTimersByTimeAsync(0);
-      emit({ type: "complete" });
-      emit({
-        type: "message",
-        message: {
-          type: "system",
-          subtype: "status",
-          compact_result: "success",
-        },
-      });
-      await vi.advanceTimersByTimeAsync(11_999);
-      expect(settled).toBe(false);
+      if (ending !== "refusal" && ending !== "throw") {
+        emit({ type: "complete" });
+        emit({
+          type: "message",
+          message: {
+            type: "system",
+            subtype: "status",
+            compact_result: "success",
+          },
+        });
+        await vi.advanceTimersByTimeAsync(11_999);
+        expect(settled).toBe(false);
+      }
 
       if (ending === "deadline") await vi.advanceTimersByTimeAsync(1);
       else if (ending === "boundary") emit(boundary);
       else if (ending === "error")
         emit({ type: "error", error: new Error("lost") });
-      else emit({ type: "terminated", reason: "stopped" });
+      else if (ending === "terminated")
+        emit({ type: "terminated", reason: "stopped" });
 
-      await expect(attempt).resolves.toEqual({
-        status: ending === "boundary" ? "completed" : "timed-out",
-        command: "compact",
-      });
+      const result = await attempt;
+      if (ending === "throw") expect(result).toBe(dispatchError);
+      else if (ending === "refusal")
+        expect(result).toEqual({
+          status: "failed",
+          command: "compact",
+          reason: "refused",
+        });
+      else
+        expect(result).toEqual({
+          status: ending === "boundary" ? "completed" : "timed-out",
+          command: "compact",
+        });
+      expect(listeners.size).toBe(0);
+      expect(vi.getTimerCount()).toBe(0);
+      emit(boundary);
+      emit({ type: "terminated", reason: "late" });
+      await vi.advanceTimersByTimeAsync(12_000);
       expect(listeners.size).toBe(0);
       expect(vi.getTimerCount()).toBe(0);
     },

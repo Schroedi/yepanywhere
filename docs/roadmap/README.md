@@ -515,13 +515,11 @@ Release-delivery work remains independently required; local sessions,
 same-host provider ownership, ordinary queues, direct/relay access and native
 client transport remain retained foundations.
 
-The selected independent hygiene step is
-[HTTP-independent restart compaction](../tactical/163-http-independent-restart-compaction.md):
-extract the existing operation with unchanged behavior, then repair its
-observer cleanup separately. Independent plan review found no blockers;
-the maintainer authorized implementation and another review. This is hygiene
-outside the queued compact delivery path and does not require changes to the
-deferred automation features.
+[HTTP-independent restart compaction](../tactical/163-http-independent-restart-compaction.md)
+is implemented: extracted in `06cff21d6`, with observer cleanup fixed in the
+follow-up commit. Workspace checks and independent Opus review passed. This
+standalone hygiene work leaves resume compaction, queued compact delivery,
+Codex native dispatch and deferred automation changes as separate work.
 
 ## Later directions
 
