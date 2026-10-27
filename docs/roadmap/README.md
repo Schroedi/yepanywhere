@@ -484,6 +484,15 @@ upon first need; building it is not a cleanup prerequisite. The
 [helper-session disposition](../../topics/openai-compatible-helper-sessions.md#disposition)
 records the boundary.
 
+Row **6** is resolved as **keep or redesign; do not remove**. Addressed event
+delivery and authorized recipient resumption are valuable for multi-session
+coordination independently of harness background-job limitations. The ability
+belongs at the provider API boundary, with provider-server/runtime ownership;
+the YA web server may be a transport adapter. The
+[session-wake direction](../../topics/session-wake.md#selected-ownership-provider-api)
+preserves the existing path pending migration and requires no periodic
+heartbeat machinery. This is a documentation decision, not a landed redesign.
+
 Row **1** is implemented and locally verified: managed lane creation,
 selection, scanner grouping and launch plumbing are removed; existing
 checkouts remain untouched. [Plan 160](../tactical/160-remove-managed-checkout-lanes.md)
