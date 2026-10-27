@@ -15,7 +15,35 @@ Related topics: [compact-and-handoff](compact-and-handoff.md),
 [vanilla defaults](vanilla-defaults.md),
 [settings UI placement](settings-ui-placement.md).
 
-## Why this is tentative
+## Selected disposition
+
+**Resolved, 2026-10-27: remove the specific replay policy; retain the
+capabilities.** Implementation is pending under [core house cleaning](core-house-cleaning.md),
+row 7.
+
+Remove the configuration/UI and generation of this particular post-compact
+message, including the quoted-prose window, prompt builder and automatic
+`continue.` action. Previously saved enablement must become inert. Explicit
+`/goal` supplies the sustained-task intent that motivated this policy.
+
+Preserve the post-compact hook and dispatch capability, including waiting for
+genuine idle, respecting newer user intent and queued work, cancellation and
+one-time delivery. Preserve general hidden injected-message support and the
+small recognizer needed to render historical replay rows correctly. Neither
+capability requires the retired replay action to remain configured or active.
+Provider-native compaction, ordinary queued messages and shared lifecycle
+safeguards remain independent retained behavior.
+
+The maintainer recalls extremely slow Astra compaction and compaction's risk
+to task momentum as the motivation, and expects providers eventually to make
+this workaround unnecessary. The replay only runs after compaction settles;
+it cannot accelerate compaction itself. The removal decision concerns this
+specific message policy, not every useful post-compact action.
+
+The sections below describe the implementation pending removal, rather than
+an instruction to continue developing the replay policy.
+
+## Earlier rationale
 
 A provider-native compact already rewrites history, usually with a model-written
 summary plus a preserved tail. Replaying a fixed N prose turns on top of that
@@ -24,12 +52,11 @@ already continue the same turn through compaction (Codex commonly does). The
 setting exists so an operator can try it where a harness instead goes idle
 after compact and loses recent prose.
 
-Start with N = 0 on a backend observed going idle with unfinished work. That
-isolates whether a continuation nudge helps. Add replay only when recent intent
-is also being lost; replay can repeat obsolete requests. This setting cannot
-recover a backend that remains busy rather than reaching YA's idle state.
+The original experiment started with N = 0 to isolate the continuation nudge
+from prose replay. Nonzero replay can repeat obsolete requests. This setting
+cannot recover a backend that remains busy rather than reaching YA's idle state.
 
-## Contract
+## Current implementation contract (pending removal)
 
 - **Default off.** No provider receives a YA continuation until its checkbox
   is enabled. Novel injected provider text stays vanilla-off.

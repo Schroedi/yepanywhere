@@ -493,6 +493,13 @@ the YA web server may be a transport adapter. The
 preserves the existing path pending migration and requires no periodic
 heartbeat machinery. This is a documentation decision, not a landed redesign.
 
+Row **7** is resolved: remove post-compact replay configuration and generation
+of its specific quoted-history/`continue.` message, using explicit `/goal` for
+sustained-task intent. Preserve post-compact hooks/dispatch, their safety gates,
+general hidden injected-message support and historical replay recognition.
+The [replay disposition](../../topics/post-compact-replay.md#selected-disposition)
+records this boundary; implementation remains pending.
+
 Row **1** is implemented and locally verified: managed lane creation,
 selection, scanner grouping and launch plumbing are removed; existing
 checkouts remain untouched. [Plan 160](../tactical/160-remove-managed-checkout-lanes.md)
