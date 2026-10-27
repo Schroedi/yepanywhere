@@ -206,11 +206,16 @@ two plus 60 days for core functionality. A current hosted client should retain
 usable core behavior throughout that corpus whenever the older server
 advertises the established capability.
 
-Crossing a horizon authorizes a maintainer decision, not an automatic cutoff.
-Any cutoff still records the affected release corpus, user-visible warning,
-fallback that is being removed, and reason continued compatibility is no
-longer safe or practical. Cheap exact-capability fallbacks may remain
-indefinitely.
+The [90-day retirement rule](server-capabilities.md#90-day-retirement-rule)
+provides standing authorization to remove expired fixed-version gates and
+alternate compatibility implementations without another approval, even if an older release remains
+among the latest two. Record the affected release corpus, removed fallback and
+update guidance. Other horizon crossings authorize a maintainer decision,
+not an automatic cutoff. Fixed-version checks expire even when their fallback
+is cheap or their lifecycle says permanent. Runtime-variable availability,
+scoped representations and historical ID reservations retain their separate
+roles. Whole-connection protocol cutoffs retain their separate grace and
+warning requirements.
 
 ## Notice Behavior
 

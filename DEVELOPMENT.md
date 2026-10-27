@@ -129,8 +129,11 @@ and [hosted compatibility](topics/remote-hosted-compatibility.md).
 Present the required release-corpus, gate, and fallback plan and obtain
 maintainer approval before editing the contract. An originating request that
 already approves those decisions satisfies the gate; do not ask twice.
-Never broaden an advertised capability to include a contract older servers lack
-or remove a fallback merely because a support horizon passed.
+Never broaden an advertised capability to include a contract older servers lack.
+The [90-day retirement rule](topics/server-capabilities.md#90-day-retirement-rule)
+is standing authorization to remove expired fixed-version gates and alternate
+compatibility code without asking again. Other support horizons alone do not
+authorize removal.
 
 ## Hard Development Rules
 

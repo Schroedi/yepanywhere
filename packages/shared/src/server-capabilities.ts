@@ -231,11 +231,9 @@ export interface ServerCapabilityPermanentLifecycle {
   reason: string;
 }
 
+/** Alternate code has a hard 90-day deadline in scripts/compatibility-sunsets.json. */
 export interface ServerCapabilityTransitionalLifecycle {
   kind: "transitional";
-  reviewAfter: string;
-  removeClientGateWhen: string;
-  removeServerAdvertisementWhen?: string;
 }
 
 export interface ServerCapabilityDefinition {
@@ -243,6 +241,8 @@ export interface ServerCapabilityDefinition {
   id?: number;
   name: string;
   kind: ServerCapabilityKind;
+  /** Historical reservation only; no live client capability consumers remain. */
+  retired?: boolean;
   area:
     | "deviceBridge"
     | "gitStatus"
@@ -1376,6 +1376,7 @@ export const SERVER_CAPABILITIES = {
     id: CAPABILITY_ID_ALLOCATIONS.computerControlReleases.id,
     name: "computer-control-releases",
     kind: "permanent",
+    retired: true,
     area: "settings",
     introducedIn: "0.8.2",
     advertisement: {
@@ -1420,6 +1421,7 @@ export const SERVER_CAPABILITIES = {
     id: CAPABILITY_ID_ALLOCATIONS.computerControl.id,
     name: "optional-computer-control",
     kind: "permanent",
+    retired: true,
     area: "sessions",
     introducedIn: "0.8.2",
     advertisement: {
@@ -2185,11 +2187,6 @@ export const SERVER_CAPABILITIES = {
     },
     lifecycle: {
       kind: "transitional",
-      reviewAfter: "2026-12-09",
-      removeClientGateWhen:
-        "The core 60-day stable support corpus provides descriptors and the Maintainer approves removal.",
-      removeServerAdvertisementWhen:
-        "No maintained client branches on provider-descriptors.",
     },
   },
   rendezUploads: {
@@ -2450,7 +2447,7 @@ export const SERVER_CAPABILITIES = {
   codexStreamDurableIdAlignment: {
     id: CAPABILITY_ID_ALLOCATIONS.codexStreamDurableIdAlignment.id,
     name: "codex-stream-durable-id-alignment",
-    kind: "permanent",
+    kind: "transitional",
     area: "providers",
     introducedIn: "0.7.2",
     advertisement: { kind: "version-implied" },
@@ -2466,9 +2463,7 @@ export const SERVER_CAPABILITIES = {
       events: ["session-message"],
     },
     lifecycle: {
-      kind: "permanent",
-      reason:
-        "Hosted clients can outpace installed servers whose Codex stream and durable transcript ids do not align.",
+      kind: "transitional",
     },
   },
   codexPaginatedRolloutLineage: {
@@ -2659,7 +2654,7 @@ export const SERVER_CAPABILITIES = {
   gitSourceReview: {
     id: CAPABILITY_ID_ALLOCATIONS.gitSourceReview.id,
     name: "git-source-review",
-    kind: "permanent",
+    kind: "transitional",
     area: "gitStatus",
     introducedIn: "0.7.1",
     advertisement: { kind: "version-implied" },
@@ -2691,9 +2686,7 @@ export const SERVER_CAPABILITIES = {
       requestFields: ["gitDiff.againstHead", "gitDiff.origPath"],
     },
     lifecycle: {
-      kind: "permanent",
-      reason:
-        "Hosted clients can outpace installed servers, while Source Control must retain its released basic status and synchronization path.",
+      kind: "transitional",
     },
   },
   gitSourceReviewSubmissions: {
@@ -2960,7 +2953,7 @@ export const SERVER_CAPABILITIES = {
   gitWorkingTreeFiles: {
     id: CAPABILITY_ID_ALLOCATIONS.gitWorkingTreeFiles.id,
     name: "git-working-tree-files",
-    kind: "permanent",
+    kind: "transitional",
     area: "gitStatus",
     introducedIn: "0.7.1",
     advertisement: { kind: "version-implied" },
@@ -2988,9 +2981,7 @@ export const SERVER_CAPABILITIES = {
       ],
     },
     lifecycle: {
-      kind: "permanent",
-      reason:
-        "Older servers expose only tracked paths, so the hosted client must not infer an incomplete current-content inventory from that route.",
+      kind: "transitional",
     },
   },
   gitWorkingTreeSections: {
@@ -3360,11 +3351,6 @@ export const SERVER_CAPABILITIES = {
     },
     lifecycle: {
       kind: "transitional",
-      reviewAfter: "2027-03-16",
-      removeClientGateWhen:
-        "The hosted-client compatibility floor excludes servers older than the gateway services list.",
-      removeServerAdvertisementWhen:
-        "No maintained client still branches on claude-gateway-services.",
     },
   },
   claudeGatewayAutostart: {
@@ -3905,6 +3891,7 @@ export const SERVER_CAPABILITIES = {
     id: CAPABILITY_ID_ALLOCATIONS.projectSessionDefaults.id,
     name: "project-session-defaults",
     kind: "permanent",
+    retired: true,
     area: "settings",
     introducedIn: "0.7.1",
     advertisement: { kind: "version-implied" },

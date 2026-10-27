@@ -1,0 +1,88 @@
+[
+  {
+    "name": "compact-v1-capability-encoding",
+    "capabilities": [],
+    "supportedSince": "2026-08-10",
+    "evidence": "7122712ae: encoding 1 superseded the unreleased compact-v1 experiment",
+    "removal": "Remove compact-v1 negotiation, encoder and intermediate readers; retain encoding 1, legacy name lists and permanent IDs.",
+    "locations": [
+      {
+        "path": "packages/server/src/routes/version.ts",
+        "marker": "const compactCapabilities ="
+      },
+      {
+        "path": "packages/shared/src/server-capabilities.ts",
+        "marker": "export function encodeCompactServerCapabilities("
+      },
+      {
+        "path": "packages/shared/src/server-capabilities.ts",
+        "marker": "source?.optionalCapabilityBits"
+      }
+    ]
+  },
+  {
+    "name": "codex-before-aligned-transcript-ids",
+    "capabilities": ["codex-stream-durable-id-alignment"],
+    "supportedSince": "2026-08-31",
+    "evidence": "v0.8.0: first stable server with aligned Codex live and durable IDs",
+    "removal": "Remove Codex's unaligned-ID reconciliation and replay branches; retain helpers needed by Codex OSS and other providers. Unsupported servers receive update guidance, not unsupported requests.",
+    "locations": [
+      {
+        "path": "packages/client/src/lib/sessionDetail/transcriptReducer.ts",
+        "marker": "(provider === \"codex\" && !codexStreamDurableIdAlignment)"
+      }
+    ]
+  },
+  {
+    "name": "source-control-before-review-browser",
+    "capabilities": ["git-source-review"],
+    "supportedSince": "2026-08-31",
+    "evidence": "v0.8.0: first stable server with the Source Control review browser",
+    "removal": "Remove GitStatusCompatibilityContent and replace unsupported-server rendering with update guidance; preserve capability-gated synchronization actions where retained.",
+    "locations": [
+      {
+        "path": "packages/client/src/pages/GitStatusPage.tsx",
+        "marker": "function GitStatusCompatibilityContent("
+      }
+    ]
+  },
+  {
+    "name": "source-control-tracked-only-files",
+    "capabilities": ["git-working-tree-files"],
+    "supportedSince": "2026-08-31",
+    "evidence": "v0.8.0: first stable server with working-tree file inventory",
+    "removal": "Remove tracked-only inventory loading and alternate file/detail rendering. Retain static working-tree paths required when optional live sections are unavailable; show update guidance without unsupported requests.",
+    "locations": [
+      {
+        "path": "packages/client/src/pages/BlameBrowser.tsx",
+        "marker": ": api.listGitFiles(projectId).then"
+      }
+    ]
+  },
+  {
+    "name": "single-gateway-settings-editor",
+    "capabilities": ["claude-gateway-services"],
+    "supportedSince": "2026-09-22",
+    "evidence": "v0.9.0: first stable server with Gateway services",
+    "removal": "Remove the old single-Gateway client editor; show update guidance without legacy writes. Preserve persisted-setting import and separately required older-client server behavior.",
+    "locations": [
+      {
+        "path": "packages/client/src/pages/settings/ProvidersSettings.tsx",
+        "marker": "function ClaudeGatewaySettings("
+      }
+    ]
+  },
+  {
+    "name": "providers-before-descriptors",
+    "capabilities": ["provider-descriptors"],
+    "supportedSince": "2026-10-20",
+    "evidence": "v0.10.0: first stable server with provider descriptors",
+    "removal": "Remove the complete-catalog fallback for descriptor choices and show update guidance on unsupported servers. Retain full provider/model discovery for consumers that need it.",
+    "locations": [
+      {
+        "path": "packages/client/src/components/NewSessionForm.tsx",
+        "marker": "providerDescriptors ?? providers"
+      }
+    ]
+  }
+]
