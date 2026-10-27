@@ -5,6 +5,10 @@ Status: Dormant child ledger as of 2026-07-06. The small helper-oriented
 extractions from doc 058 are deferred while the active campaign works broader,
 higher-value module-boundary slices.
 
+Proposed revival, 2026-10-27: SRR-012 below is under plan review in
+[plan 163](163-http-independent-restart-compaction.md). The ledger remains
+dormant pending maintainer discussion; other deferred items stay deferred.
+
 See also: `topics/core-service-api.md` — the sessions REST surface this
 ledger refactors is the surface that topic proposes exposing as an
 embeddable core API, so ownership-boundary moves here shape that
@@ -80,6 +84,20 @@ boundaries, not necessarily fewer total repository lines.
 - `dropped`: no longer worth tracking.
 
 ## Refactor Items
+
+### SRR-012: Extract Restart Compaction Outside HTTP
+
+Status: proposed; implementation awaits maintainer discussion.
+
+[Plan 163](163-http-independent-restart-compaction.md) proposes moving the
+restart-compaction attempt into a narrow supervisor module, preserving both
+HTTP callers and existing policy. A separate follow-up commit would fix
+observer cleanup after dispatch refusal or throw. This does not select the
+archived core assembly or revive the deferred route-registrar extractions.
+
+The extraction carries `core-service-api` and
+`typescript-module-boundary-refactor` topic trailers. Apply the move-only
+discipline to the extraction; track the behavior fix separately.
 
 ### SRR-001: Extract Request Parsing Helpers
 

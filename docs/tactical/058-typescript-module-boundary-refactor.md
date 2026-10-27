@@ -5,6 +5,12 @@ Topic: typescript-module-boundary-refactor
 Status: Broad low-risk slices in progress; the remaining `sessions.ts`
 route-registrar extractions are deferred.
 
+Proposed 2026-10-27: [plan 163](163-http-independent-restart-compaction.md)
+and doc 053 SRR-012 describe one HTTP-independent restart-compaction
+extraction, followed by a separate observer-lifetime fix. Awaiting maintainer
+discussion after independent plan review; no implementation has started.
+This does not reactivate the other deferred route extractions.
+
 ## Contract
 
 The binding rules for this campaign — slice discipline, naming, coordination,
