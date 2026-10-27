@@ -476,7 +476,13 @@ on Kyle/kzahel (`kgraehl@gmail.com`)-led features. Work led by
 `graehl@gmail.com` is deferred, including dormant helper targets, synthetic
 heartbeat automation, wake turns, recaps and post-compact replay. Mixed rows
 identify each contributor's feature separately; shared repairs are not undone
-based on authorship.
+based on authorship. Subsequent row-specific decisions supersede that initial
+deferral: on 2026-10-27, row **4**'s dormant helper-target plumbing was authorized
+for removal, with implementation pending. Consider a provider-server-managed,
+no-tool in-house provider for prompted UI-helper/text-processing-only access
+upon first need; building it is not a cleanup prerequisite. The
+[helper-session disposition](../../topics/openai-compatible-helper-sessions.md#disposition)
+records the boundary.
 
 Row **1** is implemented and locally verified: managed lane creation,
 selection, scanner grouping and launch plumbing are removed; existing
