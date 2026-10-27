@@ -509,6 +509,14 @@ and [keepalive contract](../../topics/prompt-cache-keepalive.md#refresh-budget-a
 record the decisions; UI changes, accounting, limits and the default change
 remain implementation work.
 
+Rows **14–15** remove YA-owned `/btw` and unfinished aside report-back while
+retaining Quick Question, fork-from-turn, and the built-in `/done` and
+`/archive` commands. The card's Continue /btw action goes with its destination;
+Save Q+A and shared fork/context-delivery facilities remain. A general split
+session browser for forks is a future option, not required by this cut. The
+[aside disposition](../../topics/provider-agnostic-btw-asides.md#selected-disposition)
+records the boundary; implementation remains pending.
+
 Row **1** is implemented and locally verified: managed lane creation,
 selection, scanner grouping and launch plumbing are removed; existing
 checkouts remain untouched. [Plan 160](../tactical/160-remove-managed-checkout-lanes.md)

@@ -8,6 +8,38 @@ steering, deferred queueing, or provider-native slash-command pass-through.
 Related topic: [side session configuration](side-session-config.md) for
 silent helper queries and lightweight fallback side-query envelopes.
 
+## Selected disposition
+
+**Resolved, 2026-10-27: remove YA-owned `/btw` and unfinished report-back;
+retain Quick Question and fork-from-turn.** Implementation is pending under
+[core house cleaning](core-house-cleaning.md), rows 14–15.
+
+Quick Question and [fork-from-turn](fork-from-turn.md) cover the needed side
+question and deliberate branching workflows. Remove `/btw` launch/routing,
+focused-aside controls, dedicated split-pane UI and aside-only lifecycle
+plumbing. Remove the card's **Continue /btw** transition along with that
+destination; keep question generation, Save Q+A, Discard, failure recovery and
+their shared clone/resume/context-delivery machinery. Audit retained consumers
+before deleting helpers merely because their names mention asides.
+
+Remove the unfinished aside `/done` report-back affordances and proposed
+summary/file report modes rather than implementing them. Preserve the built-in
+`/done` and `/archive` commands and their shared done lane under
+[emulated slash commands](emulated-slash-commands.md). Quick Question's explicit
+Save Q+A is a separate retained operation, not unfinished report-back.
+
+The current `/btw` split session view has not been tightly tuned. A general
+split-session browser option for ordinary forks may be useful later; it is a
+future UI direction, not a reason to retain `/btw` or a prerequisite for this
+removal. Existing child sessions and transcripts must remain accessible as
+ordinary sessions, with useful fork provenance preserved.
+
+This decision concerns YA-owned `/btw` behavior, not removal of an independent
+provider-native command. The contracts below describe the current
+implementation pending the cut; `/btw`-specific extension plans are superseded
+by this disposition. No runtime or UI behavior changes in this documentation
+decision.
+
 ## One-shot question cards
 
 Question cards are a lighter entry than `/btw`: one question, one answer,
@@ -208,7 +240,7 @@ because its rollout filename was not canonical.
 - Clone/Fork rows with fork provenance do not render `/btw` UI, while a renamed
   aside with explicit `parentSessionKind` still does.
 
-## Next Step: Normal Turn Renderer Adapter
+## Earlier Plan: Normal Turn Renderer Adapter (superseded for `/btw`)
 
 Replace the current string-slice aside transcript model with a message-object
 adapter into the normal session turn renderer. `/btw` panes and Mother inline
@@ -320,7 +352,7 @@ Open questions deferred until we agree on value:
 - Whether `/done summary` should be available even when the aside provider
   cannot cheaply produce a short report (e.g., already context-exhausted).
 
-## Future: manual compress-in-place on the forked transcript
+## Earlier Proposal: manual compress-in-place on the forked transcript
 
 Opt-in, user-triggered compression of an aside's cloned transcript (plus the
 pending side request) before the aside agent's first real turn runs. Motivated
