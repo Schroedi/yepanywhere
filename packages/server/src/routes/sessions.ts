@@ -74,6 +74,7 @@ import type { ProjectScanner } from "../projects/scanner.js";
 import { resolveCanonicalProjectRedirect } from "./session-project-routing.js";
 import { parseSlashCommandSubmission } from "../sdk/slashCommandEmulation.js";
 import { dispatchProviderCommand } from "../supervisor/provider-command.js";
+import { tryRestartCompact } from "../supervisor/restart-compaction.js";
 import type { PermissionMode, SDKMessage, UserMessage } from "../sdk/types.js";
 import { appendApprovalAuditLog } from "../security/approvalAuditLog.js";
 import { getSessionSandboxSettingsError } from "../session-sandbox.js";
@@ -843,7 +844,6 @@ const RESTART_HANDOFF_ACTIVITY_ITEM_MAX_CHARS = 900;
 const RESTART_HANDOFF_QUEUED_MAX_CHARS = 4_000;
 const RESTART_HANDOFF_RECENT_USER_TURNS = 10;
 const RESTART_HANDOFF_RECENT_ACTIVITY_ITEMS = 24;
-const RESTART_COMPACT_WAIT_MS = 12_000;
 
 function parseRestartHandoffText(
   value: unknown,
@@ -1197,102 +1197,8 @@ function getRestartQueuedMessages(
   return process?.getDeferredQueueSummary?.() ?? [];
 }
 
-type RestartCompactAttempt =
-  | { status: "unavailable"; reason: string }
-  | { status: "skipped"; reason: string }
-  | { status: "completed"; command: string }
-  | { status: "timed-out"; command: string }
-  | { status: "failed"; command?: string; reason: string };
-
 function isCompactBoundaryMessage(message: SDKMessage | Message): boolean {
   return message.type === "system" && message.subtype === "compact_boundary";
-}
-
-async function waitForRestartCompactBoundary(
-  process: Process,
-  timeoutMs: number,
-): Promise<boolean> {
-  return new Promise((resolve) => {
-    let finished = false;
-    let unsubscribe: (() => void) | undefined;
-    const finish = (completed: boolean) => {
-      if (finished) {
-        return;
-      }
-      finished = true;
-      clearTimeout(timeout);
-      unsubscribe?.();
-      resolve(completed);
-    };
-    const timeout = setTimeout(() => finish(false), timeoutMs);
-
-    unsubscribe = process.subscribe((event) => {
-      if (event.type === "message" && isCompactBoundaryMessage(event.message)) {
-        finish(true);
-        return;
-      }
-      if (event.type === "terminated" || event.type === "error") {
-        finish(false);
-      }
-    });
-  });
-}
-
-async function tryRestartCompact(
-  process: Process | undefined,
-): Promise<RestartCompactAttempt> {
-  if (!process) {
-    return { status: "unavailable", reason: "no active source process" };
-  }
-  if (process.state.type !== "idle") {
-    return {
-      status: "skipped",
-      reason: `source process was ${process.state.type}`,
-    };
-  }
-  if (!process.supportsDynamicCommands) {
-    return {
-      status: "unavailable",
-      reason: "source process does not advertise slash commands",
-    };
-  }
-
-  let command: string | undefined;
-  try {
-    const commands = await process.supportedCommands();
-    command =
-      commands?.find((candidate) => candidate.name === "compact")?.name ??
-      commands?.find((candidate) => candidate.name === "compress")?.name;
-  } catch (error) {
-    return {
-      status: "failed",
-      reason: error instanceof Error ? error.message : String(error),
-    };
-  }
-
-  if (!command) {
-    return {
-      status: "unavailable",
-      reason: "no compact/compress slash command advertised",
-    };
-  }
-
-  const waitForCompact = waitForRestartCompactBoundary(
-    process,
-    RESTART_COMPACT_WAIT_MS,
-  );
-  const queued = process.queueMessage({ text: `/${command}` });
-  if (!queued.success) {
-    return {
-      status: "failed",
-      command,
-      reason: queued.error ?? "compact command was not accepted",
-    };
-  }
-
-  return (await waitForCompact)
-    ? { status: "completed", command }
-    : { status: "timed-out", command };
 }
 
 function latestCompactSummary(messages: Message[]): string | null {

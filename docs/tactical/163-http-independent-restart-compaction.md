@@ -1,7 +1,8 @@
 # HTTP-independent restart compaction
 
-Status: proposed, 2026-10-27. Planning and independent review only;
-implementation awaits maintainer discussion. Source baseline: `1aba656fb`.
+Status: accepted, 2026-10-27. The maintainer authorized the two implementation
+commits, individual pushes and an independent implementation review after the
+plan review. Source baseline: `1aba656fb`; saved plan: `29caa5ba5`.
 
 ## Purpose and boundary
 
@@ -18,11 +19,11 @@ compact delivery, a headless runtime, or a general session service. It can
 stop here without leaving a half-connected replacement core.
 
 This plan follows the [house-cleaning direction](../../topics/core-house-cleaning.md)
-and [core-service proposal](../../topics/core-service-api.md). It proposes
-reopening only the restart-compaction item in the dormant
+and [core-service proposal](../../topics/core-service-api.md). It reopens
+only the restart-compaction item in the dormant
 [sessions route ledger](053-sessions-route-refactor-ledger.md), with a matching
 entry in [the module-boundary worklog](058-typescript-module-boundary-refactor.md).
-Those entries become active only after discussion, before implementation.
+The maintainer accepted this limited revival before implementation.
 Other deferred route extractions stay deferred. The
 [module-boundary discipline](../../topics/typescript-module-boundary-refactor.md)
 governs the move; the cleanup is a separate behavior-fix commit.
@@ -214,4 +215,30 @@ that evidence. No broader deduplication or native-dispatch work was accepted.
 
 Discussion point: the original restart helper was graehl-authored. This plan
 preserves his features; the second commit would fix shared resource cleanup,
-not remove an automation policy. Implementation remains paused.
+not remove an automation policy. The maintainer authorized this shared repair
+after reviewing the plan.
+
+
+## Implementation record
+
+### Existing restart attempt extracted — 2026-10-27
+
+Both production callers use `supervisor/restart-compaction.ts`. Four symbols
+moved, the route predicate remains for transcript handling, and the moved
+helper text matches baseline verbatim except exports. No signature, policy,
+route-registration or wire-contract changes. No runtime import of Process or
+Supervisor. Five direct cases plus 123 unchanged route cases pass.
+
+Validation (macOS, Node 22.23.3): focused tests 3.63 s wall / 0.584 s test work;
+SDK tripwire 22.48 s wall, 80 passed and 4 environment-gated cases skipped;
+lint 15.17 s; format check 1.47 s; root typecheck 46.97 s. Explicit strict
+compilation also covers the new direct test, which normal server source
+checking excludes. Root tests passed in 136.06 s wall (server: 6,587 passed; client: 7,058
+passed).
+
+Tier 1/2 and the timer tripwire apply. Client E2E is omitted because no UI,
+route registration or client-visible contract changes; existing route tests
+exercise the HTTP boundaries. Focused and SDK checks are warning-free.
+Unrelated negative-path diagnostics in the workspace suite are recorded in
+`gaps/full-suite-timing-and-diagnostics.md`; changing those fixtures would
+cross unrelated queue, provider, highlight-worker and gateway boundaries.

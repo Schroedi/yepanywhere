@@ -515,11 +515,11 @@ Release-delivery work remains independently required; local sessions,
 same-host provider ownership, ordinary queues, direct/relay access and native
 client transport remain retained foundations.
 
-The proposed first bounded step is
+The selected independent hygiene step is
 [HTTP-independent restart compaction](../tactical/163-http-independent-restart-compaction.md):
 extract the existing operation with unchanged behavior, then repair its
 observer cleanup separately. Independent plan review found no blockers;
-maintainer discussion precedes implementation. This is independent hygiene
+the maintainer authorized implementation and another review. This is hygiene
 outside the queued compact delivery path and does not require changes to the
 deferred automation features.
 
