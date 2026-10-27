@@ -500,6 +500,15 @@ general hidden injected-message support and historical replay recognition.
 The [replay disposition](../../topics/post-compact-replay.md#selected-disposition)
 records this boundary; implementation remains pending.
 
+Rows **8–9** are retained. Recaps keep their implementation, with a pending
+concise, expandable configuration UI and warnings about current fork economics.
+Keepalive must become default-off and enforce at most ten refreshes between
+real uses, a running net-savings UI log and durable per-session disablement at
+a configured net-loss threshold. The [recap disposition](../../topics/recaps.md#house-cleaning-disposition)
+and [keepalive contract](../../topics/prompt-cache-keepalive.md#refresh-budget-and-net-savings-log)
+record the decisions; UI changes, accounting, limits and the default change
+remain implementation work.
+
 Row **1** is implemented and locally verified: managed lane creation,
 selection, scanner grouping and launch plumbing are removed; existing
 checkouts remain untouched. [Plan 160](../tactical/160-remove-managed-checkout-lanes.md)
