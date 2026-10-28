@@ -131,9 +131,11 @@ after the fact. This topic surfaces it before.
   source implements it (`core/src/session/reasoning_effort.rs`) behind the
   `reasoning_effort_override` feature, which is under development and
   default-off, and only for models whose catalog entry sets
-  `use_responses_lite` (Astra and Sol in the local catalog). YA does not
-  enable Codex features, so today an Astra effort change still goes through
-  `thread/settings/update` at request level and the warning applies. Once
-  that feature is enabled and a warm-session measurement shows the cache
-  survives, `effortChangeKeepsPromptCache` exempts Astra; details in
+  `use_responses_lite` (Astra and Sol in the local catalog). Codex 0.165.0
+  makes that feature default-on for models whose catalog sets
+  `supports_reasoning_effort_updates` (Astra, GPT-6.1 Sol and Terra), so
+  YA's `thread/settings/update` now reaches it there without a feature
+  override. The warning still applies until a warm-session measurement
+  shows the cache survives; then `effortChangeKeepsPromptCache` exempts
+  those models. Details in
   [codex-cache-features](../gaps/codex-cache-features.md).

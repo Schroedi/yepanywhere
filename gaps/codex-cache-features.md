@@ -24,7 +24,18 @@ and a thread-based fork that inherits the parent's key, or an exposed
 cache-neutral. Then measure first-request cached tokens on a warm parent as
 the quick-answer gap requires before changing the dialog copy.
 
-## Astra `configuration_update` is not enabled
+## Astra `configuration_update` is enabled upstream but unmeasured
+
+**Update, Codex 0.165.0 (2026-10-28).** Upstream #56163 promotes
+`reasoning_effort_override` to stable and default-on, so YA now gets the
+in-place update without sending a `features` override. Codex applies it to
+`thread/settings/update`-style changes (the path YA uses) for catalog models
+with `supports_reasoning_effort_updates`: in the 0.165.0 bundled catalog,
+`gpt-6-astra`, `gpt-6.1-sol` and `gpt-6.1-terra`, but not the GPT-5.6
+family. `model/list` does not expose that flag. What remains is the
+measurement below: a warm session's cached tokens across an effort change
+on those models, then the `effortChangeKeepsPromptCache` exemption. The
+0.154.0 notes that follow are history.
 
 OpenAI's reasoning guide documents, for GPT-6 Astra only in standard
 single-agent mode, changing effort between responses with

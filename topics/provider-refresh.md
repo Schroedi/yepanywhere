@@ -242,15 +242,32 @@ older installs may continue to work when YA does not need newer protocol fields,
 and version-sensitive behavior should be capability- or version-gated where
 possible ([provider-version-support](provider-version-support.md)).
 
-Catalog recheck, 2026-10-28 (installed 0.164.0; npm `latest` is 0.165.0,
-not yet installed here): a zero-token `model/list` returns nine models,
-`gpt-6.1-sol` default, adding `gpt-6.1-terra` (ranked after Astra, rendered
-`Cd Te 6.1`). OpenAI has withdrawn `gpt-5.5` and `gpt-5.3-codex-spark`;
-every turn on either fails, so YA never offers them
-([session defaults](session-defaults.md)). The protocol check was not rerun
-because the binary is unchanged.
+Current source refresh, 2026-10-28 (0.165.0, generated types only):
 
-Current source refresh, 2026-10-23 (0.164.0, generated types only):
+- Installed Codex is `codex-cli 0.165.0`; the official `rust-v0.165.0` tag
+  resolves to `360319d8d`. `expectedVersion`, `compatibleThroughVersion`,
+  and the reference checkout record `0.165.0`.
+- Regeneration changes two subset files. `CodexErrorInfo` gains
+  `modelNotFound`, which Codex now treats as terminal rather than retrying
+  (upstream #56445). YA has no matching runtime reason, so it normalizes to
+  `unknown` and still shows Codex's message; adding a reason would change
+  the client/server status contract for no visible gain. `thread/fork`
+  gains an experimental `attachToSource`, which YA does not send.
+- `reasoning_effort_override` is now stable and default-on (#56163). For
+  catalog models with `supports_reasoning_effort_updates` (Astra, GPT-6.1
+  Sol and Terra), YA's settings updates now record in-place
+  `configuration_update` items instead of changing request-level effort.
+  The effort-change warning stays until a warm-session cache measurement
+  ([codex-cache-features](../gaps/codex-cache-features.md)).
+- A zero-token `model/list` returns nine models, `gpt-6.1-sol` default,
+  adding `gpt-6.1-terra` (ranked after Astra, rendered `Cd Te 6.1`). OpenAI
+  has withdrawn `gpt-5.5` and `gpt-5.3-codex-spark`; every turn on either
+  fails, so YA never offers them ([session defaults](session-defaults.md)).
+- No 0.165.0 rollout exists locally and no credentialed smoke ran. Server
+  type checking and the provider suites (784 tests) pass on the
+  regenerated types.
+
+Previous source refresh, 2026-10-23 (0.164.0, generated types only):
 
 - Installed Codex is `codex-cli 0.164.0`; the official `rust-v0.164.0` tag
   resolves to `6aaac6948`, 1,004 commits after `rust-v0.163.0`.
