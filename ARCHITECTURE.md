@@ -16,6 +16,11 @@ provider decision. Read the proposal's removal and retained-consumer boundaries
 before extending execution placement, automatic session input/resume, lane
 checkouts or alternate core clients.
 
+The [provider architecture comparison with T3 Code](docs/competitive/t3code-provider-architecture.md)
+maps current command, queue, persistence and runtime ownership after those
+removals. Its bounded refactor recommendations remain subject to implementation
+planning; they do not select a new conversation store or framework.
+
 For work spanning machines, start with
 [Working Across Machines](topics/multi-machine-architecture.md): a discussion
 map of ownership, deployment, grants, transport and machine lifecycle, linking

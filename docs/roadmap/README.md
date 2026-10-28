@@ -574,6 +574,14 @@ follow-up commit. Workspace checks and independent Opus review passed. This
 standalone hygiene work leaves resume compaction, queued compact delivery,
 Codex native dispatch and deferred automation changes as separate work.
 
+The [October 28 provider architecture comparison](../competitive/t3code-provider-architecture.md)
+records the reduced YA baseline against current T3 source. It recommends
+planning shared live-recipient input admission and queued compaction, with
+runtime-owned cold wake as a separate migration. It reuses the existing provider
+host rather than adding another core runtime. These are recommendations, not
+newly selected implementation work or a decision to replace provider-native
+history.
+
 ## Later directions
 
 The [clone and fork settings repair](../tactical/140-clone-session-settings-inheritance.md)
