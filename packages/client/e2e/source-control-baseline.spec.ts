@@ -29,15 +29,17 @@ for (const missing of ["git-source-review", "git-working-tree-files"]) {
     await page.route("**/api/version*", async (route) => {
       const response = await route.fetch();
       const version = await response.json();
+      // CI reports an opaque source SHA, which has no version-implied bits.
+      // Model the supported stable baseline so the denial actually withdraws it.
+      const current = "0.8.0";
       await route.fulfill({
         response,
         json: {
           ...version,
-          deniedCapabilityBits: encodeVersionedServerCapabilities(
-            [],
-            version.current,
-            [missing],
-          ).deniedCapabilityBits,
+          current,
+          deniedCapabilityBits: encodeVersionedServerCapabilities([], current, [
+            missing,
+          ]).deniedCapabilityBits,
         },
       });
     });
