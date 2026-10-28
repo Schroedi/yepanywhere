@@ -63,7 +63,7 @@ for (const missing of ["git-source-review", "git-working-tree-files"]) {
   });
 }
 
-for (const width of [1000, 375]) {
+for (const width of [1200, 375]) {
   test(`static working-tree inventory keeps sequential filtering responsive at ${width}px`, async ({
     page,
     baseURL,
@@ -82,14 +82,16 @@ for (const width of [1000, 375]) {
         json: { ...inventory, files: [...inventory.files, ...files] },
       });
     });
+    let contentReads = 0;
     let releaseContent: () => void = () => {};
     const contentReady = new Promise<void>((resolve) => {
       releaseContent = resolve;
     });
-    await page.route("**/api/projects/*/file?*", async (route) => {
+    await page.route("**/api/projects/*/files?*", async (route) => {
       const path =
         new URL(route.request().url()).searchParams.get("path") ?? "";
       if (!path.startsWith("retirement-fixture/")) return route.continue();
+      contentReads++;
       await contentReady;
       await route.fulfill({
         json: {
@@ -132,6 +134,9 @@ for (const width of [1000, 375]) {
         if (typed.length === 4) releaseContent();
         await filter.pressSequentially(character);
         await expect(filter).toHaveValue(typed, { timeout: 100 });
+        if (width === 1200 && typed.length === 1) {
+          await expect.poll(() => contentReads).toBeGreaterThan(0);
+        }
       }
       await expect(
         page.locator('[data-source-path="retirement-fixture/item-649.ts"]'),
@@ -151,6 +156,14 @@ for (const width of [1000, 375]) {
         ),
       );
       expect(maximum).toBeLessThanOrEqual(100);
+      if (width === 1200) {
+        await expect(
+          page.getByText("current file contents", { exact: true }),
+        ).toBeVisible();
+        await page.setViewportSize({ width: 1000, height: 600 });
+        if (await page.getByRole("dialog").isVisible())
+          await page.keyboard.press("Escape");
+      }
       await recordUiCapture(
         page,
         width === 375 ? "files-phone" : "files-desktop",
