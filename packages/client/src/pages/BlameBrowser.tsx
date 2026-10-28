@@ -8,6 +8,7 @@ import type {
 } from "@yep-anywhere/shared";
 import {
   type ReactNode,
+  startTransition,
   useCallback,
   useEffect,
   useMemo,
@@ -177,9 +178,7 @@ export function BlameBrowser({
   onLocalSourceRootRef.current = onLocalSourceRoot;
   // Outside Git every file is equally "untracked"; list them plainly.
   const plainInventory = localRoot !== null && !localRoot.isGitRepo;
-  const searchInputRef = useRef<HTMLInputElement>(null);
   const fileMenu = useSourceContextMenu(t);
-  useSourceSearchShortcut(searchInputRef);
   const { pending } = useProjectReviewComments(
     localSourcePath === undefined ? projectId : undefined,
   );
@@ -446,24 +445,7 @@ export function BlameBrowser({
               t={t}
             />
           )}
-          <div className="source-search-field">
-            <input
-              ref={searchInputRef}
-              type="search"
-              className="source-search-input"
-              value={query}
-              placeholder={t("sourceFilterFiles")}
-              aria-keyshortcuts="/"
-              onKeyDown={(event) => {
-                if (event.key === "Escape" && query) {
-                  event.preventDefault();
-                  setQuery("");
-                }
-              }}
-              onChange={(event) => setQuery(event.target.value)}
-            />
-            <kbd className="source-search-shortcut">/</kbd>
-          </div>
+          <WorkingTreeFilter onQueryChange={setQuery} t={t} />
           {effectiveLoading ? (
             <div className="git-diff-loading">{t("gitStatusLoading")}</div>
           ) : effectiveError ? (
@@ -549,6 +531,43 @@ export function BlameBrowser({
           />
         </Modal>
       )}
+    </div>
+  );
+}
+
+/** Keep input acknowledgement outside inventory and file-detail rendering. */
+function WorkingTreeFilter({
+  onQueryChange,
+  t,
+}: {
+  onQueryChange: (query: string) => void;
+  t: TranslationFn;
+}) {
+  const [value, setValue] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  useSourceSearchShortcut(inputRef);
+  const update = (next: string) => {
+    setValue(next);
+    startTransition(() => onQueryChange(next));
+  };
+  return (
+    <div className="source-search-field">
+      <input
+        ref={inputRef}
+        type="search"
+        className="source-search-input"
+        value={value}
+        placeholder={t("sourceFilterFiles")}
+        aria-keyshortcuts="/"
+        onKeyDown={(event) => {
+          if (event.key === "Escape" && value) {
+            event.preventDefault();
+            update("");
+          }
+        }}
+        onChange={(event) => update(event.target.value)}
+      />
+      <kbd className="source-search-shortcut">/</kbd>
     </div>
   );
 }

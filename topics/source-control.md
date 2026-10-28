@@ -960,6 +960,10 @@ compatibility plan was approved by the maintainer on 2026-09-30.
 ## Search and compatibility
 
 Every Source Control filter activates on the first non-whitespace character.
+The Working Tree filter acknowledges every sequential keystroke within 100 ms,
+including with a large inventory and file details loading concurrently. Result
+filtering and rendering may catch up without blocking input; they still cover
+the entire returned corpus. Slash focus and Escape clearing remain immediate.
 Filename filters, commit-message and metadata search, and indexed changed-path
 or changed-text search share one case-insensitive match projection. It preserves
 source casing, keeps the matched substring highlighted, and independently

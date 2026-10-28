@@ -140,6 +140,7 @@ for (const width of [1200, 375]) {
           await expect.poll(() => contentReads).toBeGreaterThan(0);
         }
       }
+      await expect(page.locator(".blame-file-item")).toHaveCount(1);
       await expect(
         page.locator('[data-source-path="retirement-fixture/item-649.ts"]'),
       ).toBeVisible();
@@ -152,12 +153,13 @@ for (const width of [1200, 375]) {
           ),
         )
         .toBe(8);
-      const maximum = await page.evaluate(() =>
-        Math.max(
-          ...(window as unknown as { sourceTyping: number[] }).sourceTyping,
-        ),
+      const samples = await page.evaluate(
+        () => (window as unknown as { sourceTyping: number[] }).sourceTyping,
       );
-      expect(maximum).toBeLessThanOrEqual(100);
+      expect(
+        Math.max(...samples),
+        JSON.stringify({ width, samples }),
+      ).toBeLessThanOrEqual(100);
       if (width === 1200) {
         await expect(
           page.getByText("current file contents", { exact: true }),
