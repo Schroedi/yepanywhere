@@ -814,6 +814,10 @@ export {
   type CodexCyberAccessProgram,
 } from "./codex-cyber-access.js";
 export {
+  CODEX_WITHDRAWN_MODEL_IDS,
+  isWithdrawnCodexModel,
+} from "./codex-withdrawn-models.js";
+export {
   APPROVAL_AUDIT_LOG_CAPABILITY,
   ACLI_COMMENTARY_RENDERING_CAPABILITY,
   BANG_COMMANDS_CAPABILITY,
