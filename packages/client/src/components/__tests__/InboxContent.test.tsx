@@ -471,25 +471,6 @@ describe("InboxContent", () => {
     }
   });
 
-  it("hides project queue rows and decorations without the server capability", () => {
-    versionState.version = { capabilities: [] };
-    inboxState.needsAttention = [makeInboxItem("queued-session", "project-1")];
-    queuedSessionIds.add("queued-session");
-    projectQueueItems.push(
-      makeProjectQueueItem("queue-new-session", "project-1", "Build the docs"),
-    );
-
-    renderInbox(<InboxContent projects={[makeProject("project-1")]} />);
-
-    expect(mockUseProjectQueues).toHaveBeenCalledWith([]);
-    expect(mockUseProjectQueuedSessionIds).toHaveBeenCalledWith([]);
-    expect(
-      screen.getByTestId("session-queued-session").textContent,
-    ).not.toContain("Q");
-    expect(screen.queryByText("Build the docs")).toBe(null);
-    expect(mockListReviewInbox).not.toHaveBeenCalled();
-  });
-
   it("renders capability-gated unread review outcome cards", async () => {
     versionState.version = {
       current: "0.7.1",

@@ -190,10 +190,7 @@ import {
   useAttachmentNavigationGuard,
 } from "../lib/attachmentNavigationGuard";
 import { requiresAttachmentOnlyServerUpdate } from "../lib/attachmentSubmission";
-import {
-  serverSupportsProjectQueue,
-  shouldShowProjectQueueAffordance,
-} from "../lib/projectQueueVisibility";
+import { shouldShowProjectQueueAffordance } from "../lib/projectQueueVisibility";
 import {
   useActiveProjectSessionIds,
   useClientSummarySourceKey,
@@ -708,7 +705,7 @@ export function NewSessionForm({
   const sandboxLocalAuthOpen =
     effectiveSandboxLevel === "project-write" &&
     versionInfo?.sessionSandboxing?.localAuthEnforced === false;
-  const supportsProjectQueue = serverSupportsProjectQueue(versionInfo);
+
   const projectQueueCtrlEnterEnabled =
     versionInfo?.clientDefaults?.projectQueueCtrlEnterEnabled ??
     DEFAULT_PROJECT_QUEUE_CTRL_ENTER_ENABLED;
@@ -844,10 +841,6 @@ export function NewSessionForm({
   }, [draftControls]);
 
   const hydrateDraftAttachments = useCallback(async () => {
-    if (!supportsProjectQueue) {
-      return;
-    }
-
     const state = draftControls.getAttachmentState();
     if (!state) {
       setPendingFiles(
@@ -953,7 +946,6 @@ export function NewSessionForm({
     draftControls,
     setPendingFiles,
     showToast,
-    supportsProjectQueue,
     versionInfo,
     t,
   ]);
@@ -982,9 +974,7 @@ export function NewSessionForm({
       const pendingNames = pendingFilesRef.current.map(getPendingFileName);
       const uniqueFiles = makeAttachmentFileNamesUnique(files, pendingNames);
 
-      const batchId = supportsProjectQueue
-        ? ensureDraftAttachmentBatchId()
-        : null;
+      const batchId = ensureDraftAttachmentBatchId();
 
       if (!batchId) {
         const localFiles = uniqueFiles.map(
@@ -1158,7 +1148,6 @@ export function NewSessionForm({
       ensureDraftAttachmentBatchId,
       setPendingFiles,
       showToast,
-      supportsProjectQueue,
       t,
     ],
   );
@@ -1709,14 +1698,12 @@ export function NewSessionForm({
   const projectQueueItemCount = selectedProjectQueueItems.length;
   const projectQueueBlockingCount =
     currentProjectSelection?.projectQueueBlockingCount ?? null;
-  const showProjectQueueAction =
-    supportsProjectQueue &&
-    shouldShowProjectQueueAffordance({
-      projectId: projectQueueTargetProjectId,
-      activeProjectSessionIds,
-      projectQueueBlockingCount,
-      projectQueueItemCount,
-    });
+  const showProjectQueueAction = shouldShowProjectQueueAffordance({
+    projectId: projectQueueTargetProjectId,
+    activeProjectSessionIds,
+    projectQueueBlockingCount,
+    projectQueueItemCount,
+  });
   // A named project whose record has not arrived yet is neither detached nor
   // ready to start. The composer does not wait for it: typing starts at once,
   // and starting waits for the project.
@@ -5396,7 +5383,7 @@ export function NewSessionForm({
             className={`new-session-project-slot ${styles.projectControlsSlot}`}
           >
             {projectChooser}
-            {!launch && supportsProjectQueue && projectQueueTargetProjectId && (
+            {!launch && projectQueueTargetProjectId && (
               <NewSessionProjectQueue
                 items={selectedProjectQueueItems}
                 loading={projectQueues.loading}

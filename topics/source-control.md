@@ -17,6 +17,15 @@ compatibility shell, and links to relevant sessions. The old topic retains its
 combined implementation record for historical context; where its page-wide UI
 statements conflict with this topic, this topic governs.
 
+## Current compatibility baseline
+
+Since the 2026-10-28 retirement, enhanced status, Check remote, Pull, Push and
+integration options are baseline v0.8.0 server contracts. Their former fixed
+client gates and old enhanced-status upgrade screen are removed. Operation
+serialization, project/repository eligibility and failure feedback remain.
+Newer independent review, projection and live-working-tree capabilities still
+have their own gates. Older servers should update or use their bundled client.
+
 ## Product boundary
 
 Source Control is primarily an inspection and agent-direction surface, not a

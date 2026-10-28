@@ -1,6 +1,5 @@
 import {
   AGENT_SERVER_ACCESS_CAPABILITY,
-  APPROVAL_AUDIT_LOG_CAPABILITY,
   serverHasCapability,
 } from "@yep-anywhere/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -128,13 +127,9 @@ export function LocalAccessSettings() {
     updateSettings: updateServerSettings,
     updateSetting: updateServerSetting,
   } = useServerSettings();
-  const supportsApprovalAuditLog = serverHasCapability(
-    versionInfo,
-    APPROVAL_AUDIT_LOG_CAPABILITY,
-  );
-  const approvalAuditLogEnabled = supportsApprovalAuditLog
-    ? (serverSettings?.approvalAuditLogEnabled ?? false)
-    : true;
+
+  const approvalAuditLogEnabled =
+    serverSettings?.approvalAuditLogEnabled ?? false;
   const supportsAgentServerAccess = serverHasCapability(
     versionInfo,
     AGENT_SERVER_ACCESS_CAPABILITY,
@@ -639,17 +634,13 @@ export function LocalAccessSettings() {
   const renderApprovalAuditSettings = () => (
     <SettingsItem
       label={t("localAccessApprovalAuditTitle")}
-      description={
-        supportsApprovalAuditLog
-          ? t("localAccessApprovalAuditDescription")
-          : t("localAccessApprovalAuditUnsupportedDescription")
-      }
+      description={t("localAccessApprovalAuditDescription")}
     >
       <label className="toggle-switch">
         <input
           type="checkbox"
           checked={approvalAuditLogEnabled}
-          disabled={!supportsApprovalAuditLog || !serverSettings}
+          disabled={!serverSettings}
           onChange={(e) =>
             updateServerSetting("approvalAuditLogEnabled", e.target.checked)
           }

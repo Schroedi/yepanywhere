@@ -15,11 +15,6 @@ import {
   GIT_SOURCE_REVIEW_CAPABILITY,
   GIT_SOURCE_REVIEW_PROJECTIONS_CAPABILITY,
   GIT_SOURCE_REVIEW_SUBMISSIONS_CAPABILITY,
-  GIT_STATUS_ENHANCED_CAPABILITY,
-  GIT_STATUS_INTEGRATION_OPTIONS_CAPABILITY,
-  GIT_STATUS_PULL_CAPABILITY,
-  GIT_STATUS_PUSH_CAPABILITY,
-  GIT_STATUS_REMOTE_CHECK_CAPABILITY,
   GIT_WORKING_TREE_COMPLETE_SCAN_CAPABILITY,
   GIT_WORKING_TREE_FILES_CAPABILITY,
   GIT_WORKING_TREE_SECTIONS_CAPABILITY,
@@ -403,7 +398,7 @@ function SourceHeaderControls({
   });
   return (
     <div className={styles.actionGroup} data-source-action-group>
-      {gitActions.supportsPull && (
+      {
         <SourceActionButton
           action="pull"
           label={t("gitStatusPull")}
@@ -414,8 +409,8 @@ function SourceHeaderControls({
           onClick={gitActions.handlePull}
           disabled={gitActions.isRunning}
         />
-      )}
-      {gitActions.supportsPush && (
+      }
+      {
         <SourceActionButton
           action="push"
           label={t("gitStatusPush")}
@@ -426,8 +421,8 @@ function SourceHeaderControls({
           onClick={gitActions.handlePush}
           disabled={gitActions.isRunning}
         />
-      )}
-      {gitActions.supportsRemoteCheck && (
+      }
+      {
         <SourceActionButton
           action="check"
           label={t("gitStatusCheckRemote")}
@@ -444,7 +439,7 @@ function SourceHeaderControls({
           onClick={gitActions.handleCheckRemote}
           disabled={gitActions.isRunning}
         />
-      )}
+      }
       {onToggleWorktreePaused && (
         <button
           type="button"
@@ -687,10 +682,7 @@ export function GitStatusPage() {
     serverHasCapability(version, GIT_SOURCE_REVIEW_SUBMISSIONS_CAPABILITY) &&
     (serverSettings?.sourceReviewSubmissionsEnabled ?? false);
   const { setTab: setHeaderTab } = useSourceTab(reviewsEnabled);
-  const supportsEnhancedGitStatus = serverHasCapability(
-    version,
-    GIT_STATUS_ENHANCED_CAPABILITY,
-  );
+
   const supportsProjectCodeNames = serverHasCapability(
     version,
     PROJECT_CODE_NAMES_CAPABILITY,
@@ -729,16 +721,7 @@ export function GitStatusPage() {
     version,
     GIT_INCOMING_COMMITS_CAPABILITY,
   );
-  const supportsRemoteCheck = serverHasCapability(
-    version,
-    GIT_STATUS_REMOTE_CHECK_CAPABILITY,
-  );
-  const supportsPull = serverHasCapability(version, GIT_STATUS_PULL_CAPABILITY);
-  const supportsPush = serverHasCapability(version, GIT_STATUS_PUSH_CAPABILITY);
-  const supportsIntegrationOptions = serverHasCapability(
-    version,
-    GIT_STATUS_INTEGRATION_OPTIONS_CAPABILITY,
-  );
+
   const {
     gitStatus: statusMetadata,
     untrackedFiles: legacyUntrackedFiles,
@@ -747,7 +730,7 @@ export function GitStatusPage() {
     loading: statusLoading,
     error: statusError,
     refetch,
-  } = useGitStatus(supportsEnhancedGitStatus ? effectiveProjectId : undefined, {
+  } = useGitStatus(effectiveProjectId, {
     omitUntracked: supportsWorkingTreeSections,
     useUntrackedCache: supportsWorkingTreeFiles && !supportsWorkingTreeSections,
   });
@@ -810,10 +793,6 @@ export function GitStatusPage() {
     projectId: effectiveProjectId,
     status: gitStatus,
     routeRetentionKey,
-    supportsRemoteCheck,
-    supportsPull,
-    supportsPush,
-    supportsIntegrationOptions,
     onRefreshStatus: refetch,
     t,
   });
@@ -927,8 +906,6 @@ export function GitStatusPage() {
             <div className="error">
               {t("gitStatusErrorPrefix")} {versionError.message}
             </div>
-          ) : !supportsEnhancedGitStatus ? (
-            <GitStatusUpgradeRequired t={t} />
           ) : loading ? (
             <div className="loading">{t("gitStatusLoading")}</div>
           ) : error ? (
@@ -1008,15 +985,6 @@ export function GitStatusPage() {
         </div>
       </main>
     </MainContent>
-  );
-}
-
-function GitStatusUpgradeRequired({ t }: { t: TranslationFn }) {
-  return (
-    <div className="git-status-upgrade">
-      <h2>{t("gitStatusUpgradeRequiredTitle")}</h2>
-      <p>{t("gitStatusUpgradeRequiredDescription")}</p>
-    </div>
   );
 }
 
@@ -1361,8 +1329,7 @@ function GitActionNotices({
   gitActions: GitActionState;
   t: TranslationFn;
 }) {
-  const showIntegrationOptions =
-    gitActions.divergedActionStatus && gitActions.supportsIntegrationOptions;
+  const showIntegrationOptions = gitActions.divergedActionStatus;
   if (!gitActions.actionFeedback && !showIntegrationOptions) {
     return null;
   }

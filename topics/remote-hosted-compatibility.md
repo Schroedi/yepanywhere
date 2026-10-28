@@ -47,6 +47,17 @@ const RECOMMENDED_REMOTE_COMPATIBILITY_LEVEL = 10;
 Missing `remoteCompatibilityLevel` means "old server, level 0" for warning
 purposes. Do not infer a hard cutoff from absence alone.
 
+## Current client baseline
+
+Since the maintainer-approved 2026-10-28 retirement, current clients support
+servers from v0.8.0 and the existing backend/API update notice recommends
+that version. Older servers should update or use their co-deployed client.
+This deliberately retires fixed-feature and Codex identity fallbacks outside
+the current stable support corpus. It does not raise the coarse level, change
+SRP/resume negotiation, or block the transport connection. The exact retired
+contracts and release evidence are in
+[server capabilities](server-capabilities.md#october-2026-compatibility-retirement).
+
 ## Client URL compatibility
 
 Hosted and root-built clients share one router-path grammar. Relay-host routes

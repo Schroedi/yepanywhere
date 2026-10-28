@@ -197,17 +197,9 @@ export const OPTIONAL_SERVER_CAPABILITY_BIT_ALLOCATIONS = {
   },
 } as const;
 
-export type OptionalServerCapabilityBitset = CapabilityBitset;
-
 export interface VersionedServerCapabilityAdvertisement {
   capabilityEncoding: typeof CAPABILITY_ID_ENCODING_VERSION;
   capabilityBits: CapabilityBitset;
-  deniedCapabilityBits?: CapabilityBitset;
-}
-
-export interface CompactServerCapabilityAdvertisement {
-  optionalCapabilityBits: OptionalServerCapabilityBitset;
-  capabilityExtensions?: readonly string[];
   deniedCapabilityBits?: CapabilityBitset;
 }
 
@@ -222,8 +214,6 @@ export interface ServerCapabilitySource {
   capabilityEncoding?: number;
   capabilityBits?: CapabilityBitset;
   deniedCapabilityBits?: CapabilityBitset;
-  optionalCapabilityBits?: OptionalServerCapabilityBitset;
-  capabilityExtensions?: readonly string[];
 }
 
 export interface ServerCapabilityPermanentLifecycle {
@@ -2447,14 +2437,14 @@ export const SERVER_CAPABILITIES = {
   codexStreamDurableIdAlignment: {
     id: CAPABILITY_ID_ALLOCATIONS.codexStreamDurableIdAlignment.id,
     name: "codex-stream-durable-id-alignment",
-    kind: "transitional",
+    kind: "permanent",
     area: "providers",
     introducedIn: "0.7.2",
     advertisement: { kind: "version-implied" },
     description:
       "Server aligns Codex live and durable transcript rows on provider or client message identity when that identity exists.",
     clientFallback:
-      "Use the legacy Codex non-tool content/timestamp reconciliation, steer pairing, and timestamp-watermark replay suppression.",
+      "Current clients require aligned Codex transcript IDs from the v0.8.0 server baseline; older servers require an update.",
     serverContract: {
       responseFields: [
         "sessionDetail.messages[].uuid",
@@ -2463,7 +2453,9 @@ export const SERVER_CAPABILITIES = {
       events: ["session-message"],
     },
     lifecycle: {
-      kind: "transitional",
+      kind: "permanent",
+      reason:
+        "The identity remains advertised for older clients; current clients use aligned IDs unconditionally.",
     },
   },
   codexPaginatedRolloutLineage: {
@@ -2543,7 +2535,8 @@ export const SERVER_CAPABILITIES = {
     advertisement: { kind: "version-implied" },
     description:
       "Server supports the enhanced Source Control page, including file summaries, branch metadata, and recent commits.",
-    clientFallback: "Show the Source Control upgrade/unsupported state.",
+    clientFallback:
+      "Enhanced status is baseline in current clients; repository eligibility still applies.",
     serverContract: {
       routes: [
         "GET /api/projects/:projectId/git",
@@ -2554,7 +2547,7 @@ export const SERVER_CAPABILITIES = {
     lifecycle: {
       kind: "permanent",
       reason:
-        "The enhanced Source Control UI must stay hidden against older servers with only legacy status support.",
+        "The fixed contract remains advertised for older clients; current clients use the supported v0.8.0 baseline.",
     },
   },
   gitStatusRemoteCheck: {
@@ -2565,14 +2558,15 @@ export const SERVER_CAPABILITIES = {
     advertisement: { kind: "version-implied" },
     description:
       "Server supports explicit remote fetch/check for Source Control status.",
-    clientFallback: "Hide remote-check controls.",
+    clientFallback:
+      "Remote checks are baseline in current clients; project eligibility and action serialization still apply.",
     serverContract: {
       routes: ["POST /api/projects/:projectId/git/check-remote"],
     },
     lifecycle: {
       kind: "permanent",
       reason:
-        "Remote checking depends on a server-side git operation endpoint and may be unavailable on older servers.",
+        "The fixed contract remains advertised for older clients; current clients use the supported v0.8.0 baseline.",
     },
   },
   gitStatusPull: {
@@ -2582,14 +2576,15 @@ export const SERVER_CAPABILITIES = {
     introducedIn: "0.6.0",
     advertisement: { kind: "version-implied" },
     description: "Server supports Source Control pull actions.",
-    clientFallback: "Hide pull controls.",
+    clientFallback:
+      "Pull is baseline in current clients; repository eligibility, fast-forward policy and action serialization still apply.",
     serverContract: {
       routes: ["POST /api/projects/:projectId/git/pull"],
     },
     lifecycle: {
       kind: "permanent",
       reason:
-        "Pull is a mutating server-side git operation and must only be offered when the server advertises it.",
+        "The fixed contract remains advertised for older clients; current clients use the supported v0.8.0 baseline.",
     },
   },
   gitStatusPush: {
@@ -2599,14 +2594,15 @@ export const SERVER_CAPABILITIES = {
     introducedIn: "0.6.0",
     advertisement: { kind: "version-implied" },
     description: "Server supports Source Control push/publish actions.",
-    clientFallback: "Hide push controls.",
+    clientFallback:
+      "Push is baseline in current clients; repository eligibility, explicit action and serialization still apply.",
     serverContract: {
       routes: ["POST /api/projects/:projectId/git/push"],
     },
     lifecycle: {
       kind: "permanent",
       reason:
-        "Push is a mutating server-side git operation and must only be offered when the server advertises it.",
+        "The fixed contract remains advertised for older clients; current clients use the supported v0.8.0 baseline.",
     },
   },
   gitStatusIntegrationOptions: {
@@ -2617,14 +2613,15 @@ export const SERVER_CAPABILITIES = {
     advertisement: { kind: "version-implied" },
     description:
       "Server supports read-only Source Control integration-option analysis for diverged branches.",
-    clientFallback: "Hide automatic integration-option controls.",
+    clientFallback:
+      "Integration options are baseline in current clients and load only following a diverged result.",
     serverContract: {
       routes: ["GET /api/projects/:projectId/git/integration-options"],
     },
     lifecycle: {
       kind: "permanent",
       reason:
-        "Integration-option analysis depends on server-side route behavior older servers may not expose.",
+        "The fixed contract remains advertised for older clients; current clients use the supported v0.8.0 baseline.",
     },
   },
   gitDirtyFileEditor: {
@@ -3203,7 +3200,7 @@ export const SERVER_CAPABILITIES = {
     description:
       "Server supports configuring approval audit-log persistence from Local Access settings.",
     clientFallback:
-      "Treat approval audit logging as a legacy read-only enabled setting.",
+      "Approval logging is editable on the current v0.8.0 client baseline; no legacy read-only branch remains.",
     serverContract: {
       routes: ["GET /api/settings", "PATCH /api/settings"],
       responseFields: ["settings.approvalAuditLogEnabled"],
@@ -3211,7 +3208,7 @@ export const SERVER_CAPABILITIES = {
     lifecycle: {
       kind: "permanent",
       reason:
-        "Older servers lack the configurable approval audit-log setting and should not receive writes for it.",
+        "The fixed contract remains advertised for older clients; current clients use the supported v0.8.0 baseline.",
     },
   },
   securityClientAudit: {
@@ -3282,7 +3279,8 @@ export const SERVER_CAPABILITIES = {
     advertisement: { kind: "version-implied" },
     description:
       "Server persists opt-in previous/custom Claude model ids and exposes the maintained optional catalog.",
-    clientFallback: "Hide the Additional models provider setting.",
+    clientFallback:
+      "Additional Claude models are available on the current v0.8.0 client baseline without a separate fixed gate.",
     serverContract: {
       routes: [
         "GET /api/settings",
@@ -3299,7 +3297,7 @@ export const SERVER_CAPABILITIES = {
     lifecycle: {
       kind: "permanent",
       reason:
-        "Hosted clients may reach older servers without the additional-model settings/catalog API; the client only hides the setting there.",
+        "The fixed contract remains advertised for older clients; current clients use the supported v0.8.0 baseline.",
     },
   },
   claudeGateway: {
@@ -3590,7 +3588,8 @@ export const SERVER_CAPABILITIES = {
     advertisement: { kind: "version-implied" },
     description:
       "Server supports always-on local `!!` shell commands, completions, and persisted bang-command history; the top-level history view stays behind an explicit default-off setting.",
-    clientFallback: "Hide bang-command entry points and composer routing.",
+    clientFallback:
+      "Explicit bang execution is baseline; only the opt-in history view remains hidden by default.",
     serverContract: {
       routes: [
         "GET /api/settings",
@@ -3607,7 +3606,7 @@ export const SERVER_CAPABILITIES = {
     lifecycle: {
       kind: "permanent",
       reason:
-        "Local command execution is an explicit server security boundary and older servers may not expose the routes or setting.",
+        "The fixed contract remains advertised for older clients; current clients use the supported v0.8.0 baseline.",
     },
   },
   hostIdentity: {
@@ -3618,7 +3617,8 @@ export const SERVER_CAPABILITIES = {
     advertisement: { kind: "version-implied" },
     description:
       "Server persists an optional visual marker identifying the current YA host.",
-    clientFallback: "Hide host identity settings and render no host marker.",
+    clientFallback:
+      "Show the configured host marker when its optional icon is set; no fixed-version gate remains in current clients.",
     serverContract: {
       routes: ["GET /api/settings", "PUT /api/settings"],
       responseFields: ["settings.hostIdentity"],
@@ -3626,7 +3626,7 @@ export const SERVER_CAPABILITIES = {
     lifecycle: {
       kind: "permanent",
       reason:
-        "Hosted clients may remain compatible with older servers that cannot persist host identity.",
+        "The fixed contract remains advertised for older clients; current clients use the supported v0.8.0 baseline.",
     },
   },
   hostAwakeControl: {
@@ -3637,7 +3637,8 @@ export const SERVER_CAPABILITIES = {
     advertisement: { kind: "version-implied" },
     description:
       "Server supports process-lifetime host-awake settings and status discovery.",
-    clientFallback: "Hide host-awake settings.",
+    clientFallback:
+      "Use host-awake status on the current v0.8.0 client baseline; actual platform support still controls availability.",
     serverContract: {
       routes: [
         "GET /api/settings",
@@ -3652,7 +3653,7 @@ export const SERVER_CAPABILITIES = {
     lifecycle: {
       kind: "permanent",
       reason:
-        "Hosted clients may reach older servers without the host-awake settings/status API; the client only hides host-awake settings there.",
+        "The fixed contract remains advertised for older clients; current clients use the supported v0.8.0 baseline.",
     },
   },
   hostAgentProcessObservability: {
@@ -3819,7 +3820,8 @@ export const SERVER_CAPABILITIES = {
     advertisement: { kind: "version-implied" },
     description:
       "Server supports durable project-scoped queue creation, listing, mutation, dispatch pause/resume, and promotion.",
-    clientFallback: "Hide Project Queue entry points.",
+    clientFallback:
+      "Project Queue is baseline in current clients; preserve queue admission, source readiness and configured affordance visibility.",
     serverContract: {
       routes: [
         "GET /api/project-queue",
@@ -3838,7 +3840,7 @@ export const SERVER_CAPABILITIES = {
     lifecycle: {
       kind: "permanent",
       reason:
-        "Project Queue availability remains a server feature boundary for older servers and hosted remote clients.",
+        "The fixed contract remains advertised for older clients; current clients use the supported v0.8.0 baseline.",
     },
   },
   projectQueueReadinessCheck: {
@@ -4123,7 +4125,7 @@ export const SERVER_CAPABILITIES = {
     description:
       "Server accepts and persists the active-composer new-session Project Queue shortcut presence setting.",
     clientFallback:
-      "Hide the active-composer new-session shortcut and its Toolbar setting.",
+      "The new-session shortcut setting is baseline; its configured presence still controls visibility.",
     serverContract: {
       routes: ["GET /api/settings", "PUT /api/settings"],
       responseFields: [
@@ -4133,7 +4135,7 @@ export const SERVER_CAPABILITIES = {
     lifecycle: {
       kind: "permanent",
       reason:
-        "Hosted clients must not save the new toolbar presence key to older servers that reject it.",
+        "The fixed contract remains advertised for older clients; current clients use the supported v0.8.0 baseline.",
     },
   },
   voiceInput: {
@@ -4500,40 +4502,6 @@ const SERVER_CAPABILITY_DEFINITIONS_BY_NAME = new Map<
   ]),
 );
 
-export function encodeOptionalServerCapabilityBits(
-  capabilities: readonly string[],
-): OptionalServerCapabilityBitset {
-  const ids: number[] = [];
-  for (const name of capabilities) {
-    const advertisement =
-      SERVER_CAPABILITY_DEFINITIONS_BY_NAME.get(name)?.advertisement;
-    if (advertisement?.kind !== "optional-bit") continue;
-    ids.push(advertisement.index);
-  }
-  return encodeCapabilityIds(ids);
-}
-
-export function encodeCompactServerCapabilities(
-  capabilities: readonly string[],
-  currentVersion: string,
-  deniedCapabilities: readonly string[] = [],
-): CompactServerCapabilityAdvertisement {
-  const capabilityExtensions = capabilities.filter((name) => {
-    const definition = SERVER_CAPABILITY_DEFINITIONS_BY_NAME.get(name);
-    return (
-      !definition ||
-      (definition.advertisement.kind === "version-implied" &&
-        !isVersionAtLeast(currentVersion, definition.introducedIn)) ||
-      definition.advertisement.kind === "scoped"
-    );
-  });
-  return {
-    optionalCapabilityBits: encodeOptionalServerCapabilityBits(capabilities),
-    ...(capabilityExtensions.length > 0 ? { capabilityExtensions } : {}),
-    ...encodeDeniedServerCapabilities(deniedCapabilities, currentVersion),
-  };
-}
-
 function encodeDeniedServerCapabilities(
   deniedCapabilities: readonly string[],
   currentVersion: string,
@@ -4635,10 +4603,7 @@ export function serverHasCapability(
   ) {
     return false;
   }
-  if (
-    source?.capabilities?.includes(name) ||
-    source?.capabilityExtensions?.includes(name)
-  ) {
+  if (source?.capabilities?.includes(name)) {
     return true;
   }
 
@@ -4652,15 +4617,9 @@ export function serverHasCapability(
     );
   }
   if (definition.advertisement.kind === "optional-bit") {
-    return (
-      capabilityBitIsSet(
-        source?.capabilityBits,
-        definition.advertisement.index,
-      ) ||
-      capabilityBitIsSet(
-        source?.optionalCapabilityBits,
-        definition.advertisement.index,
-      )
+    return capabilityBitIsSet(
+      source?.capabilityBits,
+      definition.advertisement.index,
     );
   }
   return false;
@@ -4673,9 +4632,7 @@ export function hasServerCapabilityAdvertisement(
     source?.capabilities !== undefined ||
     source?.capabilityEncoding !== undefined ||
     source?.capabilityBits !== undefined ||
-    source?.deniedCapabilityBits !== undefined ||
-    source?.optionalCapabilityBits !== undefined ||
-    source?.capabilityExtensions !== undefined
+    source?.deniedCapabilityBits !== undefined
   );
 }
 

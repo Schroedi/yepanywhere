@@ -215,14 +215,6 @@ describe("ProvidersSettings additional models", () => {
     vi.clearAllMocks();
   });
 
-  it("hides the setting when the connected server lacks the capability", () => {
-    versionState.capabilities = [];
-
-    render(<ProvidersSettings />);
-
-    expect(screen.queryByText("providersAdditionalModelsTitle")).toBeNull();
-  });
-
   it("hides idle harness lifetime from older servers", () => {
     render(<ProvidersSettings />);
 

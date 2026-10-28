@@ -3488,45 +3488,6 @@ describe("NewSessionForm", () => {
     ).toBeNull();
   });
 
-  it("hides the new-session Project Queue action without server capability", () => {
-    toolbarVisibilityState.projectQueue = true;
-    versionState.version = { capabilities: [] };
-    projectQueueState.byProject = {
-      "project-1": [
-        {
-          id: "unsupported-queue",
-          projectId: "project-1",
-          target: { type: "new-session", title: "Unsupported queue" },
-          messagePreview: "Unsupported queue",
-          message: { text: "Unsupported queue" },
-          createdAt: "2026-08-15T00:00:00.000Z",
-          updatedAt: "2026-08-15T00:00:00.000Z",
-          status: "queued",
-          attachmentCount: 0,
-        },
-      ],
-    };
-    inboxState.active = [
-      { sessionId: "session-active", projectId: "project-1" },
-    ];
-    serverSettingsState.isLoading = false;
-
-    render(
-      <NewSessionForm
-        projectId="project-1"
-        selectedProject={chooserProjects[0]}
-        projects={[...chooserProjects]}
-      />,
-    );
-
-    expect(
-      screen.queryByRole("button", { name: "toolbarProjectQueueLabel" }),
-    ).toBe(null);
-    expect(
-      document.querySelector('[data-new-session-project-queue="true"]'),
-    ).toBeNull();
-  });
-
   it("hides the new-session Project Queue action by default", () => {
     render(
       <NewSessionForm

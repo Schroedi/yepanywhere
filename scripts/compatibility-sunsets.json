@@ -1,39 +1,5 @@
 [
   {
-    "name": "compact-v1-capability-encoding",
-    "capabilities": [],
-    "supportedSince": "2026-08-10",
-    "evidence": "7122712ae: encoding 1 superseded the unreleased compact-v1 experiment",
-    "removal": "Remove compact-v1 negotiation, encoder and intermediate readers; retain encoding 1, legacy name lists and permanent IDs.",
-    "locations": [
-      {
-        "path": "packages/server/src/routes/version.ts",
-        "marker": "const compactCapabilities ="
-      },
-      {
-        "path": "packages/shared/src/server-capabilities.ts",
-        "marker": "export function encodeCompactServerCapabilities("
-      },
-      {
-        "path": "packages/shared/src/server-capabilities.ts",
-        "marker": "source?.optionalCapabilityBits"
-      }
-    ]
-  },
-  {
-    "name": "codex-before-aligned-transcript-ids",
-    "capabilities": ["codex-stream-durable-id-alignment"],
-    "supportedSince": "2026-08-31",
-    "evidence": "v0.8.0: first stable server with aligned Codex live and durable IDs",
-    "removal": "Remove Codex's unaligned-ID reconciliation and replay branches; retain helpers needed by Codex OSS and other providers. Unsupported servers receive update guidance, not unsupported requests.",
-    "locations": [
-      {
-        "path": "packages/client/src/lib/sessionDetail/transcriptReducer.ts",
-        "marker": "(provider === \"codex\" && !codexStreamDurableIdAlignment)"
-      }
-    ]
-  },
-  {
     "name": "source-control-before-review-browser",
     "capabilities": ["git-source-review"],
     "supportedSince": "2026-08-31",

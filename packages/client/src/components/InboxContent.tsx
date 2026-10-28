@@ -21,16 +21,13 @@ import {
   useProjectQueuedSessionIds,
 } from "../lib/clientSummaryStore";
 import { activityBus } from "../lib/activityBus";
-import { serverSupportsProjectQueue } from "../lib/projectQueueVisibility";
+
 import type { Project } from "../types";
 import { getSessionDisplayTitle } from "../utils";
 import { FilterDropdown, type FilterOption } from "./FilterDropdown";
 import styles from "./InboxContent.module.css";
 import { SessionListItem } from "./SessionListItem";
 import { SessionAsyncQuestionsButton } from "./SessionAsyncQuestionsButton";
-
-const EMPTY_PROJECT_QUEUE_PROJECT_IDS: readonly string[] = [];
-const EMPTY_PROJECT_QUEUE_SESSION_IDS: ReadonlySet<string> = new Set();
 
 /**
  * Tier configuration for visual styling.
@@ -421,7 +418,7 @@ export function InboxContent({
   const basePath = useRemoteBasePath();
   const { settings: serverSettings } = useServerSettings();
   const { version } = useVersion();
-  const supportsProjectQueue = serverSupportsProjectQueue(version);
+
   const publicShareManagementAvailable = serverHasCapability(
     version,
     PUBLIC_SHARE_MANAGEMENT_CAPABILITY,
@@ -556,25 +553,14 @@ export function InboxContent({
   // Keep the queue feed mounted for known inbox projects. Badge rendering
   // reads from the shared client summary store selector below, while new-session
   // queue items render as pending Active rows because they have no session yet.
-  const projectQueues = useProjectQueues(
-    supportsProjectQueue
-      ? queueFeedProjectIds
-      : EMPTY_PROJECT_QUEUE_PROJECT_IDS,
-  );
+  const projectQueues = useProjectQueues(queueFeedProjectIds);
   const rawProjectQueuedSessionIds = useProjectQueuedSessionIds(
-    supportsProjectQueue
-      ? visibleSessionProjectIds
-      : EMPTY_PROJECT_QUEUE_PROJECT_IDS,
+    visibleSessionProjectIds,
   );
-  const projectQueuedSessionIds = supportsProjectQueue
-    ? rawProjectQueuedSessionIds
-    : EMPTY_PROJECT_QUEUE_SESSION_IDS;
+  const projectQueuedSessionIds = rawProjectQueuedSessionIds;
   const pendingNewSessionQueueItems = useMemo(
-    () =>
-      supportsProjectQueue
-        ? projectQueues.items.filter(isPendingNewSessionProjectQueueItem)
-        : [],
-    [projectQueues.items, supportsProjectQueue],
+    () => projectQueues.items.filter(isPendingNewSessionProjectQueueItem),
+    [projectQueues.items],
   );
   const filteredReviewInbox = useMemo(
     () =>
@@ -595,7 +581,6 @@ export function InboxContent({
     reviewInboxLoading ||
     (totalSessionItems === 0 &&
       pendingNewSessionQueueItems.length === 0 &&
-      supportsProjectQueue &&
       projectQueues.loading);
   const isEmpty = totalItems === 0 && !pageLoading;
 

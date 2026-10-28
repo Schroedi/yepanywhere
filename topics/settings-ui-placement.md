@@ -244,7 +244,9 @@ UI should state directly.
 - **Local Access → Approval audit log.** Saves explicit approve and deny
   decisions, including the associated tool inputs or commands, to
   `logs/approval-decisions.jsonl`. It does not currently audit bypass-mode
-  selection or transitions.
+  selection or transitions. Current clients edit the persisted logging toggle
+  on the v0.8.0 server baseline; the former legacy read-only fallback was
+  retired on 2026-10-28.
 - **Remote Executors.** This server-wide host list is the sole enablement for
   the New Session **Run via SSH** chooser. Adding or removing a host updates an
   already-mounted New Session form immediately; no page reload or server restart

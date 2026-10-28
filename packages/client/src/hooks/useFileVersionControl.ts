@@ -1,6 +1,5 @@
 import {
   GIT_FILE_DIFF_PROJECTIONS_CAPABILITY,
-  GIT_STATUS_ENHANCED_CAPABILITY,
   type GitFileChange,
   type GitFileProjectionManifest,
   serverHasCapability,
@@ -165,10 +164,6 @@ export function useFileVersionControl(
 } {
   const sourceKey = useClientSummarySourceKey();
   const version = useRetainedVersionInfo(sourceKey);
-  const supportsStatus = serverHasCapability(
-    version,
-    GIT_STATUS_ENHANCED_CAPABILITY,
-  );
   const supported = serverHasCapability(
     version,
     GIT_FILE_DIFF_PROJECTIONS_CAPABILITY,
@@ -178,7 +173,7 @@ export function useFileVersionControl(
     [filePath],
   );
   const enabledStatusProjectId =
-    supportsStatus && supported && relativePath ? projectId : undefined;
+    supported && relativePath ? projectId : undefined;
   const {
     gitStatus,
     loading: statusLoading,

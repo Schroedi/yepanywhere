@@ -5439,30 +5439,6 @@ describe("MessageInput", () => {
     expectSubmission(onQueue, "patient fallback", "patient");
   });
 
-  it("does not steal Ctrl+Enter from queue when Project Queue is unsupported", () => {
-    versionState.version = {
-      ...versionState.version,
-      capabilities: [VOICE_INPUT_CAPABILITY],
-      clientDefaults: { patientQueueDefault: true },
-    };
-    const onQueue = vi.fn();
-    const onProjectQueue = vi.fn();
-    const textarea = renderMessageInput(
-      vi.fn(() => true),
-      {
-        supportsSteering: true,
-        onQueue,
-        onProjectQueue,
-      },
-    );
-
-    fireEvent.change(textarea, { target: { value: "unsupported fallback" } });
-    fireEvent.keyDown(textarea, { key: "Enter", ctrlKey: true });
-
-    expect(onProjectQueue).not.toHaveBeenCalled();
-    expectSubmission(onQueue, "unsupported fallback", "patient");
-  });
-
   it("keeps queue available when the primary steer action downgrades", () => {
     const onQueue = vi.fn();
     const textarea = renderMessageInput(
@@ -5675,30 +5651,6 @@ describe("MessageInput", () => {
       }),
     );
     expectSubmission(onProjectQueueNewSession, "new work", "deferred");
-  });
-
-  it("hides the project queue action without server capability", () => {
-    versionState.version = {
-      ...versionState.version,
-      capabilities: [VOICE_INPUT_CAPABILITY],
-    };
-    const onProjectQueue = vi.fn();
-    const onProjectQueueNewSession = vi.fn();
-    const textarea = renderMessageInput(vi.fn(), {
-      onProjectQueue,
-      onProjectQueueNewSession,
-    });
-
-    fireEvent.change(textarea, { target: { value: "project-wide later" } });
-
-    expect(
-      screen.queryByRole("button", { name: "Queue for Project Queue" }),
-    ).toBe(null);
-    expect(
-      screen.queryByRole("button", {
-        name: "Queue as new session for Project Queue",
-      }),
-    ).toBe(null);
   });
 
   it("keeps the project queue toolbar action hidden by visibility", () => {

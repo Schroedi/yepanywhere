@@ -11,7 +11,6 @@ import {
 } from "react";
 import {
   SERVER_CAPABILITIES,
-  CLAUDE_ADDITIONAL_MODELS_CAPABILITY,
   CLAUDE_GATEWAY_AUTOSTART_CAPABILITY,
   CLAUDE_GATEWAY_CAPABILITY,
   CLAUDE_GATEWAY_DISABLE_AGENT_CAPABILITY,
@@ -1250,10 +1249,7 @@ export function ProvidersSettings() {
   } = useProviders();
   const { settings, updateSetting } = useServerSettings();
   const { version } = useVersion();
-  const supportsAdditionalModels = serverHasCapability(
-    version,
-    CLAUDE_ADDITIONAL_MODELS_CAPABILITY,
-  );
+
   const supportsCodexReasoningSummary = serverHasCapability(
     version,
     CODEX_REASONING_SUMMARY_SETTING_CAPABILITY,
@@ -1728,7 +1724,7 @@ export function ProvidersSettings() {
                 updateSetting={updateSetting}
               />
             )}
-            {provider.id === "claude" && supportsAdditionalModels && (
+            {provider.id === "claude" && (
               <ClaudeAdditionalModelsSettings
                 modelOptions={provider.additionalModelOptions ?? []}
                 selections={settings?.claudeAdditionalModels ?? []}

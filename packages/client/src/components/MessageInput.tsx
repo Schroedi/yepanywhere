@@ -127,7 +127,7 @@ import {
   createSpeechTargetId,
 } from "../lib/speechTargets";
 import { handleVoiceInputShortcutKeyDown } from "../lib/voiceInputShortcut";
-import { serverSupportsProjectQueue } from "../lib/projectQueueVisibility";
+
 import { hasComposerDraftContent } from "../lib/sessionComposerSubmission";
 import type {
   ContextUsage,
@@ -897,10 +897,9 @@ export function MessageInput({
   const projectQueueCtrlEnterEnabled =
     version?.clientDefaults?.projectQueueCtrlEnterEnabled ??
     DEFAULT_PROJECT_QUEUE_CTRL_ENTER_ENABLED;
-  const projectQueueSupported = serverSupportsProjectQueue(version);
+
   const projectQueueShortcutAvailable =
     projectQueueCtrlEnterEnabled &&
-    projectQueueSupported &&
     toolbarVisibility.projectQueue &&
     !!onProjectQueue &&
     !forkSummaryMode;
@@ -2294,13 +2293,9 @@ export function MessageInput({
   // Render session actions only when they are useful, so a neighboring visible
   // action can absorb their space while the session is inactive.
   const showMobileProjectQueueAction =
-    !forkSummaryMode &&
-    projectQueueSupported &&
-    toolbarVisibility.projectQueue &&
-    !!onProjectQueue;
+    !forkSummaryMode && toolbarVisibility.projectQueue && !!onProjectQueue;
   const showMobileProjectQueueNewSessionAction =
     !forkSummaryMode &&
-    projectQueueSupported &&
     toolbarVisibility.projectQueueNewSessionShortcut &&
     !!onProjectQueueNewSession;
   const showMobileSessionAlternateAction =

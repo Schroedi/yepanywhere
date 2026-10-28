@@ -438,23 +438,4 @@ describe("LocalAccessSettings", () => {
       true,
     );
   });
-
-  it("shows legacy approval audit logging as read-only without capability", async () => {
-    versionState.capabilities = [];
-    hookState.settings = {
-      ...baseSettings,
-      approvalAuditLogEnabled: false,
-    };
-
-    render(<LocalAccessSettings />);
-
-    const auditToggle = await screen.findByRole("checkbox", {
-      name: "localAccessApprovalAuditTitle",
-    });
-    expect(auditToggle).toHaveProperty("disabled", true);
-    expect(auditToggle).toHaveProperty("checked", true);
-    expect(
-      screen.getByText("localAccessApprovalAuditUnsupportedDescription"),
-    ).toBeTruthy();
-  });
 });

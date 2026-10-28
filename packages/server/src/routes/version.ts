@@ -92,12 +92,10 @@ import {
   SECURITY_CLIENT_AUDIT_CAPABILITY,
   TOOL_RESULT_MEDIA_PRESERVATION_POLICY_CAPABILITY,
   VOICE_INPUT_CAPABILITY,
-  encodeCompactServerCapabilities,
   encodeVersionedServerCapabilities,
   negotiateServerCapabilityEncoding,
   type CapabilityBitset,
   type ClientDefaults,
-  type OptionalServerCapabilityBitset,
   type SessionSandboxAvailability,
 } from "@yep-anywhere/shared";
 import { Hono } from "hono";
@@ -479,10 +477,6 @@ export interface VersionInfo {
   capabilityBits?: CapabilityBitset;
   /** Version-implied capability IDs this server generation explicitly denies. */
   deniedCapabilityBits?: CapabilityBitset;
-  /** Sparse 32-bit words for optional capabilities in compact-v1 responses. */
-  optionalCapabilityBits?: OptionalServerCapabilityBitset;
-  /** Names not yet implied by the reported release, chiefly source builds. */
-  capabilityExtensions?: readonly string[];
   /** Local host preflight for the optional YA session sandbox backend. */
   sessionSandboxing?: SessionSandboxAvailability;
   /**
@@ -925,7 +919,6 @@ export function createVersionRoutes(options?: VersionRouteOptions): Hono {
       clientVersion,
       current,
     );
-    const compactCapabilities = c.req.query("capabilities") === "compact-v1";
     const capabilities = getServerCapabilities({
       ...options,
       getDeviceBridgeState: () => deviceBridgeStatus.state,
@@ -972,20 +965,14 @@ export function createVersionRoutes(options?: VersionRouteOptions): Hono {
             current,
             deniedCapabilities,
           )
-        : compactCapabilities
-          ? encodeCompactServerCapabilities(
-              capabilities,
+        : {
+            capabilities,
+            deniedCapabilityBits: encodeVersionedServerCapabilities(
+              [],
               current,
               deniedCapabilities,
-            )
-          : {
-              capabilities,
-              deniedCapabilityBits: encodeVersionedServerCapabilities(
-                [],
-                current,
-                deniedCapabilities,
-              ).deniedCapabilityBits,
-            }),
+            ).deniedCapabilityBits,
+          }),
       ...(capabilities.includes(
         SERVER_CAPABILITIES.experimentalConversation.name,
       )

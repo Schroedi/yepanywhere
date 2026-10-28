@@ -2,7 +2,6 @@ import {
   buildYaClientPublicShareBaseUrl,
   DEFAULT_HOST_AWAKE_BATTERY_FLOOR_PERCENT,
   DEFAULT_YA_CLIENT_BASE_URL,
-  HOST_AWAKE_CONTROL_CAPABILITY,
   PUBLIC_SHARE_MANAGEMENT_CAPABILITY,
   type HostAwakeStatus,
   type HostIdentity,
@@ -15,7 +14,6 @@ import { useEffect, useState } from "react";
 import type { PublicShareStatusResponse } from "../../api/client";
 import { PublicShareManagerModal } from "../../components/PublicShareManagerModal";
 import { RemoteAccessSetup } from "../../components/RemoteAccessSetup";
-import { useHostIdentity } from "../../contexts/HostIdentityContext";
 import { useOptionalRemoteConnection } from "../../contexts/RemoteConnectionContext";
 import { usePublicShareStatus } from "../../hooks/usePublicShareStatus";
 import { useHostAwakeStatus } from "../../hooks/useHostAwakeStatus";
@@ -350,12 +348,8 @@ export function RemoteAccessSettings() {
   const { t } = useI18n();
   useSettingsPaneTitle(t("settingsRemoteTitle"));
   const remoteConnection = useOptionalRemoteConnection();
-  const { supported: hostIdentitySupported } = useHostIdentity();
   const { version } = useVersion();
-  const hostAwakeSupported = serverHasCapability(
-    version,
-    HOST_AWAKE_CONTROL_CAPABILITY,
-  );
+
   const publicShareManagementSupported = serverHasCapability(
     version,
     PUBLIC_SHARE_MANAGEMENT_CAPABILITY,
@@ -372,7 +366,7 @@ export function RemoteAccessSettings() {
     isLoading: hostAwakeStatusLoading,
     error: hostAwakeStatusError,
     refetch: refetchHostAwakeStatus,
-  } = useHostAwakeStatus(hostAwakeSupported);
+  } = useHostAwakeStatus(true);
   const { settings, isLoading, error, updateSetting, updateSettings } =
     useServerSettings();
   const publicSharesEnabled = settings?.publicSharesEnabled ?? false;
@@ -452,14 +446,14 @@ export function RemoteAccessSettings() {
     await updateSetting("publicSharesEnabled", enabled);
     if (!enabled) setShowPublicShareManagement(false);
   };
-  const hostIdentityItem = hostIdentitySupported ? (
+  const hostIdentityItem = (
     <HostIdentitySettings
       currentIcon={settings?.hostIdentity?.icon ?? ""}
       disabled={isLoading}
       onChange={(identity) => updateSetting("hostIdentity", identity)}
     />
-  ) : null;
-  const hostAwakeConfig = hostAwakeSupported ? (
+  );
+  const hostAwakeConfig = (
     <HostAwakeSettings
       status={hostAwakeStatus}
       statusError={hostAwakeStatusError}
@@ -475,7 +469,7 @@ export function RemoteAccessSettings() {
         await refetchHostAwakeStatus(true);
       }}
     />
-  ) : null;
+  );
 
   // Public read-only share only works once Remote Access (relay) is configured,
   // so its controls live at the top of this tab.

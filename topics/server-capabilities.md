@@ -116,12 +116,12 @@ The version-bearing handshake introduced encoding 1 in 0.7.1. A source build's
 git-describe version can establish encoding-1 support even when its preceding
 release tag is older. An unparseable server version selects the legacy encoding.
 
-Missing/older client versions select the legacy name list. The shared reader
-also accepts intermediate `optionalCapabilityBits`/`capabilityExtensions`
-responses; new clients do not negotiate that intermediate representation.
-These compatibility readers are existing implementation, not instructions to
-create new name-based gates. Transport `formats` have a separate namespace and
-meaning; see [remote hosted compatibility](remote-hosted-compatibility.md).
+Missing/older client versions select the legacy name list. The intermediate
+`compact-v1` encoding, encoder and readers were removed on 2026-10-28. Its
+former query parameter is ignored, so an unidentified client receives the
+ordinary name list; current client versions receive encoding 1. Transport
+`formats` retain their separate namespace and meaning; see
+[remote hosted compatibility](remote-hosted-compatibility.md).
 
 ## When to add one
 
@@ -167,6 +167,36 @@ user-visible effect and update guidance when removing code; do not request
 another approval for that retirement. Other compatibility changes still
 require the review above. Security exceptions follow
 [hard development rules](hard-development-rules.md).
+
+## October 2026 compatibility retirement
+
+The maintainer approved this cleanup on 2026-10-28. Current clients use
+**v0.8.0 as their supported server baseline**, with the existing hosted update
+notice recommending that baseline. Older installations should update or use
+the client bundled with their server. Transport authentication and resume
+protocols retain their separate grace and warning rules; this cleanup adds no
+connection-protocol cutoff.
+
+The core release corpus is v0.8.0, v0.8.1, v0.9.0, v0.9.1, v0.9.2,
+v0.10.0, v0.10.1, v0.10.2 and v0.11.0. Every release supplies the retired
+fixed contracts and aligned Codex transcript IDs. v0.11.0 and v0.10.2 are the
+latest two; the optional 14-day corpus also includes v0.10.0 and v0.10.1.
+No stable client negotiated the one-day, superseded `compact-v1` experiment.
+
+Current clients no longer gate approval-log editing, additional Claude models,
+host identity, host-awake controls, bang execution, Project Queue or its
+new-session shortcut, enhanced Git status, remote checks, Pull, Push and
+integration options on their old fixed capabilities. The redundant Project
+Queue hosted-generation check is also removed. Persisted opt-ins, permissions,
+platform availability, queue admission and Git operation serialization still
+apply. Capability IDs, introduction versions and server advertisement remain
+available for maintained older clients.
+
+Codex reconciliation always uses the aligned-ID contract, including while
+version metadata is pending: equal content and timestamps cannot collapse
+distinct provider IDs, and replay suppression uses persisted identity.
+Codex OSS, Pi, OpenCode and Claude retain their independently required scoped
+reconciliation. Neither provider formats nor durable user data are migrated.
 
 ## Capability lifecycle classes
 
