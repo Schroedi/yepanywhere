@@ -1119,6 +1119,11 @@ function SessionPageContent({
   const [correctionDraft, setCorrectionDraft] = useState<{
     messageId: string;
     originalText: string;
+    recalled?: boolean;
+  } | null>(null);
+  const preCorrectionDraftRef = useRef<{
+    text: string;
+    attachments: ComposerAttachment[];
   } | null>(null);
   const { questionAsidesEnabled } = useQuestionAsideSetting();
   const questionSourceApi = useMemo(
@@ -1291,6 +1296,9 @@ function SessionPageContent({
   useEffect(() => {
     return () => {
       revokeAttachmentPreviewUrls(attachmentsRef.current);
+      revokeAttachmentPreviewUrls(
+        preCorrectionDraftRef.current?.attachments ?? [],
+      );
     };
   }, []);
 
@@ -2360,10 +2368,32 @@ function SessionPageContent({
   }, [resetBtwAsides, sessionId, setComposerAttachments]);
 
   const handleCancelCorrection = useCallback(() => {
+    const previous = preCorrectionDraftRef.current;
+    preCorrectionDraftRef.current = null;
     setCorrectionDraft(null);
-    draftControlsRef.current?.clearDraft();
-    setComposerAttachments([], { revokeRemovedPreviewUrls: true });
+    draftControlsRef.current?.setDraft(previous?.text ?? "");
+    setComposerAttachments(previous?.attachments ?? [], {
+      revokeRemovedPreviewUrls: true,
+    });
   }, [setComposerAttachments]);
+
+  useEffect(() => {
+    if (!correctionDraft && preCorrectionDraftRef.current) {
+      revokeAttachmentPreviewUrls(preCorrectionDraftRef.current.attachments);
+      preCorrectionDraftRef.current = null;
+    }
+  }, [correctionDraft]);
+
+  useEffect(() => {
+    if (
+      isDomLingerParked &&
+      correctionDraft?.recalled &&
+      draftControlsRef.current?.getDraft() === correctionDraft.originalText &&
+      attachmentsRef.current.length === 0
+    ) {
+      handleCancelCorrection();
+    }
+  }, [isDomLingerParked, correctionDraft, handleCancelCorrection]);
 
   const handleCorrectLatestUserMessage = useCallback(
     (messageId: string, content: string) => {
@@ -2378,8 +2408,12 @@ function SessionPageContent({
         return;
       }
 
+      preCorrectionDraftRef.current ??= {
+        text: draftControls.getDraft(),
+        attachments: [...attachmentsRef.current],
+      };
       draftControls.setDraft(content);
-      setComposerAttachments([], { revokeRemovedPreviewUrls: true });
+      setComposerAttachments([]);
       setCorrectionDraft({ messageId, originalText: content });
     },
     [setComposerAttachments, showToast, t],
@@ -4319,6 +4353,10 @@ function SessionPageContent({
       return false;
     }
 
+    preCorrectionDraftRef.current ??= {
+      text: draftControls.getDraft(),
+      attachments: [...attachmentsRef.current],
+    };
     draftControls.setDraft(lastSubmission.text);
     setComposerAttachments([], { revokeRemovedPreviewUrls: true });
     setCorrectionDraft({
@@ -4327,6 +4365,7 @@ function SessionPageContent({
           ? lastSubmission.id
           : lastSubmission.tempId,
       originalText: lastSubmission.text,
+      recalled: true,
     });
     return true;
   }, [deferredMessages, setComposerAttachments]);

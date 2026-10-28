@@ -1565,6 +1565,7 @@
   "sessionCorrectionNoChanges": "No correction changes to send.",
   "sessionCorrectionActive": "Correcting latest message",
   "sessionCorrectionCancel": "Cancel correction",
+  "sessionCorrectionBack": "Back to new message ↓",
   "sessionSteerNow": "Steer now",
   "sessionSteerQueuedMessageNow": "Steer queued message now",
   "sessionSteerQueuedMessageThrough": "Steer this and {count} earlier patient message{suffix} now",

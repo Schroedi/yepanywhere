@@ -1957,6 +1957,33 @@ describe("MessageInput", () => {
     expect(onCancelCorrection).toHaveBeenCalledOnce();
     expect(textarea.value).toBe("");
     expect(onStop).not.toHaveBeenCalled();
+    fireEvent.keyDown(textarea, { key: "Escape", repeat: true });
+    expect(onStop).not.toHaveBeenCalled();
+    fireEvent.keyUp(textarea, { key: "Escape" });
+    fireEvent.keyDown(textarea, { key: "Escape" });
+    expect(onStop).toHaveBeenCalledOnce();
+
+    fireEvent.keyDown(textarea, { key: "ArrowUp" });
+    expect(textarea.selectionStart).toBe(textarea.value.length);
+    fireEvent.keyDown(textarea, { key: "ArrowDown" });
+    expect(textarea.value).toBe("");
+    expect(onCancelCorrection).toHaveBeenCalledTimes(2);
+
+    fireEvent.keyDown(textarea, { key: "ArrowUp", repeat: true });
+    expect(textarea.value).toBe("");
+    fireEvent.keyDown(textarea, { key: "ArrowUp", isComposing: true });
+    expect(textarea.value).toBe("");
+
+    fireEvent.keyDown(textarea, { key: "ArrowUp" });
+    fireEvent.keyDown(textarea, { key: "ArrowLeft" });
+    fireEvent.keyDown(textarea, { key: "ArrowDown" });
+    expect(textarea.value).toBe("previous submission");
+    expect(onCancelCorrection).toHaveBeenCalledTimes(2);
+    fireEvent.keyDown(textarea, { key: "p", ctrlKey: true });
+    fireEvent.change(textarea, { target: { value: "an actual edit" } });
+    fireEvent.keyDown(textarea, { key: "ArrowDown" });
+    expect(textarea.value).toBe("an actual edit");
+    expect(onCancelCorrection).toHaveBeenCalledTimes(2);
   });
 
   it("cancels correction with ArrowDown only once the composer is empty", () => {

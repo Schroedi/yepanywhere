@@ -3523,41 +3523,6 @@ a.sidebar-nav-item {
   box-shadow: none;
 }
 
-.correction-draft {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  padding: var(--space-1) var(--space-2);
-  background: var(--bg-code);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
-  font-size: var(--font-size-xs);
-}
-
-.correction-draft-cancel {
-  width: 22px;
-  height: 22px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-sm);
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: var(--font-size-base);
-  line-height: 1;
-}
-
-.correction-draft-cancel:hover,
-.correction-draft-cancel:focus-visible {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-  outline: none;
-}
-
 .fork-summary-draft {
   display: flex;
   align-items: center;
