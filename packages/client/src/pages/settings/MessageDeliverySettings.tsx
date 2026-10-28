@@ -724,6 +724,7 @@ export function MessageDeliverySettings() {
           <SettingsItem
             label={t("messageDeliveryClearloopTitle")}
             description={t("messageDeliveryClearloopDescription")}
+            doc="topics/session-rewind.md#clearloop"
             valueText={
               shownClearloopInactivitySeconds === null
                 ? shownClearloopInactivityText
@@ -771,7 +772,10 @@ export function MessageDeliverySettings() {
         )}
 
         {
-          <SettingsSection title={t("projectQueueTitle")}>
+          <SettingsSection
+            title={t("projectQueueTitle")}
+            doc="site/src/content/docs/project-queue.md"
+          >
             <SettingsItem
               label={t("messageDeliveryProjectQueueQuietTitle")}
               description={t("messageDeliveryProjectQueueQuietDescription")}
@@ -824,6 +828,7 @@ export function MessageDeliverySettings() {
           as="label"
           label={t("messageDeliveryComposeAnchorsTitle")}
           description={t("messageDeliveryComposeAnchorsDescription")}
+          doc="topics/compose-time-context-anchors.md#opt-in-staleness-anchors-yep_compose_anchors1"
         >
           <input
             type="checkbox"
@@ -842,6 +847,7 @@ export function MessageDeliverySettings() {
         <SettingsItem
           label={t("messageDeliveryTurnTimestampsTitle")}
           description={t("messageDeliveryTurnTimestampsDescription")}
+          doc="topics/compose-time-context-anchors.md#opt-in-turn-timestamps-turntimestamps--yep_turn_timestamps"
         >
           <select
             className="settings-select"
@@ -920,6 +926,7 @@ export function MessageDeliverySettings() {
         <SettingsItem
           label={t("appearanceToolbarDefaultActionTitle")}
           description={t("appearanceToolbarDefaultActionDescription")}
+          doc="site/src/content/docs/sessions-and-approvals.md#steer-queue-and-interrupt"
         >
           <select
             className="settings-select"
@@ -949,6 +956,7 @@ export function MessageDeliverySettings() {
           as="label"
           label={t("messageDeliverySteerNowDefaultTitle")}
           description={t("messageDeliverySteerNowDefaultDescription")}
+          doc="topics/steer-queue-provider-differences.md#levels-of-soon-urgency-ladder-short-of-hard-interrupt"
         >
           <input
             type="checkbox"

@@ -623,6 +623,7 @@ export function ToolbarSettings() {
         <SettingsItem
           label={t("appearanceToolbarDefaultActionTitle")}
           description={t("appearanceToolbarDefaultActionDescription")}
+          doc="site/src/content/docs/sessions-and-approvals.md#steer-queue-and-interrupt"
         >
           <select
             className="settings-select"

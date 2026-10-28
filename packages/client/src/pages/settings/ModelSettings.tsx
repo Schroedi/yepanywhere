@@ -753,6 +753,7 @@ export function ModelSettings() {
                 sessionDefaultCopy.sandbox.title
               }
               description={sessionDefaultCopy.sandbox.description}
+              doc="topics/session-sandboxing.md"
               keywords={[
                 ...(sessionDefaultCopy.sandbox.settings?.keywords ?? []),
                 t("newSessionSandboxLabel"),
@@ -886,6 +887,7 @@ export function ModelSettings() {
               t,
               selectedRecapAfterSeconds,
             )}
+            doc="topics/recaps.md#configuration-and-native-capability"
             keywords={sessionDefaultCopy.recap.settings?.keywords}
             valueText={recapModeLabels[selectedRecapMode]}
             className="new-session-helper-section session-default-recap-section settings-item--session-default-block settings-item--wide-control"
@@ -939,6 +941,7 @@ export function ModelSettings() {
               id="session-default-helper-model"
               label={sessionDefaultCopy.helperModel.title}
               description={sessionDefaultCopy.helperModel.description}
+              doc="topics/side-session-config.md"
               keywords={sessionDefaultCopy.helperModel.settings?.keywords}
               valueText={selectedHelperSideModel}
               className="new-session-helper-section session-default-helper-model-section settings-item--session-default-block settings-item--wide-control"
@@ -1058,6 +1061,7 @@ export function ModelSettings() {
                 }),
                 t("promptCacheKeepaliveCadenceHint"),
               ].join(" ")}
+              doc="topics/prompt-cache-keepalive.md"
               keywords={[
                 "prompt cache",
                 "keepalive",

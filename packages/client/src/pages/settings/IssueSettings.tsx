@@ -28,6 +28,7 @@ export function IssueSettings() {
     <SettingsSection
       title={t("issuesTitle")}
       description={t("issuesDescription")}
+      doc="topics/issue-session-associations.md"
     >
       <IssueSettingsControls key={runtime.sourceKey} />
     </SettingsSection>

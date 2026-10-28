@@ -260,7 +260,10 @@ export function CacheMissBillingSettings() {
 
   return (
     <>
-      <SettingsSection description={t("cacheMissBillingDescription")}>
+      <SettingsSection
+        description={t("cacheMissBillingDescription")}
+        doc="topics/cache-miss-accounting.md"
+      >
         <div className="settings-group">
           <SettingsItem
             as="label"

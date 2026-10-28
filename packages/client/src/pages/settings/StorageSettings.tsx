@@ -123,6 +123,7 @@ export function StorageSettings() {
     <SettingsSection
       description={t("storageSettingsDescription")}
       keywords={[".yep", ".attachments", "YEP_DATA_DIR"]}
+      doc="topics/storage-settings.md"
     >
       <div className="settings-group">
         <SettingsItem

@@ -75,7 +75,10 @@ export function SourceControlSettings() {
   }
 
   return (
-    <SettingsSection description={t("sourceControlSettingsDescription")}>
+    <SettingsSection
+      description={t("sourceControlSettingsDescription")}
+      doc="site/src/content/docs/files-and-source-control.md#source-control-page"
+    >
       <div className="settings-group">
         <SettingsItem
           className="settings-item--wide-control"

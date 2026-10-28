@@ -478,6 +478,7 @@ export function RemoteAccessSettings() {
       <SettingsItem
         label={t("advancedPublicShareTitle")}
         description={t("advancedPublicShareDescription")}
+        doc="site/src/content/docs/security-and-privacy.md#public-session-shares"
         info={
           <>
             <strong>{t("advancedPublicShareTitle")}</strong>

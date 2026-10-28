@@ -657,6 +657,7 @@ export function LocalAccessSettings() {
     <SettingsItem
       label={t("localAccessAgentServerAccessTitle")}
       description={t("localAccessAgentServerAccessDescription")}
+      doc="topics/agent-session-access.md#operator-api-token"
     >
       <label className="toggle-switch">
         <input
@@ -1039,6 +1040,7 @@ export function LocalAccessSettings() {
             <SettingsItem
               label={t("localAccessRequirePasswordTitle")}
               description={t("localAccessRequirePasswordDescription")}
+              doc="site/src/content/docs/local-access.md"
             >
               <label className="toggle-switch">
                 <input
@@ -1225,6 +1227,7 @@ export function LocalAccessSettings() {
               <SettingsItem
                 label={t("localAccessLocalhostOpenTitle")}
                 description={t("localAccessLocalhostOpenDescription")}
+                doc="site/src/content/docs/local-access.md#desktop-app-allow-localhost-access"
               >
                 <label className="toggle-switch">
                   <input

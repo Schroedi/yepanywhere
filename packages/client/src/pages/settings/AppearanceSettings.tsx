@@ -951,6 +951,7 @@ export function AppearanceSettings() {
         <SettingsItem
           label={t("appearanceWorkflowTagsTitle")}
           description={t("appearanceWorkflowTagsDescription")}
+          doc="topics/workflow-view.md#implemented-v1-contract"
         >
           <label className="toggle-switch">
             <input
@@ -965,6 +966,7 @@ export function AppearanceSettings() {
         <SettingsItem
           label={t("acliCommentarySetting")}
           description={t("acliCommentaryDescription")}
+          doc="topics/acli-commentary.md"
         >
           <label className="toggle-switch">
             <input
@@ -1101,6 +1103,7 @@ export function AppearanceSettings() {
           <SettingsItem
             label={t("appearanceGlossaryHintsTitle")}
             description={t("appearanceGlossaryHintsDescription")}
+            doc="topics/glossary-tooltips.md#product-contract"
           >
             <label className="toggle-switch">
               <input
@@ -1259,6 +1262,7 @@ export function AppearanceSettings() {
         <SettingsItem
           label={t("appearanceProjectPathLinksTitle")}
           description={t("appearanceProjectPathLinksDescription")}
+          doc="topics/project-path-links.md#file-link-preferences-and-mentioned-directories"
         >
           <label className="toggle-switch">
             <input
@@ -1479,6 +1483,7 @@ export function AppearanceSettings() {
         <SettingsItem
           label={t("appearanceSidebarDuplicateHidingTitle")}
           description={t("appearanceSidebarDuplicateHidingDescription")}
+          doc="topics/session-list-hidden-duplicates.md#contract"
         >
           <label className="toggle-switch">
             <input
@@ -1494,6 +1499,7 @@ export function AppearanceSettings() {
         <SettingsItem
           label={t("appearanceProjectCodeNamesTitle")}
           description={t("appearanceProjectCodeNamesDescription")}
+          doc="topics/project-code-names.md#user-visible-contract"
         >
           <label className="toggle-switch">
             <input
@@ -1538,6 +1544,7 @@ export function AppearanceSettings() {
         <SettingsItem
           label={t("appearanceComposerBeaconTitle")}
           description={t("appearanceComposerBeaconDescription")}
+          doc="topics/composer-hotkey-beacon.md#use-and-scope"
         >
           <label className="toggle-switch">
             <input

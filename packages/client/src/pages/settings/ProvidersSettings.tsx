@@ -64,6 +64,7 @@ import {
   ClaudeAutoCompactPercentOverrideControl,
   YaCompactContextEarlyControl,
 } from "./compactSettingsControls";
+import { SettingsDocLink } from "./SettingsDocLink";
 import { SettingsItem } from "./SettingsItem";
 import { InstructionRestorationControl } from "./InstructionRestorationControl";
 import styles from "./ProvidersSettings.module.css";
@@ -630,6 +631,7 @@ function CodexCyberAccessProgramSetting({
       id="provider-codex-cyber-access"
       label={t("providersCodexCyberAccessTitle")}
       description={t("providersCodexCyberAccessDescription")}
+      doc="topics/codex-sessions.md#per-turn-cyber-access-program"
       keywords={["daybreak", "cyber", "security", "access", "program"]}
       valueText={labels[selection]}
     >
@@ -727,7 +729,10 @@ function ClaudeGatewaySettings({
       className="settings-subsection"
     >
       <h3>{t("providersClaudeGatewayTitle")}</h3>
-      <p className="settings-hint">{t("providersClaudeGatewayDescription")}</p>
+      <p className="settings-hint">
+        {t("providersClaudeGatewayDescription")}{" "}
+        <SettingsDocLink doc="topics/gateway-services.md" />
+      </p>
       <form
         className="claude-gateway-settings-control"
         onSubmit={(event) => {
@@ -1348,7 +1353,13 @@ export function ProvidersSettings() {
   });
 
   return (
-    <SettingsSection description={t("providersSectionDescription")}>
+    <SettingsSection
+      description={t("providersSectionDescription")}
+      doc={{
+        path: "site/src/content/docs/providers.md",
+        label: "providers guide",
+      }}
+    >
       <nav
         className={styles.signInShortcuts}
         aria-label={t("providerSignInShortcuts")}
