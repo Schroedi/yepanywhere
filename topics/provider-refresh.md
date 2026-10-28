@@ -1265,7 +1265,28 @@ Previous-model registry review:
 6. Use read-only catalog and lifecycle checks routinely. Do not spend tokens
    on live model turns without explicit approval.
 
-Current source refresh, 2026-10-23 (Claude Code 2.1.309 / SDK 0.3.309):
+Current source refresh, 2026-10-28 (Claude Code 2.1.312 / SDK 0.3.312):
+
+- The SDK and matching native packages advance from 0.3.309 to 0.3.312;
+  the bundled Linux executable and the standalone install both report
+  Claude Code 2.1.312. Compatibility markers advance together.
+- The declaration delta is additive and unused by YA: an optional
+  `unanswered` reason and `toolsUsed`/`local_file` fields on tool results,
+  5-minute and 1-hour cache-write splits inside the existing cache-creation
+  token count, an `mcpMount` setting source, auto-mode classifier
+  settings, managed plugin digests, and reworded prewarm/claim semantics.
+  YA calls none of the claim or prewarm APIs.
+- A no-turn handshake against each bundled executable returns the same 13
+  raw model rows for 0.3.309 and 0.3.312, which YA normalizes to the same
+  7 live entries with efforts low through max. `/goal` and `/loop` remain
+  native. Claude provider tests (48), transcript-schema tests (26), and
+  server type checking pass.
+- No assistant turn ran and no 2.1.312 transcript exists locally, so
+  authenticated generation and persisted-schema coverage are not
+  established. Existing provider-host workers must restart to adopt the
+  update.
+
+Previous source refresh, 2026-10-23 (Claude Code 2.1.309 / SDK 0.3.309):
 
 - The SDK and matching native packages advance from 0.3.306 to 0.3.309;
   the bundled Linux executable reports Claude Code 2.1.309, ahead of the
