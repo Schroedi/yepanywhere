@@ -58,17 +58,14 @@ const DEFAULT_WORKTREE_COVERAGE: GitWorktreeCoverage = {
 };
 
 /**
- * The Source Control file surface. New servers expose the live Working Tree —
- * dirty, untracked, and tracked-unchanged files — with current content first
- * and blame as an optional projection. Older servers retain the released
- * tracked-only blame browser without making the new request.
+ * Current working-tree content, with blame as an optional tracked-file projection.
+ * Optional live sections replace the entry-time working-tree snapshot.
  */
 export function BlameBrowser({
   projectId,
   isWideScreen,
   initialPath,
   status,
-  supportsWorkingTreeFiles = false,
   supportsWorktreeSections = false,
   supportsCompleteFilesystemScan = false,
   onOpenCommit,
@@ -84,13 +81,12 @@ export function BlameBrowser({
   /**
    * Browse this allowed absolute path outside the project instead: one
    * snapshot of its checkout or directory, with no live lease, review
-   * comments, or blame. The project only authorizes the reads. Callers pass
-   * `supportsWorkingTreeFiles` and leave worktree sections off.
+   * comments, or blame. The project only authorizes the reads. Callers
+   * leave worktree sections off.
    */
   localSourcePath?: string;
   onLocalSourceRoot?: (root: LocalSourceRoot) => void;
   status?: GitStatusInfo;
-  supportsWorkingTreeFiles?: boolean;
   supportsWorktreeSections?: boolean;
   supportsCompleteFilesystemScan?: boolean;
   /** Open a populated blame hash in the commit browser. */
@@ -98,7 +94,6 @@ export function BlameBrowser({
   captureReviewProjections?: boolean;
   t: TranslationFn;
 }) {
-  const [files, setFiles] = useState<string[]>([]);
   const [workingTreeFiles, setWorkingTreeFiles] = useState<
     GitWorkingTreeFile[]
   >([]);
@@ -177,10 +172,6 @@ export function BlameBrowser({
   const [selectedPath, setSelectedPath] = useState<string | null>(
     initialPath ?? null,
   );
-  const [naturalDetailMeasurement, setNaturalDetailMeasurement] = useState<{
-    path: string;
-    width: number;
-  } | null>(null);
   const [localRoot, setLocalRoot] = useState<LocalSourceRoot | null>(null);
   const onLocalSourceRootRef = useRef(onLocalSourceRoot);
   onLocalSourceRootRef.current = onLocalSourceRoot;
@@ -203,40 +194,26 @@ export function BlameBrowser({
     return counts;
   }, [pending]);
 
-  // Seed/reseed the open file from the bridge's initialPath. Capability gating
-  // is also the request boundary: older servers only see the released route.
+  // Static snapshots are also used for allowed paths outside the project.
+  // Optional live sections own their own inventory and subscription.
   useEffect(() => {
     if (supportsWorktreeSections) return;
     let cancelled = false;
     setLoading(true);
     setError(null);
-    setFiles([]);
     setWorkingTreeFiles([]);
     setInventoryTruncated(false);
     setSelectedPath((current) => initialPath ?? current);
-    const request = supportsWorkingTreeFiles
-      ? api
-          .listGitWorkingTreeFiles(
-            projectId,
-            supportsWorktreeSections ? coverage : undefined,
-            localSourcePath,
-          )
-          .then((result) => ({
-            files: result.files.map((file) => file.path),
-            workingTreeFiles: result.files,
-            truncated: result.truncated,
-            root: result.root,
-          }))
-      : api.listGitFiles(projectId).then((result) => ({
-          files: result.files,
-          workingTreeFiles: [],
-          truncated: result.truncated,
-          root: undefined,
-        }));
+    const request = api
+      .listGitWorkingTreeFiles(projectId, undefined, localSourcePath)
+      .then((result) => ({
+        workingTreeFiles: result.files,
+        truncated: result.truncated,
+        root: result.root,
+      }));
     request
       .then((result) => {
         if (cancelled) return;
-        setFiles(result.files);
         setWorkingTreeFiles(result.workingTreeFiles);
         setInventoryTruncated(result.truncated);
         if (result.root) {
@@ -255,14 +232,7 @@ export function BlameBrowser({
     return () => {
       cancelled = true;
     };
-  }, [
-    coverage,
-    projectId,
-    initialPath,
-    localSourcePath,
-    supportsWorkingTreeFiles,
-    supportsWorktreeSections,
-  ]);
+  }, [projectId, initialPath, localSourcePath, supportsWorktreeSections]);
 
   const effectiveWorkingTreeFiles = useMemo(
     () =>
@@ -276,11 +246,8 @@ export function BlameBrowser({
     [coverage, liveWorktree.files, supportsWorktreeSections, workingTreeFiles],
   );
   const effectiveFiles = useMemo(
-    () =>
-      supportsWorktreeSections
-        ? effectiveWorkingTreeFiles.map((file) => file.path)
-        : files,
-    [effectiveWorkingTreeFiles, files, supportsWorktreeSections],
+    () => effectiveWorkingTreeFiles.map((file) => file.path),
+    [effectiveWorkingTreeFiles],
   );
   const effectiveLoading = supportsWorktreeSections
     ? liveWorktree.loading
@@ -382,16 +349,6 @@ export function BlameBrowser({
     ],
     [t],
   );
-  const handleContentWidthChange = useCallback(
-    (path: string, width: number) => {
-      setNaturalDetailMeasurement({ path, width });
-    },
-    [],
-  );
-  const naturalDetailWidth =
-    naturalDetailMeasurement?.path === selectedPath
-      ? naturalDetailMeasurement.width
-      : undefined;
   const toggleCoverage = useCallback((kind: GitWorkingTreePathKind) => {
     setCoverage((current) => ({ ...current, [kind]: !current[kind] }));
   }, []);
@@ -473,7 +430,6 @@ export function BlameBrowser({
       <ResizableSourceColumns
         layout="files"
         initialFilesWidth={340}
-        naturalDetailWidth={isWideScreen ? naturalDetailWidth : undefined}
         className="blame-browser-columns"
         t={t}
       >
@@ -512,7 +468,7 @@ export function BlameBrowser({
             <div className="git-diff-loading">{t("gitStatusLoading")}</div>
           ) : effectiveError ? (
             <div className="git-diff-error">{effectiveError}</div>
-          ) : supportsWorkingTreeFiles ? (
+          ) : (
             <WorkingTreeFileList
               trackedFiles={plainInventory ? filtered : trackedFiles}
               untrackedFiles={plainInventory ? [] : untrackedFiles}
@@ -543,46 +499,28 @@ export function BlameBrowser({
               renderFile={renderFileRow}
               t={t}
             />
-          ) : filtered.length === 0 ? (
-            <div className="git-status-empty">{t("sourceNoFiles")}</div>
-          ) : (
-            <ul className="blame-file-list" onKeyDown={handleSourceListKeyDown}>
-              {filtered.map((file) => renderFileRow(file))}
-            </ul>
           )}
         </div>
 
-        {isWideScreen &&
-          selectedPath &&
-          (supportsWorkingTreeFiles ? (
-            <WorkingTreeFileDetail
-              projectId={projectId}
-              path={selectedPath}
-              viewerPath={
-                localRoot
-                  ? joinLocalSourcePath(localRoot.path, selectedPath)
-                  : selectedPath
-              }
-              tracked={
-                localRoot === null &&
-                (selectedWorkingTreeFile?.tracked ?? false)
-              }
-              mode={detailMode}
-              onModeChange={setDetailMode}
-              onOpenCommit={onOpenCommit}
-              captureReviewProjections={captureReviewProjections}
-              t={t}
-            />
-          ) : (
-            <BlameView
-              projectId={projectId}
-              path={selectedPath}
-              onOpenCommit={onOpenCommit}
-              captureReviewProjections={captureReviewProjections}
-              onContentWidthChange={handleContentWidthChange}
-              t={t}
-            />
-          ))}
+        {isWideScreen && selectedPath && (
+          <WorkingTreeFileDetail
+            projectId={projectId}
+            path={selectedPath}
+            viewerPath={
+              localRoot
+                ? joinLocalSourcePath(localRoot.path, selectedPath)
+                : selectedPath
+            }
+            tracked={
+              localRoot === null && (selectedWorkingTreeFile?.tracked ?? false)
+            }
+            mode={detailMode}
+            onModeChange={setDetailMode}
+            onOpenCommit={onOpenCommit}
+            captureReviewProjections={captureReviewProjections}
+            t={t}
+          />
+        )}
       </ResizableSourceColumns>
       {fileMenu.menu}
 
@@ -592,34 +530,23 @@ export function BlameBrowser({
           onClose={() => setSelectedPath(null)}
           closeOnBackGesture
         >
-          {supportsWorkingTreeFiles ? (
-            <WorkingTreeFileDetail
-              projectId={projectId}
-              path={selectedPath}
-              viewerPath={
-                localRoot
-                  ? joinLocalSourcePath(localRoot.path, selectedPath)
-                  : selectedPath
-              }
-              tracked={
-                localRoot === null &&
-                (selectedWorkingTreeFile?.tracked ?? false)
-              }
-              mode={detailMode}
-              onModeChange={setDetailMode}
-              onOpenCommit={onOpenCommit}
-              captureReviewProjections={captureReviewProjections}
-              t={t}
-            />
-          ) : (
-            <BlameView
-              projectId={projectId}
-              path={selectedPath}
-              onOpenCommit={onOpenCommit}
-              captureReviewProjections={captureReviewProjections}
-              t={t}
-            />
-          )}
+          <WorkingTreeFileDetail
+            projectId={projectId}
+            path={selectedPath}
+            viewerPath={
+              localRoot
+                ? joinLocalSourcePath(localRoot.path, selectedPath)
+                : selectedPath
+            }
+            tracked={
+              localRoot === null && (selectedWorkingTreeFile?.tracked ?? false)
+            }
+            mode={detailMode}
+            onModeChange={setDetailMode}
+            onOpenCommit={onOpenCommit}
+            captureReviewProjections={captureReviewProjections}
+            t={t}
+          />
         </Modal>
       )}
     </div>

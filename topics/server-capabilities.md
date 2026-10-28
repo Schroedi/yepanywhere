@@ -192,6 +192,13 @@ platform availability, queue admission and Git operation serialization still
 apply. Capability IDs, introduction versions and server advertisement remain
 available for maintained older clients.
 
+The separately approved Source Control follow-up removes the action-only
+legacy shell and tracked-only Files loader/rendering. Both browse and
+working-tree inventory contracts are present throughout the same core corpus.
+A minimal missing-contract guard shows update guidance without Source Control
+requests. Optional live sections retain their static working-tree alternative;
+permanent IDs and server routes needed by older clients remain unchanged.
+
 Codex reconciliation always uses the aligned-ID contract, including while
 version metadata is pending: equal content and timestamps cannot collapse
 distinct provider IDs, and replay suppression uses persisted identity.

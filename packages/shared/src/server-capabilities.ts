@@ -2651,14 +2651,14 @@ export const SERVER_CAPABILITIES = {
   gitSourceReview: {
     id: CAPABILITY_ID_ALLOCATIONS.gitSourceReview.id,
     name: "git-source-review",
-    kind: "transitional",
+    kind: "permanent",
     area: "gitStatus",
     introducedIn: "0.7.1",
     advertisement: { kind: "version-implied" },
     description:
       "Server supports the commit/file browser and server-owned source-review workflow.",
     clientFallback:
-      "Keep basic Source Control status and individually capability-gated remote actions; explain that browsing and review require a server update.",
+      "Show Source Control update guidance and send no Source Control requests.",
     serverContract: {
       routes: [
         "GET /api/projects/:projectId/git/commits",
@@ -2683,7 +2683,9 @@ export const SERVER_CAPABILITIES = {
       requestFields: ["gitDiff.againstHead", "gitDiff.origPath"],
     },
     lifecycle: {
-      kind: "transitional",
+      kind: "permanent",
+      reason:
+        "Retains the advertised contract and the update-only guard; the alternate Source Control client implementation is removed.",
     },
   },
   gitSourceReviewSubmissions: {
@@ -2950,14 +2952,14 @@ export const SERVER_CAPABILITIES = {
   gitWorkingTreeFiles: {
     id: CAPABILITY_ID_ALLOCATIONS.gitWorkingTreeFiles.id,
     name: "git-working-tree-files",
-    kind: "transitional",
+    kind: "permanent",
     area: "gitStatus",
     introducedIn: "0.7.1",
     advertisement: { kind: "version-implied" },
     description:
       "Server exposes current-content inventory plus a persistent, searchable non-ignored untracked cache outside the project.",
     clientFallback:
-      "Keep the tracked-only Files browser and legacy compact untracked expansion, making no working-tree or cache request.",
+      "Show Source Control update guidance and send no Source Control requests; the tracked-only client browser is retired.",
     serverContract: {
       routes: [
         "GET /api/projects/:projectId/git/working-tree-files",
@@ -2978,7 +2980,9 @@ export const SERVER_CAPABILITIES = {
       ],
     },
     lifecycle: {
-      kind: "transitional",
+      kind: "permanent",
+      reason:
+        "Retains the advertised contract and the update-only guard; the alternate Source Control client implementation is removed.",
     },
   },
   gitWorkingTreeSections: {

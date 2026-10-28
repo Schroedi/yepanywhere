@@ -13,7 +13,7 @@ the contract for line-comment anchors, persistent review drafts, relocation,
 submission, and review-session handoff. This topic is the current landing site
 for behavior that belongs to Source Control generally: its modes, repository
 navigation, master-detail layout, changed-file rows, diff controls, search,
-compatibility shell, and links to relevant sessions. The old topic retains its
+update guidance, and links to relevant sessions. The old topic retains its
 combined implementation record for historical context; where its page-wide UI
 statements conflict with this topic, this topic governs.
 
@@ -23,8 +23,13 @@ Since the 2026-10-28 retirement, enhanced status, Check remote, Pull, Push and
 integration options are baseline v0.8.0 server contracts. Their former fixed
 client gates and old enhanced-status upgrade screen are removed. Operation
 serialization, project/repository eligibility and failure feedback remain.
-Newer independent review, projection and live-working-tree capabilities still
-have their own gates. Older servers should update or use their bundled client.
+The current browser also requires `git-source-review` and
+`git-working-tree-files`, both shipped in every supported release from v0.8.0.
+The legacy action-only shell and tracked-only Files implementation are removed.
+If either contract is missing, Source Control shows update guidance before
+requesting status, untracked inventory, history, or review data. Older servers
+should update or use their bundled client. Projection, incoming-commit, review
+submission and optional live-working-tree contracts retain their own gates.
 
 ## Product boundary
 
@@ -138,9 +143,8 @@ points at — `recentCommits[0]`, the current `HEAD` tip. It is a real anchor wi
 a standalone `?rev=<sha>` URL, so middle-click, modifier-click, and “open in new
 tab” work, while plain left-click stays in the current tab. A detached `HEAD`
 keeps its detached label and still opens and copies that tip SHA. The copy
-control stays beside the name: the name click navigates, the icon copies. A
-server without the Source Control browser leaves the name inert rather than
-linking to a view it cannot render.
+control stays beside the name: the name click navigates, the icon copies. A server missing the Source Control baseline shows update guidance instead
+of repository navigation.
 
 When the server advertises `git-incoming-commits`, the upstream name opens the
 commits reachable from the configured tracking ref but not local `HEAD`. The
@@ -224,7 +228,7 @@ plus additional unstaged changes, use the explicit short label **partial**
 rather than the opaque `±`; its tooltip says “Partially staged: staged changes
 plus additional unstaged changes.”
 
-With `git-working-tree-files`, compact untracked directories are backed by the
+Compact untracked directories are backed by the
 server's persistent non-ignored path cache. A group with more than ten
 descendants starts collapsed and loads its children only on expansion; a
 smaller group may load and expand immediately. Expanded child labels omit the
@@ -233,10 +237,6 @@ path. A debounced query searches cached paths that the client has not realized,
 shows matching paths without overwriting disclosure state, and removes
 search-only rows when cleared. Loading, truncation, and cache failures remain
 visible.
-
-Without that capability, the client keeps the released bounded
-`/git/untracked-folder` enrichment. It does not call the cache routes, and search
-covers only children that legacy enumeration has returned.
 
 Working-tree changes, commit revisions, and Files use one shared file-row/path
 treatment and one path-compression outline. Filtering and semantic sectioning
@@ -301,10 +301,9 @@ an explicit truncation state rather than a claim of completeness.
 
 Selecting a path renders its live contents through the shared `FileViewer`,
 including clean and untracked files. Tracked files may switch to Blame; an
-untracked file stays in Contents and never receives invented provenance. A
-server without `git-working-tree-files` retains the tracked-only Files corpus,
-content-plus-blame behavior, and stable `?tab=files` URL while making no
-working-tree inventory request.
+untracked file stays in Contents and never receives invented provenance. The stable `?tab=files` URL remains the Working Tree entry. Servers missing
+the working-tree inventory contract receive update guidance rather than a
+tracked-only browser.
 
 When no Git repository exists, a server with `git-working-tree-sections` still
 shows Working Tree current contents. Ordinary filesystem files are untracked
@@ -1160,13 +1159,11 @@ produces rows reuses the previous object for any path whose state is unchanged,
 and deliberately does not reuse across a new status snapshot, which is the
 live-refresh signal itself.
 
-The permanent `git-source-review` capability currently gates the complete
-Changes/Files/Comments browser, including commit history inside Changes, as
-well as the review endpoints. An
-older server with only `git-status-enhanced` receives the basic status,
-working-tree diff, and independently advertised Check/Pull/Push shell; the
-client makes no unsupported browse/review requests. Ignore whitespace and the
-direct selected-tree-to-HEAD per-file action remain gated by the unchanged
+The `git-source-review` and `git-working-tree-files` identities form the
+update-only Source Control guard. Their missing-support branch contains no
+alternate browser or Git actions. The static current-content inventory remains
+available when optional live sections are off. Ignore whitespace and the direct
+selected-tree-to-HEAD action retain the unchanged
 `git-source-review-projections` meaning.
 
 Inclusive **To HEAD** is separately owned by permanent capability ID 40,
@@ -1179,8 +1176,8 @@ meanings and older capable behavior remain unchanged.
 
 `git-working-tree-files` (permanent ID 38, version-implied from `0.7.1`) owns the
 static working-tree inventory, persistent untracked-cache route family, and
-cache-backed status request described above. Its absence preserves tracked-only
-Files plus legacy compact untracked expansion and sends none of those requests.
+cache-backed status request described above. Its absence now shows update
+guidance before Source Control requests; no tracked-only client path remains.
 `git-working-tree-sections` (permanent ID 41, optional from `0.7.2`) owns
 the expanded live snapshot and delta contract described above. Its absence
 keeps ID 38's static behavior and sends no worktree subscription. The Maintainer

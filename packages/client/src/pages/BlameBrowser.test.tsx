@@ -29,19 +29,20 @@ vi.mock("react-router-dom", async (orig) => ({
 vi.mock("../hooks/useRemoteBasePath", () => ({
   useRemoteBasePath: () => "",
 }));
+vi.mock("../hooks/useServerSettings", () => ({
+  useServerSettings: () => ({ settings: {}, isLoading: false, error: null }),
+}));
 vi.mock("../i18n", async (orig) => ({
   ...(await orig<typeof import("../i18n")>()),
   useI18n: () => ({ t: (key: string) => key }),
 }));
 
-const listGitFiles = vi.fn();
 const listGitWorkingTreeFiles = vi.fn();
 const getGitBlame = vi.fn();
 const getFile = vi.fn();
 const listReviewComments = vi.fn();
 vi.mock("../api/client", () => ({
   api: {
-    listGitFiles: (...args: unknown[]) => listGitFiles(...args),
     listGitWorkingTreeFiles: (...args: unknown[]) =>
       listGitWorkingTreeFiles(...args),
     getFile: (...args: unknown[]) => getFile(...args),
@@ -115,8 +116,11 @@ describe("BlameBrowser", () => {
   });
 
   it("opens the first visible file in the wide master-detail view", async () => {
-    listGitFiles.mockResolvedValue({
-      files: ["src/first.ts", "src/second.ts"],
+    listGitWorkingTreeFiles.mockResolvedValue({
+      files: ["src/first.ts", "src/second.ts"].map((path) => ({
+        path,
+        tracked: true,
+      })),
       truncated: false,
     });
     getGitBlame.mockResolvedValue({
@@ -148,14 +152,11 @@ describe("BlameBrowser", () => {
     );
 
     await waitFor(() =>
-      expect(getGitBlame).toHaveBeenCalledWith("p1", "src/first.ts"),
+      expect(getFile.mock.calls[0]?.slice(0, 2)).toEqual([
+        "p1",
+        "src/first.ts",
+      ]),
     );
-    expect(
-      document
-        .querySelector(".blame-file-item.selected")
-        ?.textContent?.includes("src/first.ts"),
-    ).toBe(true);
-
     const row = document.querySelector<HTMLButtonElement>(
       ".blame-file-item.selected",
     );
@@ -182,7 +183,10 @@ describe("BlameBrowser", () => {
       (_, index) => `src/file-${index.toString().padStart(3, "0")}.ts`,
     );
     const tail = "src/file-649.ts";
-    listGitFiles.mockResolvedValue({ files, truncated: false });
+    listGitWorkingTreeFiles.mockResolvedValue({
+      files: files.map((path) => ({ path, tracked: true })),
+      truncated: false,
+    });
     getGitBlame.mockResolvedValue({
       path: files[0],
       rev: "HEAD",
@@ -211,7 +215,6 @@ describe("BlameBrowser", () => {
       </MemoryRouter>,
     );
 
-    await screen.findByText(files[0] as string);
     fireEvent.change(screen.getByPlaceholderText("sourceFilterFiles"), {
       target: { value: "file-649" },
     });
@@ -224,7 +227,7 @@ describe("BlameBrowser", () => {
     expect(screen.queryByText("sourceFilesTruncated")).toBeNull();
   });
 
-  it("browses current dirty and unchanged content behind the new capability", async () => {
+  it("browses current dirty and unchanged content through optional live sections", async () => {
     const transport = new FakeSourceTransport();
     const runtime = createRuntime(transport, "test:blame-browser-live");
     const groupedCleanFiles = Array.from(
@@ -302,7 +305,6 @@ describe("BlameBrowser", () => {
           projectId="p1"
           isWideScreen={false}
           status={status}
-          supportsWorkingTreeFiles
           supportsWorktreeSections
           t={t}
         />,
@@ -316,7 +318,6 @@ describe("BlameBrowser", () => {
       coverage: { tracked: true, untracked: true, ignored: true },
     });
     expect(listGitWorkingTreeFiles).not.toHaveBeenCalled();
-    expect(listGitFiles).not.toHaveBeenCalled();
     expect(
       screen.getByRole("button", { name: /sourceTrackedFiles/, pressed: true }),
     ).toBeDefined();
@@ -434,7 +435,6 @@ describe("BlameBrowser", () => {
           projectId="p1"
           isWideScreen={false}
           status={status}
-          supportsWorkingTreeFiles
           supportsWorktreeSections
           t={t}
         />,
@@ -546,7 +546,6 @@ describe("BlameBrowser", () => {
           projectId="p1"
           isWideScreen={false}
           status={status}
-          supportsWorkingTreeFiles
           supportsWorktreeSections
           supportsCompleteFilesystemScan
           t={(key, variables) =>
@@ -617,7 +616,6 @@ describe("BlameBrowser", () => {
           <BlameBrowser
             projectId="p1"
             isWideScreen={false}
-            supportsWorkingTreeFiles
             supportsWorktreeSections
             t={t}
           />
@@ -691,7 +689,6 @@ describe("BlameBrowser", () => {
         <BlameBrowser
           projectId="p1"
           isWideScreen={false}
-          supportsWorkingTreeFiles
           supportsWorktreeSections
           t={initialT}
         />,
@@ -711,7 +708,6 @@ describe("BlameBrowser", () => {
         <BlameBrowser
           projectId="p1"
           isWideScreen={false}
-          supportsWorkingTreeFiles
           supportsWorktreeSections
           t={replacementT}
         />,

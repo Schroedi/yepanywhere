@@ -1,31 +1,5 @@
 [
   {
-    "name": "source-control-before-review-browser",
-    "capabilities": ["git-source-review"],
-    "supportedSince": "2026-08-31",
-    "evidence": "v0.8.0: first stable server with the Source Control review browser",
-    "removal": "Remove GitStatusCompatibilityContent and replace unsupported-server rendering with update guidance; preserve capability-gated synchronization actions where retained.",
-    "locations": [
-      {
-        "path": "packages/client/src/pages/GitStatusPage.tsx",
-        "marker": "function GitStatusCompatibilityContent("
-      }
-    ]
-  },
-  {
-    "name": "source-control-tracked-only-files",
-    "capabilities": ["git-working-tree-files"],
-    "supportedSince": "2026-08-31",
-    "evidence": "v0.8.0: first stable server with working-tree file inventory",
-    "removal": "Remove tracked-only inventory loading and alternate file/detail rendering. Retain static working-tree paths required when optional live sections are unavailable; show update guidance without unsupported requests.",
-    "locations": [
-      {
-        "path": "packages/client/src/pages/BlameBrowser.tsx",
-        "marker": ": api.listGitFiles(projectId).then"
-      }
-    ]
-  },
-  {
     "name": "single-gateway-settings-editor",
     "capabilities": ["claude-gateway-services"],
     "supportedSince": "2026-09-22",
