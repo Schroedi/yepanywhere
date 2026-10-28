@@ -3,6 +3,7 @@ import {
   type MouseEvent,
   type ReactNode,
   useCallback,
+  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -44,6 +45,12 @@ import { ParagraphQuoteRail } from "../ParagraphQuoteRail";
 import styles from "./TextBlock.module.css";
 import { useGlossaryArtifact } from "../../contexts/GlossaryContext";
 import { annotateGlossaryHtml } from "../../lib/glossary/annotateGlossaryHtml";
+import { annotateIssueMentionsHtml } from "../../lib/issueMentionLinks";
+import {
+  IssueMentionLinksContext,
+  IssueMentionText,
+} from "../IssueMentionText";
+import { LinkifiedText } from "../ui/LinkifiedText";
 import {
   findTurnInlineImageAnchor,
   getTurnInlineImageTargetForTarget,
@@ -80,6 +87,7 @@ const RenderedHtmlIsland = memo(function RenderedHtmlIsland({
   publicShare?: PublicShareContextValue | null;
 }) {
   const rewriteHref = useSessionAppLinkRewriter();
+  const issueLinks = useContext(IssueMentionLinksContext);
   const { projectPaths, mentionedDirectories } = useProjectPathLinkSettings();
   const renderedHtml = useMemo(() => {
     const withProjectPaths = annotateProjectPathLinksHtml(
@@ -89,10 +97,12 @@ const RenderedHtmlIsland = memo(function RenderedHtmlIsland({
       publicShare,
       { projectPaths, mentionedDirectories },
     ).html;
-    const withGlossary = annotateGlossaryHtml(withProjectPaths, artifact).html;
+    const withIssues = annotateIssueMentionsHtml(withProjectPaths, issueLinks);
+    const withGlossary = annotateGlossaryHtml(withIssues, artifact).html;
     return rewriteSessionAppLinksHtml(withGlossary, rewriteHref);
   }, [
     artifact,
+    issueLinks,
     html,
     projectId,
     projectPathLinks,
@@ -160,6 +170,7 @@ export const TextBlock = memo(function TextBlock({
       ? glossary.result.artifact
       : undefined;
   const publicShare = usePublicShareContext();
+  const issueLinks = useContext(IssueMentionLinksContext);
   const rewriteHref = useSessionAppLinkRewriter();
   const sessionMetadata = useOptionalSessionMetadata();
   const projectId =
@@ -174,13 +185,14 @@ export const TextBlock = memo(function TextBlock({
         { projectPaths, mentionedDirectories },
       ).html;
       const withGlossary = annotateGlossaryHtml(
-        withProjectPaths,
+        annotateIssueMentionsHtml(withProjectPaths, issueLinks),
         glossaryArtifact,
       ).html;
       return rewriteSessionAppLinksHtml(withGlossary, rewriteHref);
     },
     [
       glossaryArtifact,
+      issueLinks,
       projectId,
       projectPathLinks,
       publicShare,
@@ -491,7 +503,12 @@ export const TextBlock = memo(function TextBlock({
             />
           ) : (
             <pre className={`${styles.source} text-block-source`}>
-              <code>{text}</code>
+              <code>
+                <LinkifiedText
+                  text={text}
+                  renderText={(plain) => <IssueMentionText text={plain} />}
+                />
+              </code>
             </pre>
           ))}
         {abortedMidStream && (

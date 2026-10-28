@@ -3,7 +3,10 @@ import {
   DRAFT_STORAGE_EVENT,
   collectSyncedSubmissionAttachments,
 } from "../lib/draftSyncStorage";
-import { SessionIssuesLink } from "../components/SessionIssuesLink";
+import {
+  SessionIssuesLink,
+  SessionIssuesProvider,
+} from "../components/SessionIssuesLink";
 import { useNonHumanUserTurnNavigation } from "../hooks/useNonHumanUserTurnNavigation";
 import { useSessionMessageNavigation } from "../hooks/useSessionMessageNavigation";
 import type {
@@ -7394,7 +7397,14 @@ function SessionPageContent({
     >
       <RoutedSessionContext value={Boolean(session?.routerBinding)}>
         <ComposerInsertContext value={insertQuotedSelection}>
-          {content}
+          <SessionIssuesProvider
+            key={`${clientSummarySourceKey}:${projectId}:${sessionId}`}
+            projectId={projectId}
+            sessionId={sessionId}
+            messageCount={messages.length}
+          >
+            {content}
+          </SessionIssuesProvider>
         </ComposerInsertContext>
       </RoutedSessionContext>
     </AsyncQuestionsProvider>
