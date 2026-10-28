@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { useI18n } from "../../i18n";
+import styles from "./SettingsDocLink.module.css";
 
 const SETTINGS_DOC_BLOB_BASE =
   "https://github.com/kzahel/yepanywhere/blob/main/";
@@ -30,7 +31,12 @@ export function settingsDocLabel(doc: SettingsDoc): string {
 export function SettingsDocLink({ doc }: { doc: SettingsDoc }) {
   const { t } = useI18n();
   return (
-    <a href={settingsDocHref(doc)} target="_blank" rel="noopener noreferrer">
+    <a
+      className={styles.link}
+      href={settingsDocHref(doc)}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
       {t("settingsDocLink", { doc: settingsDocLabel(doc) })}
     </a>
   );
