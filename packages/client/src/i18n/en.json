@@ -3522,6 +3522,7 @@
   "settingsSearchMatchValuesTooltip": "Also match each setting's current value",
   "settingsSearchNoResults": "No settings match \"{query}\"",
   "settingsSearchJumpTo": "Go to {location}",
+  "settingsDocLink": "See {doc}",
   "settingsSearchCategoriesHeading": "Categories",
   "settingsSearchResultCount": "{count} matching settings",
   "settingsBackupTitle": "Transfer browser settings",

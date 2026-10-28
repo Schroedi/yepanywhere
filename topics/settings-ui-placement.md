@@ -105,6 +105,32 @@ Server-persisted `clientDefaults` and every other server setting stay out of
 the text: they configure one host, and server-settings transfer is not
 pursued.
 
+## Documentation links
+
+A settings section or row whose effect is not evident from its title and
+one-line caption ends that caption with a brief **See _document_** link.
+Pass the repository path to `SettingsSection` or `SettingsItem` as
+`doc="topics/recaps.md"` (optionally with a `#heading-slug`); `custom`
+layouts render `SettingsDocLink` themselves. The link opens the document's
+published copy at `https://github.com/kzahel/yepanywhere/blob/main/<path>`
+in a new tab, so installed and hosted clients reach the same page without a
+local checkout. The link text names the document after its file, or after
+an explicit `{ path, label }`.
+
+Choose the target a user can act on: the user guide in
+`site/src/content/docs/` when one covers the setting, otherwise the topic
+that owns its behavior contract. Link at section level when one document
+explains the whole section, and do not repeat that link on its rows. Leave
+self-evident settings unlinked: a link on every row is noise. Link only a
+document that is already on upstream `main`; a document added in the same
+change is not published until it lands there.
+
+The link is not search text and does not lengthen the caption past its
+one-line aim. It remains independently operable inside search results:
+the row's jump-on-click ignores links. `SettingsDocLink.test.ts` fails when
+a linked path no longer exists, so renaming or retiring a document must
+update its settings links in the same change.
+
 ## Reviewed settings behavior
 
 **Appearance → Slide animations** is a browser-local preference, enabled by
