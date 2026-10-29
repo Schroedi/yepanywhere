@@ -1273,7 +1273,7 @@ describe("NewSessionForm", () => {
       name: "GPT-5.4",
       serviceTiers: [{ id: "priority", name: "Fast", description: "" }],
     };
-    vi.mocked(api.routerSelection).mockResolvedValue({
+    const selection = {
       serviceTierSelection: true,
       accounts: [
         {
@@ -1292,10 +1292,9 @@ describe("NewSessionForm", () => {
           accountIds: ["routed-account"],
         },
       ],
-    } as never);
-    versionState.version = {
-      capabilities: ["agent-auth-router", "agent-auth-router-service-tiers"],
     };
+    vi.mocked(api.routerSelection).mockResolvedValue(selection as never);
+    versionState.version = { capabilities: ["agent-auth-router"] };
     serverSettingsState.isLoading = false;
     serverSettingsState.settings = {
       newSessionDefaults: {
@@ -1335,7 +1334,11 @@ describe("NewSessionForm", () => {
         routerPoolId: "speed-pool",
         serviceTier: "priority",
       });
-      versionState.version = { capabilities: ["agent-auth-router"] };
+      vi.mocked(api.routerSelection).mockResolvedValue({
+        ...selection,
+        serviceTierSelection: undefined,
+      } as never);
+      act(() => window.dispatchEvent(new Event("router-connection-changed")));
       view.rerender(
         <NewSessionForm
           projectId="project-1"
@@ -1343,9 +1346,11 @@ describe("NewSessionForm", () => {
           projects={[...chooserProjects]}
         />,
       );
-      expect(
-        screen.queryByTestId("filter-newSessionServiceTierTitle"),
-      ).toBeNull();
+      await waitFor(() =>
+        expect(
+          screen.queryByTestId("filter-newSessionServiceTierTitle"),
+        ).toBeNull(),
+      );
     } finally {
       vi.mocked(api.routerSelection).mockImplementation(original);
     }

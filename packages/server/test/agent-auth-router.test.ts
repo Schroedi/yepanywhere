@@ -7,6 +7,9 @@ import { join } from "node:path";
 import { Hono } from "hono";
 import { afterEach, describe, expect, it } from "vitest";
 import { decideLimitedRoute } from "../src/auth/limitedUserPolicy.js";
+import type { Supervisor } from "../src/supervisor/Supervisor.js";
+import type { ProjectScanner } from "../src/projects/scanner.js";
+import { createProcessesRoutes } from "../src/routes/processes.js";
 import { createSessionsRoutes } from "../src/routes/sessions.js";
 import { createAgentAuthRouterRoutes } from "../src/routes/agent-auth-router.js";
 import { AgentAuthRouter } from "../src/services/AgentAuthRouter.js";
@@ -330,6 +333,23 @@ describe.skipIf(process.platform === "win32")(
       expect(codexRouterArguments(launch)).toContain(
         "features.api_key_model_discovery=true",
       );
+      const routes = createProcessesRoutes({
+        supervisor: {
+          getProcess: () => ({
+            sessionId: "speed-session",
+            supportedModels: async () => launch.models,
+          }),
+        } as unknown as Supervisor,
+        scanner: {} as ProjectScanner,
+        readerFactory: () => {
+          throw new Error("Unused reader");
+        },
+        sessionMetadataService: f.metadata,
+        agentAuthRouter: f.connector,
+      });
+      expect(
+        await (await routes.request("/speed-process/models")).json(),
+      ).toMatchObject({ serviceTierSelection: true, models: launch.models });
       await f.connector.validateSessionSettings(
         "speed-session",
         "fixture-model",
@@ -354,6 +374,9 @@ describe.skipIf(process.platform === "win32")(
       expect(requests[0]?.body.serviceTier).toBe("priority");
       expect(requests[1]?.body).toEqual(requests[0]?.body);
       f.serviceTiers(false);
+      expect(
+        await (await routes.request("/speed-process/models")).json(),
+      ).toMatchObject({ serviceTierSelection: false });
       await expect(
         f.connector.launch(
           "speed-session",

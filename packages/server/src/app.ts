@@ -2691,6 +2691,7 @@ export function createApp(options: AppOptions): AppResult {
   app.route(
     "/api/processes",
     createProcessesRoutes({
+      agentAuthRouter,
       supervisor,
       scanner,
       readerFactory,

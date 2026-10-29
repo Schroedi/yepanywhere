@@ -91,10 +91,7 @@ test("remembers speed and router choices across clients while discovery preserve
       route.fulfill({
         json: {
           current: "0.11.1",
-          capabilities: [
-            "agent-auth-router",
-            "agent-auth-router-service-tiers",
-          ],
+          capabilities: ["agent-auth-router"],
         },
       }),
     );

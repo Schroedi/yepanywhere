@@ -1511,6 +1511,8 @@ export const api = {
   getProcessModels: (processId: string) =>
     fetchJSON<{
       models: ModelInfo[];
+      /** Routed tier validation is available for this process; absent means unavailable. */
+      serviceTierSelection?: boolean;
     }>(`/processes/${processId}/models`),
 
   setProcessModel: (processId: string, model?: string) =>

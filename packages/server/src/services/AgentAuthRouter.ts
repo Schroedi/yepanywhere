@@ -575,6 +575,17 @@ export class AgentAuthRouter {
     string,
     Promise<AgentAuthRouterOverview>
   >();
+  /** On-demand support observation, with no account/provider I/O or state mutation. */
+  async supportsServiceTierSelection(): Promise<boolean> {
+    const c = this.state.connection;
+    if (c?.state !== "connected") return false;
+    try {
+      return (await this.info(c)).capabilities.includes("service-tiers-v1");
+    } catch (error) {
+      if (error instanceof RouterUnavailable) return false;
+      throw error;
+    }
+  }
   async selection(provider: unknown): Promise<AgentAuthRouterOverview | null> {
     if (provider !== "claude" && provider !== "codex")
       throw new RouterUnavailable(400, "Invalid router provider");

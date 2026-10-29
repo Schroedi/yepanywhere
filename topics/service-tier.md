@@ -97,13 +97,25 @@ shows the tier read-only and the client sends no tier change. See
 
 ## AAR account pools
 
-Routed Codex speed selection requires YA's optional
-`agent-auth-router-service-tiers` capability (ID 136) and AAR's
-`service-tiers-v1` capability. The selection/overview response additionally
-reports `serviceTierSelection`; absent or false keeps New Session Speed hidden.
-The current stable review corpus, v0.10.2 and v0.11.0, lacks the new YA bit;
-new clients retain the existing no-tier routed creation behavior there. The
-existing `process-service-tier-change` capability keeps its original meaning.
+Routed Codex speed selection uses response-level `serviceTierSelection`.
+Selection/overview responses carry it for New Session; process-model responses
+carry it for an existing routed session. Only explicit true enables the control;
+absent or false hides it and sends no unsupported tier write. The server checks
+AAR's `service-tiers-v1` support. The process-model check is an on-demand local
+control read, with no account/provider I/O or state mutation; a disconnected or
+unreachable router reports false while model rows remain readable.
+
+The optional-feature review corpus v0.10.0, v0.10.1, v0.10.2 and v0.11.0
+lacks these response signals and keeps the existing no-tier routed behavior. An earlier source server that
+reports the selection signal but lacks the process-model signal supports New
+Session Speed while its live routed panel stays hidden. The existing
+`process-service-tier-change` capability keeps its original meaning.
+
+Current clients no longer inspect the global `agent-auth-router-service-tiers`
+bit. Its registry entry is retired and ID 136 remains reserved; servers retain
+its advertisement for cached older clients. The scoped signal describes the
+connected AAR's actual runtime support and is not a fixed YA-version gate with
+a 90-day retirement date.
 
 AAR preserves each account's upstream `service_tiers` metadata without
 inferring availability from model names or adopting `default_service_tier`.
@@ -126,7 +138,7 @@ AAR's inference endpoint using `model_catalog_url` and explicit
 dropping an account-advertised tier. YA still sends the explicit selected tier
 on every turn, including after resume; Standard never inherits a paid catalog
 default. Existing sessions expose their pinned account's tiers in the model
-panel, gated on the new YA capability.
+panel when its process-model response explicitly reports tier support.
 
 ### Verification on 2026-10-29
 

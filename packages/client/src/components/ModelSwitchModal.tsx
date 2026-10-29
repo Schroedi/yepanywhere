@@ -167,6 +167,8 @@ export function ModelSwitchModal({
     null,
   );
   const [savingServiceTier, setSavingServiceTier] = useState(false);
+  const [routedServiceTierSelection, setRoutedServiceTierSelection] =
+    useState(false);
   const { version } = useVersion();
   const supportsServiceTierChange = serverHasCapability(
     version,
@@ -215,6 +217,7 @@ export function ModelSwitchModal({
           process?.effort,
         );
 
+        setRoutedServiceTierSelection(modelsRes.serviceTierSelection === true);
         setModels(
           withVisibleModelSelection(
             modelsRes.models,
@@ -305,11 +308,7 @@ export function ModelSwitchModal({
   const showServiceTierOptions =
     !!processId &&
     supportsServiceTierChange &&
-    (!routed ||
-      serverHasCapability(
-        version,
-        SERVER_CAPABILITIES.agentAuthRouterServiceTiers,
-      )) &&
+    (!routed || routedServiceTierSelection) &&
     serviceTierOptions.length > 0;
 
   const dirty =

@@ -305,15 +305,16 @@ export const SERVER_CAPABILITIES = {
     name: "agent-auth-router-service-tiers",
     introducedIn: "0.11.1",
     kind: "permanent",
+    retired: true,
     area: "sessions",
     advertisement: {
       kind: "optional-bit",
       index: CAPABILITY_ID_ALLOCATIONS.agentAuthRouterServiceTiers.id,
     },
     description:
-      "Validates Codex speed tiers against AAR account catalogs during allocation, resume and live changes.",
+      "Retired client gate: current clients use scoped serviceTierSelection responses. Still advertised for cached older clients; ID reserved.",
     clientFallback:
-      "Hide routed Speed controls and send no tier for new routed sessions.",
+      "Current clients use response-level serviceTierSelection; absence or false hides routed Speed and sends no unsupported tier write.",
     serverContract: {
       requestFields: ["serviceTier"],
       responseFields: ["serviceTierSelection", "models.serviceTiers"],
@@ -321,7 +322,7 @@ export const SERVER_CAPABILITIES = {
     lifecycle: {
       kind: "permanent",
       reason:
-        "AAR integration is optional and its tier support is negotiated independently.",
+        "No current client gate remains. Retain the advertisement for older clients; runtime AAR support belongs to scoped responses.",
     },
   },
   agentAuthRouterMostRemaining: {

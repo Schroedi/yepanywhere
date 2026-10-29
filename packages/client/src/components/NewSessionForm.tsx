@@ -1380,10 +1380,7 @@ export function NewSessionForm({
     (model) => model.id === selectedModel,
   );
   const routerTierSelection =
-    serverHasCapability(
-      versionInfo,
-      SERVER_CAPABILITIES.agentAuthRouterServiceTiers,
-    ) && routerDiscovery.data?.serviceTierSelection === true;
+    routerDiscovery.data?.serviceTierSelection === true;
   const tierModel = routerSelection
     ? routerSelection.accountId
       ? routerAccounts
