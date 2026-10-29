@@ -15,6 +15,11 @@ import { SECURITY_CLIENT_AUDIT_CAPABILITY } from "./security-clients.js";
 export type ServerCapabilityKind = "permanent" | "transitional";
 
 export const OPTIONAL_SERVER_CAPABILITY_BIT_ALLOCATIONS = {
+  agentAuthRouterServiceTiers: {
+    name: "agent-auth-router-service-tiers",
+    index: CAPABILITY_ID_ALLOCATIONS.agentAuthRouterServiceTiers.id,
+    introducedIn: "0.11.1",
+  },
   rendezCompose: {
     name: "rendez-active-compose",
     index: CAPABILITY_ID_ALLOCATIONS.rendezCompose.id,
@@ -293,6 +298,30 @@ export const SERVER_CAPABILITIES = {
       kind: "permanent",
       reason:
         "Advertised only while the operator enables agent self inspection, so clients publish nowhere it is not collected.",
+    },
+  },
+  agentAuthRouterServiceTiers: {
+    id: CAPABILITY_ID_ALLOCATIONS.agentAuthRouterServiceTiers.id,
+    name: "agent-auth-router-service-tiers",
+    introducedIn: "0.11.1",
+    kind: "permanent",
+    area: "sessions",
+    advertisement: {
+      kind: "optional-bit",
+      index: CAPABILITY_ID_ALLOCATIONS.agentAuthRouterServiceTiers.id,
+    },
+    description:
+      "Validates Codex speed tiers against AAR account catalogs during allocation, resume and live changes.",
+    clientFallback:
+      "Hide routed Speed controls and send no tier for new routed sessions.",
+    serverContract: {
+      requestFields: ["serviceTier"],
+      responseFields: ["serviceTierSelection", "models.serviceTiers"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "AAR integration is optional and its tier support is negotiated independently.",
     },
   },
   agentAuthRouterMostRemaining: {

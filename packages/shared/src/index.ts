@@ -1677,6 +1677,7 @@ export type {
 
 export {
   routerModelSupportsThinking,
+  routerModelSupportsServiceTier,
   resolveRouterModel,
   routerAliasTargets,
   routerCliModelTarget,

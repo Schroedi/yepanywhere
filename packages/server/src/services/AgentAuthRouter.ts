@@ -6,6 +6,7 @@ import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import {
   routerModelSupportsThinking,
+  routerModelSupportsServiceTier,
   sanitizeRouterCliModels,
 } from "@yep-anywhere/shared";
 import type {
@@ -29,6 +30,7 @@ import { writeFileAtomically } from "../utils/writeFileAtomically.js";
 
 export interface RouterLaunch {
   models?: ModelInfo[];
+  serviceTierSelection?: boolean;
   bindingId: string;
   accountId: string;
   baseUrl: string;
@@ -43,6 +45,7 @@ interface Connection {
 }
 interface Allocation {
   thinking?: ThinkingOption;
+  serviceTier?: string;
   poolId?: string;
   policy?: AgentAuthRouterPoolPolicy;
   requestedAccountId?: string;
@@ -144,6 +147,7 @@ function withCliModels<T>(overview: T, info: Info): T {
   const supported = info.capabilities.includes("catalog-cli-models-v1");
   return {
     ...overview,
+    serviceTierSelection: info.capabilities.includes("service-tiers-v1"),
     accounts: accounts.map((account: Record<string, unknown>) => {
       const { cliModels, cliModelsAt, ...rest } = account;
       const rows =
@@ -717,6 +721,9 @@ export class AgentAuthRouter {
             provider: source.provider,
             model: source.model,
             thinking: source.thinking,
+            serviceTier:
+              this.metadata.getMetadata(childSessionId)?.effectiveLaunchSettings
+                ?.serviceTier ?? undefined,
             token: token("aar_"),
           },
         },
@@ -726,7 +733,11 @@ export class AgentAuthRouter {
   async validateSessionSettings(
     sessionId: string,
     model: string | undefined,
-    settings?: { thinking?: ThinkingConfig; effort?: EffortLevel },
+    settings?: {
+      thinking?: ThinkingConfig;
+      effort?: EffortLevel;
+      serviceTier?: string;
+    },
   ): Promise<void> {
     const binding = this.metadata?.getMetadata(sessionId)?.routerBinding;
     if (!binding) return;
@@ -738,7 +749,16 @@ export class AgentAuthRouter {
       binding.routerId !== c.routerId
     )
       throw new RouterUnavailable(409, "Session router binding unavailable");
-    await this.info(c);
+    const info = await this.info(c);
+    if (
+      settings?.serviceTier &&
+      !info.capabilities.includes("service-tiers-v1")
+    )
+      throw new RouterUnavailable(
+        409,
+        "Update AAR to select a speed tier.",
+        "unsupported",
+      );
     const { models } = await this.catalog(binding.accountId);
     const thinking: ThinkingOption =
       settings?.thinking?.type === "disabled"
@@ -756,6 +776,16 @@ export class AgentAuthRouter {
         409,
         "The pinned account does not support the selected model and thinking level",
       );
+    if (
+      !routerModelSupportsServiceTier(
+        models.find((m) => m.id === (model ?? allocation.model)),
+        settings?.serviceTier,
+      )
+    )
+      throw new RouterUnavailable(
+        409,
+        "The pinned account does not support the selected speed tier",
+      );
   }
   async launch(
     sessionId: string,
@@ -764,7 +794,11 @@ export class AgentAuthRouter {
     accountId?: string,
     poolId?: string,
     policy?: AgentAuthRouterPoolPolicy,
-    settings?: { thinking?: ThinkingConfig; effort?: EffortLevel },
+    settings?: {
+      thinking?: ThinkingConfig;
+      effort?: EffortLevel;
+      serviceTier?: string;
+    },
   ): Promise<RouterLaunch | undefined> {
     return this.serialize(async () => {
       const existing = this.metadata?.getMetadata(sessionId)?.routerBinding;
@@ -780,6 +814,15 @@ export class AgentAuthRouter {
         throw new RouterUnavailable(
           409,
           "Update AAR to use pools.",
+          "unsupported",
+        );
+      if (
+        settings?.serviceTier &&
+        !info.capabilities.includes("service-tiers-v1")
+      )
+        throw new RouterUnavailable(
+          409,
+          "Update AAR to select a speed tier.",
           "unsupported",
         );
       await this.flushCancellations(c);
@@ -859,6 +902,9 @@ export class AgentAuthRouter {
           provider,
           model,
           thinking: requestedThinking,
+          ...(settings?.serviceTier
+            ? { serviceTier: settings.serviceTier }
+            : {}),
           token: token("aar_"),
         };
         await this.save({
@@ -909,6 +955,9 @@ export class AgentAuthRouter {
               : { accountId: allocation.accountId }),
             model: allocation.model,
             thinking: allocation.thinking,
+            ...(allocation.serviceTier
+              ? { serviceTier: allocation.serviceTier }
+              : {}),
             tokenHash: hash(allocation.token),
           },
         );
@@ -963,6 +1012,16 @@ export class AgentAuthRouter {
             409,
             "The pinned account does not support the selected model and thinking level",
           );
+        if (
+          !routerModelSupportsServiceTier(
+            accountModels.find((m) => m.id === requestedModel),
+            settings?.serviceTier,
+          )
+        )
+          throw new RouterUnavailable(
+            409,
+            "The pinned account does not support the selected speed tier",
+          );
         await routerRequest(c.socketPath, "/v1/bindings/commit", c.token, {
           id: allocation.id,
         });
@@ -992,6 +1051,7 @@ export class AgentAuthRouter {
       }
       return {
         models: accountModels,
+        serviceTierSelection: info.capabilities.includes("service-tiers-v1"),
         bindingId: allocation.id,
         accountId: allocation.accountId,
         baseUrl: `${info.inferenceOrigin}/${provider}`,

@@ -1371,6 +1371,35 @@ export function NewSessionForm({
     (selectedProviderQuery.fresh &&
       !selectedProviderQuery.refreshing &&
       selectedProviderQuery.error === null);
+  const routedModel = resolveRouterModel(
+    selectedModel,
+    accountModels,
+    routerAliases,
+  );
+  const selectedModelInfo = visibleModels.find(
+    (model) => model.id === selectedModel,
+  );
+  const routerTierSelection =
+    serverHasCapability(
+      versionInfo,
+      SERVER_CAPABILITIES.agentAuthRouterServiceTiers,
+    ) && routerDiscovery.data?.serviceTierSelection === true;
+  const tierModel = routerSelection
+    ? routerSelection.accountId
+      ? routerAccounts
+          .find((a) => a.id === routerSelection.accountId)
+          ?.models.find((m) => m.id === routedModel)
+      : accountModels.find((m) => m.id === routedModel)
+    : selectedModelInfo;
+  const serviceTierOptions =
+    routerSelection && !routerTierSelection
+      ? []
+      : selectableServiceTiers(tierModel?.serviceTiers);
+  const effectiveServiceTier =
+    selectedServiceTier &&
+    serviceTierOptions.some((tier) => tier.id === selectedServiceTier)
+      ? selectedServiceTier
+      : null;
   const compatibleMembers = routerSelection?.poolId
     ? routerPoolMembers(
         routerDiscovery.data,
@@ -1378,6 +1407,7 @@ export function NewSessionForm({
         selectedProvider,
         selectedModel,
         routerThinking,
+        effectiveServiceTier,
       )
     : [];
   const selectedRouterPool = routerDiscovery.data?.pools.find(
@@ -1393,11 +1423,6 @@ export function NewSessionForm({
       ? compatibleMembers[0]?.id
       : undefined);
   const routerPolicy = routerAccountId ? "manual" : routerSelection?.policy;
-  const routedModel = resolveRouterModel(
-    selectedModel,
-    accountModels,
-    routerAliases,
-  );
   const selectedProviderRuntime = selectedProviderQuery.fresh
     ? selectedProviderQuery.row
     : !providersStale
@@ -1457,17 +1482,6 @@ export function NewSessionForm({
     selectedProviderInfo?.supportsPermissionMode ?? true;
   const supportsThinkingToggle =
     selectedProviderInfo?.supportsThinkingToggle ?? true;
-  const selectedModelInfo = visibleModels.find(
-    (model) => model.id === selectedModel,
-  );
-  const serviceTierOptions = routerSelection
-    ? []
-    : selectableServiceTiers(selectedModelInfo?.serviceTiers);
-  const effectiveServiceTier =
-    selectedServiceTier &&
-    serviceTierOptions.some((tier) => tier.id === selectedServiceTier)
-      ? selectedServiceTier
-      : null;
   const effortOptions = useMemo(
     () =>
       getEffortLevelOptions({
@@ -5557,6 +5571,7 @@ export function NewSessionForm({
                 provider={selectedProvider}
                 model={selectedModel}
                 thinking={routerThinking}
+                serviceTier={effectiveServiceTier}
                 data={routerDiscovery.data}
                 busy={routerDiscovery.busy}
                 error={routerDiscovery.error}

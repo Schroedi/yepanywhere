@@ -6602,6 +6602,7 @@ function SessionPageContent({
         {/* Model Switch Modal */}
         {showModelSwitchModal && (
           <ModelSwitchModal
+            routed={routedSession}
             processId={status.owner === "self" ? status.processId : undefined}
             sessionId={actualSessionId}
             currentModel={session?.model}

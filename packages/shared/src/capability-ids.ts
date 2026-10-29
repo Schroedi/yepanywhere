@@ -834,6 +834,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "rendez-active-compose",
     introducedIn: "0.11.1",
   },
+  agentAuthRouterServiceTiers: {
+    id: 136,
+    direction: "server",
+    name: "agent-auth-router-service-tiers",
+    introducedIn: "0.11.1",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [

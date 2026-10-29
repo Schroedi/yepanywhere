@@ -788,6 +788,12 @@ export class Supervisor {
     this.getLimitedUserInstructions = options.getLimitedUserInstructions;
     this.activationCoordinator = new SessionActivationCoordinator({
       defaultPermissionMode: this.defaultPermissionMode,
+      validateSessionSettings: (sessionId, model, settings) =>
+        this.agentAuthRouter?.validateSessionSettings(
+          sessionId,
+          model,
+          settings,
+        ) ?? Promise.resolve(),
       sessionMetadataService: this.sessionMetadataService,
       recoverSessionLaunchSettings: this.recoverSessionLaunchSettings,
       getProcess: (processId) => this.getProcess(processId),
@@ -3199,6 +3205,8 @@ export class Supervisor {
                 effort: effortWasRequested
                   ? modelSettings?.effort
                   : existingProcess.effort,
+                serviceTier:
+                  modelSettings?.serviceTier ?? existingProcess.serviceTier,
               },
             );
           }
@@ -4461,6 +4469,15 @@ export class Supervisor {
       compactThresholdChanged ||
       launchCompactPercentOverrideChanged
     ) {
+      await this.agentAuthRouter?.validateSessionSettings(
+        sessionId,
+        process.model,
+        {
+          thinking: requestedThinking,
+          effort: requestedEffort,
+          serviceTier: requestedServiceTier,
+        },
+      );
       if (
         !serviceTierChanged &&
         !compactThresholdChanged &&

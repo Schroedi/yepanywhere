@@ -751,6 +751,7 @@ export function getServerCapabilities(options?: VersionRouteOptions): string[] {
     capabilities.push(SERVER_CAPABILITIES.vhostAppControl.name);
   if (options?.agentAuthRouterAvailable) {
     capabilities.push(SERVER_CAPABILITIES.agentAuthRouter.name);
+    capabilities.push(SERVER_CAPABILITIES.agentAuthRouterServiceTiers.name);
     capabilities.push(SERVER_CAPABILITIES.agentAuthRouterRecovery.name);
     capabilities.push(SERVER_CAPABILITIES.agentAuthRouterPools.name);
     capabilities.push(SERVER_CAPABILITIES.agentAuthRouterOwnedPools.name);

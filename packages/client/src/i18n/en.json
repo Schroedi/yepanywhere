@@ -4668,6 +4668,7 @@
   "routerReasonNoAccountOffers": "No account offers {model}",
   "routerReasonNoAccountSupportsEffort": "No account supports {effort} effort",
   "routerReasonModelUnavailable": "Doesn’t offer {model}",
+  "routerReasonSpeedUnsupported": "Selected speed is unavailable for this model on this account",
   "routerReasonEffortUnsupported": "Doesn’t support {effort} effort",
   "routerReasonAuthBlocked": "Provider rejected access when last checked",
   "routerReasonCooldown": "Cooling down when last checked",

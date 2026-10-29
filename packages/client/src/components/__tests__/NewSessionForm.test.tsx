@@ -1266,6 +1266,91 @@ describe("NewSessionForm", () => {
     );
   });
 
+  it("launches routed Codex at the chosen speed only with negotiated support", async () => {
+    const original = vi.mocked(api.routerSelection).getMockImplementation()!;
+    const model = {
+      id: "gpt-5.4",
+      name: "GPT-5.4",
+      serviceTiers: [{ id: "priority", name: "Fast", description: "" }],
+    };
+    vi.mocked(api.routerSelection).mockResolvedValue({
+      serviceTierSelection: true,
+      accounts: [
+        {
+          id: "routed-account",
+          provider: "codex",
+          enabled: true,
+          models: [model],
+        },
+      ],
+      pools: [
+        {
+          id: "speed-pool",
+          name: "Speed pool",
+          provider: "codex",
+          policy: "round-robin",
+          accountIds: ["routed-account"],
+        },
+      ],
+    } as never);
+    versionState.version = {
+      capabilities: ["agent-auth-router", "agent-auth-router-service-tiers"],
+    };
+    serverSettingsState.isLoading = false;
+    serverSettingsState.settings = {
+      newSessionDefaults: {
+        provider: "codex",
+        providers: {
+          codex: {
+            model: model.id,
+            serviceTier: "priority",
+            routerPoolId: "speed-pool",
+          },
+        },
+      },
+    };
+    try {
+      const view = render(
+        <NewSessionForm
+          projectId="project-1"
+          selectedProject={chooserProjects[0]}
+          projects={[...chooserProjects]}
+        />,
+      );
+      openAdvancedOptions();
+      await waitFor(() =>
+        expect(selectedDropdownValue("routerPool")).toBe("speed-pool"),
+      );
+      expect(selectedDropdownValue("newSessionServiceTierTitle")).toBe(
+        "priority",
+      );
+      fireEvent.change(screen.getByPlaceholderText("newSessionPlaceholder"), {
+        target: { value: "hello" },
+      });
+      fireEvent.click(
+        screen.getByRole("button", { name: "newSessionStartAction" }),
+      );
+      await waitFor(() => expect(mockStartSession).toHaveBeenCalledTimes(1));
+      expect(mockStartSession.mock.calls[0]?.[2]).toMatchObject({
+        routerPoolId: "speed-pool",
+        serviceTier: "priority",
+      });
+      versionState.version = { capabilities: ["agent-auth-router"] };
+      view.rerender(
+        <NewSessionForm
+          projectId="project-1"
+          selectedProject={chooserProjects[0]}
+          projects={[...chooserProjects]}
+        />,
+      );
+      expect(
+        screen.queryByTestId("filter-newSessionServiceTierTitle"),
+      ).toBeNull();
+    } finally {
+      vi.mocked(api.routerSelection).mockImplementation(original);
+    }
+  });
+
   it("waits for discovery, restores the saved account and saves explicit Direct", async () => {
     const original = vi.mocked(api.routerSelection).getMockImplementation()!;
     const data = await original("claude");
