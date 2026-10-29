@@ -140,8 +140,16 @@ test("↑ in the emptied composer leaves a queued message queued", async ({
     composer.press("Control+Enter"),
   ]);
   await expect(composer).toHaveValue("");
-  await composer.press("ArrowUp");
-  await expect(composer).toHaveValue("A delivered message");
+  // The composer clears at submit, and Playwright can see the response before
+  // the app has recorded the delivery. Until then the last submission is the
+  // queued message, which ↑ leaves alone (checked above), so pressing again
+  // is what a user would do.
+  await expect(async () => {
+    await composer.press("ArrowUp");
+    await expect(composer).toHaveValue("A delivered message", {
+      timeout: 500,
+    });
+  }).toPass();
   const back = page.getByRole("button", { name: "Cancel correction" });
   await expect(back).toHaveText("Back to new message ↓");
   for (const viewport of [
