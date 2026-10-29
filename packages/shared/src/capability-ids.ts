@@ -840,6 +840,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "agent-auth-router-service-tiers",
     introducedIn: "0.11.1",
   },
+  fileFolderListing: {
+    id: 137,
+    direction: "server",
+    name: "file-folder-listing",
+    introducedIn: "0.11.1",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [

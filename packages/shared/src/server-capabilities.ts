@@ -2275,6 +2275,27 @@ export const SERVER_CAPABILITIES = {
       reason: "Older servers do not report .rendez observer status.",
     },
   },
+  fileFolderListing: {
+    id: CAPABILITY_ID_ALLOCATIONS.fileFolderListing.id,
+    name: "file-folder-listing",
+    kind: "permanent",
+    area: "sessions",
+    introducedIn: "0.11.1",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Lists the direct children of one folder for the authenticated File Viewer's clickable path segments; host paths outside the project are superuser-only, and public file shares never list.",
+    clientFallback:
+      "Show the File Viewer path as plain text, with today's file menu on right-click, and make no folder-listing request.",
+    serverContract: {
+      routes: ["GET /api/projects/:projectId/files/list"],
+      requestFields: ["path"],
+      responseFields: ["path", "entries", "truncated"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason: "Older servers have no folder-listing route.",
+    },
+  },
   projectFolderState: {
     id: CAPABILITY_ID_ALLOCATIONS.projectFolderState.id,
     name: "project-folder-state",

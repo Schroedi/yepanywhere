@@ -17,5 +17,7 @@
     "0.10.2": "2026-10-20",
     "0.11.0": "2026-10-24"
   },
-  "sourceIntroductions": {}
+  "sourceIntroductions": {
+    "file-folder-listing": "2026-10-29"
+  }
 }

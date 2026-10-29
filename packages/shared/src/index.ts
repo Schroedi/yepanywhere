@@ -464,6 +464,8 @@ export type {
   EffortLevel,
   FileMetadata,
   FileContentResponse,
+  FolderEntry,
+  FolderListingResponse,
   PatchHunk,
   EditAugment,
   MarkdownAugment,

@@ -476,6 +476,30 @@ vocabulary even though their authorization routes remain distinct:
 - Public shares may expose their share-scoped viewer link and project-relative
   path, but the file action menu does not derive or copy the host's absolute
   project path.
+- **Path segments.** In the authenticated project `FileViewer` header each
+  folder of the displayed path is a link-colored segment, web-breadcrumb
+  style; `/` separators are inert and muted, and the file name is plain text
+  that still lists its own folder when clicked. A segment adds no space to the
+  path, which wraps as before. Clicking a folder lists its direct children
+  under the segment: folders first, then names, with size and age; the open
+  file is marked, and **‹ ›** step to the previous or next file in that
+  folder. `../` and folder rows move the list without leaving it; a relative
+  path climbs no higher than the project root, which is listed under the
+  project folder's name. Choosing a file shows it in the viewer's place,
+  without the old file's line, range or diff target: the file page pushes a
+  history entry, a session viewer's label and reload route follow the new
+  file, and a viewer embedded in Source Control opens it in a nested viewer.
+  Right-click on a folder opens a folder menu headed by that folder's path:
+  **Open** (its list), **New session** (prefilled with the folder),
+  **Copy project-relative path**, **Copy absolute folder path** and **Copy
+  listing** (entry names, one per line). Source/Preview, viewer link, contents,
+  public URL, download and GitHub link have no folder meaning and are absent;
+  right-click on the name or a separator keeps the file menu. Listing uses
+  `GET /api/projects/:id/files/list` (`file-folder-listing`): non-recursive,
+  the file read's path resolution and symlink containment, at most 2000
+  entries, host paths outside the project for the superuser only. Without the
+  capability, or in a public share, the path is the old plain text and no
+  listing or version request is made.
 
 This convergence is client-only and uses existing fetch contracts. The server
 still needs separate future work to provide a stable viewer route for an

@@ -84,6 +84,15 @@ single-key session triage. Unmodified `r` and `u` explicitly set read state for
 the focused session; they leave typing, menus, dialogs and viewers alone. Their
 only visible addition is a key hint beside the existing menu action.
 
+The File Viewer's **clickable path segments**
+([media routing](media-rendering-and-routing.md#resource-actions-and-file-presentation-choice))
+are always on, authorized by graehl on 2026-10-29 after approving the mockup.
+Clickable path breadcrumbs are an established file-browser convention; the
+path keeps its width, folders keep its link color, and the visible changes
+are muted separators and a plain-text file name. Right-click on a folder now
+opens a folder menu instead of the file menu, which the name and separators
+keep.
+
 The **managed first-party artifact viewer** is enabled by capability for the
 first-party hosted client, authorized 2026-10-16. Opening agent-generated HTML
 with its local assets is an expected file-viewing action; users need no domain

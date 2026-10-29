@@ -80,6 +80,12 @@ export interface ResourceContextMenuProps {
   onCopyProjectRelativePath?: () => void;
   onCopyPublicUrl?: () => void;
   onCopyViewerLink?: () => void;
+  /** Copy a folder's entry names, one per line. */
+  onCopyListing?: () => void;
+  /** The resource is a folder: path copies name a folder, not a file. */
+  folder?: boolean;
+  /** A muted first line naming what the menu acts on. */
+  heading?: string;
   fileTarget?: GitHubFileTarget;
   download?: ResourceDownload;
   /** An outside path whose checkout or directory may open in a new tab. */
@@ -408,6 +414,9 @@ export function ResourceContextMenu({
   onCopyProjectRelativePath,
   onCopyPublicUrl,
   onCopyViewerLink,
+  onCopyListing,
+  folder = false,
+  heading,
   download,
   localSource,
   onOpen,
@@ -447,6 +456,7 @@ export function ResourceContextMenu({
       onCopyFilePath ||
       onCopyImage ||
       onCopyViewerLink ||
+      onCopyListing ||
       onCopyContents ||
       onCopyRenderedContents ||
       githubLink,
@@ -468,6 +478,7 @@ export function ResourceContextMenu({
     Number(Boolean(onCopyAbsolutePath)) +
     Number(Boolean(onCopyFilePath)) +
     Number(Boolean(onCopyViewerLink)) +
+    Number(Boolean(onCopyListing)) +
     Number(Boolean(onCopyContents)) +
     Number(Boolean(onCopyRenderedContents)) +
     Number(Boolean(githubLink));
@@ -507,6 +518,7 @@ export function ResourceContextMenu({
     16 +
     rootItemCount * (usesHoverFlyout ? 36 : 44) +
     (hasCopyActions ? 9 : 0) +
+    (heading ? 29 : 0) +
     (githubDescription ? 24 : 0);
   const rootMenuTop = Math.max(
     8,
@@ -545,6 +557,12 @@ export function ResourceContextMenu({
           role="menu"
           style={{ left: rootMenuLeft, top: rootMenuTop }}
         >
+          {heading ? (
+            <div className={styles.heading} title={heading}>
+              {/* Elide from the left; the path itself stays left-to-right. */}
+              <bdi dir="ltr">{heading}</bdi>
+            </div>
+          ) : null}
           <FilePathContextMenuItem
             expanded={panel === "open"}
             opensPanel={hasPresentationChoice}
@@ -636,7 +654,9 @@ export function ResourceContextMenu({
               onSelect={() => select(onCopyAbsolutePath)}
             >
               <CopyActionLabel>
-                {t("fileLinkMenuCopyAbsolutePath" as never)}
+                {folder
+                  ? t("folderMenuCopyAbsolutePath" as never)
+                  : t("fileLinkMenuCopyAbsolutePath" as never)}
               </CopyActionLabel>
             </FilePathContextMenuItem>
           ) : null}
@@ -657,6 +677,16 @@ export function ResourceContextMenu({
             >
               <CopyActionLabel>
                 {t("fileLinkMenuCopyViewerLink" as never)}
+              </CopyActionLabel>
+            </FilePathContextMenuItem>
+          ) : null}
+          {onCopyListing ? (
+            <FilePathContextMenuItem
+              onHover={usesHoverFlyout ? () => setPanel("root") : undefined}
+              onSelect={() => select(onCopyListing)}
+            >
+              <CopyActionLabel>
+                {t("folderMenuCopyListing" as never)}
               </CopyActionLabel>
             </FilePathContextMenuItem>
           ) : null}

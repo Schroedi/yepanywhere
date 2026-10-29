@@ -1627,6 +1627,8 @@ export const api = {
     fileApi.getFileMetadata(...args),
   getFileRawUrl: (...args: Parameters<typeof fileApi.getFileRawUrl>) =>
     fileApi.getFileRawUrl(...args),
+  listFolder: (...args: Parameters<typeof fileApi.listFolder>) =>
+    fileApi.listFolder(...args),
   expandDiffContext: (...args: Parameters<typeof fileApi.expandDiffContext>) =>
     fileApi.expandDiffContext(...args),
 
