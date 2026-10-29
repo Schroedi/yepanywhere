@@ -519,7 +519,7 @@ interface CodexTurnRuntimeState {
   >;
 }
 
-type CodexRetryableTurnErrorKind = "serverOverloaded" | "cyberAccessDenied";
+type CodexRetryableTurnErrorKind = "capacityUnavailable" | "cyberAccessDenied";
 
 interface CodexRetryableTurnError {
   kind: CodexRetryableTurnErrorKind;
@@ -571,7 +571,14 @@ function classifyCodexTurnError(
   error: CodexTurnErrorText,
   cyberAccessRequested: boolean,
 ): CodexRetryableTurnErrorKind | null {
-  if (error.codexErrorInfo === "serverOverloaded") return "serverOverloaded";
+  // Codex 0.166 split policy-restricted capacity out of `serverOverloaded`
+  // with the same retry advice, so both take YA's same-model overload retry.
+  if (
+    error.codexErrorInfo === "serverOverloaded" ||
+    error.codexErrorInfo === "policyCapacityUnavailable"
+  ) {
+    return "capacityUnavailable";
+  }
   if (cyberAccessRequested && isCodexCyberAccessDenial(error)) {
     return "cyberAccessDenied";
   }

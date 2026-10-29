@@ -1032,106 +1032,109 @@ describe("CodexProvider app-server lifecycle", () => {
     }
   });
 
-  it("retries selected-model overloads without resending user input", async () => {
-    const tempDir = mkdtempSync(join(tmpdir(), "codex-overload-retry-"));
-    const logPath = join(tempDir, "fake-codex-requests.jsonl");
-    const codexPath = createFakeCodexCommand(
-      tempDir,
-      "fake-codex-overload-retry",
-      buildFakeCodexFailureAppServer(logPath, "serverOverloaded", 2),
-    );
-    const retryDelays: number[] = [];
-    const testProvider = new CodexProvider({
-      codexPath,
-      overloadRetryWait: async (delayMs, signal) => {
-        retryDelays.push(delayMs);
-        return !signal.aborted;
-      },
-    });
-    const session = await testProvider.startSession({
-      cwd: tempDir,
-      model: "gpt-5.6-codex",
-      initialMessage: { text: "keep this prompt singular", uuid: "user-1" },
-    });
-
-    try {
-      const messages: Array<Record<string, unknown>> = [];
-      while (true) {
-        const next = await session.iterator.next();
-        if (next.done) break;
-        messages.push(next.value);
-        if (next.value.type === "result") break;
-      }
-
-      expect(retryDelays).toEqual([20_000, 45_000]);
-      expect(
-        messages.filter((message) => message.type === "user"),
-      ).toHaveLength(1);
-      expect(
-        messages.filter(
-          (message) =>
-            message.type === "error" && message.codexWillRetry === true,
-        ),
-      ).toMatchObject([
-        {
-          codexErrorInfo: "serverOverloaded",
-          codexRetryAttempt: 1,
-          codexRetryDelayMs: 20_000,
-          codexRetryMaxRetries: 16,
-        },
-        {
-          codexErrorInfo: "serverOverloaded",
-          codexRetryAttempt: 2,
-          codexRetryDelayMs: 45_000,
-          codexRetryMaxRetries: 16,
-        },
-      ]);
-      expect(
-        messages.some(
-          (message) =>
-            message.type === "error" && message.codexWillRetry === false,
-        ),
-      ).toBe(false);
-      expect(messages).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            type: "assistant",
-            message: expect.objectContaining({ content: "Recovered answer" }),
-          }),
-        ]),
+  it.each(["serverOverloaded", "policyCapacityUnavailable"] as const)(
+    "retries selected-model %s without resending user input",
+    async (codexErrorInfo) => {
+      const tempDir = mkdtempSync(join(tmpdir(), "codex-overload-retry-"));
+      const logPath = join(tempDir, "fake-codex-requests.jsonl");
+      const codexPath = createFakeCodexCommand(
+        tempDir,
+        "fake-codex-overload-retry",
+        buildFakeCodexFailureAppServer(logPath, codexErrorInfo, 2),
       );
-
-      const turnStarts = readFakeCodexRequests(logPath).filter(
-        (request) => request.method === "turn/start",
-      );
-      expect(turnStarts).toHaveLength(3);
-      expect(turnStarts[0]?.params).toMatchObject({
-        clientUserMessageId: "user-1",
-        input: [
-          {
-            type: "text",
-            text: "keep this prompt singular",
-            text_elements: [],
-          },
-        ],
+      const retryDelays: number[] = [];
+      const testProvider = new CodexProvider({
+        codexPath,
+        overloadRetryWait: async (delayMs, signal) => {
+          retryDelays.push(delayMs);
+          return !signal.aborted;
+        },
       });
-      expect(turnStarts.slice(1).map((request) => request.params)).toEqual([
-        expect.objectContaining({ input: [] }),
-        expect.objectContaining({ input: [] }),
-      ]);
-      expect(
-        turnStarts
-          .slice(1)
-          .every(
-            (request) => request.params?.clientUserMessageId === undefined,
+      const session = await testProvider.startSession({
+        cwd: tempDir,
+        model: "gpt-5.6-codex",
+        initialMessage: { text: "keep this prompt singular", uuid: "user-1" },
+      });
+
+      try {
+        const messages: Array<Record<string, unknown>> = [];
+        while (true) {
+          const next = await session.iterator.next();
+          if (next.done) break;
+          messages.push(next.value);
+          if (next.value.type === "result") break;
+        }
+
+        expect(retryDelays).toEqual([20_000, 45_000]);
+        expect(
+          messages.filter((message) => message.type === "user"),
+        ).toHaveLength(1);
+        expect(
+          messages.filter(
+            (message) =>
+              message.type === "error" && message.codexWillRetry === true,
           ),
-      ).toBe(true);
-    } finally {
-      await session.abort();
-      await session.iterator.return?.(undefined);
-      rmSync(tempDir, { recursive: true, force: true });
-    }
-  });
+        ).toMatchObject([
+          {
+            codexErrorInfo,
+            codexRetryAttempt: 1,
+            codexRetryDelayMs: 20_000,
+            codexRetryMaxRetries: 16,
+          },
+          {
+            codexErrorInfo,
+            codexRetryAttempt: 2,
+            codexRetryDelayMs: 45_000,
+            codexRetryMaxRetries: 16,
+          },
+        ]);
+        expect(
+          messages.some(
+            (message) =>
+              message.type === "error" && message.codexWillRetry === false,
+          ),
+        ).toBe(false);
+        expect(messages).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              type: "assistant",
+              message: expect.objectContaining({ content: "Recovered answer" }),
+            }),
+          ]),
+        );
+
+        const turnStarts = readFakeCodexRequests(logPath).filter(
+          (request) => request.method === "turn/start",
+        );
+        expect(turnStarts).toHaveLength(3);
+        expect(turnStarts[0]?.params).toMatchObject({
+          clientUserMessageId: "user-1",
+          input: [
+            {
+              type: "text",
+              text: "keep this prompt singular",
+              text_elements: [],
+            },
+          ],
+        });
+        expect(turnStarts.slice(1).map((request) => request.params)).toEqual([
+          expect.objectContaining({ input: [] }),
+          expect.objectContaining({ input: [] }),
+        ]);
+        expect(
+          turnStarts
+            .slice(1)
+            .every(
+              (request) => request.params?.clientUserMessageId === undefined,
+            ),
+        ).toBe(true);
+      } finally {
+        await session.abort();
+        await session.iterator.return?.(undefined);
+        rmSync(tempDir, { recursive: true, force: true });
+      }
+    },
+  );
 
   it("treats any 403 as a refused cyber access program", () => {
     const message =
@@ -4067,6 +4070,7 @@ function buildFakeCodexFailureAppServer(
   logPath: string,
   codexErrorInfo:
     | "serverOverloaded"
+    | "policyCapacityUnavailable"
     | "usageLimitExceeded"
     | "cyberAccessDenied"
     | "cyberAccessRetrying",
@@ -4190,9 +4194,9 @@ function handleMessage(message) {
             codexErrorInfo: { httpConnectionFailed: { httpStatusCode: 403 } },
             additionalDetails: null,
           } : {
-            message: codexErrorInfo === "serverOverloaded"
-              ? "Selected model is at capacity."
-              : "Usage limit reached.",
+            message: codexErrorInfo === "usageLimitExceeded"
+              ? "Usage limit reached."
+              : "Selected model is at capacity.",
             codexErrorInfo,
             additionalDetails: null,
           };

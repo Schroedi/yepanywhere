@@ -636,6 +636,7 @@ function normalizeCodexTerminalReason(
 ): ProviderRuntimeReason {
   switch (codexErrorInfo) {
     case "serverOverloaded":
+    case "policyCapacityUnavailable":
       return "overloaded";
     case "usageLimitExceeded":
     case "sessionBudgetExceeded":
