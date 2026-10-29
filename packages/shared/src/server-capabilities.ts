@@ -2048,7 +2048,7 @@ export const SERVER_CAPABILITIES = {
     description:
       "Server resolves governing project glossaries, returns compiled phrase automata, and streams project glossary-path changes.",
     clientFallback:
-      "Hide Glossary hints, make no artifact request or subscription, and render ordinary Markdown.",
+      "Current clients assume this v0.8.0 baseline contract; older servers should update or use their bundled client. User preferences and runtime availability still apply.",
     serverContract: {
       routes: ["GET /api/projects/:projectId/glossary-artifact"],
       routeModules: ["packages/server/src/routes/glossary-artifacts.ts"],
@@ -2312,7 +2312,7 @@ export const SERVER_CAPABILITIES = {
     description:
       "Server defaults project-scoped YA state to its data directory, supports explicit project-local opt-in, and reconciles revisioned mutable state before changing modes.",
     clientFallback:
-      "Show the storage location as unavailable and make no unsupported settings write.",
+      "Current clients assume this v0.8.0 baseline contract; older servers should update or use their bundled client. User preferences and runtime availability still apply.",
     serverContract: {
       routes: ["GET /api/settings", "PUT /api/settings"],
       requestFields: ["settings.projectDirectoryStorage"],
@@ -2334,7 +2334,7 @@ export const SERVER_CAPABILITIES = {
     description:
       "Server exposes a live-configurable best-effort grace before unviewed, verified-idle provider processes may be reaped.",
     clientFallback:
-      "Hide the idle-reap control and make no unsupported settings write.",
+      "Current clients assume this v0.8.0 baseline contract; older servers should update or use their bundled client. User preferences and runtime availability still apply.",
     serverContract: {
       routes: ["GET /api/settings", "PUT /api/settings"],
       requestFields: ["settings.idleReapHours"],
@@ -2356,7 +2356,7 @@ export const SERVER_CAPABILITIES = {
     description:
       "Server persists a process-launch limit for supported providers' native subagent nesting depth.",
     clientFallback:
-      "Hide the subagent-depth control and make no unsupported settings write.",
+      "Current clients assume this v0.8.0 baseline contract; older servers should update or use their bundled client. User preferences and runtime availability still apply.",
     serverContract: {
       routes: ["GET /api/settings", "PUT /api/settings"],
       requestFields: ["settings.subagentMaxDepth"],
@@ -2378,7 +2378,7 @@ export const SERVER_CAPABILITIES = {
     description:
       "Server persists the reasoning-summary mode applied when Codex app-server sessions start, resume, or fork.",
     clientFallback:
-      "Hide the Codex reasoning-summary control and make no unsupported settings write.",
+      "Current clients assume this v0.8.0 baseline contract; older servers should update or use their bundled client. User preferences and runtime availability still apply.",
     serverContract: {
       routes: ["GET /api/settings", "PUT /api/settings"],
       requestFields: ["settings.codexReasoningSummary"],
@@ -2497,7 +2497,7 @@ export const SERVER_CAPABILITIES = {
     description:
       "Server loads tool-result images on demand by default and can preserve new live results when explicitly enabled.",
     clientFallback:
-      "Show media preservation as unavailable and make no unsupported settings write.",
+      "Current clients assume this v0.8.0 baseline contract; older servers should update or use their bundled client. User preferences and runtime availability still apply.",
     serverContract: {
       routes: ["GET /api/settings", "PUT /api/settings"],
       requestFields: ["settings.toolResultMediaPreservation"],
@@ -3080,7 +3080,7 @@ export const SERVER_CAPABILITIES = {
     description:
       "Server separates the cache-billing upper idle cutoff from the legacy recent-activity no-alert window.",
     clientFallback:
-      "Keep the legacy recent-activity control and omit the ignore-after field and control.",
+      "Current clients assume this v0.8.0 baseline contract; older servers should update or use their bundled client. User preferences and runtime availability still apply.",
     serverContract: {
       routes: ["GET /api/settings", "PUT /api/settings"],
       requestFields: ["settings.cacheMissBilling.ignoreAfterMinutes"],
@@ -3102,7 +3102,7 @@ export const SERVER_CAPABILITIES = {
     description:
       "Server records post-freshness cache reads and input costs as expected expiry evidence behind an opt-in query and live event.",
     clientFallback:
-      "Hide the expected-expiry evidence toggle, omit the query field, and listen only for ordinary cache-billing events.",
+      "Current clients assume this v0.8.0 baseline contract; older servers should update or use their bundled client. User preferences and runtime availability still apply.",
     serverContract: {
       routes: ["GET /api/settings/cache-miss-billing/events"],
       requestFields: ["includeExpectedExpiry"],
@@ -3314,7 +3314,7 @@ export const SERVER_CAPABILITIES = {
     description:
       "Server can persist a Claude LLM-gateway URL and expose its models as an isolated Claude Gateway provider.",
     clientFallback:
-      "Hide Claude Gateway configuration and make no unsupported settings write.",
+      "Current clients assume this v0.8.0 baseline contract; older servers should update or use their bundled client. User preferences and runtime availability still apply.",
     serverContract: {
       routes: ["GET /api/settings", "PUT /api/settings", "GET /api/providers"],
       requestFields: ["settings.claudeGatewayUrl"],
@@ -3365,7 +3365,7 @@ export const SERVER_CAPABILITIES = {
     description:
       "Server can persist and run an explicit shell command when a configured loopback Claude Gateway has no TCP listener.",
     clientFallback:
-      "Hide the Gateway start-command field and make no unsupported settings write.",
+      "Current clients assume this v0.8.0 baseline contract; older servers should update or use their bundled client. User preferences and runtime availability still apply.",
     serverContract: {
       routes: ["GET /api/settings", "PUT /api/settings", "GET /api/providers"],
       requestFields: ["settings.claudeGatewayStartCommand"],
@@ -3387,7 +3387,7 @@ export const SERVER_CAPABILITIES = {
     description:
       "Server can persist whether Claude Gateway launches deny Claude Code's Agent tool.",
     clientFallback:
-      "Hide the Gateway Agent-tool setting and make no unsupported settings write.",
+      "Current clients assume this v0.8.0 baseline contract; older servers should update or use their bundled client. User preferences and runtime availability still apply.",
     serverContract: {
       routes: ["GET /api/settings", "PUT /api/settings"],
       requestFields: ["settings.claudeGatewayDisableAgent"],
@@ -3409,7 +3409,7 @@ export const SERVER_CAPABILITIES = {
     description:
       "Server can persist whether Claude Gateway launches remove Claude Code's plan-mode tools from model context.",
     clientFallback:
-      "Hide the Gateway plan-mode setting and make no unsupported settings write.",
+      "Current clients assume this v0.8.0 baseline contract; older servers should update or use their bundled client. User preferences and runtime availability still apply.",
     serverContract: {
       routes: ["GET /api/settings", "PUT /api/settings"],
       requestFields: ["settings.claudeGatewayDisablePlanMode"],
@@ -3937,7 +3937,7 @@ export const SERVER_CAPABILITIES = {
     description:
       "Server allocates, persists, and atomically edits unique project code names for compact project identity in browser titles and session lists.",
     clientFallback:
-      "Use full project names, keep legacy tab-title activity frames, hide code-name editing, and make no code-name request.",
+      "Current clients assume this v0.8.0 baseline contract; older servers should update or use their bundled client. User preferences and runtime availability still apply.",
     serverContract: {
       routes: [
         "GET /api/projects",

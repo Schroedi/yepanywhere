@@ -3,7 +3,6 @@ import {
   projectDisplayName,
   DEVICE_BRIDGE_CAPABILITY,
   DEVICE_BRIDGE_DOWNLOAD_CAPABILITY,
-  PROJECT_CODE_NAMES_CAPABILITY,
   PUBLIC_SHARE_MANAGEMENT_CAPABILITY,
   type ProjectQueueItemSummary,
   serverHasCapability,
@@ -455,10 +454,6 @@ export function Sidebar({
     serverSettings?.clientDefaults,
   );
 
-  const supportsProjectCodeNames = serverHasCapability(
-    versionInfo,
-    PROJECT_CODE_NAMES_CAPABILITY,
-  );
   const { projectCodeNamesEnabled } = useProjectCodeNamePreferences();
 
   const publicShareManagementAvailable = serverHasCapability(
@@ -833,14 +828,12 @@ export function Sidebar({
       new Map(
         projects.map((project) => [
           project.id,
-          supportsProjectCodeNames &&
-          projectCodeNamesEnabled &&
-          project.codeName
+          projectCodeNamesEnabled && project.codeName
             ? project.codeName
             : projectDisplayName(project),
         ]),
       ),
-    [projectCodeNamesEnabled, projects, supportsProjectCodeNames],
+    [projectCodeNamesEnabled, projects],
   );
   const pendingProjectQueueItems = useMemo(
     () => knownProjectQueueItems.filter(isSidebarPendingProjectQueueItem),

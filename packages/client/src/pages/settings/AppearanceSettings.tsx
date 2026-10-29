@@ -1,8 +1,4 @@
-import {
-  GLOSSARY_TOOLTIPS_CAPABILITY,
-  SERVER_CAPABILITIES,
-  serverHasCapability,
-} from "@yep-anywhere/shared";
+import { SERVER_CAPABILITIES, serverHasCapability } from "@yep-anywhere/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ThinkingText } from "../../components/ThinkingText";
@@ -265,10 +261,7 @@ export function AppearanceSettings() {
   const { acliCommentaryEnabled, setAcliCommentaryEnabled } =
     useAcliCommentarySetting();
   const { version: versionInfo } = useVersion();
-  const glossaryHintsSupported = serverHasCapability(
-    versionInfo,
-    GLOSSARY_TOOLTIPS_CAPABILITY,
-  );
+
   const { unicodeProseMathEnabled, setUnicodeProseMathEnabled } =
     useUnicodeProseMathSetting();
   const unicodeProseMathSupported = serverHasCapability(
@@ -1099,25 +1092,23 @@ export function AppearanceSettings() {
             </label>
           </SettingsItem>
         )}
-        {glossaryHintsSupported && (
-          <SettingsItem
-            label={t("appearanceGlossaryHintsTitle")}
-            description={t("appearanceGlossaryHintsDescription")}
-            doc="topics/glossary-tooltips.md#product-contract"
-          >
-            <label className="toggle-switch">
-              <input
-                type="checkbox"
-                checked={glossaryHintsEnabled}
-                onChange={(event) =>
-                  setGlossaryHintsEnabled(event.target.checked)
-                }
-                aria-label={t("appearanceGlossaryHintsTitle")}
-              />
-              <span className="toggle-slider" />
-            </label>
-          </SettingsItem>
-        )}
+        <SettingsItem
+          label={t("appearanceGlossaryHintsTitle")}
+          description={t("appearanceGlossaryHintsDescription")}
+          doc="topics/glossary-tooltips.md#product-contract"
+        >
+          <label className="toggle-switch">
+            <input
+              type="checkbox"
+              checked={glossaryHintsEnabled}
+              onChange={(event) =>
+                setGlossaryHintsEnabled(event.target.checked)
+              }
+              aria-label={t("appearanceGlossaryHintsTitle")}
+            />
+            <span className="toggle-slider" />
+          </label>
+        </SettingsItem>
         <SettingsItem
           label={t("appearanceTooltipDelayTitle")}
           description={t("appearanceTooltipDelayDescription")}

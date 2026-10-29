@@ -7,7 +7,6 @@ import type {
   GitWorkingTreeFile,
 } from "@yep-anywhere/shared";
 import {
-  PROJECT_CODE_NAMES_CAPABILITY,
   GIT_DIRTY_FILE_EDITOR_CAPABILITY,
   GIT_INCLUSIVE_TO_HEAD_CAPABILITY,
   GIT_LIVE_WORKTREE_SETTING_CAPABILITY,
@@ -676,10 +675,6 @@ export function GitStatusPage() {
     (serverSettings?.sourceReviewSubmissionsEnabled ?? false);
   const { setTab: setHeaderTab } = useSourceTab(reviewsEnabled);
 
-  const supportsProjectCodeNames = serverHasCapability(
-    version,
-    PROJECT_CODE_NAMES_CAPABILITY,
-  );
   const supportsLastEditor = serverHasCapability(
     version,
     GIT_DIRTY_FILE_EDITOR_CAPABILITY,
@@ -786,11 +781,7 @@ export function GitStatusPage() {
     t,
   });
 
-  useDocumentTitle(
-    project?.name,
-    supportsProjectCodeNames ? project?.codeName : undefined,
-    t("gitStatusTitle"),
-  );
+  useDocumentTitle(project?.name, project?.codeName, t("gitStatusTitle"));
 
   useLayoutEffect(() => {
     void gitStatus?.files.length;

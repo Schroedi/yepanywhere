@@ -199,6 +199,16 @@ A minimal missing-contract guard shows update guidance without Source Control
 requests. Optional live sections retain their static working-tree alternative;
 permanent IDs and server routes needed by older clients remain unchanged.
 
+The 2026-10-29 settings/display slice retires thirteen more fixed-version
+checks: Gateway configuration/autostart and agent/plan controls, Codex reasoning
+summaries, idle harness lifetime, subagent depth, both cache-billing controls,
+both Storage policies, glossary hints and project code names. These contracts
+ship throughout the same v0.8.0+ corpus. Settings writes and Undo retain the
+full supported payload; expected-expiry reads and events no longer wait for
+version metadata. Defaults, opt-ins, provider status, permissions, shared-store
+ownership and subscription cleanup remain authoritative. The later Gateway
+services editor and newer provider settings retain their separate guards.
+
 Codex reconciliation always uses the aligned-ID contract, including while
 version metadata is pending: equal content and timestamps cannot collapse
 distinct provider IDs, and replay suppression uses persisted identity.

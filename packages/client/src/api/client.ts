@@ -1709,11 +1709,11 @@ export const api = {
   // Read-only file-access info (env-pin state + resolved hint paths)
   getFileAccessInfo: () => fetchJSON<FileAccessInfo>("/settings/file-access"),
 
-  getCacheMissBillingEvents: (limit = 200, includeExpectedExpiry = false) =>
+  getCacheMissBillingEvents: (limit = 200) =>
     fetchJSON<{ events: CacheMissBillingRecord[] }>(
       `/settings/cache-miss-billing/events?limit=${encodeURIComponent(
         String(limit),
-      )}${includeExpectedExpiry ? "&includeExpectedExpiry=1" : ""}`,
+      )}&includeExpectedExpiry=1`,
     ),
 
   /** Ask one model-serving endpoint which thinking efforts it accepts. */

@@ -568,7 +568,7 @@ describe("ProjectsPage", () => {
     ).toBeTruthy();
   });
 
-  it("gates inline code-name editing on its server capability", async () => {
+  it("keeps inline code-name editing opt-in and saves exact values", async () => {
     const { rerender } = render(
       <I18nProvider>
         <MemoryRouter>
@@ -579,18 +579,6 @@ describe("ProjectsPage", () => {
 
     expect(screen.queryByRole("button", { name: "Edit code name" })).toBe(null);
     expect(screen.queryByText("alp")).toBe(null);
-
-    state.version = {
-      capabilities: [PROJECT_QUEUE_CAPABILITY, PROJECT_CODE_NAMES_CAPABILITY],
-    };
-    rerender(
-      <I18nProvider>
-        <MemoryRouter>
-          <ProjectsPage />
-        </MemoryRouter>
-      </I18nProvider>,
-    );
-    expect(screen.queryByRole("button", { name: "Edit code name" })).toBe(null);
 
     act(() => {
       localStorage.setItem(UI_KEYS.projectCodeNamesEnabled, "true");

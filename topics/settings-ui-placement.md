@@ -237,8 +237,8 @@ UI should state directly.
   The saved mode applies when a Codex thread starts, resumes, or forks; an already
   active thread keeps its current mode. Detailed is not supported by every model.
   Hidden recap/title helpers stay on their explicit helper mode, and Codex OSS is
-  unchanged. Without `codex-reasoning-summary-setting`, the client hides the row
-  and sends no unsupported settings write.
+  unchanged. Since the 2026-10-29 retirement, this is a v0.8.0 baseline
+  setting; its former per-control version gate is removed.
 - **Speech → Speech backends.** Chooses speech-recognition routing. Smart Turn
   timeout, command grace, and follow-up listening are durations shown in `ms`.
   Keep Mic Warm is browser-local and default-off; while a visible tab holds the

@@ -1,7 +1,6 @@
 import {
   projectDisplayName,
   PROJECT_CAPTIONS_CAPABILITY,
-  PROJECT_CODE_NAMES_CAPABILITY,
   PROJECT_NAMES_CAPABILITY,
   PROJECT_QUEUE_ATTACHMENT_EDITING_CAPABILITY,
   type ProjectQueueMessage,
@@ -49,10 +48,7 @@ export function ProjectsPage() {
   const supportsProjectSettings =
     serverHasCapability(version, SERVER_CAPABILITIES.projectService) ||
     serverHasCapability(version, SERVER_CAPABILITIES.projectAccessSharing);
-  const supportsProjectCodeNames = serverHasCapability(
-    version,
-    PROJECT_CODE_NAMES_CAPABILITY,
-  );
+
   const supportsProjectCaptions = serverHasCapability(
     version,
     PROJECT_CAPTIONS_CAPABILITY,
@@ -418,9 +414,7 @@ export function ProjectsPage() {
                     pathBase={newProjectBase}
                     chooseName={supportsProjectNames}
                     chooseCodeName={
-                      supportsProjectNames &&
-                      supportsProjectCodeNames &&
-                      projectCodeNamesEnabled
+                      supportsProjectNames && projectCodeNamesEnabled
                     }
                     adding={adding || templateProjectBusy}
                     error={addError}
@@ -556,7 +550,7 @@ export function ProjectsPage() {
                       : undefined
                   }
                   onUpdateCodeName={
-                    supportsProjectCodeNames && projectCodeNamesEnabled
+                    projectCodeNamesEnabled
                       ? handleUpdateProjectCodeName
                       : undefined
                   }

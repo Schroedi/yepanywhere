@@ -26,7 +26,6 @@ import type {
 } from "@yep-anywhere/shared";
 import {
   SESSION_CONVERSATION_CONTEXT_CAPABILITY,
-  PROJECT_CODE_NAMES_CAPABILITY,
   PUBLIC_SHARE_MANAGEMENT_CAPABILITY,
   SIDEBAR_SESSION_RESUME_CAPABILITY,
   SYNTHETIC_ARCHIVE_COMMAND_CAPABILITY,
@@ -589,10 +588,6 @@ function SessionPageContent({
   const supportsProjectSettings =
     serverHasCapability(versionInfo, SERVER_CAPABILITIES.projectService) ||
     serverHasCapability(versionInfo, SERVER_CAPABILITIES.projectAccessSharing);
-  const supportsProjectCodeNames = serverHasCapability(
-    versionInfo,
-    PROJECT_CODE_NAMES_CAPABILITY,
-  );
 
   const projectQueueProjectIds = useMemo(() => [projectId], [projectId]);
   const projectQueues = useProjectQueues(projectQueueProjectIds);
@@ -5302,7 +5297,7 @@ function SessionPageContent({
   // Update browser tab title
   useDocumentTitle(
     project?.name,
-    supportsProjectCodeNames ? project?.codeName : undefined,
+    project?.codeName,
     displayTitle,
     !isDomLingerParked,
   );
@@ -6008,9 +6003,7 @@ function SessionPageContent({
                     aria-label={project.name}
                     onContextMenu={handleProjectBreadcrumbContextMenu}
                   >
-                    {projectCodeNamesEnabled &&
-                    supportsProjectCodeNames &&
-                    project.codeName
+                    {projectCodeNamesEnabled && project.codeName
                       ? project.codeName
                       : project.name}
                   </Link>

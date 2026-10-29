@@ -166,8 +166,9 @@ copy action, so supported older servers require no new request or response
 shape.
 
 2026-08-04 `idleReapHours` settings contract — advertise the optional field
-with the permanent `idle-reap-hours-setting` capability. New clients hide the
-control and make no settings write against older servers. Until an operator
+with the permanent `idle-reap-hours-setting` identity. The 2026-10-29
+retirement makes it a v0.8.0 client baseline and removes the old UI gate.
+Older hosts should update or use their bundled client. Until an operator
 saves the field, the legacy `IDLE_TIMEOUT` environment value remains
 authoritative; saving opts the deployment into the persisted setting.
 
