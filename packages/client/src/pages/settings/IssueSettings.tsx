@@ -239,7 +239,8 @@ function CacheTtlControl({
   const values: readonly (number | null)[] = content
     ? ISSUE_CONTENT_TTL_SECONDS
     : ISSUE_STATUS_COMMENT_TTL_SECONDS;
-  const saved = values.findIndex((value) => value === settings[field]);
+  const value = settings[field];
+  const saved = value === undefined ? -1 : values.indexOf(value);
   const [position, setPosition] = useState(saved);
   useEffect(() => setPosition(saved), [saved]);
   const label = (seconds: number | null) => {
