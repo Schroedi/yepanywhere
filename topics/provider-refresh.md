@@ -254,11 +254,13 @@ Current source refresh, 2026-10-28 (0.165.0, generated types only):
   the client/server status contract for no visible gain. `thread/fork`
   gains an experimental `attachToSource`, which YA does not send.
 - `reasoning_effort_override` is now stable and default-on (#56163). For
-  catalog models with `supports_reasoning_effort_updates` (Astra, GPT-6.1
-  Sol and Terra), YA's settings updates now record in-place
-  `configuration_update` items instead of changing request-level effort.
-  The effort-change warning stays until a warm-session cache measurement
-  ([codex-cache-features](../gaps/codex-cache-features.md)).
+  models whose live catalog sets `supports_reasoning_effort_updates`
+  (every GPT-6 model; not GPT-5.6 or Daybreak), a changed turn effort is
+  recorded as an in-place `configuration_update` item instead of changing
+  request-level effort. A warm-session measurement on 2026-10-29 confirmed
+  the cache survives on GPT-6 and is lost on GPT-5.6 Sol and Daybreak, so
+  the effort-change warning now applies only to those older Codex models
+  ([mid-session effort change](mid-session-effort-change.md)).
 - A zero-token `model/list` returns nine models, `gpt-6.1-sol` default,
   adding `gpt-6.1-terra` (ranked after Astra, rendered `Cd Te 6.1`). OpenAI
   has withdrawn `gpt-5.5` and `gpt-5.3-codex-spark`; every turn on either

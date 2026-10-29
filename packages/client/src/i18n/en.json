@@ -3114,7 +3114,7 @@
   "providersIdleReapNever": "Never",
   "providersIdleReapNeverHint": "-1 disables this cleanup. It never ends a running turn or a provider process waiting for user or provider input.",
   "providersLongContextEffortWarningTitle": "Warn before effort changes on long contexts",
-  "providersLongContextEffortWarningDescription": "For each checked provider, changing effort mid-session on a session whose last request was at least this many tokens asks first, because the effort is part of the system prompt and the change re-reads the cached context. The dialog offers a fork at the new effort instead. Codex GPT-6 Astra's in-place effort update is not usable through YA yet, so Astra warns too. Default on for Claude and Codex at 5,000 tokens.",
+  "providersLongContextEffortWarningDescription": "For each checked provider, changing effort mid-session on a session whose last request was at least this many tokens asks first, because the change re-reads the cached context. The dialog offers a fork at the new effort instead. Claude Opus 5.5 and Codex GPT-6 or newer keep the cache and never ask; older Codex models (GPT-5 and earlier, Daybreak) do. Default on for Claude and Codex at 5,000 tokens.",
   "providersLongContextEffortWarningThresholdAria": "Long-context threshold in tokens",
   "providersLongContextEffortWarningThresholdHint": "0 warns on every effort change. The slider stops at 500,000; type a larger number for more.",
   "providersLongContextEffortWarningValue": "{tokens} tokens · {count} providers",
