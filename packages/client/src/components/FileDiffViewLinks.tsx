@@ -71,7 +71,6 @@ export function FileDiffViewLinks({
   const basePath = useRemoteBasePath();
   const relativePath = availability.relativePath;
   if (
-    !availability.supported ||
     !relativePath ||
     (!availability.worktreeFile && !availability.cumulativeFile)
   ) {

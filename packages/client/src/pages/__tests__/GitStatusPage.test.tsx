@@ -659,35 +659,7 @@ describe("GitStatusPage source header", () => {
     expect(screen.queryByTestId("working-tree-browser")).toBeNull();
   });
 
-  it("gates diff projections without blocking ordinary Source Control", async () => {
-    mocks.useVersion.mockReturnValue({
-      version: {
-        capabilities: [
-          ...SOURCE_CONTROL_BASELINE_CAPABILITIES,
-          GIT_SOURCE_REVIEW_CAPABILITY,
-          GIT_STATUS_ENHANCED_CAPABILITY,
-        ],
-      },
-      loading: false,
-      error: null,
-    });
-    renderPage();
-
-    await screen.findByTestId("working-tree-browser");
-    fireEvent.click(
-      screen.getByRole("button", { name: "gitStatusIgnoreWhitespace" }),
-    );
-
-    expect(
-      await screen.findByText("sourceProjectionUpgradeNotice"),
-    ).toBeDefined();
-    expect(mocks.renderWorkingTreeBrowser).toHaveBeenLastCalledWith(
-      expect.objectContaining({ ignoreWhitespace: false }),
-    );
-    expect(screen.getByTestId("working-tree-browser")).toBeDefined();
-  });
-
-  it("reports capable projection request failures without an upgrade notice", async () => {
+  it("reports projection request failures and restores the ordinary diff", async () => {
     renderPage();
     await screen.findByTestId("working-tree-browser");
     fireEvent.click(
@@ -702,41 +674,10 @@ describe("GitStatusPage source header", () => {
         'sourceProjectionRequestError {"error":"projection failed"}',
       ),
     ).toBeDefined();
-    expect(screen.queryByText("sourceProjectionUpgradeNotice")).toBeNull();
     expect(mocks.renderWorkingTreeBrowser).toHaveBeenLastCalledWith(
       expect.objectContaining({ ignoreWhitespace: false }),
     );
     expect(screen.getByTestId("working-tree-browser")).toBeDefined();
-  });
-
-  it("gates dirty-file session links independently", async () => {
-    mocks.useVersion.mockReturnValue({
-      version: {
-        capabilities: [
-          ...SOURCE_CONTROL_BASELINE_CAPABILITIES,
-          GIT_SOURCE_REVIEW_CAPABILITY,
-          GIT_STATUS_ENHANCED_CAPABILITY,
-        ],
-      },
-      loading: false,
-      error: null,
-    });
-
-    renderPage();
-
-    await screen.findByTestId("working-tree-browser");
-    expect(mocks.renderWorkingTreeBrowser).toHaveBeenLastCalledWith(
-      expect.objectContaining({ supportsLastEditor: false }),
-    );
-  });
-
-  it("enables dirty-file session links when advertised", async () => {
-    renderPage();
-
-    await screen.findByTestId("working-tree-browser");
-    expect(mocks.renderWorkingTreeBrowser).toHaveBeenLastCalledWith(
-      expect.objectContaining({ supportsLastEditor: true }),
-    );
   });
 
   it("preserves dirty-file attribution in the live worktree projection", async () => {
@@ -812,7 +753,7 @@ describe("GitStatusPage source header", () => {
     );
   });
 
-  it("enables the whitespace projection when the server advertises it", async () => {
+  it("toggles the whitespace projection", async () => {
     renderPage();
     await screen.findByTestId("working-tree-browser");
 
@@ -825,7 +766,6 @@ describe("GitStatusPage source header", () => {
         expect.objectContaining({ ignoreWhitespace: true }),
       ),
     );
-    expect(screen.queryByText("sourceProjectionUpgradeNotice")).toBeNull();
   });
 
   it("opens history inside Changes and keeps legacy commit URLs working", async () => {
@@ -854,14 +794,14 @@ describe("GitStatusPage source header", () => {
     ).toBe("true");
   });
 
-  it("keeps Reviews dormant until the new capability and setting land", async () => {
+  it("keeps Reviews dormant until the persisted opt-in", async () => {
     renderPage("/git-status?projectId=project-a&tab=reviews");
 
     expect(await screen.findByTestId("working-tree-browser")).toBeDefined();
     expect(screen.queryByRole("tab", { name: "sourceTabReviews" })).toBeNull();
   });
 
-  it("shows Reviews only when capability and persisted opt-in are both present", async () => {
+  it("shows Reviews after the persisted opt-in", async () => {
     mocks.serverSettings.sourceReviewSubmissionsEnabled = true;
     mocks.useVersion.mockReturnValue({
       version: {

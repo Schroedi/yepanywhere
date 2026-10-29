@@ -1,5 +1,4 @@
 import {
-  GIT_SOURCE_REVIEW_SUBMISSIONS_CAPABILITY,
   PUBLIC_SHARE_MANAGEMENT_CAPABILITY,
   type ProjectQueueItemStatus,
   type ProjectQueueItemSummary,
@@ -423,9 +422,8 @@ export function InboxContent({
     version,
     PUBLIC_SHARE_MANAGEMENT_CAPABILITY,
   );
-  const supportsSourceReviewInbox =
-    serverHasCapability(version, GIT_SOURCE_REVIEW_SUBMISSIONS_CAPABILITY) &&
-    (serverSettings?.sourceReviewSubmissionsEnabled ?? false);
+  const sourceReviewInboxEnabled =
+    serverSettings?.sourceReviewSubmissionsEnabled ?? false;
   const [reviewInbox, setReviewInbox] = useState<ReviewInboxItem[]>([]);
   const [reviewInboxLoading, setReviewInboxLoading] = useState(false);
   const publicSharesEnabled = serverSettings?.publicSharesEnabled ?? false;
@@ -461,7 +459,7 @@ export function InboxContent({
   const [refreshing, setRefreshing] = useState(false);
 
   const loadReviewInbox = useCallback(async () => {
-    if (!supportsSourceReviewInbox) {
+    if (!sourceReviewInboxEnabled) {
       setReviewInbox([]);
       setReviewInboxLoading(false);
       return;
@@ -473,19 +471,19 @@ export function InboxContent({
     } finally {
       setReviewInboxLoading(false);
     }
-  }, [supportsSourceReviewInbox]);
+  }, [sourceReviewInboxEnabled]);
 
   useEffect(() => {
     void loadReviewInbox().catch(() => {
       // The ordinary Inbox remains usable if the optional feed fails.
     });
-    if (!supportsSourceReviewInbox) return;
+    if (!sourceReviewInboxEnabled) return;
     return activityBus.on("review-response-changed", () => {
       void loadReviewInbox().catch(() => {
         // Preserve the last accepted outcome cards on transient failures.
       });
     });
-  }, [loadReviewInbox, supportsSourceReviewInbox]);
+  }, [loadReviewInbox, sourceReviewInboxEnabled]);
 
   const handleRefresh = async () => {
     setRefreshing(true);

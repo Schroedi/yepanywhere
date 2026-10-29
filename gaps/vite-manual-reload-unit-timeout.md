@@ -24,3 +24,22 @@ load, verify cleanup after a timeout, and follow
 [test time budgets](../topics/test-time-budgets.md) before changing its budget.
 
 Found 2026-10-14 while tracking public Android Firebase client configuration.
+
+## 2026-10-29 Source Control retirement verification
+
+A full macOS Node 26.7.0 run reproduced the 5,000 ms reload timeout and
+following three-calls-versus-one failure. The same run hit 10,000 ms teardown
+hook limits in `FileResourceActions.module.browser.test.ts`,
+`markdownPreviewCopy.test.ts` and `browserDebugEval.browser.test.ts`, plus
+30,000 ms limits in two `capture-artifact.test.ts` CLI cases. All 6,547 server
+tests and 6,997 other client tests passed. Concurrent Rust compilation and
+indexing were visible; that observation does not establish the cause.
+
+The five affected files passed alone with one worker: 25 tests in 7.25 seconds.
+Keep these startup/teardown and reload assertions intact. This compatibility
+cleanup does not alter those fixture owners or their deadlines.
+
+A subsequent full run without other validation commands alongside it passed
+all 7,003 client tests in 127.84 seconds and all 6,547 server tests in 121.49
+seconds. That clean run does not establish why the earlier teardown and
+capture deadlines were missed.

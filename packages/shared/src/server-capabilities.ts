@@ -2663,7 +2663,7 @@ export const SERVER_CAPABILITIES = {
     description:
       "Server reports the last YA session observed editing each still-dirty Source Control path.",
     clientFallback:
-      "Hide dirty-file session links and make no additional request.",
+      "Current clients assume this v0.8.0 baseline contract; older servers should update or use their bundled client. Settings, permissions, source readiness and runtime availability still apply.",
     serverContract: {
       routes: [
         "GET /api/projects/:projectId/git",
@@ -2687,7 +2687,7 @@ export const SERVER_CAPABILITIES = {
     description:
       "Server supports the commit/file browser and server-owned source-review workflow.",
     clientFallback:
-      "Show Source Control update guidance and send no Source Control requests.",
+      "Current clients assume this v0.8.0 baseline contract; older servers should update or use their bundled client. Settings, permissions, source readiness and runtime availability still apply.",
     serverContract: {
       routes: [
         "GET /api/projects/:projectId/git/commits",
@@ -2727,7 +2727,7 @@ export const SERVER_CAPABILITIES = {
     description:
       "Server supports captured source-review sites, durable submissions, outcomes, and unread review responses.",
     clientFallback:
-      "Retain the version-1 source-review comments and submit flow; hide Reviews and make no capture, submission, site, response, or acknowledgement request.",
+      "Current clients assume this v0.8.0 baseline contract; older servers should update or use their bundled client. Settings, permissions, source readiness and runtime availability still apply.",
     serverContract: {
       routes: [
         "GET /api/projects/:projectId/review/submissions",
@@ -2772,7 +2772,7 @@ export const SERVER_CAPABILITIES = {
     description:
       "Server supports ignore-whitespace rendering and direct selected-revision-to-HEAD comparisons in Source Control.",
     clientFallback:
-      "Keep ordinary working-tree and commit review available; make no projection request and explain that the server must be updated or restarted.",
+      "Current clients assume this v0.8.0 baseline contract; older servers should update or use their bundled client. Settings, permissions, source readiness and runtime availability still apply.",
     serverContract: {
       routes: [
         "GET /api/projects/:projectId/git/compare/:sha",
@@ -2808,7 +2808,7 @@ export const SERVER_CAPABILITIES = {
     description:
       "Server compares an inclusive selected-commit range from the selected commit's first parent, or the empty tree for a root commit, through pinned HEAD.",
     clientFallback:
-      "Hide inclusive To HEAD and make no range request; retain separately gated direct per-file selected-tree-to-HEAD comparison.",
+      "Current clients assume this v0.8.0 baseline contract; older servers should update or use their bundled client. Settings, permissions, source readiness and runtime availability still apply.",
     serverContract: {
       routes: [
         "GET /api/projects/:projectId/git/range-to-head/:sha",
@@ -2847,7 +2847,7 @@ export const SERVER_CAPABILITIES = {
     description:
       "Server exposes exact per-file HEAD-to-worktree and first-parent-to-worktree diff projections for the shared file viewer.",
     clientFallback:
-      "Hide file-viewer diff selectors, retain ordinary file viewing and Source Control, and make no file-projection request.",
+      "Current clients assume this v0.8.0 baseline contract; older servers should update or use their bundled client. Settings, permissions, source readiness and runtime availability still apply.",
     serverContract: {
       routes: [
         "GET /api/projects/:projectId/git/file-projections",
@@ -2882,7 +2882,7 @@ export const SERVER_CAPABILITIES = {
     description:
       "Server resolves a file's last content revision and whether live filesystem content differs from the committed blob.",
     clientFallback:
-      "Omit file-revision provenance and make no metadata request.",
+      "Current clients assume this v0.8.0 baseline contract; older servers should update or use their bundled client. Settings, permissions, source readiness and runtime availability still apply.",
     serverContract: {
       routes: ["GET /api/projects/:projectId/git/file-revision"],
       routeModules: ["packages/server/src/routes/git-file-revision.ts"],
@@ -2988,7 +2988,7 @@ export const SERVER_CAPABILITIES = {
     description:
       "Server exposes current-content inventory plus a persistent, searchable non-ignored untracked cache outside the project.",
     clientFallback:
-      "Show Source Control update guidance and send no Source Control requests; the tracked-only client browser is retired.",
+      "Current clients assume this v0.8.0 baseline contract; older servers should update or use their bundled client. Settings, permissions, source readiness and runtime availability still apply.",
     serverContract: {
       routes: [
         "GET /api/projects/:projectId/git/working-tree-files",
@@ -3183,7 +3183,7 @@ export const SERVER_CAPABILITIES = {
     description:
       "Server persists the default-off live worktree monitoring setting independently of whether the live protocol is active.",
     clientFallback:
-      "Hide and omit the setting, use static working-tree paths, and do not activate a worktree subscription.",
+      "Current clients assume this v0.8.0 baseline contract; older servers should update or use their bundled client. Settings, permissions, source readiness and runtime availability still apply.",
     serverContract: {
       routes: ["GET /api/settings", "PUT /api/settings"],
       requestFields: ["settings.liveWorktreeMonitoringEnabled"],
@@ -3205,7 +3205,7 @@ export const SERVER_CAPABILITIES = {
     description:
       "Server lists commits on the configured upstream tracking ref but not local HEAD without contacting the remote.",
     clientFallback:
-      "Keep the upstream name as inert status text and make no incoming-commit request.",
+      "Current clients assume this v0.8.0 baseline contract; older servers should update or use their bundled client. Settings, permissions, source readiness and runtime availability still apply.",
     serverContract: {
       routes: ["GET /api/projects/:projectId/git/incoming-commits"],
       routeModules: ["packages/server/src/routes/git-incoming-commits.ts"],

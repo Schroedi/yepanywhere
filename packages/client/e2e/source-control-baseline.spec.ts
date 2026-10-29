@@ -1,5 +1,4 @@
 import { join } from "node:path";
-import { encodeVersionedServerCapabilities } from "@yep-anywhere/shared";
 import {
   e2ePaths,
   expect,
@@ -15,62 +14,21 @@ test.afterEach(async ({ baseURL }) => {
   await setLiveWorktreeMonitoring(baseURL, false);
 });
 
-for (const missing of ["git-source-review", "git-working-tree-files"]) {
-  test(`requires an update without Source Control requests when ${missing} is absent`, async ({
-    page,
-    baseURL,
-  }) => {
-    await setLiveWorktreeMonitoring(baseURL, true);
-    const requests: string[] = [];
-    page.on("request", (request) => {
-      if (/\/api\/projects\/[^/]+\/(git|review)\//.test(request.url()))
-        requests.push(request.url());
-    });
-    await page.route("**/api/version*", async (route) => {
-      const response = await route.fetch();
-      const version = await response.json();
-      // CI reports an opaque source SHA, which has no version-implied bits.
-      // Model the supported stable baseline so the denial actually withdraws it.
-      const current = "0.8.0";
-      await route.fulfill({
-        response,
-        json: {
-          ...version,
-          current,
-          deniedCapabilityBits: encodeVersionedServerCapabilities([], current, [
-            missing,
-          ]).deniedCapabilityBits,
-        },
-      });
-    });
-    await page.setViewportSize({ width: 1000, height: 600 });
-    await page.goto(`${baseURL}/git-status?projectId=${projectId}&tab=files`);
-    await expect(
-      page.getByRole("heading", { name: "Update required for Source Control" }),
-    ).toBeVisible();
-    await expect(
-      page.getByText(
-        "Update your yepanywhere server to v0.8.0 or newer, or use the client bundled with your server.",
-      ),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Pull", exact: true }),
-    ).toHaveCount(0);
-    expect(requests).toEqual([]);
-    if (missing === "git-source-review") {
-      await recordUiCapture(page, "update-desktop");
-      await page.setViewportSize({ width: 375, height: 812 });
-      await recordUiCapture(page, "update-phone");
-    }
-  });
-}
-
 for (const width of [1200, 375]) {
-  test(`static working-tree inventory keeps sequential filtering responsive at ${width}px`, async ({
+  test(`static working-tree inventory keeps sequential filtering responsive through late metadata at ${width}px`, async ({
     page,
     baseURL,
   }) => {
     await setLiveWorktreeMonitoring(baseURL, false);
+    let releaseVersion = () => {};
+    const versionReady = new Promise<void>((resolve) => {
+      releaseVersion = resolve;
+    });
+    await page.route("**/api/version*", async (route) => {
+      const response = await route.fetch();
+      await versionReady;
+      await route.fulfill({ response });
+    });
     const files = Array.from({ length: 650 }, (_, index) => ({
       path: `retirement-fixture/item-${index.toString().padStart(3, "0")}.ts`,
       tracked: false,
@@ -133,7 +91,10 @@ for (const width of [1200, 375]) {
       for (const character of "item-649") {
         typed += character;
         // Release the selected-file read during typing so detail rendering overlaps it.
-        if (typed.length === 4) releaseContent();
+        if (typed.length === 4) {
+          releaseContent();
+          releaseVersion();
+        }
         await filter.pressSequentially(character);
         await expect(filter).toHaveValue(typed, { timeout: 100 });
         if (width === 1200 && typed.length === 1) {
@@ -173,6 +134,7 @@ for (const width of [1200, 375]) {
         width === 375 ? "files-phone" : "files-desktop",
       );
     } finally {
+      releaseVersion();
       releaseContent();
     }
   });

@@ -23,13 +23,21 @@ Since the 2026-10-28 retirement, enhanced status, Check remote, Pull, Push and
 integration options are baseline v0.8.0 server contracts. Their former fixed
 client gates and old enhanced-status upgrade screen are removed. Operation
 serialization, project/repository eligibility and failure feedback remain.
-The current browser also requires `git-source-review` and
-`git-working-tree-files`, both shipped in every supported release from v0.8.0.
-The legacy action-only shell and tracked-only Files implementation are removed.
-If either contract is missing, Source Control shows update guidance before
-requesting status, untracked inventory, history, or review data. Older servers
-should update or use their bundled client. Projection, incoming-commit, review
-submission and optional live-working-tree contracts retain their own gates.
+The 2026-10-29 follow-up makes the remaining ten fixed contracts baseline:
+browse/review, working-tree inventory, both diff-projection families, inclusive
+To HEAD, file revisions, last-editor attribution, incoming commits, review
+submissions and the live-monitoring setting. The page and file-projection
+readers start from valid project/source inputs without waiting for version
+metadata. There is no per-feature update screen or unsupported-setting payload.
+Older hosts should update or use their bundled client. Registry identities and
+server advertisements stay available for maintained older clients.
+
+Optional live sections and complete scans retain their capability checks and
+static inventory alternative. Actual project/Git eligibility, permissions,
+source identity, cancellation, settings and response-field presence still govern
+use. Review visibility follows the stored server value (true for fresh installs,
+false when absent); stored false remains authoritative. Monitoring follows its
+existing platform default and explicit setting.
 
 ## Product boundary
 
@@ -143,15 +151,14 @@ points at — `recentCommits[0]`, the current `HEAD` tip. It is a real anchor wi
 a standalone `?rev=<sha>` URL, so middle-click, modifier-click, and “open in new
 tab” work, while plain left-click stays in the current tab. A detached `HEAD`
 keeps its detached label and still opens and copies that tip SHA. The copy
-control stays beside the name: the name click navigates, the icon copies. A server missing the Source Control baseline shows update guidance instead
-of repository navigation.
+control stays beside the name: the name click navigates, the icon copies.
 
-When the server advertises `git-incoming-commits`, the upstream name opens the
+The upstream name opens the
 commits reachable from the configured tracking ref but not local `HEAD`. The
 server resolves both range endpoints before reading the log, and opening the
 preview never fetches: it shows only what the last **Check remote** observed.
-Without the capability, upstream remains inert text and the client sends no
-incoming-commit request.
+A preview request starts only when the user opens it and a project and upstream
+exist; failures keep the ordinary request-error feedback.
 
 The Pending Comments tab opens that accumulator, including when drafts exist;
 submission remains on that pane. In the full-width fallback, repository
@@ -700,12 +707,10 @@ Direct selected-tree-to-HEAD remains a different, clearly labelled per-file
 context-menu action. It retains the established direct-comparison route and
 capability semantics rather than overloading **To HEAD**.
 
-Projection availability and projection execution are distinct failure classes.
-When the server lacks the advertised projection capability, the client sends no
-unsupported request and may show update/restart guidance. When an advertised
-projection request fails, the client returns to ordinary Source Control and
-shows the request's retryable error; it never recasts that failure as an
-outdated-server notice.
+Projection routes are baseline v0.8.0 contracts. When a projection request
+fails, the client returns to ordinary Source Control and shows the request's
+retryable error. It never recasts an execution failure as an outdated-server
+notice or leaves the projection selected over ordinary content.
 
 A comparison comment cites the endpoint that contains the clicked projection:
 an old-side line anchors to the fixed base SHA (or has no old lines for the
@@ -879,9 +884,10 @@ resident source without first blanking the document.
 
 The permanent `git-file-diff-projections` capability owns
 `GET /api/projects/:projectId/git/file-projections` and
-`POST /api/projects/:projectId/git/file-projection-diff`. Without it the
-client hides all of these selectors and makes no projection request. Existing
-Source Control capability meanings do not expand.
+`POST /api/projects/:projectId/git/file-projection-diff`. Current clients use
+this baseline contract directly; path validity, project identity and actual
+projection data determine the available selectors. Existing Source Control
+capability meanings do not expand.
 
 ### File revision provenance
 
@@ -901,6 +907,10 @@ map to those ordinary absence states; process launch, permission, and other Git
 execution failures surface as request errors rather than fabricated absence or
 dirty content.
 
+Public shares acquire neither authenticated Git projections nor revision
+provenance, including in shared tool output. This is an explicit share-context
+boundary independent of version metadata.
+
 Revision requests are scoped by source as well as project, path, and revision.
 Switching between local and remote sources starts a request against the new
 source even when those other fields match, and a late response from the prior
@@ -915,8 +925,9 @@ contains the author, absolute author time, and at most 50
 commit-message lines; when more lines exist it ends with `...`.
 
 The permanent `git-file-revision` capability owns
-`GET /api/projects/:projectId/git/file-revision`. A client without it omits
-this chrome and sends no request.
+`GET /api/projects/:projectId/git/file-revision`. Current clients acquire it
+without a version wait; non-Git, uncommitted and missing-data states retain the
+absence behavior above.
 
 ### Copy GitHub link from a file menu
 
@@ -952,8 +963,8 @@ shares do not perform these authenticated lookups.
 
 The optional `GitFileRevision.githubLink` response field carries `url` and
 `pushed`; absence on older servers simply omits the action. The existing
-`git-file-revision` capability still gates the existing endpoint, and absolute
-paths additionally require `file-owner-project`. No new endpoint or request
+file-revision endpoint is baseline, and absolute paths still require
+`file-owner-project`. No new endpoint or request
 parameter is introduced. v0.9.0–v0.9.2 omit this metadata; this field-presence
 compatibility plan was approved by the maintainer on 2026-09-30.
 
@@ -1163,25 +1174,13 @@ produces rows reuses the previous object for any path whose state is unchanged,
 and deliberately does not reuse across a new status snapshot, which is the
 live-refresh signal itself.
 
-The `git-source-review` and `git-working-tree-files` identities form the
-update-only Source Control guard. Their missing-support branch contains no
-alternate browser or Git actions. The static current-content inventory remains
-available when optional live sections are off. Ignore whitespace and the direct
-selected-tree-to-HEAD action retain the unchanged
-`git-source-review-projections` meaning.
-
-Inclusive **To HEAD** is separately owned by permanent capability ID 40,
-`git-inclusive-to-head`, and its `range-to-head` list/diff routes. The release
-corpus `v0.6.0`, `v0.6.1`, `v0.6.2`, and `v0.7.0` lacks both the prior direct
-routes and the inclusive routes. Without ID 40, the client hides inclusive
-**To HEAD** and makes no range request; an independently available direct action
-continues to use only the prior capability and routes. Existing capability
-meanings and older capable behavior remain unchanged.
-
-`git-working-tree-files` (permanent ID 38, version-implied from `0.7.1`) owns the
-static working-tree inventory, persistent untracked-cache route family, and
-cache-backed status request described above. Its absence now shows update
-guidance before Source Control requests; no tracked-only client path remains.
+The fixed `git-source-review`, `git-working-tree-files`,
+`git-source-review-projections` and `git-inclusive-to-head` identities retain
+their existing route meanings. Current clients assume the complete v0.8.0
+contracts and have no update-only gate, projection support props or reduced
+inventory browser. Inclusive To HEAD uses its `range-to-head` list/diff routes;
+the direct per-file comparison remains its separate action. The static
+current-content inventory remains available when optional live sections are off.
 `git-working-tree-sections` (permanent ID 41, optional from `0.7.2`) owns
 the expanded live snapshot and delta contract described above. Its absence
 keeps ID 38's static behavior and sends no worktree subscription. The Maintainer
@@ -1194,11 +1193,11 @@ mechanism and the server-side rejection while Off are unchanged.
 separately owns exact filesystem totals and complete projection requests; its
 absence preserves ID 41's bounded inventory without a Show-all action. The
 permanent live-worktree-setting capability owns the additive, platform-
-dependent server setting; current clients require it as well as active ID 41
-so a source-ahead server predating the kill switch cannot activate monitoring.
+dependent server setting, now baseline in current clients. Active ID 41 and the
+server-side setting still determine whether monitoring can be acquired.
 `git-incoming-commits` (permanent ID 39,
-version-implied from `0.7.1`) owns the local tracking-ref preview; its absence
-keeps upstream inert. None broadens a published Source Control capability. See
+version-implied from `0.7.1`) owns the local tracking-ref preview, now baseline
+in current clients. None broadens a published Source Control capability. See
 [server capabilities](server-capabilities.md) and
 [`063-source-control-hosted-compatibility.md`](../docs/tactical/063-source-control-hosted-compatibility.md).
 
@@ -1285,6 +1284,7 @@ claims exact-byte authorship.
 
 The permanent `git-dirty-file-editor` capability adds optional
 `files[].lastEditor = { sessionId, observedAt }` data to the existing
-status response. Servers without it retain the complete released Source Control
-behavior; clients hide the session action and make no additional request.
+status response. Current clients use that baseline contract and show the
+session action only when actual attribution data exists. Missing attribution
+never creates a session link or metadata request.
 Existing `git-status-enhanced` and `git-source-review` meanings do not grow.

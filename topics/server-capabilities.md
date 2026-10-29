@@ -195,8 +195,9 @@ available for maintained older clients.
 The separately approved Source Control follow-up removes the action-only
 legacy shell and tracked-only Files loader/rendering. Both browse and
 working-tree inventory contracts are present throughout the same core corpus.
-A minimal missing-contract guard shows update guidance without Source Control
-requests. Optional live sections retain their static working-tree alternative;
+That first pass retained an update-only missing-contract guard; the subsequent
+Source Control slice below retires it. Optional live sections retain their
+static working-tree alternative;
 permanent IDs and server routes needed by older clients remain unchanged.
 
 The 2026-10-29 settings/display slice retires thirteen more fixed-version
@@ -208,6 +209,18 @@ full supported payload; expected-expiry reads and events no longer wait for
 version metadata. Defaults, opt-ins, provider status, permissions, shared-store
 ownership and subscription cleanup remain authoritative. The later Gateway
 services editor and newer provider settings retain their separate guards.
+
+The subsequent Source Control slice retires ten fixed checks: browse/review,
+working-tree inventory, both diff projection families, inclusive To HEAD, file
+revision and dirty-file provenance, incoming commits, review submissions and
+the live-monitoring setting. All ten ship throughout the same core corpus.
+Current clients remove the update-only entry screen, projection upgrade
+notices and support-prop plumbing. Valid project/source inputs can start reads
+before version metadata arrives. Optional live sections/complete scans, server
+settings, permissions, response-field absence and request cancellation remain
+authoritative. Review visibility retains the server's fresh-install default and
+stored values, with false as the missing-field fallback. The static inventory
+alternative and historical server contracts for older clients remain.
 
 Codex reconciliation always uses the aligned-ID contract, including while
 version metadata is pending: equal content and timestamps cannot collapse

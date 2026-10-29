@@ -482,8 +482,11 @@ so the pane sends that server no request. While the server version is still
 unknown, the typed URL shows loading rather than calling the server
 unsupported. A pane therefore needs no whole-pane capability check of its own;
 capabilities that gate individual rows inside a served pane stay in the pane.
-Today `source-control`, `issues`, `computer-control`, `users`,
-`project-templates` and `emulator` are gated this way.
+Today `issues`, `computer-control`, `users`,
+`project-templates` and `emulator` are gated this way. Source Control settings
+are baseline v0.8.0 after the 2026-10-29 retirement: category navigation and
+search no longer await their former fixed capability. Its settings retain
+their existing defaults, stored values and live-monitoring version refresh.
 
 Placement precedents (the load-bearing ones — choose by *what the user is
 conceptually adjusting*, not where the code lives):

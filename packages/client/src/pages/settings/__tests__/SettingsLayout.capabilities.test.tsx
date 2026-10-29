@@ -93,7 +93,6 @@ describe("SettingsLayout capability gating", () => {
       "emulator",
       "issues",
       "project-templates",
-      "source-control",
       "users",
     ]);
   });

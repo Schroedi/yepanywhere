@@ -111,7 +111,9 @@ export function FileVersionControlLinks({
   const id = useId();
   const [diffMode, setDiffMode] = useState<GitFileDiffMode>();
   const path = availability.relativePath;
-  if (!availability.supported || !path) return null;
+  if (!path || (!availability.worktreeFile && !availability.cumulativeFile)) {
+    return null;
+  }
   return (
     <>
       <FileDiffViewLinks

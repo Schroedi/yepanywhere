@@ -22,6 +22,9 @@ import type { YaSourceRuntime } from "../lib/sourceRuntime";
 import { SourceRuntimeProvider } from "../lib/sourceRuntimeReact";
 import { FakeSourceTransport } from "../lib/transport";
 
+vi.mock("../components/FileRevisionLink", () => ({
+  FileRevisionLink: () => null,
+}));
 vi.mock("react-router-dom", async (orig) => ({
   ...(await orig<typeof import("react-router-dom")>()),
   useNavigate: () => vi.fn(),
