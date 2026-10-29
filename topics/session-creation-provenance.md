@@ -32,7 +32,10 @@ from a missing field. Existing session-creator identity for limited users
 remains a separate authorization fact.
 
 Session detail, project lists, Global Sessions, and Inbox return this metadata
-when present. Global Sessions can filter Web UI, Desktop app, API or agent, and
+when present. Inbox groups these as YA UI, API / automation, and Unknown /
+external, remembers its choice per connection in browser storage, and defaults
+to All sessions; see [Inbox](inbox.md#client-view-filters). Global Sessions can
+filter Web UI, Desktop app, API or agent, and
 Unspecified; the filter is inactive until selected. `session-creation-provenance`
 gates the request field and the filter. On an older server the client omits the
 field and hides the filter. Older servers accept unknown creation JSON fields
