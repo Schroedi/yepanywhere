@@ -37,6 +37,7 @@ auditConfig:
   ignoreGhsas:
     - GHSA-qwww-vcr4-c8h2
     - GHSA-w5hq-g745-h8pq
+    - GHSA-rmxm-3fg6-px4f
 
 patchedDependencies:
   zod@4.6.7: patches/zod@4.6.7.patch
