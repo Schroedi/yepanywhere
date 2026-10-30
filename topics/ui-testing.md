@@ -298,6 +298,15 @@ unavailable, use another browser automation path or a manual browser session:
 3. Capture screenshots via the tool or OS-level capture.
 4. Attach the files where reviewers can review them directly.
 
+### Math needs a font on the capture host
+
+MathML, which the scriptless HTML preview uses for Pandoc math, draws italic
+identifiers from the Unicode Mathematical Italic block. With no font covering
+it, headless Chromium leaves those letters blank, so \(N(r)\) photographs as
+`( )`. This host has STIX Two Math in `~/.local/share/fonts/stix-two`
+(extracted from Ubuntu's `fonts-stix` 2.13 package, then `fc-cache`); check
+with `fc-list ':charset=1d45f' family`.
+
 ### Emoji need a font on the capture host
 
 Headless Chromium draws emoji only from a color emoji font installed on the
