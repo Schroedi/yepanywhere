@@ -188,6 +188,16 @@ combined into a formula that exists on neither side.
 Thinking summaries and fenced or inline code remain literal under their
 separate source-preservation contracts; they are not KaTeX-enabled surfaces.
 
+The scriptless HTML preview (`createScriptlessHtmlPreviewDocument`) also
+typesets Pandoc-family exports, Quarto included: their
+`span.math.inline`/`span.math.display` TeX, which the page's own MathJax or
+KaTeX would render, becomes KaTeX MathML. MathML needs no stylesheet or
+webfont, which the preview policy refuses from YA's origin, but the browser
+draws italic identifiers from the Unicode Mathematical Italic block, so a
+viewer with no system math font (Cambria Math, STIX Two Math, Noto Sans Math)
+shows those letters blank. Bare headless Linux hosts are the observed case.
+TeX that KaTeX rejects keeps its authored source.
+
 ## Paper math compatibility
 
 Research-paper extracts use TeX that KaTeX alone rejects. Every KaTeX
