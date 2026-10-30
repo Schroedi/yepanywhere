@@ -97,13 +97,22 @@
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-primary);
+  font: inherit;
   text-align: left;
+  text-decoration: none;
+  box-sizing: border-box;
   cursor: pointer;
 }
 
 .row:hover:not(:disabled),
 .row:focus-visible {
   background: var(--bg-hover);
+}
+
+/* A link row would otherwise take the browser's heavy link focus ring. */
+.row:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: -2px;
 }
 
 .row:disabled {

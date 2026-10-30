@@ -4028,6 +4028,7 @@
   "imageViewerNext": "Next image",
   "fileLinkDismissMenu": "Dismiss file menu",
   "fileLinkMenuOpen": "Open",
+  "fileLinkMenuOpenInNewTab": "Open in new tab",
   "fileLinkMenuBack": "Back",
   "fileLinkMenuNewSession": "New session",
   "fileLinkMenuOpenInSourceControl": "Open in Source Control",

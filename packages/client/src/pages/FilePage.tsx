@@ -23,6 +23,7 @@ export function FilePage() {
   const diffMode = parseFileDiffMode(searchParams.get("diff"));
   const viewMode =
     searchParams.get("view") === "range" ? ("range" as const) : "full";
+  const initialFolder = searchParams.get("folder") ?? undefined;
 
   if (!projectId) {
     return (
@@ -66,6 +67,7 @@ export function FilePage() {
             lineEnd={lineEnd}
             viewMode={viewMode}
             diffMode={diffMode}
+            initialFolder={initialFolder}
             standalone
             // A sibling chosen from the path's folder list is a new page
             // visit: Back returns to this file. Line and diff targets belong

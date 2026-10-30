@@ -6,12 +6,17 @@ import {
 import {
   type MouseEvent as ReactMouseEvent,
   useCallback,
+  useLayoutEffect,
+  useRef,
   useState,
 } from "react";
+import { useRemoteBasePath } from "../hooks/useRemoteBasePath";
 import { useVersion } from "../hooks/useVersion";
 import { useI18n } from "../i18n";
+import { toBrowserAppHref } from "../lib/appHref";
 import { writeClipboardText } from "../lib/clipboard";
 import { normalizePathSeparators } from "../lib/text";
+import { buildProjectFileViewUrl } from "./FileDiffViewLinks";
 import {
   FilePathContextMenu,
   useStartNewSessionFromFileAction,
@@ -33,6 +38,11 @@ interface FileViewerPathBreadcrumbsProps {
     folderPath: string,
   ) => Promise<FolderListingResponse>;
   onOpenFile: (path: string) => void;
+  /**
+   * A folder, in `requestPath`'s form, to list on arrival: the target of a
+   * folder opened in a new tab. Anchored at its segment, else at the name.
+   */
+  initialFolder?: string;
 }
 
 /**
@@ -86,33 +96,60 @@ function ListablePathBreadcrumbs({
   projectPath,
   listFolder,
   onOpenFile,
+  initialFolder,
 }: FileViewerPathBreadcrumbsProps & {
   listFolder: NonNullable<FileViewerPathBreadcrumbsProps["listFolder"]>;
 }) {
   const { t } = useI18n();
   const { version } = useVersion();
+  const basePath = useRemoteBasePath();
   const startNewSession = useStartNewSessionFromFileAction();
   const [open, setOpen] = useState<OpenFolder | null>(null);
   const [menu, setMenu] = useState<FolderMenu | null>(null);
   const closeOpen = useCallback(() => setOpen(null), []);
   const closeMenu = useCallback(() => setMenu(null), []);
+  const pathRef = useRef<HTMLSpanElement>(null);
+  const pendingInitialFolder = useRef(initialFolder);
   const folders = folderPathsBySegment(displayPath, requestPath);
+  const canList =
+    folders !== null &&
+    serverHasCapability(version, SERVER_CAPABILITIES.fileFolderListing.name);
   const load = useCallback(
     (folder: string) => listFolder(projectId, folder),
     [listFolder, projectId],
   );
+  // A file at the project root lists the root; one directly under "/" lists
+  // nothing, since no segment names that folder.
+  const fileFolder = !folders
+    ? null
+    : folders.length === 0
+      ? ""
+      : (folders.at(-1) ?? null);
+  const lastSegment = (folders?.length ?? 0) - 1;
 
-  if (
-    !folders ||
-    !serverHasCapability(version, SERVER_CAPABILITIES.fileFolderListing.name)
-  ) {
+  useLayoutEffect(() => {
+    const folder = pendingInitialFolder.current;
+    if (folder === undefined || !canList || !folders) return;
+    pendingInitialFolder.current = undefined;
+    const index = folders.indexOf(folder);
+    const segment = index >= 0 ? index : lastSegment;
+    const anchor =
+      pathRef.current?.querySelector<HTMLElement>(
+        `[data-segment="${index >= 0 ? index : lastSegment + 1}"]`,
+      ) ?? pathRef.current;
+    if (anchor) setOpen({ segment, folder, anchor });
+  });
+
+  if (!folders || !canList) {
     return <PathBreadcrumbs path={displayPath} />;
   }
 
-  // A file at the project root lists the root; one directly under "/" lists
-  // nothing, since no segment names that folder.
-  const fileFolder = folders.length === 0 ? "" : (folders.at(-1) ?? null);
-  const lastSegment = folders.length - 1;
+  /** This file's viewer URL, optionally arriving with `folder` listed. */
+  const viewerHref = (filePath: string, folder?: string) =>
+    toBrowserAppHref(
+      buildProjectFileViewUrl({ basePath, filePath, folder, projectId }),
+    );
+  const folderHref = (folder: string) => viewerHref(requestPath, folder);
   const isRelative = !/^([a-zA-Z]:)?[/\\~]/.test(requestPath);
   const absoluteFolder = (folder: string) =>
     isRelative
@@ -141,42 +178,52 @@ function ListablePathBreadcrumbs({
 
   return (
     <>
-      <PathBreadcrumbs
-        path={displayPath}
-        activeSegment={open?.segment ?? menu?.segment ?? null}
-        onFolderActivate={(segment, anchor) => {
-          const folder = folders[segment];
-          if (folder === undefined || folder === null) return;
-          setMenu(null);
-          setOpen((current) =>
-            current?.segment === segment ? null : { segment, folder, anchor },
-          );
-        }}
-        onFolderContextMenu={(segment, event: ReactMouseEvent) => {
-          const folder = folders[segment];
-          if (folder === undefined || folder === null) return;
-          setOpen(null);
-          setMenu({
-            segment,
-            folder,
-            anchor: event.currentTarget as HTMLElement,
-            x: event.clientX,
-            y: event.clientY,
-          });
-        }}
-        onNameActivate={
-          fileFolder === null
-            ? undefined
-            : (anchor) => {
-                setMenu(null);
-                setOpen((current) =>
-                  current?.segment === lastSegment
-                    ? null
-                    : { segment: lastSegment, folder: fileFolder, anchor },
-                );
-              }
-        }
-      />
+      {/* Adds no box; it scopes the arrival lookup of a segment's element. */}
+      <span ref={pathRef} style={{ display: "contents" }}>
+        <PathBreadcrumbs
+          path={displayPath}
+          activeSegment={open?.segment ?? menu?.segment ?? null}
+          folderHref={(segment) => {
+            const folder = folders[segment];
+            return folder === undefined || folder === null
+              ? undefined
+              : folderHref(folder);
+          }}
+          nameHref={fileFolder === null ? undefined : folderHref(fileFolder)}
+          onFolderActivate={(segment, anchor) => {
+            const folder = folders[segment];
+            if (folder === undefined || folder === null) return;
+            setMenu(null);
+            setOpen((current) =>
+              current?.segment === segment ? null : { segment, folder, anchor },
+            );
+          }}
+          onFolderContextMenu={(segment, event: ReactMouseEvent) => {
+            const folder = folders[segment];
+            if (folder === undefined || folder === null) return;
+            setOpen(null);
+            setMenu({
+              segment,
+              folder,
+              anchor: event.currentTarget as HTMLElement,
+              x: event.clientX,
+              y: event.clientY,
+            });
+          }}
+          onNameActivate={
+            fileFolder === null
+              ? undefined
+              : (anchor) => {
+                  setMenu(null);
+                  setOpen((current) =>
+                    current?.segment === lastSegment
+                      ? null
+                      : { segment: lastSegment, folder: fileFolder, anchor },
+                  );
+                }
+          }
+        />
+      </span>
       {open ? (
         <FolderListPopover
           key={`${open.segment}\0${open.folder}`}
@@ -188,6 +235,8 @@ function ListablePathBreadcrumbs({
           currentPath={normalizePathSeparators(requestPath)}
           anchor={open.anchor}
           load={load}
+          fileHref={(path) => viewerHref(path)}
+          folderHref={folderHref}
           onOpenFile={(path) => {
             setOpen(null);
             onOpenFile(path);
@@ -202,6 +251,7 @@ function ListablePathBreadcrumbs({
           folder
           heading={segmentLabel(menu.segment)}
           onClose={closeMenu}
+          newTabHref={folderHref(menu.folder)}
           onOpen={() =>
             setOpen({
               segment: menu.segment,

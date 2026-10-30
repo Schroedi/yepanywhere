@@ -1,6 +1,8 @@
 import type { FolderEntry, FolderListingResponse } from "@yep-anywhere/shared";
 import {
   type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -94,8 +96,64 @@ interface FolderListPopoverProps {
   currentPath: string;
   anchor: HTMLElement;
   load: (folder: string) => Promise<FolderListingResponse>;
+  /** A file row's URL, so a middle or modified click opens it in a new tab. */
+  fileHref: (path: string) => string;
+  /** A folder row's URL: its own listing, opened in a new tab. */
+  folderHref: (folder: string) => string;
   onOpenFile: (path: string) => void;
   onClose: () => void;
+}
+
+/** A plain primary click; anything else is left to the browser's link handling. */
+function isPlainClick(event: ReactMouseEvent): boolean {
+  return (
+    event.button === 0 &&
+    !event.metaKey &&
+    !event.ctrlKey &&
+    !event.shiftKey &&
+    !event.altKey
+  );
+}
+
+const ROW_TARGETS = "a[href], button:not(:disabled)";
+
+/**
+ * A listing row that is a real link: a plain click acts in place, and the
+ * browser keeps middle, modified and context-menu clicks for a new tab.
+ */
+function RowLink({
+  activate,
+  children,
+  current,
+  href,
+  label,
+}: {
+  activate: () => void;
+  children: ReactNode;
+  current?: boolean;
+  href: string;
+  label?: string;
+}) {
+  return (
+    <a
+      href={href}
+      className={styles.row}
+      aria-label={label}
+      aria-current={current ? "page" : undefined}
+      onClick={(event) => {
+        if (!isPlainClick(event)) return;
+        event.preventDefault();
+        activate();
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== " ") return;
+        event.preventDefault();
+        activate();
+      }}
+    >
+      {children}
+    </a>
+  );
 }
 
 /**
@@ -108,6 +166,8 @@ export function FolderListPopover({
   currentPath,
   anchor,
   load,
+  fileHref,
+  folderHref,
   onOpenFile,
   onClose,
 }: FolderListPopoverProps) {
@@ -191,7 +251,7 @@ export function FolderListPopover({
     if (!rows || listing.state !== "ready") return;
     const current =
       rows.querySelector<HTMLElement>('[aria-current="page"]') ??
-      rows.querySelector<HTMLElement>("button:not(:disabled)");
+      rows.querySelector<HTMLElement>(ROW_TARGETS);
     if (!current) return;
     rows.scrollTop =
       current.offsetTop - rows.clientHeight / 2 + current.offsetHeight / 2;
@@ -200,13 +260,11 @@ export function FolderListPopover({
 
   const handleRowsKeyDown = (event: ReactKeyboardEvent<HTMLUListElement>) => {
     if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
-    const buttons = [
-      ...event.currentTarget.querySelectorAll<HTMLButtonElement>(
-        "button:not(:disabled)",
-      ),
+    const targets = [
+      ...event.currentTarget.querySelectorAll<HTMLElement>(ROW_TARGETS),
     ];
-    const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
-    const target = buttons[at + (event.key === "ArrowDown" ? 1 : -1)];
+    const at = targets.indexOf(document.activeElement as HTMLElement);
+    const target = targets[at + (event.key === "ArrowDown" ? 1 : -1)];
     if (!target) return;
     event.preventDefault();
     target.focus();
@@ -290,15 +348,14 @@ export function FolderListPopover({
         <ul ref={rowsRef} className={styles.rows} onKeyDown={handleRowsKeyDown}>
           {parent !== null ? (
             <li>
-              <button
-                type="button"
-                className={styles.row}
-                aria-label={t("folderListParent" as never)}
-                onClick={() => setFolder(parent)}
+              <RowLink
+                href={folderHref(parent)}
+                label={t("folderListParent" as never)}
+                activate={() => setFolder(parent)}
               >
                 <Glyph folder />
                 <span className={styles.name}>../</span>
-              </button>
+              </RowLink>
             </li>
           ) : null}
           {listing.state === "loading" ? (
@@ -311,32 +368,39 @@ export function FolderListPopover({
             entries.map((entry) => {
               const path = childPath(folder, entry.name);
               const isFolder = entry.kind === "folder";
+              const cells = (
+                <>
+                  <Glyph folder={isFolder} />
+                  <span className={styles.name}>
+                    {isFolder ? `${entry.name}/` : entry.name}
+                  </span>
+                  <span className={styles.size}>
+                    {entry.size !== undefined ? formatFileSize(entry.size) : ""}
+                  </span>
+                  <span className={styles.age}>
+                    {entry.modifiedAt !== undefined
+                      ? briefAge(entry.modifiedAt, now)
+                      : ""}
+                  </span>
+                </>
+              );
               return (
                 <li key={entry.name}>
-                  <button
-                    type="button"
-                    className={styles.row}
-                    disabled={entry.kind === "other"}
-                    aria-current={path === currentPath ? "page" : undefined}
-                    onClick={() =>
-                      isFolder ? setFolder(path) : onOpenFile(path)
-                    }
-                  >
-                    <Glyph folder={isFolder} />
-                    <span className={styles.name}>
-                      {isFolder ? `${entry.name}/` : entry.name}
-                    </span>
-                    <span className={styles.size}>
-                      {entry.size !== undefined
-                        ? formatFileSize(entry.size)
-                        : ""}
-                    </span>
-                    <span className={styles.age}>
-                      {entry.modifiedAt !== undefined
-                        ? briefAge(entry.modifiedAt, now)
-                        : ""}
-                    </span>
-                  </button>
+                  {entry.kind === "other" ? (
+                    <button type="button" className={styles.row} disabled>
+                      {cells}
+                    </button>
+                  ) : (
+                    <RowLink
+                      href={isFolder ? folderHref(path) : fileHref(path)}
+                      current={path === currentPath}
+                      activate={() =>
+                        isFolder ? setFolder(path) : onOpenFile(path)
+                      }
+                    >
+                      {cells}
+                    </RowLink>
+                  )}
                 </li>
               );
             })

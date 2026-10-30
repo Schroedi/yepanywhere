@@ -543,6 +543,7 @@ export const FilePathLink = memo(function FilePathLink({
           canStartNewSession={publicShareContext === null}
           onClose={closeContextMenu}
           onOpen={() => openFromMenu()}
+          newTabHref={fileViewUrl ?? undefined}
           download={menuDownload()}
           onOpenSource={
             hasPresentationChoice ? () => openFromMenu("source") : undefined

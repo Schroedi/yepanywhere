@@ -205,6 +205,8 @@ interface FileViewerProps {
    * segment's folder list. Without it the file opens in a nested viewer.
    */
   onNavigateFile?: (filePath: string) => void;
+  /** A folder whose path-segment list opens on arrival (`folder=` in a URL). */
+  initialFolder?: string;
 }
 
 export interface FileViewerScrollMemory {
@@ -675,6 +677,7 @@ export const FileViewer = memo(function FileViewer({
   headerLeading,
   scrollMemory,
   onNavigateFile,
+  initialFolder,
 }: FileViewerProps) {
   const { t } = useI18n();
   const quoteTextBlock = useQuoteReply();
@@ -2101,6 +2104,7 @@ export const FileViewer = memo(function FileViewer({
                 publicShareContext === null ? source.listFolder : undefined
               }
               onOpenFile={onNavigateFile ?? setBreadcrumbFile}
+              initialFolder={initialFolder}
             />
           </span>
           <div

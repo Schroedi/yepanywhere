@@ -91,6 +91,8 @@ export interface ResourceContextMenuProps {
   /** An outside path whose checkout or directory may open in a new tab. */
   localSource?: LocalSourceTarget;
   onOpen: () => void;
+  /** The resource's own app URL, offered as "Open in new tab" after Open. */
+  newTabHref?: string;
   onOpenPreview?: () => void;
   onOpenSource?: () => void;
   onStartNewSession?: () => void;
@@ -420,6 +422,7 @@ export function ResourceContextMenu({
   download,
   localSource,
   onOpen,
+  newTabHref,
   onOpenPreview,
   onOpenSource,
   onStartNewSession,
@@ -467,6 +470,7 @@ export function ResourceContextMenu({
     window.matchMedia("(hover: hover) and (pointer: fine)").matches;
   const rootItemCount =
     1 +
+    Number(Boolean(newTabHref)) +
     Number(Boolean(commentPath)) +
     Number(Boolean(download)) +
     Number(Boolean(canStartNewSession && onStartNewSession)) +
@@ -581,6 +585,16 @@ export function ResourceContextMenu({
               t("fileLinkMenuOpen" as never)
             )}
           </FilePathContextMenuItem>
+          {newTabHref ? (
+            <FilePathContextMenuItem
+              onHover={usesHoverFlyout ? () => setPanel("root") : undefined}
+              onSelect={() =>
+                select(() => window.open(newTabHref, "_blank", "noopener"))
+              }
+            >
+              {t("fileLinkMenuOpenInNewTab" as never)}
+            </FilePathContextMenuItem>
+          ) : null}
           {commentPath ? (
             <FilePathContextMenuItem onSelect={() => select(commentPath)}>
               {t("projectPathComment")}

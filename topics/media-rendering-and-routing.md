@@ -489,8 +489,14 @@ vocabulary even though their authorization routes remain distinct:
   without the old file's line, range or diff target: the file page pushes a
   history entry, a session viewer's label and reload route follow the new
   file, and a viewer embedded in Source Control opens it in a nested viewer.
+  Segments, the name and listing rows are real links, so a middle or modified
+  click opens a new tab while a plain click acts in place. A file row links to
+  its viewer page; a folder (segment, name, `../` or folder row) has no page
+  of its own, so it links to the open file's page with `folder=<path>`, which
+  lists that folder on arrival under its segment, else under the name.
   Right-click on a folder opens a folder menu headed by that folder's path:
-  **Open** (its list), **New session** (prefilled with the folder),
+  **Open** (its list), **Open in new tab** (that `folder=` page), **New
+  session** (prefilled with the folder),
   **Copy project-relative path**, **Copy absolute folder path** and **Copy
   listing** (entry names, one per line). Source/Preview, viewer link, contents,
   public URL, download and GitHub link have no folder meaning and are absent;
@@ -524,7 +530,10 @@ every byte source is a file:
   normalized tool-result filenames and previews, legacy path-backed
   `ViewImage` and image `Read` results, compact-gallery thumbnails, project
   viewer images, and the full image viewer opens the same resource menu.
-- **Open** is direct. **Download** appears when the client has a byte source.
+- **Open** is direct. **Open in new tab** follows it when the resource has its
+  own app URL (a transcript file link's viewer page, a path folder's
+  `folder=` page); a viewer's own menu omits it because its **Open** already
+  opens a new tab. **Download** appears when the client has a byte source.
   **Copy image** and the available semantic-coordinate actions are direct
   root-menu rows: **Copy project-relative path**, **Copy absolute file path**,
   **Copy file path**, and **Copy viewer link**. An unavailable coordinate is
