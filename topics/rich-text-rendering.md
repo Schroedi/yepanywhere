@@ -84,7 +84,9 @@ These run unconditionally and are not user-configurable:
   never appear as literal characters. (`stripAnsiEscapes` inside `renderFixedFontRichContent`)
 - **Bare URLs in fixed-font text are links** — terminal output, fenced and
   indented blocks, and inline code render a bare `http(s)` URL with a dotted
-  host as an anchor around the unchanged text; other schemes stay plain. One
+  or loopback host (`localhost`, bracketed IPv6) as an anchor around the
+  unchanged text; other schemes and dotless hosts stay plain. User turns use
+  the same rule through `LinkifiedText`. One
   renderer answers this for every such surface (`linkifyToHtml` in
   `packages/shared/src/linkify.ts`). Terminal output opens the link in a new
   tab, since that markup reaches the page unsanitized. A Markdown anchor stays
