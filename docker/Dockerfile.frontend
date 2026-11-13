@@ -20,8 +20,12 @@ RUN pnpm install --frozen-lockfile
 # Copy source code
 COPY packages/shared/ packages/shared/
 COPY packages/client/ packages/client/
-# The design playground (bundled into the remote build) imports this baseline.
-COPY scripts/css-architecture-baseline.json scripts/
+# The design playground (bundled into the remote build) imports these from the
+# repo-root scripts/ directory (packages/client/design/**).
+COPY scripts/css-architecture-baseline.json \
+     scripts/css-class-string-allowlist.json \
+     scripts/css-runtime-families.json \
+     scripts/
 
 # Build shared first, then remote client. Run vite directly instead of
 # build:remote: its tsc step type-checks client tests that import server
