@@ -300,7 +300,10 @@ import {
   createProjectQueueRoutes,
 } from "./routes/project-queue.js";
 import { createProjectsRoutes } from "./routes/projects.js";
-import { createProvidersRoutes } from "./routes/providers.js";
+import {
+  createProvidersRoutes,
+  DISABLED_PROVIDER_CAPABILITIES,
+} from "./routes/providers.js";
 import { createCodexUpdateRoutes } from "./routes/codex-updates.js";
 import { mountPublicShareRoutes } from "./routes/public-share-mounting.js";
 import { createRecentsRoutes } from "./routes/recents.js";
@@ -2862,6 +2865,7 @@ export function createApp(options: AppOptions): AppResult {
     "/api/version",
     appProviderRuntime.versionRoutes({
       getLatestVersion: options.getLatestVersion,
+      deniedCapabilities: DISABLED_PROVIDER_CAPABILITIES,
       collectionQueryUpdatesAvailable: !!options.eventBus,
       installedMachineControlAvailable: machineControlMounted,
       agentSessionViewAvailable: agentSelfEnabled(),
