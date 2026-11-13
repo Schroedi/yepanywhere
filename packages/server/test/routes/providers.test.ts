@@ -1,7 +1,12 @@
 import type { ModelInfo, ProviderInfo } from "@yep-anywhere/shared";
+import {
+  PROVIDER_SUBSCRIPTION_USAGE_CAPABILITY,
+  serverHasCapability,
+} from "@yep-anywhere/shared";
 import { describe, expect, it, vi } from "vitest";
 import { createProvidersRoutes } from "../../src/routes/providers.js";
 import { getRawProvider } from "../../src/sdk/providers/index.js";
+import { createApp } from "../setup/create-app.js";
 import type {
   AgentProvider,
   AuthStatus,
@@ -715,7 +720,7 @@ describe("Providers Routes", () => {
     ]);
   });
 
-  it("caches normalized subscription usage and refreshes on demand", async () => {
+  it("never probes provider subscription usage", async () => {
     const getSubscriptionUsage = vi.fn(async () => ({
       provider: "claude" as const,
       fetchedAt: "2026-07-29T00:00:00.000Z",
@@ -743,13 +748,20 @@ describe("Providers Routes", () => {
     expect(first.status).toBe(200);
     expect(cached.status).toBe(200);
     expect(refreshed.status).toBe(200);
-    expect(getSubscriptionUsage).toHaveBeenCalledTimes(2);
-    expect(await refreshed.json()).toEqual({
-      usage: expect.objectContaining({
-        provider: "claude",
-        windows: [expect.objectContaining({ usedPercent: 72 })],
-      }),
-    });
+    expect(getSubscriptionUsage).not.toHaveBeenCalled();
+    expect(provider.getAuthStatus).not.toHaveBeenCalled();
+    expect(await refreshed.json()).toEqual({ usage: null });
+  });
+
+  it("tells clients of the real app that subscription usage is unavailable", async () => {
+    const { app } = createApp({});
+    const version = await (await app.request("/api/version")).json();
+
+    // Version-implied: without the denied bit, current clients would assume
+    // the capability from the version number and keep requesting usage.
+    expect(
+      serverHasCapability(version, PROVIDER_SUBSCRIPTION_USAGE_CAPABILITY),
+    ).toBe(false);
   });
 
   it("returns null usage when a provider has no supported read path", async () => {

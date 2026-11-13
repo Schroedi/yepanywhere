@@ -88,6 +88,7 @@ import {
 import { createSpeechRoutes } from "./routes/speech.js";
 import { createUploadRoutes } from "./routes/upload.js";
 import { getServerCompatibilityInfo } from "./routes/version.js";
+import { DISABLED_PROVIDER_CAPABILITIES } from "./routes/providers.js";
 import { createWsRelayRoutes } from "./routes/ws-relay.js";
 import { createAcceptRelayConnection } from "./routes/ws-relay.js";
 import { relayResponseSerializationDiagnostics } from "./routes/ws-relay-handlers.js";
@@ -1431,6 +1432,7 @@ async function startServer() {
     const relayConfig = remoteAccessService.getActiveRelayConfig();
     if (relayConfig?.url && relayConfig?.username) {
       const compatibility = await getServerCompatibilityInfo({
+        deniedCapabilities: DISABLED_PROVIDER_CAPABILITIES,
         browserSettingsBackupAvailable: true,
         securityClientAuditAvailable: true,
         nativePush: nativePushService.version(),
